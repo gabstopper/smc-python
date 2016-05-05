@@ -25,7 +25,7 @@ Included is a test.py script that has several examples for manipulating data usi
 
 Before any commands are run, you must obtain a login session. Once commands are complete, call smc.logout() to remove the active session.
 
-```ruby
+```python
 import smc
 
 smc.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
@@ -36,13 +36,13 @@ smc.logout()
 Once a valid session is obtained, it will be re-used for each operation performed. 
 
 ###### Creating/removing a host record
-```ruby
+```python
 smc.create_host('ami', '1.1.1.2')
 smc.remove_host('ami')
 ```
 
 ###### Create group and add members
-```ruby
+```python
 smc.create_group('group_with_no_members')
 smc.create_host('ami', '1.1.1.1')
 smc.create_host('ami2', '2.2.2.2')
@@ -50,14 +50,14 @@ smc.create_group('anewgroup', ['ami','ami2']) #group with member list
 ```
 
 ###### Create / remove a single_fw instance
-```ruby
+```python
 smc.create_single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
 time.sleep(5)
 smc.remove_single_fw('myfw')
 ```
 
 ###### Example of using a search filter 
-```ruby
+```python
 mygroup = smc.filter_by_type('group', 'Skype Servers')  #Search for group named (Skype Servers)
 myfw = smc.filter_by_type('single_fw', 'vmware-fw') #Search for single fw named 'vmware-fw'
 myobject = smc.filter_by_element('myelement') #Search for object by name ignoring object type
