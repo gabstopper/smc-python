@@ -49,8 +49,7 @@ smc.create_host('ami2', '2.2.2.2')
 smc.create_group('anewgroup', ['ami','ami2']) #group with member list
 ```
 
-###### Create / remove a single_fw instance. method signature is:
-#smc.create_single_fw(name, IP (mgmt), network (mgmt), dns=None, fw_license=None)
+###### Create / remove a single_fw instance
 ```ruby
 smc.create_single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
 time.sleep(5)
