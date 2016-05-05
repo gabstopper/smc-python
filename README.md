@@ -35,7 +35,7 @@ smc.logout()
 
 Once a valid session is obtained, it will be re-used for each operation performed. 
 
-###### Creating/removing a host record. Validation is done based on IP address.
+###### Creating/removing a host record
 ```ruby
 smc.create_host('ami', '1.1.1.2')
 smc.remove_host('ami')
