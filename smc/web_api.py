@@ -8,14 +8,22 @@ import sys, json, requests
 import logging
 from smc.operationfailure import OperationFailure
 
-
 logger = logging.getLogger(__name__)
-
+        
 #only meant to be used in the module
 api_entry = None
 smc_url = None
 session = None
-    
+
+class ResultObject(object):
+    def __init__(self, result, etag):
+        self.etag = etag
+        if 'result' in result:
+            self.result = result['result']
+        else:
+            self.result = result
+
+            
 def get_api_entry(url, api_version=None):
     global api_entry, smc_url
     try:
@@ -41,44 +49,56 @@ def get_api_entry(url, api_version=None):
             
     except requests.exceptions.RequestException as e:
         raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
-        #logger.exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
+        
         
 def get_entry_href(verb):
     """ Returns the API entry point cache for the specified verb.
-    Call get_all_entry_points to find all available entry points based on the 
-    SMC api """
+        Call get_all_entry_points to find all available entry points 
+        Args: 
+            * verb: top level entry point into SMC api
+    """    
     if api_entry:
         for entry in api_entry:
             if entry['rel'] == verb:
                 return entry['href']
     else:
         raise Exception("No entry points found, it is likely there is no valid login session.")
+ 
             
 def get_all_entry_points(): #for callers outside of the module
-    """ Returns all entry points into SMC api """
+    """ Returns all entry points into SMC api """   
     return api_entry
 
-#TODO: ETag support
+
 def http_get(href):
-    """ Performs HTTP GET to SMC and checks return value
-    If response code is success, results are returned"""
+    """ Get data object from SMC
+        If response code is success, results are returned with etag
+        Args:
+            * href: fully qualified href for resource
+    """   
     try:
         if session:
             r = session.get(href)
             j = json.loads(r.text)
             if r.status_code==200:
                 return j
+                #return ResultObject(j, r.headers['ETag'])
         else:
             print "No session found. Please login to continue"
             sys.exit()
             
     except requests.exceptions.RequestException as e:
         logger.error("Exception occurred during get request: %s, href: %s ignoring" % (e, href))
+
         
 def http_post(href, data, uri=None):
-    """ Performs HTTP POST to SMC and checks return value
-    If response code is success, return href to new object location
-    If not success, raise exception, caught in middle tier calling method"""      
+    """ Add object to SMC
+        If response code is success, return href to new object location
+        If not success, raise exception, caught in middle tier calling method
+        Args:
+            * data: json document with object def
+            * uri (optional): not implemented
+    """          
     r = session.post(href,
                      data=json.dumps(data),
                      headers={'content-type': 'application/json'}
@@ -90,15 +110,20 @@ def http_post(href, data, uri=None):
         logger.debug("Successfully added: %s" % data)
     else:
         raise OperationFailure("HTTP Response was: %s. Response content: %s" % (r.status_code, r.text))
+
  
-def http_put(href, data, etag=None):
-    """Performs a HTTP PUT to SMC and checks return value
-    PUT is used to change an existing object's state"""
+def http_put(href, data, etag):
+    """ Change state of existing SMC object
+        Args: 
+            * data: json encoded document
+            * etag: required by SMC, retrieve first via http get
+    """   
     r = session.put(href,
         data = json.dumps(data),
-        headers={'content-type': 'application/json'}
+        headers={'content-type': 'application/json', 'Etag': etag}
         )
     print "Return status code: %s, text: %s" % (r.status_code, r.text)
+
 
 def http_delete(href):
     r = session.delete(href)
@@ -107,16 +132,18 @@ def http_delete(href):
     else:
         raise OperationFailure("HTTP Response was: %s. Response content: %s" % (r.status_code, r.text))
         
-# Login requests
-def login(url, smc_key, api_version=None):
-    """ Login to SMC API and retrieve a valid session. Session will be re-used when multiple queries are required.
-    API Version is optional, if not provided, a GET will be executed against ip/api to get the valid
-    entry point versions and use the latest. 
-    smc_key: the key defined for the API Client created in the SMC
-    url: the SMC url, including port. For example: http://1.1.1.1:8082
-    api_version (optional): specific api version requested
-    Logout should be called to remove the session immediately from the SMC server
-    TODO: pickle session for longer term re-use? Implement SSL tracking""" 
+
+def login(url, smc_key, api_version=None):    
+    """ Login to SMC API and retrieve a valid session. 
+        Session will be re-used when multiple queries are required.
+        Args:
+            * url: ip of SMC management server
+            * smc_key: API key created for api client in SMC
+            * api_version (optional): specify api version
+            
+        Logout should be called to remove the session immediately from the SMC server
+        TODO: pickle session for longer term re-use? Implement SSL tracking
+    """
     global session
     smc_url = url    
     if api_version is None:
@@ -135,8 +162,8 @@ def login(url, smc_key, api_version=None):
     else:
         print "Login failed: status code %s" % r.status_code
         sys.exit()
-    #print "Session login info: %s" % session.cookies.items()
-  
+        
+          
 def logout():
     """ Logout session from SMC """
     r = session.put(get_entry_href('logout'))
