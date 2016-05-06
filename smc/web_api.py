@@ -6,23 +6,33 @@ Created on May 1, 2016
 
 import sys, json, requests
 import logging
-from smc.operationfailure import OperationFailure
 
 logger = logging.getLogger(__name__)
         
 #only meant to be used in the module
 api_entry = None
 smc_url = None
-session = None
+session = None   
 
-class ResultObject(object):
+class SMCResult(object):
     def __init__(self, result, etag):
         self.etag = etag
+        self.msg = self.get(result)
+        
+    def get(self, result):
         if 'result' in result:
-            self.result = result['result']
+            self.msg = result['result']
         else:
-            self.result = result
-
+            self.msg = result
+        
+class OperationFailure(Exception):
+    def __init__(self, http_code, error):
+        self.msg = self.extract(error)
+        self.http = http_code
+        
+    def extract(self, error):
+        print error
+     
             
 def get_api_entry(url, api_version=None):
     global api_entry, smc_url
@@ -100,9 +110,9 @@ def http_post(href, data, uri=None):
             * uri (optional): not implemented
     """          
     r = session.post(href,
-                     data=json.dumps(data),
-                     headers={'content-type': 'application/json'}
-                     )
+                data=json.dumps(data),
+                headers={'content-type': 'application/json'}
+                )
     if r.status_code==201:
         logger.debug("Successfully added: %s, linked to href: %s" % (data, r.headers['location']))
         return r.headers['location']
@@ -153,9 +163,9 @@ def login(url, smc_key, api_version=None):
                 
     s = requests.session() #no session yet
     r = s.post(get_entry_href('login'),
-           json={'authenticationkey': smc_key},
-           headers={'content-type': 'application/json'}
-           )
+               json={'authenticationkey': smc_key},
+               headers={'content-type': 'application/json'}
+               )
     if r.status_code==200:
         session = s #session creation was successful
         logger.debug("Login succeeded and session retrieved: %s" % session.cookies.items())
