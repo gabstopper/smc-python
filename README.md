@@ -38,7 +38,9 @@ Once a valid session is obtained, it will be re-used for each operation performe
 ###### Creating/removing a host record
 ```python
 smc.create_host('ami', '1.1.1.2')
-smc.remove_host('ami')
+smc.remove('ami')		#remove host named 'ami'
+smc.remove('agroup')	#remove group
+smc.remove('myfw')		#remove firewall instance
 ```
 
 ###### Create group and add members
@@ -55,11 +57,11 @@ smc.create_single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_li
 time.sleep(5)
 smc.remove_single_fw('myfw')
 ```
-
+get_element(name, obj_type=None, use_name_field=True):
 ###### Example of using a search filter 
 ```python
-mygroup = smc.filter_by_type('group', 'Skype Servers')  #Search for group named (Skype Servers)
-myfw = smc.filter_by_type('single_fw', 'vmware-fw') #Search for single fw named 'vmware-fw'
-myobject = smc.filter_by_element('myelement') #Search for object by name ignoring object type
+smc.get_element('myobject')  		#Search for element named 'myobject', match on 'name' field (looks at all object types)
+smc.get_element('myobject', 'host')	#Search for host element named 'myobject'; match on 'name' field
+smc.get_element('myobject', 'host', False)	#Search for host element/s with 'myobject' somewhere in the object definition
 ```
 
