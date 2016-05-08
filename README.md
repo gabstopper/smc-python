@@ -37,31 +37,32 @@ Once a valid session is obtained, it will be re-used for each operation performe
 
 ###### Creating/removing a host record
 ```python
-smc.create_host('ami', '1.1.1.2')
-smc.remove('ami')		#remove host named 'ami'
-smc.remove('agroup')	#remove group
-smc.remove('myfw')		#remove firewall instance
+smc.create.host('ami', '1.1.1.2')
+smc.remove.element('ami')		#remove host named 'ami'
+smc.remove.element('agroup')	#remove group
+smc.remove.element('myfw')		#remove firewall instance
 ```
 
 ###### Create group and add members
 ```python
-smc.create_group('group_with_no_members')
-smc.create_host('ami', '1.1.1.1')
-smc.create_host('ami2', '2.2.2.2')
-smc.create_group('anewgroup', ['ami','ami2']) #group with member list
+smc.create.group('group_with_no_members')
+smc.create.host('ami', '1.1.1.1')
+smc.create.host('ami2', '2.2.2.2')
+smc.create.group('anewgroup', ['ami','ami2']) #group with member list
+smc.create.router('myrouter', '7.7.7.7')
 ```
 
 ###### Create / remove a single_fw instance
 ```python
-smc.create_single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-time.sleep(5)
-smc.remove_single_fw('myfw')
+smc.create.single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+smc.remove.element('myfw')					#without filter
+smc.remove.element('myfw', 'single_fw') 	#with filter
 ```
-get_element(name, obj_type=None, use_name_field=True):
+
 ###### Example of using a search filter 
 ```python
-smc.get_element('myobject')  		#Search for element named 'myobject', match on 'name' field (looks at all object types)
-smc.get_element('myobject', 'host')	#Search for host element named 'myobject'; match on 'name' field
-smc.get_element('myobject', 'host', False)	#Search for host element/s with 'myobject' somewhere in the object definition
+smc.get.element('myobject')  		#Search for element named 'myobject', match on 'name' field (looks at all object types)
+smc.get.element('myobject', 'host')	#Search for host element named 'myobject'; match on 'name' field
+smc.get.element('myobject', 'host', False)	#Search for host element/s with 'myobject' somewhere in the object definition
 ```
 
