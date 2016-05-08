@@ -135,19 +135,23 @@ def http_post(href, data, uri=None):
         Returns:
             Href of the resource pulled from returned location header
             SMCOperationFailure in case of non-http 201 return
-    """          
-    r = session.post(href,
-                data=json.dumps(data),
-                headers={'content-type': 'application/json'}
-                )
-    if r.status_code==201:
-        logger.debug("Successfully added: %s, linked to href: %s" % (data, r.headers.get('location')))
-        #return r.headers['location']
-        return r.headers.get('location')
-    elif r.status_code==200: #TODO: Check with dev to see if this is needed, POST of license returns 200 vs 201
-        logger.debug("Successful POST: %s" % data)
+    """ 
+    if session:         
+        r = session.post(href,
+                    data=json.dumps(data),
+                    headers={'content-type': 'application/json'}
+                    )
+        if r.status_code==201:
+            logger.debug("Successfully added: %s, linked to href: %s" % (data, r.headers.get('location')))
+            return r.headers.get('location')
+        elif r.status_code==200: #TODO: Check with dev to see if this is needed, POST of license returns 200 vs 201
+            logger.debug("Successful POST: %s" % data)
+        else:
+            raise SMCOperationFailure(r)
     else:
-        raise SMCOperationFailure(r)
+        print "No session found. Please login to continue"
+        sys.exit()
+               
  
 def http_put(href, data, etag):
     """ Change state of existing SMC object
@@ -157,17 +161,20 @@ def http_put(href, data, etag):
         Returns:
             Href of the resource pulled from returned location header
             SMCOperationFailure in case of non-http 200 return
-    """   
-    r = session.put(href,
-        data = json.dumps(data),
-        headers={'content-type': 'application/json', 'Etag': etag}
-        )
-    if r.status_code==200:
-        logger.debug("Successful modification, new host href: %s" % r.headers['location'])
-        #TODO: Verify the return
-        return r.headers.get('location') #TODO: Return these as an SMCResult in msg
+    """ 
+    if session:  
+        r = session.put(href,
+            data = json.dumps(data),
+            headers={'content-type': 'application/json', 'Etag': etag}
+            )
+        if r.status_code==200:
+            logger.debug("Successful modification, new host href: %s" % r.headers['location'])
+            return r.headers.get('location') #TODO: Return these as an SMCResult in msg
+        else:
+            raise SMCOperationFailure(r)
     else:
-        raise SMCOperationFailure(r)
+        print "No session found. Please login to continue"
+        sys.exit()
 
 def http_delete(href):
     """ Delete element by fully qualified href
@@ -177,11 +184,15 @@ def http_delete(href):
             None
             SMCOperationFailure for non-http 204 code
     """
-    r = session.delete(href)
-    if r.status_code==204:
-        pass
+    if session:
+        r = session.delete(href)
+        if r.status_code==204:
+            pass
+        else:
+            raise SMCOperationFailure(r)
     else:
-        raise SMCOperationFailure(r)
+        print "No session found. Please login to continue"
+        sys.exit()
     
 def login(url, smc_key, api_version=None):    
     """ Login to SMC API and retrieve a valid session. 
@@ -220,8 +231,7 @@ def logout():
         logger.error("Logout failed, session may not have been logged out, status code: %s and msg: %s" % (r.status_code, r.text))
         sys.exit()
 
-    
-            
+                
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
@@ -250,5 +260,7 @@ if __name__ == '__main__':
     a=http_get("http://172.18.1.150:8082/6.0/elements?filter=ami2222")
     print "Valid search query, unknown host: %s, etag: %s" % (a.msg,a.etag)'''
     
+    #http_delete('http://172.18.1.150:8082/6.0/elements/internal_user/Y249ZGxlcGFnZSxkYz1zdG9uZWdhdGUsZG9tYWluPUludGVybmFsRG9tYWlu')
+    http_post("http://172.18.1.148:8080/bogus/thing", {"some":"data"})
     #TODO: Test other HTTP operations without valid session (like http_get)
     logout()
