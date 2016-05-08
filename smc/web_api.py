@@ -250,4 +250,5 @@ if __name__ == '__main__':
     a=http_get("http://172.18.1.150:8082/6.0/elements?filter=ami2222")
     print "Valid search query, unknown host: %s, etag: %s" % (a.msg,a.etag)'''
     
+    #TODO: Test other HTTP operations without valid session (like http_get)
     logout()

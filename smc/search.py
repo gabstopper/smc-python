@@ -34,7 +34,7 @@ def get_element(name, obj_type=None, use_name_field=True):
     logger.debug("Searching for element: %s" % name)
     result = smc.web_api.http_get(entry_href + '?filter=' + name) #execute search
    
-    if not result.msg: #Some results were returned
+    if not result.msg: #no results returned
         logger.info("No results found for element name: %s" % name)
     else:
         if not use_name_field: # Return any host objects using name as filter (wildcard match)
