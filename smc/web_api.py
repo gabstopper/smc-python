@@ -79,10 +79,15 @@ def get_api_entry(url, api_version=None):
         
         
 def get_entry_href(verb):
-    """ Returns the API entry point cache for the specified verb.
+    """ Get entry point from entry point cache 
         Call get_all_entry_points to find all available entry points 
         Args: 
             * verb: top level entry point into SMC api
+        Returns:
+            * dict of entry point specified
+        Raises
+            Exception is no entry points are found. That would mean 
+            no login has occurred
     """    
     if api_entry:
         for entry in api_entry:
@@ -104,6 +109,7 @@ def http_get(href):
             * href: fully qualified href for resource
         Returns:
             SMCResult object with json data and etag attrs
+        Raises:
             SMCOperationFailure if non-http 200 response received
     """   
     try:
@@ -120,9 +126,9 @@ def http_get(href):
             sys.exit()
             
     except requests.exceptions.RequestException as e:
-        logger.error("Exception occurred during get request: %s, href: %s ignoring" % (e, href))
-        return SMCResult()
-
+        logger.error("Exception occurred during request: %s, href: %s ignoring" % (e, href))
+        #return SMCOperationFailure(e) #returns empty result to smc.actions.search module
+        #TODO: What to do when connection may be lost during a run, not likely but possible
         
 def http_post(href, data, uri=None):
     """ Add object to SMC
@@ -134,6 +140,7 @@ def http_post(href, data, uri=None):
             * uri (optional): not implemented
         Returns:
             Href of the resource pulled from returned location header
+        Raises:
             SMCOperationFailure in case of non-http 201 return
     """ 
     if session:         
@@ -151,7 +158,6 @@ def http_post(href, data, uri=None):
     else:
         print "No session found. Please login to continue"
         sys.exit()
-               
  
 def http_put(href, data, etag):
     """ Change state of existing SMC object
@@ -160,6 +166,7 @@ def http_put(href, data, etag):
             * etag: required by SMC, retrieve first via http get
         Returns:
             Href of the resource pulled from returned location header
+        Raises:
             SMCOperationFailure in case of non-http 200 return
     """ 
     if session:  
@@ -182,6 +189,7 @@ def http_delete(href):
             *href: fully qualified reference to object in SMC
         Returns:
             None
+        Raises:
             SMCOperationFailure for non-http 204 code
     """
     if session:
@@ -261,6 +269,9 @@ if __name__ == '__main__':
     print "Valid search query, unknown host: %s, etag: %s" % (a.msg,a.etag)'''
     
     #http_delete('http://172.18.1.150:8082/6.0/elements/internal_user/Y249ZGxlcGFnZSxkYz1zdG9uZWdhdGUsZG9tYWluPUludGVybmFsRG9tYWlu')
+    #a= http_post("http://172.18.1.148:8080/bogus/thing", {"some":"data"})
+    #print "Message: %s" % a.msg
+    http_get('http://172.18.1.151:80')
     http_post("http://172.18.1.148:8080/bogus/thing", {"some":"data"})
     #TODO: Test other HTTP operations without valid session (like http_get)
     logout()

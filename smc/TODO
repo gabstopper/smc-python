@@ -1,5 +1,2 @@
-Handle ReST API http codes
-jSON templates for object types
 Command line front end
-Etag handling
-Debug setting
+Logically regroup modules together?

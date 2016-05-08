@@ -19,7 +19,7 @@ def host(name, ip, secondary_ip=[], comment=None):
         logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
 
     
-def router(name, ip):    
+def router(name, ip, comment=None):    
     if smc.helpers.is_valid_ipv4(ip):
         entry_href = smc.web_api.get_entry_href('router')
         router = smc.elements.Router(name, ip)
@@ -32,10 +32,24 @@ def router(name, ip):
     else:
         logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
 
+def network(name, ip_network, comment=None):
+    cidr = smc.helpers.ipaddr_as_network(ip_network)
+    if cidr:
+        entry_href = smc.web_api.get_entry_href('network')
+        network = smc.elements.Network(name, cidr, comment)
         
-def group(name, members=[]):
+        try:
+            r = smc.web_api.http_post(entry_href, network.get_json())
+            logger.info("Success creating network object: %s, href: %s" % (network.name, r))
+        except SMCOperationFailure, e:
+            logger.error("Failed creating network object: %s, api message: %s" % (network.name, e.msg))
+    else:
+        logger.error("Error with network object creation: %s; make sure address specified is in network: %s" % (name, ip_network))
+
+            
+def group(name, members=[], comment=None):
     entry_href = smc.web_api.get_entry_href('group')
-    group = smc.elements.Group(name)   
+    group = smc.elements.Group(name, comment=comment)   
     
     if members:
         for m in members: #add each member
@@ -52,9 +66,29 @@ def group(name, members=[]):
     except SMCOperationFailure, e:
         logger.error("Failed creating group record: %s, api message: %s" % (name, e.msg))
                          
-def network(name, ip_network, comment=None):
-    pass
-
+#TODO: Not finished implementing;This works if it's applied directly to a single fw, but not globally
+'''def blacklist(src, dst, duration="3600"):
+    if smc.helpers.is_valid_ipv4(src) and smc.helpers.is_valid_ipv4(dst):
+        
+        entry = smc.web_api.get_entry_href('blacklist')   
+        bl_template = smc.helpers.get_json_template('blacklist.json') 
+        
+        print "Blah"  
+        if bl_template:  
+            bl_template['duration'] = duration
+            bl_template['end_point1']['ip_network'] = src + '/32'
+            bl_template['end_point2']['ip_network'] = dst + '/0'
+        print bl_template
+        try:
+            smc.web_api.http_post('http://172.18.1.150:8082/6.0/elements/fw_cluster/116/blacklist', bl_template)
+        except SMCOperationFailure, e:
+            print "Error!: %s" % e.msg
+                
+    else:
+        #logger.error("Invalid IP address given for blacklist entry, src: %s, dst: %s" % (src,dst))  
+        print "Invalid IP address given for blacklist entry, src: %s, dst: %s" % (src,dst)
+'''
+        
 def single_fw(name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
     if not smc.helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
         logger.error("Failed: Management IP is not in the management network, can't add single_fw")
@@ -114,9 +148,19 @@ def virtual_fw(data):
 if __name__ == '__main__':
     smc.web_api.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
-    smc.create.single_fw('test-run2', '3.3.3.3', '3.3.3.0/24', dns='6.6.6.6', fw_license=True)
+    smc.create.group('lepagegroup', comment='test comments - see this')
+    #print smc.helpers.is_valid_ipv4('1.2.3.4')
+    #print smc.helpers.ipaddr_as_network('1.2.0.0/255.255.252.0')
+    #print smc.helpers.ipaddr_as_network('1.2.0.0/22')
+    #print smc.helpers.ipaddr_as_network('1.2.3.4/22')
+    smc.create.network('hostbitsnotinnetwork', '1.2.3.0/255.255.252.0')
+    smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')
+    smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')
+    
+    '''smc.create.single_fw('test-run2', '3.3.3.3', '3.3.3.0/24', dns='6.6.6.6', fw_license=True)
     import time
-    time.sleep(30)
+    time.sleep(15)
     smc.remove.element('test-run2')
+    smc.remove.element('sdf')'''
     
     smc.web_api.logout()

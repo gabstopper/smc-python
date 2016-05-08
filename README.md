@@ -47,8 +47,15 @@ smc.remove.element('myfw')		#remove firewall instance
 ```python
 smc.create.group('group_with_no_members')
 smc.create.host('ami', '1.1.1.1')
-smc.create.host('ami2', '2.2.2.2')
+smc.create.host('ami2', '2.2.2.2', comment='this is my comment')	#with optional comment
 smc.create.group('anewgroup', ['ami','ami2']) #group with member list
+```
+
+###### Create networks and router objects
+```python
+smc.create.network('hostbitsnotinnetwork', '1.2.3.0/255.255.252.0')
+smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')
+smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')
 smc.create.router('myrouter', '7.7.7.7')
 ```
 

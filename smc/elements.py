@@ -19,15 +19,18 @@ class Host(object):
         return host 
     
 class Group(object):
-    def __init__(self, name, members=[]):
+    def __init__(self, name, members=[], comment=None):
         self.name = name
         self.members = members
+        self.comment = comment
         
     def get_json(self):
         group = smc.helpers.get_json_template('group.json')
         group['name'] = self.name
         if self.members:
             group['element'] = self.members
+        if self.comment:
+            group['comment'] = self.comment
         return group
 
 class Router(object):
@@ -45,6 +48,20 @@ class Router(object):
                 router['secondary'].append(addr)
         return router   
 
+class Network(object):
+    def __init__(self, name, ipv4_network, comment=None):
+        self.name = name
+        self.ip4_network = ipv4_network
+        self.comment = comment
+        
+    def get_json(self):
+        network = smc.helpers.get_json_template('network.json')
+        network['name'] = self.name
+        network['ipv4_network'] = self.ip4_network
+        if self.comment:
+            network['comment'] = self.comment
+        return network
+        
 class SingleFW(object):
     def __init__(self, name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
         self.name = name

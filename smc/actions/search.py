@@ -84,9 +84,14 @@ def get_element_by_entry_point(name):
 if __name__ == '__main__':
     smc.web_api.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
-    print "get_element-allmatchingbyname: %s" % get_element('ami')                #get all matching elements with name=ami
-    print "get_element-routerobj: %s" % get_element('ami', 'router')        #get only matching host elements matching name=ami
-    print "get_element-hostandallmatching: %s" % get_element('ami', 'host', False) #get all matching host elements (wildcard)
+    ref = smc.search.get_element('testgroupwithcomment')
+    #print ref
+    print smc.search.get_element_by_href(ref['href'])
+    
+
+    #print "get_element-allmatchingbyname: %s" % get_element('ami')                #get all matching elements with name=ami
+    #print "get_element-routerobj: %s" % get_element('ami', 'router')        #get only matching host elements matching name=ami
+    #print "get_element-hostandallmatching: %s" % get_element('ami', 'host', False) #get all matching host elements (wildcard)
      
     '''
     print "Filter by element: %s" % filter_by_element('ami')

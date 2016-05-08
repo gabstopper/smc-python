@@ -7,10 +7,10 @@ def readme():
 setup(name='smc_py',
       version='0.1',
       description='Python based API to Stonesoft Security Management Center',
-      url='http://github.com/gabstopper/smc-py',
+      url='http://github.com/gabstopper/smc-python',
       author='David LePage',
       author_email='dwlepage70@gmail.com',
-      license='MIT',
+      license='None',
       packages=['smc'],
       install_requires=[
           'requests',

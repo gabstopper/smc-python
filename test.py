@@ -5,6 +5,8 @@ from pprint import pprint
 
 logger = logging.getLogger(__name__)
 
+
+
 smc.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
 
 #smc.web_api.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
