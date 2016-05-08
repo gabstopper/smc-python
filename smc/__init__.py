@@ -5,4 +5,4 @@ from smc.remove import *
 from smc.helpers import get_json_template
 from smc.engine_license import *
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
