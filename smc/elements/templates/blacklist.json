@@ -1,0 +1,14 @@
+{
+	"name": "",
+	"duration": "",
+	"end_point1": {
+		"name": "",
+		"address_mode": "address",
+		"ip_network": ""
+	},
+	"end_point2": {
+		"name": "",
+		"address_mode": "address",
+		"ip_network": ""
+	}
+}

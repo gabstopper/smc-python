@@ -1,0 +1,78 @@
+{
+	"name": "api-fw",
+	"nodes": [{
+		"firewall_node": {
+			"activate_test": true,
+			"disabled": false,
+			"loopback_node_dedicated_interface": [],
+			"name": "api-fw node 1",
+			"nodeid": 1
+		}
+	}],
+	"domain_server_address": [],
+	"log_server_ref": "http://1.1.1.1/6.0/elements/log_server/11",
+	"physicalInterfaces": [{
+		"physical_interface": {
+			"aggregate_mode": "none",
+			"arp_entry": [],
+			"cvi_mode": "none",
+			"dhcp_server_on_interface": {
+				"default_lease_time": 7200,
+				"dhcp_range_per_node": []
+			},
+			"interface_id": "0",
+			"interfaces": [{
+				"single_node_interface": {
+					"address": "1.1.1.2",
+					"auth_request": true,
+					"auth_request_source": false,
+					"automatic_default_route": false,
+					"backup_for_web_access": false,
+					"backup_heartbeat": false,
+					"backup_mgt": false,
+					"dynamic": false,
+					"igmp_mode": "none",
+					"network_value": "1.1.1.0/24",
+					"nicid": "0",
+					"nodeid": 1,
+					"outgoing": true,
+					"pppoa": false,
+					"pppoe": false,
+					"pppoe_password": "*****",
+					"primary_for_web_access": false,
+					"primary_heartbeat": false,
+					"primary_mgt": true,
+					"relayed_by_dhcp": false,
+					"reverse_connection": false,
+					"vrrp": false,
+					"vrrp_id": -1,
+					"vrrp_priority": -1
+				}
+			}],
+			"log_moderation": [{
+				"burst": 1000,
+				"log_event": "1",
+				"rate": 100
+			}, {
+				"log_event": "2"
+			}],
+			"managed_address_flag": false,
+			"mtu": -1,
+			"other_configuration_flag": false,
+			"qos_limit": -1,
+			"qos_mode": "no_qos",
+			"router_advertisement": false,
+			"syn_mode": "default",
+			"sync_parameter": {
+				"full_sync_interval": 5000,
+				"heartbeat_group_ip": "224.0.0.221",
+				"incr_sync_interval": 50,
+				"statesync_group_ip": "224.0.0.222",
+				"sync_mode": "sync_all",
+				"sync_security": "sign"
+			},
+			"virtual_engine_vlan_ok": false,
+			"vlanInterfaces": []
+		}
+	}]
+}

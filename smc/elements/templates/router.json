@@ -1,0 +1,12 @@
+{
+	"address": "",
+	"key": 1328,
+	"name": "",
+	"read_only": false,
+	"secondary": [],
+	"system": false,
+	"third_party_monitoring": {
+		"netflow": false,
+		"snmp_trap": false
+	}
+}
