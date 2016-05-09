@@ -1,14 +1,13 @@
-import logging
-import smc.elements
+import smc
 from smc.web_api import SMCOperationFailure
 
+import logging
 logger = logging.getLogger(__name__)
-
 
 def host(name, ip, secondary_ip=[], comment=None):
     if smc.helpers.is_valid_ipv4(ip):
         entry_href = smc.web_api.get_entry_href('host')        
-        host = smc.elements.Host(name, ip, secondary_ip=[], comment=None)            
+        host = smc.element.Host(name, ip, secondary_ip=[], comment=None)            
         
         try:
             r = smc.web_api.http_post(entry_href, host.get_json())           
@@ -22,7 +21,7 @@ def host(name, ip, secondary_ip=[], comment=None):
 def router(name, ip, comment=None):    
     if smc.helpers.is_valid_ipv4(ip):
         entry_href = smc.web_api.get_entry_href('router')
-        router = smc.elements.Router(name, ip)
+        router = smc.element.Router(name, ip)
         
         try:
             r = smc.web_api.http_post(entry_href, router.get_json())
@@ -36,7 +35,7 @@ def network(name, ip_network, comment=None):
     cidr = smc.helpers.ipaddr_as_network(ip_network)
     if cidr:
         entry_href = smc.web_api.get_entry_href('network')
-        network = smc.elements.Network(name, cidr, comment)
+        network = smc.element.Network(name, cidr, comment)
         
         try:
             r = smc.web_api.http_post(entry_href, network.get_json())
@@ -49,7 +48,7 @@ def network(name, ip_network, comment=None):
             
 def group(name, members=[], comment=None):
     entry_href = smc.web_api.get_entry_href('group')
-    group = smc.elements.Group(name, comment=comment)   
+    group = smc.element.Group(name, comment=comment)   
     
     if members:
         for m in members: #add each member
@@ -99,7 +98,7 @@ def single_fw(name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
         logger.error("Can't seem to find an available Log Server on specified SMC, can't add single_fw: %s" % name)
         return None
     
-    single_fw = smc.elements.SingleFW(name, mgmt_ip, mgmt_network)
+    single_fw = smc.element.SingleFW(name, mgmt_ip, mgmt_network)
     
     for found in available_log_servers:
         #TODO: If multiple log servers are present, how to handle - just get the first one
@@ -147,8 +146,8 @@ def virtual_fw(data):
 
 if __name__ == '__main__':
     smc.web_api.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    
-    smc.create.group('lepagegroup', comment='test comments - see this')
+    import smc.actions
+    smc.actions.create.group('lepagegroup', comment='test comments - see this')
     #print smc.helpers.is_valid_ipv4('1.2.3.4')
     #print smc.helpers.ipaddr_as_network('1.2.0.0/255.255.252.0')
     #print smc.helpers.ipaddr_as_network('1.2.0.0/22')
