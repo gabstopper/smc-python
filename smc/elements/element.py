@@ -1,13 +1,17 @@
 import smc.helpers
 
-class Host(object):
-    def __init__(self, name, ip, secondary_ip=[], comment=None):
-        self.name = name
-        self.ip = ip
-        self.secondary_ip = secondary_ip
-        self.comment = None
+class SMCElement(object):
+    def __init__(self, json):
+        self.json = json
         
-    def get_json(self):
+class Host(object):
+    def __init__(self):
+        self.name = None
+        self.ip = None
+        self.secondary_ip = None
+        self.comment = None
+    
+    def create(self):
         host = smc.helpers.get_json_template('host.json')
         host['name'] = self.name
         host['address'] = self.ip
@@ -18,13 +22,14 @@ class Host(object):
                 host['secondary'].append(addr)
         return host 
     
+    
 class Group(object):
-    def __init__(self, name, members=[], comment=None):
-        self.name = name
-        self.members = members
-        self.comment = comment
-        
-    def get_json(self):
+    def __init__(self):
+        self.name = None
+        self.members = None
+        self.comment = None
+    
+    def create(self):
         group = smc.helpers.get_json_template('group.json')
         group['name'] = self.name
         if self.members:
@@ -33,13 +38,14 @@ class Group(object):
             group['comment'] = self.comment
         return group
 
+
 class Router(object):
-    def __init__(self, name, address, secondary_ip=[]):
-        self.name = name
-        self.address = address
-        self.secondary_ip = secondary_ip 
-        
-    def get_json(self):
+    def __init__(self):
+        self.name = None
+        self.address = None
+        self.secondary_ip = None 
+    
+    def create(self):
         router = smc.helpers.get_json_template('router.json')
         router['name'] = self.name
         router['address'] = self.address
@@ -47,32 +53,64 @@ class Router(object):
             for addr in self.secondary_ip:
                 router['secondary'].append(addr)
         return router   
+    
 
 class Network(object):
-    def __init__(self, name, ipv4_network, comment=None):
-        self.name = name
-        self.ip4_network = ipv4_network
-        self.comment = comment
-        
-    def get_json(self):
+    def __init__(self):
+        self.name = None
+        self.ip4_network = None
+        self.comment = None
+    
+    def create(self):
         network = smc.helpers.get_json_template('network.json')
         network['name'] = self.name
         network['ipv4_network'] = self.ip4_network
         if self.comment:
             network['comment'] = self.comment
         return network
+
         
 class SingleFW(object):
-    def __init__(self, name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
-        self.name = name
-        self.mgmt_ip = mgmt_ip
-        self.mgmt_network = mgmt_network
+    def __init__(self, SMCElement=None):
+        self.name = None
+        self.mgmt_ip = None
+        self.mgmt_network = None
         self.log_server = None
-        self.dns = dns
-        self.fw_license = fw_license
+        self.dns = None
+        self.fw_license = None
+        self.element = SMCElement    #existing json to modify
     
-    def get_json(self):
+    def add_interface(self, ip, mask):
+        """ Add physical interface to firewall
+            Args: 
+                * ip address of interface
+                * mask in cidr format
+        """
+        interface = smc.helpers.get_json_template('routed_interface.json')
+        interface_ids = [] #node_id with latest value for existing interfaces, add 1 for newly created interface
+        
+        for node_interface in self.element.json['physicalInterfaces']:
+            #print node_interface['physical_interface']['interface_id'] #Get next available interface id
+            interface_ids.append(node_interface['physical_interface']['interface_id'])
+        interface_id = [int(i) for i in interface_ids]  #needed to find max
+        interface_id = max(interface_id)+1
+        print "Next available interface is: %s" % interface_id
+
+        phys_iface = interface['physical_interface']
+        phys_iface['interface_id'] = interface_id
+        iface = interface['physical_interface']['interfaces'][0]
+        iface = iface['single_node_interface']
+        iface['address'] = ip
+        iface['nicid'] = str(interface_id)
+        iface['network_value'] = mask
+        
+        self.element.json['physicalInterfaces'].append(interface)
+        
+        return self.element.json
+        
+    def create(self):
         single_fw = smc.helpers.get_json_template('single_fw.json')
+        
         for k,v in single_fw.iteritems():    
             if k == 'name':
                 single_fw[k] = self.name
@@ -87,9 +125,11 @@ class SingleFW(object):
                 if self.dns:
                     single_fw[k].append({"rank": 0, "value": self.dns})
         return single_fw
-           
-        
-        
+       
+
+def get_element(SMCElement):
+    pass
+
         
         
         
