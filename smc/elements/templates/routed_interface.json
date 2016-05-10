@@ -20,7 +20,6 @@
 					"dynamic": false,
 					"igmp_mode": "none",
 					"network_value": "@NET@",
-					"nicid": "@NICID@",
 					"nodeid": 1,
 					"outgoing": false,
 					"pppoa": false,
