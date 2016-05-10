@@ -1,6 +1,7 @@
 import smc
 import logging
-from smc import SMCOperationFailure
+import smc.api.web as web_api
+from smc.api.web import SMCOperationFailure
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,9 @@ def bind_license(node_bind_license_href, license_id=None):
             None
     """
     license_id = get_dynamic_license()
-    t = { 'license_id' : license_id }
+    t = {'license_id': license_id}
     try:
-        smc.web_api.http_post(node_bind_license_href, t)
+        web_api.session.http_post(node_bind_license_href, t)
     except SMCOperationFailure, e:
         logger.error("Error binding license: %s" % e.msg)
     

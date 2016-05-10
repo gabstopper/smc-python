@@ -1,8 +1,9 @@
+
 def modify_host(data):
     pass
 
-def modify_single_fw(data):
-    pass
+def single_fw(data):
+    pass    
 
 def modify_cluster_fw(data):
     pass
