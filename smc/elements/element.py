@@ -79,6 +79,7 @@ class SingleFW(object):
         self.log_server = None
         self.dns = None
         self.fw_license = None
+        self.interface_id = None
         self.element = SMCElement    #existing json for modification/add
     
     def add_interface(self, ip, mask, int_id=None):
@@ -86,17 +87,18 @@ class SingleFW(object):
             Args: 
                 * ip: address of interface
                 * mask: in cidr format
-                * int_id (optional): id for interface
+                * int_id (optional): id for interface, if not set, uses next available
         """
         interface = smc.helpers.get_json_template('routed_interface.json')
         interface_ids = [] #store existing node_id to find next open
         
         for node_interface in self.element.json['physicalInterfaces']:
             interface_ids.append(node_interface['physical_interface']['interface_id'])
+        
         interface_id = [int(i) for i in interface_ids]  #needed to find max
         interface_id = max(interface_id)+1
-        #print "Next available interface is: %s" % interface_id
-
+        self.interface_id = interface_id
+        
         phys_iface = interface['physical_interface']
         phys_iface['interface_id'] = str(interface_id)
         iface = interface['physical_interface']['interfaces'][0]
@@ -112,21 +114,25 @@ class SingleFW(object):
     def create(self):
         single_fw = smc.helpers.get_json_template('single_fw.json')
         
-        for k,v in single_fw.iteritems():    
+        for k in single_fw:
             if k == 'name':
                 single_fw[k] = self.name
             elif k == 'nodes':
+                print "nodes: %s" % single_fw[k]
                 single_fw[k][0]['firewall_node']['name'] = self.name + ' node 1'
             elif k == 'physicalInterfaces':
+                print "phys_int: %s" % single_fw[k]
                 single_fw[k][0]['physical_interface']['interfaces'][0]['single_node_interface']['address'] = self.mgmt_ip
                 single_fw[k][0]['physical_interface']['interfaces'][0]['single_node_interface']['network_value'] = self.mgmt_network
             elif k == 'log_server_ref':
+                print "logserver: %s" % single_fw[k]
                 single_fw[k] = self.log_server
             elif k == 'domain_server_address':
                 if self.dns:
                     single_fw[k].append({"rank": 0, "value": self.dns})
-        return single_fw
-       
+        
+        return single_fw    
+    
 
 class L2FW(object):
     def __init__(self, SMCElement=None):
