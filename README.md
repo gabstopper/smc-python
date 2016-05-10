@@ -35,7 +35,7 @@ smc.logout()
 
 Once a valid session is obtained, it will be re-used for each operation performed. 
 
-###### Creating/removing a host record
+###### Creating / removing host records
 ```python
 smc.create.host('ami', '1.1.1.2')
 smc.remove.element('ami')		#remove host named 'ami'
@@ -62,6 +62,9 @@ smc.create.router('myrouter', '7.7.7.7')
 ###### Create / remove a single_fw instance
 ```python
 smc.create.single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+smc.create.l3interface('myfw', '5.5.5.5', '5.5.0.0/16')
+smc.create.l3interface('myfw', '6.6.6.6', '6.6.6.0/255.255.255.0')
+
 smc.remove.element('myfw')					#without filter
 smc.remove.element('myfw', 'single_fw') 	#with filter
 ```
