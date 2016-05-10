@@ -3,6 +3,7 @@ import smc.helpers
 class SMCElement(object):
     def __init__(self, json):
         self.json = json
+
         
 class Host(object):
     def __init__(self):
@@ -78,26 +79,26 @@ class SingleFW(object):
         self.log_server = None
         self.dns = None
         self.fw_license = None
-        self.element = SMCElement    #existing json to modify
+        self.element = SMCElement    #existing json for modification/add
     
-    def add_interface(self, ip, mask):
+    def add_interface(self, ip, mask, int_id=None):
         """ Add physical interface to firewall
             Args: 
-                * ip address of interface
-                * mask in cidr format
+                * ip: address of interface
+                * mask: in cidr format
+                * int_id (optional): id for interface
         """
         interface = smc.helpers.get_json_template('routed_interface.json')
-        interface_ids = [] #node_id with latest value for existing interfaces, add 1 for newly created interface
+        interface_ids = [] #store existing node_id to find next open
         
         for node_interface in self.element.json['physicalInterfaces']:
-            #print node_interface['physical_interface']['interface_id'] #Get next available interface id
             interface_ids.append(node_interface['physical_interface']['interface_id'])
         interface_id = [int(i) for i in interface_ids]  #needed to find max
         interface_id = max(interface_id)+1
-        print "Next available interface is: %s" % interface_id
+        #print "Next available interface is: %s" % interface_id
 
         phys_iface = interface['physical_interface']
-        phys_iface['interface_id'] = interface_id
+        phys_iface['interface_id'] = str(interface_id)
         iface = interface['physical_interface']['interfaces'][0]
         iface = iface['single_node_interface']
         iface['address'] = ip
@@ -127,6 +128,11 @@ class SingleFW(object):
         return single_fw
        
 
+class L2FW(object):
+    def __init__(self, SMCElement=None):
+        pass
+    
+    
 def get_element(SMCElement):
     pass
 
