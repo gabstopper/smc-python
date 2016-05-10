@@ -3,9 +3,8 @@ Created on May 1, 2016
 
 @author: davidlepage
 '''
-
+import smc.api.web as web_api
 import logging
-import smc
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +23,18 @@ def get_element(name, obj_type=None, use_name_field=True):
     """   
     entry_href = None
     if obj_type:
-        entry_href = smc.web_api.get_entry_href(obj_type)   #specific obj type entry
+        #entry_href = smc.web_api.get_entry_href(obj_type)   #specific obj type entry
+        entry_href = web_api.session.cache.get_href(obj_type)
         if not entry_href:
             logger.error("Object type entry point specified was not found: %s" % obj_type)
             return
     else:
-        entry_href = smc.web_api.get_entry_href('elements') #entry point for all elements
+        #entry_href = smc.web_api.get_entry_href('elements') #entry point for all elements
+        entry_href = web_api.session.cache.get_href('elements') #entry point for all elements
     
     logger.debug("Searching for element: %s" % name)
-    result = smc.web_api.http_get(entry_href + '?filter=' + name) #execute search
+    #result = smc.web_api.http_get(entry_href + '?filter=' + name) #execute search
+    result = web_api.session.http_get(entry_href + '?filter=' + name) #execute search
    
     if not result.msg: #no results returned
         logger.info("No results found for element name: %s" % name)
@@ -60,7 +62,8 @@ def get_element_by_href(name):
         Returns:
             Json record representing match
     """
-    result = smc.web_api.http_get(name)
+    #result = smc.web_api.http_get(name)
+    result = web_api.session.http_get(name)
     if not result.msg:
         logger.info("No results found for href, maybe a bad reference: %s" % name)
     return result.msg
@@ -74,41 +77,28 @@ def get_element_by_entry_point(name):
         Returns:
             Json representation of name match
     """
-    entry = smc.web_api.get_entry_href(name)
+    #entry = smc.web_api.get_entry_href(name)
+    entry = web_api.session.cache.get_href(name)
     if entry: #in case an invalid entry point is specified
-        result = smc.web_api.http_get(entry)
+        #result = smc.web_api.http_get(entry)
+        result = web_api.session.http_get(entry)
         return result.msg #TODO: return at bottom
     else:
         logger.error("Entry point specified was not found: %s" % name)
+
      
 if __name__ == '__main__':
-    smc.web_api.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
-    ref = smc.search.get_element('testgroupwithcomment')
+    web_api.session.logout()
+    #ref = smc.search.get_element('testgroupwithcomment')
     #print ref
-    print smc.search.get_element_by_href(ref['href'])
+    #print smc.search.get_element_by_href(ref['href'])
     
 
     #print "get_element-allmatchingbyname: %s" % get_element('ami')                #get all matching elements with name=ami
     #print "get_element-routerobj: %s" % get_element('ami', 'router')        #get only matching host elements matching name=ami
     #print "get_element-hostandallmatching: %s" % get_element('ami', 'host', False) #get all matching host elements (wildcard)
-     
-    '''
-    print "Filter by element: %s" % filter_by_element('ami')
-    print "Filter by element, not found: %s" % filter_by_element('a11124fdgdmi') 
-   
-    print "Filter by type: %s" % filter_by_type('single_fw', 'api-fw') 
-    print "Filter by type, not found: %s" % filter_by_type('single_fw', 'blah') 
-    
-    print "Get Element by entry point: %s" % get_element_by_entry_point('log_server')
-    print "Get Element by entry point: %s" % get_element_by_entry_point('blah')
-    
-    print "Get Element by href: %s" % get_element_by_href('http://172.18.1.15:8082/blah') #FIX
-    print "Get Element by href: %s" % get_element_by_href('http://172.18.1.150:8082/elements/single_fw/119') #FIX
-    f = smc.filter_by_type('single_fw', 'api-fw2')
-    if f:
-        print "filter_by_type, not found: %s" % smc.get_element_by_href(f['href'])
-    '''
     
     '''route = [{ 
                      "invalid": False,
@@ -172,4 +162,4 @@ if __name__ == '__main__':
     #pprint(smc.get_element_by_href('http://172.18.1.150:8082/6.0/elements/network/677'))
     #Generic routing node level
     #pprint(smc.web_api.get_all_entry_points())'''
-    smc.web_api.logout()
+    #smc.web_api.logout()
