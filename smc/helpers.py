@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 #TODO: Test fail here
 def get_json_template(template_name):
     resource_package = __name__  ## this is so files can be retrieved when in egg
-    resource_path = os.path.join('templates', template_name)
+    resource_path = os.path.join('/elements/templates', template_name)
     template = pkg_resources.resource_string(resource_package, resource_path)
     
     v = None
