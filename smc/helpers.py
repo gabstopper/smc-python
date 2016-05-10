@@ -25,16 +25,16 @@ def is_valid_ipv4(ipaddr):
     try:
         if ipaddress.IPv4Address(ipaddr.decode('utf-8')): #python 2.x
             return True
-    except AddressValueError, e:
+    except Exception, e:
         logger.error(e)
     
 def is_ipaddr_in_network(host_ip, network):
     try:
         if ipaddress.ip_address(host_ip.decode('utf-8')) in ipaddress.ip_network(network.decode('utf-8')):
             return True
-    except AddressValueError, e:
+    except Exception, e:
         logger.error(e)
-       
+           
 def ipaddr_as_network(net_addr):
     """ network can be 255.255.255.0 or /24 formats 
         Args:
@@ -48,7 +48,7 @@ def ipaddr_as_network(net_addr):
     network = None
     try :
         network = ipaddress.ip_network(net_addr.decode('utf-8'))
-    except ValueError, e:
-        logger.error("Network: %s, msg: %s" % (net_addr,e))
+    except Exception, e:
+        logger.error("Error converting network address: %s, msg: %s" % (net_addr,e))
         return
     return network.exploded
