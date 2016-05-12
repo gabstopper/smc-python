@@ -7,41 +7,40 @@ logger = logging.getLogger(__name__)
 
 smc.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
 
-print smc.actions.search.get_element('api-fw')
 
-smc.remove.element('dlepage')
+'''  
+#Test create hosts, networks, group and routers   
+smc.create.host('aidan', '23.23.23.23')   
+smc.create.group('lepagegroup', comment='test comments - see this')
+smc.create.network('hostbitsnotinnetwork', '1.2.3.0/255.255.252.0')
+smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')
+smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')
+smc.create.router('gatewayrouter', '5.5.5.5')
 
-#smc.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-#smc.search.get_element('david')
-
-#smc.web_api.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-
-#Example of using a search filter 
-#Response is a json record with a reference link to the object
-#smc.get_element_by_href(href) gets the record directly
-
-
-#Create group and add members
-smc.create.group('group_with_no_members')
-smc.create.host('ami', '1.1.1.1')
-smc.create.host('ami2', '2.2.2.2')
-smc.create.group('anewgroup', ['ami','ami2'])
-
+smc.remove.element('aidan')
+smc.remove.element('lepagegroup')
+'''
     
-
-#Example of creating a group record. If members is included, each member href 
-#needs to be validated or warning will be issued that members can't be added
-smc.create.group('mygroup')
-smc.create.group('mygroup', ['member1','member2','member3'])
-
-#Example of creating a single_fw instance. method signature is:
-#smc.create_single_fw(name, IP (mgmt), network (mgmt), dns=None, fw_license=None)
-#If DNS and fw_license are provided, DNS is added to fw and an attempt is made to attach an available license if available
-smc.create.single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-#time.sleep(5)
-smc.remove.element('myfw')    #without filter
-smc.remove.element('myfw', 'single_fw')    #with filter
-
+'''
+#Test l3route creation
+smc.create.l3route('myfw7', '192.18.1.80', 'Any network', 0) #Unknown host
+smc.create.l3route('myfw4', '192.18.1.100', 'Any network', 0) #Unknown gw
+smc.create.l3route('myfw4', '192.18.1.100', 'Any2 network', 0) #Unknown network
+smc.create.l3route('myfw4', '172.18.1.80', 'Any network', 0) #Good
+'''   
+    
+#Test single_fw, add interfaces and routes
+smc.remove.element('myfw')
+time.sleep(5)
+#Create the objects required for routes
+smc.create.router('172.18.1.250', '172.18.1.250')   #name, #ip
+smc.create.router('172.20.1.250', '172.20.1.250')   #name, #ip
+smc.create.network('192.168.3.0/24', '192.168.3.0/24') #name, #ip  
+smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)
+smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
+smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) #Next hop, dest network, interface
+smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
 
 smc.session.logout()
 
