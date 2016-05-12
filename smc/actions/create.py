@@ -6,6 +6,7 @@ from smc.api.web import SMCOperationFailure
 import logging
 logger = logging.getLogger(__name__)
 
+
 def host(name, ip, secondary_ip=[], comment=None):
     """ Create host element
         Args:
@@ -15,7 +16,7 @@ def host(name, ip, secondary_ip=[], comment=None):
         Returns:
             None
     """
-    if smc.helpers.is_valid_ipv4(ip):
+    if smc.helpers.is_valid_ipv4(ip): #TODO: Change these to if x is not None:
         entry_href = web_api.session.cache.get_href('host')        
         
         host = smc.elements.element.Host()            
@@ -29,7 +30,7 @@ def host(name, ip, secondary_ip=[], comment=None):
             logger.info("Success creating single host: %s, href: %s" % (host.name, r))
         
         except SMCOperationFailure, e:
-            logger.error("Failed creating single host: %s, api message: %s" % (host.name, e.msg))                           
+            logger.error("Failed creating single host: %s, %s" % (host.name, e.msg))                           
     else:
         logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
 
@@ -56,9 +57,10 @@ def router(name, ip, secondary_ip=None, comment=None):
             logger.info("Success creating router object: %s, href: %s" % (router.name, r))
         
         except SMCOperationFailure, e:
-            logger.error("Failed creating router object: %s, api message: %s" % (router.name, e.msg))                          
+            logger.error("Failed creating router object: %s, %s" % (router.name, e.msg))                          
     else:
         logger.error("Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
+
 
 def network(name, ip_network, comment=None):
     """ Create network element
@@ -83,12 +85,11 @@ def network(name, ip_network, comment=None):
             logger.info("Success creating network object: %s, href: %s" % (network.name, r))
         
         except SMCOperationFailure, e:
-            logger.error("Failed creating network object: %s, api message: %s" % (network.name, e.msg))
-            print network.create()
+            logger.error("Failed creating network object: %s, %s" % (network.name, e.msg))
     else:
         logger.error("Invalid address specified for network: %s; make sure address specified is in network: %s" % (name, ip_network))
 
-            
+           
 def group(name, members=[], comment=None):
     """ Create group element, optionally with members
         Members must already exist in SMC. Before being added to the group a search will be 
@@ -120,7 +121,7 @@ def group(name, members=[], comment=None):
         logger.info("Success creating group: %s, href: %s" % (group.name, r))
     
     except SMCOperationFailure, e:
-        logger.error("Failed creating group record: %s, api message: %s" % (name, e.msg))
+        logger.error("Failed creating group record: %s, %s" % (name, e.msg))
                          
 #TODO: Not finished implementing;This works if it's applied directly to a single fw, but not globally
 '''def blacklist(src, dst, duration="3600"):
@@ -144,8 +145,9 @@ def group(name, members=[], comment=None):
         #logger.error("Invalid IP address given for blacklist entry, src: %s, dst: %s" % (src,dst))  
         print "Invalid IP address given for blacklist entry, src: %s, dst: %s" % (src,dst)
 '''
-        
-def single_fw(name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
+ 
+#TODO: allow interface number to be configured for initial fw        
+def single_fw(name, mgmt_ip, mgmt_network, interface_id=None, dns=None, fw_license=False):
     """ Create single firewall with a single management interface
         Args:
             * name: name of fw instance
@@ -169,6 +171,7 @@ def single_fw(name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
     single_fw.name = name
     single_fw.mgmt_ip = mgmt_ip
     single_fw.mgmt_network = mgmt_network
+    single_fw.interface_id = interface_id
     single_fw.dns = dns
     single_fw.fw_license = fw_license
     
@@ -179,6 +182,7 @@ def single_fw(name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
     entry_href = web_api.session.cache.get_href('single_fw') #get entry point for single_fw
     
     new_fw = single_fw.create()
+    
     logger.debug("Modified json for single_fw: %s" % new_fw)
     
     try: 
@@ -200,8 +204,16 @@ def single_fw(name, mgmt_ip, mgmt_network, dns=None, fw_license=False):
         logger.error("Create single_fw: %s failed: %s" % (single_fw.name, e.msg))
 
 
-def l3interface(l3fw, ip, network, int_id=None):
-    """ Add L3 interface for single FW """
+def l3interface(l3fw, ip, network, interface_id=None):
+    """ Add L3 interface for single FW 
+        Args:
+            * l3fw: name of firewall to add interface to
+            * ip: ip of interface
+            * network: ip is validated to be in network before sending
+            * interface_id: Not Implemented
+        Returns: 
+            None
+    """
     if not smc.helpers.is_ipaddr_in_network(ip, network):
         logger.error("IP address: %s is not part of the network provided: %s, cannot add interface" % (ip,network))
         return None
@@ -209,14 +221,14 @@ def l3interface(l3fw, ip, network, int_id=None):
     network = smc.helpers.ipaddr_as_network(network)    #convert to cidr in case full mask provided
     
     entry_href = smc.search.get_element(l3fw)
-    print entry_href
+    
     if entry_href:
         fw = web_api.session.http_get(entry_href['href'])
         
         element = smc.elements.element.SMCElement(fw.msg)   #store current cfg
         single_fw = smc.elements.element.SingleFW(element)
         single_fw.name = l3fw
-        fw_json = single_fw.add_interface(ip, network, int_id)
+        fw_json = single_fw.add_interface(ip, network, interface_id)
         
         logger.debug("fw href: %s, fw_json: %s, etag: %s" % (entry_href['href'], fw_json, fw.etag))
         try: 
@@ -228,8 +240,68 @@ def l3interface(l3fw, ip, network, int_id=None):
         
     else:
         logger.error("Can't find layer 3 FW specified: %s, cannot add interface" % l3fw)
+ 
         
+def l3route(engine, gw, network, interface_id): 
+    """ Add route to l3fw 
+        This could be added to any engine type. Non-routable engine roles (L2/IPS) may
+        still require route/s defined on the L3 management interface
+        Args:
+            * l3fw: name of firewall to add route
+            * gw: next hop router object
+            * network: next hop network behind gw
+            * interface_id: interface to apply route
+    """
+    href = smc.search.get_element(engine) #ref to engine
+    if href is None:
+        logger.error("Can't find engine node: %s, cannot process route add" % engine)
+        return None
+    engine_href = href['href']
+    
+    router_element = smc.search.get_element(gw, 'router') #router object
+    if router_element is None:
+        logger.error("Can't find router object: %s, cannot process route add" % gw)
+        return None
+    
+    network_element = smc.search.get_element(network, 'network')
+    if network_element is None:
+        logger.error("Can't find network object: %s, cannot process route add" % network)
+        return None
+    
+    node = web_api.session.http_get(engine_href) #get node json
+   
+    route_link = next(item for item in node.msg['link'] if item['rel'] == 'routing')   
+    route_href = route_link['href'] #href link to routing 
+    routing_node = web_api.session.http_get(route_href) 
+    
+    element = smc.elements.element.SMCElement(routing_node.msg) #save return routing json to element    
+    route = smc.elements.element.Route(element)
+    
+    result = web_api.session.http_get(router_element['href']) #populate router info
+    route.gw_href = router_element['href']
+    route.gw_ip = result.msg['address']             
+    route.gw_name = result.msg['name']
         
+    result = web_api.session.http_get(network_element['href']) #dest net info
+    route.network_href = network_element['href']
+    route.network_ip = result.msg['ipv4_network']
+    route.network_name = result.msg['name']
+    
+    route.interface_id = interface_id
+    routing_json = route.create()
+    
+    if routing_json is not None:    
+        logger.debug("Modified routing node: %s" % routing_json)
+        
+        try: 
+            web_api.session.http_put(route_href, routing_json, routing_node.etag)
+            logger.info("Successfully added route: %s to node: %s" % (network, engine))
+            
+        except SMCOperationFailure, e:
+            logger.error("Failed adding route: %s, to node: %s, %s" % (network, engine, e.msg))
+    else:
+        logger.error("Can not find specified interface: %s for route add, double check the interface configuration" % route.interface_id)
+      
 def cluster_fw(data):
     pass
 
@@ -252,25 +324,42 @@ def virtual_fw(data):
 if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
    
-    '''#Test create hosts, networks, group and routers   
+    import time
+    start_time = time.time()
+
+    '''  
+    #Test create hosts, networks, group and routers   
     smc.create.host('aidan', '23.23.23.23')   
     smc.create.group('lepagegroup', comment='test comments - see this')
     smc.create.network('hostbitsnotinnetwork', '1.2.3.0/255.255.252.0')
     smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')
     smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')
     smc.create.router('gatewayrouter', '5.5.5.5')
-    
+
     smc.remove.element('aidan')
     smc.remove.element('lepagegroup')
     '''
     
-    #Test single_fw and adding interfaces
-    smc.remove.element('myfw4')
-    import time
+    '''
+    #Test l3route creation
+    smc.create.l3route('myfw7', '192.18.1.80', 'Any network', 0) #Unknown host
+    smc.create.l3route('myfw4', '192.18.1.100', 'Any network', 0) #Unknown gw
+    smc.create.l3route('myfw4', '192.18.1.100', 'Any2 network', 0) #Unknown network
+    smc.create.l3route('myfw4', '172.18.1.80', 'Any network', 0) #Good
+    '''   
+    
+    #Test single_fw, add interfaces and routes
+    smc.remove.element('myfw')
     time.sleep(10)
-    smc.create.single_fw('myfw4', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-    smc.create.l3interface('myfw4', '5.5.5.5', '5.5.0.0/16')
-    smc.create.l3interface('myfw4', '6.6.6.6', '6.6.6.0/255.255.255.0')
+    #Create the objects required for routes
+    smc.create.router('172.18.1.250', '172.18.1.250')   #name, #ip
+    smc.create.router('172.20.1.250', '172.20.1.250')   #name, #ip
+    smc.create.network('192.168.3.0/24', '192.168.3.0/24') #name, #ip  
+    smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+    smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)
+    smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
+    smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) #Next hop, dest network, interface
+    smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
     
-    
+    print("--- %s seconds ---" % (time.time() - start_time))    
     web_api.session.logout()
