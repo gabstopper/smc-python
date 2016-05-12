@@ -11,13 +11,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SMCAPIConnection(object):
-    def __init__(self):
+    def __init__(self, SMCEntryCache):
         self.url = None
         self.key = None
         self.api_version = None
         self.cookies = None
         self.session = None
-        self.cache = SMCEntryCache()
+        self.cache = SMCEntryCache
         
     def login(self, url, smc_key, api_version=None):    
         """ Login to SMC API and retrieve a valid session. 
@@ -31,8 +31,7 @@ class SMCAPIConnection(object):
             TODO: pickle session for longer term re-use? Implement SSL tracking
         """
            
-        #Find the login entry point
-        self.cache.get_api_entry(url, api_version)
+        self.cache.get_api_entry(url, api_version)  #Find the login entry point
                 
         s = requests.session() #no session yet
         r = s.post(self.cache.get_href('login'),
@@ -53,9 +52,9 @@ class SMCAPIConnection(object):
             logger.info("Logged out successfully")
         else:
             logger.error("Logout failed, session may not have been logged out, status code: %s and msg: %s" % (r.status_code, r.text))
-            sys.exit()
+        sys.exit()
     
-    def http_get(self, href):
+    def http_get(self, href): #TODO: Implement self.visited for already seen queries
         """ Get data object from SMC
             If response code is success, results are returned with etag
             Args:
@@ -69,7 +68,7 @@ class SMCAPIConnection(object):
             if self.session:
                 r = self.session.get(href)
                 if r.status_code==200: 
-                    logger.debug("Returned: %s" % r.text)
+                    logger.debug("Result: %s" % r.text)
                     return SMCResult(r)
                 else:
                     logger.error("HTTP get returned non-http 200 code [%s] for href: %s" % (r.status_code, href))
@@ -80,8 +79,7 @@ class SMCAPIConnection(object):
                 
         except requests.exceptions.RequestException as e:
             raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
-            #TODO: What to do when connection may be lost during a run, not likely but possible
-    
+     
             
     def http_post(self, href, data, uri=None):
         """ Add object to SMC
@@ -115,7 +113,7 @@ class SMCAPIConnection(object):
                 
         except requests.exceptions.RequestException as e:
             raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
-     
+      
             
     def http_put(self, href, data, etag):
         """ Change state of existing SMC object
@@ -144,8 +142,8 @@ class SMCAPIConnection(object):
                 
         except requests.exceptions.RequestException as e:
             raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
-            #TODO: What to do when connection may be lost during a run, not likely but possible
     
+        
     def http_delete(self, href):
         """ Delete element by fully qualified href
             Args:
@@ -168,11 +166,12 @@ class SMCAPIConnection(object):
                 
         except requests.exceptions.RequestException as e:
             raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
-            #TODO: What to do when connection may be lost during a run, not likely but possible
- 
+          
+        
 class SMCEntryCache(object):
     def __init__(self):
-        self.api_entry = None
+        self.api_entry = None #cache of api entry points
+        self.elements = {}
         
     def get_api_entry(self, url, api_version=None):
         """ Called internally after login to get cache of SMC entry points """
@@ -183,11 +182,12 @@ class SMCEntryCache(object):
                 versions = []
                 for version in j['version']:
                     versions.append(version['rel'])
+                versions = [float(i) for i in versions]
                 api_version = max(versions)
             
             #else api_version was defined
             logger.info("Using SMC API version: %s" % api_version)
-            smc_url = url + '/' + api_version
+            smc_url = url + '/' + str(api_version)
       
             r = requests.get('%s/api' % (smc_url))
             if r.status_code==200:
@@ -221,7 +221,10 @@ class SMCEntryCache(object):
     def get_all_entry_points(self): #for callers outside of the module
         """ Returns all entry points into SMC api """   
         return self.api_entry
-
+    
+    def get_element(self, name):
+        """ Check if we've already retrieved the item location """
+        return self.elements.get(name)
 
 class SMCResult(object):
     def __init__(self, respobj=None):
@@ -248,8 +251,6 @@ class SMCOperationFailure(Exception):
         self.msg = self.extract(respobj)
         
     def extract(self, response):
-        print "SMCOperationFailure response: %s" % response
-        print "SMCOperationFailure body: %s" % response.text
         self.code = response.status_code
         if response.headers.get('content-type') == 'application/json':
             j = json.loads(response.text)
@@ -259,17 +260,29 @@ class SMCOperationFailure(Exception):
                 self.body = response.text
             else:
                 self.body = response.headers
-        return '{}, {}'.format("Http status code: %s" % self.code,"api msg: %s" % self.body)
- 
-session = SMCAPIConnection()
+        return '{}, {}'.format("Http status code: %s" % self.code, self.formatmsg())
+    
+    def formatmsg(self):
+        errorstr = []
+        for i in self.body:
+            if type(self.body[i]) is list:
+                errorstr.append(str(i) + ": ")
+                for err in self.body[i]:
+                    a =  err.rstrip().split('\n')
+                errorstr.append(' '.join(a))
+            else:
+                errorstr.append(str(i) + ": " + str(self.body[i]))
+        return ' '.join(errorstr)
+    
+session = SMCAPIConnection(SMCEntryCache())
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     try:
-        session.http_post('http://172.18.1.150:8082/efw', {"test":"test"})
+        session.http_post('http://172.18.1.152:8082/6.0/efw', {"test":"test"})
     except SMCOperationFailure, e:
-        print e.msg
+        logger.error(e.msg)
   
     session.logout()
     
