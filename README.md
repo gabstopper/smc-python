@@ -64,9 +64,9 @@ smc.create.router('myrouter', '7.7.7.7')
 smc.create.single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
 smc.create.l3interface('myfw', '5.5.5.5', '5.5.0.0/16')
 smc.create.l3interface('myfw', '6.6.6.6', '6.6.6.0/255.255.255.0')
-
-smc.remove.element('myfw')					#without filter
-smc.remove.element('myfw', 'single_fw') 	#with filter
+smc.create.router('172.18.1.250', '172.18.1.250')
+smc.create.l3route('myfw6', '172.18.1.80', 'Any network', 0) 	#add route to myfw6, gateway 172.18.1.80 as default gw
+smc.create.l3route('myfw6', '172.18.1.250', '192.168.3.0/24', 0)	#gateway 172.18.1.250 for network 192.168.3.0/24
 ```
 
 ###### Example of using a search filter 
@@ -76,3 +76,15 @@ smc.get.element('myobject', 'host')	#Search for host element named 'myobject'; m
 smc.get.element('myobject', 'host', False)	#Search for host element/s with 'myobject' somewhere in the object definition
 ```
 
+###### Full provision of layer 3 fw including multiple interfaces and routes
+```python
+smc.create.router('172.18.1.250', '172.18.1.250')   	#name, #ip
+smc.create.router('172.20.1.250', '172.20.1.250')   	
+smc.create.network('192.168.3.0/24', '192.168.3.0/24') 	
+    
+smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)		#name, interface ip, network, interface num
+smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
+smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) 		#next hop, dest network, interface num
+smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
+```
