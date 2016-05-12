@@ -1,16 +1,16 @@
 {
-	"name": "api-fw",
+	"name": "@NAME@",
 	"nodes": [{
 		"firewall_node": {
 			"activate_test": true,
 			"disabled": false,
 			"loopback_node_dedicated_interface": [],
-			"name": "api-fw node 1",
+			"name": "@NODE_NAME@",
 			"nodeid": 1
 		}
 	}],
 	"domain_server_address": [],
-	"log_server_ref": "http://1.1.1.1/6.0/elements/log_server/11",
+	"log_server_ref": "@LOG_SERVER_REF@",
 	"physicalInterfaces": [{
 		"physical_interface": {
 			"aggregate_mode": "none",
@@ -23,7 +23,7 @@
 			"interface_id": "0",
 			"interfaces": [{
 				"single_node_interface": {
-					"address": "1.1.1.2",
+					"address": "@ADDRESS@",
 					"auth_request": true,
 					"auth_request_source": false,
 					"automatic_default_route": false,
@@ -32,7 +32,7 @@
 					"backup_mgt": false,
 					"dynamic": false,
 					"igmp_mode": "none",
-					"network_value": "1.1.1.0/24",
+					"network_value": "@NETWORK@",
 					"nicid": "0",
 					"nodeid": 1,
 					"outgoing": true,
