@@ -1,7 +1,6 @@
 {
-	"address": "",
-	"key": 1328,
-	"name": "",
+	"address": "@ADDRESS@",
+	"name": "@NAME@",
 	"read_only": false,
 	"secondary": [],
 	"system": false,

@@ -1,6 +1,6 @@
 {
-	"name": "",
+	"name": "@NAME@",
 	"comment": "",
-	"address": "",
+	"address": "@ADDRESS@",
 	"secondary": []
 }

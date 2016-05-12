@@ -1,6 +1,6 @@
 {
-	"comment": "",
-	"name": "",
+	"comment": "@GROUP",
+	"name": "@NAME@",
 	"is_monitored": false,
 	"element": []
 }
