@@ -4,6 +4,7 @@ import smc.api.web as web_api
 from smc.api.web import SMCOperationFailure
 
 import logging
+from pprint import pprint
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +35,36 @@ def host(name, ip, secondary_ip=[], comment=None):
     else:
         logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
 
+def iprange(name, ip_range, comment=None):
+    """ Create iprange object 
+        Args:
+            * name: name for object
+            * iprange: ip address range, i.e. 1.1.1.1-1.1.1.10
+            * comment (optional)
+        Returns:
+            None
+    """
+    addr = ip_range.split('-') #just verify each side is valid ip addr
+    if len(addr) == 2: #has two parts
+        if not smc.helpers.is_valid_ipv4(addr[0]) or not smc.helpers.is_valid_ipv4(addr[1]):
+            logger.error("Invalid ip address range provided: %s" % ip_range)
+            return None
+    else: 
+        logger.error("Invalid ip address range provided: %s" % ip_range)
+        return None
+    
+    iprange = smc.elements.element.IpRange()
+    iprange.name = name
+    iprange.iprange = ip_range
+    
+    entry_href = web_api.session.cache.get_href('address_range')
+    
+    try:
+        r = web_api.session.http_post(entry_href, iprange.create())
+        logger.info("Success creating iprange object: %s, href: %s" % (iprange.name, r))
+        
+    except SMCOperationFailure, e:
+        logger.error("Failed creating iprange object: %s, %s" % (iprange.name, e.msg))    
     
 def router(name, ip, secondary_ip=None, comment=None):
     """ Create router element
@@ -210,7 +241,7 @@ def l3interface(l3fw, ip, network, interface_id=None):
             * l3fw: name of firewall to add interface to
             * ip: ip of interface
             * network: ip is validated to be in network before sending
-            * interface_id: Not Implemented
+            * interface_id: interface_id to use
         Returns: 
             None
     """
@@ -222,7 +253,7 @@ def l3interface(l3fw, ip, network, interface_id=None):
     
     entry_href = smc.search.get_element(l3fw)
     
-    if entry_href:
+    if entry_href is not None:
         fw = web_api.session.http_get(entry_href['href'])
         
         element = smc.elements.element.SMCElement(fw.msg)   #store current cfg
@@ -346,8 +377,9 @@ if __name__ == '__main__':
     smc.create.l3route('myfw4', '192.18.1.100', 'Any network', 0) #Unknown gw
     smc.create.l3route('myfw4', '192.18.1.100', 'Any2 network', 0) #Unknown network
     smc.create.l3route('myfw4', '172.18.1.80', 'Any network', 0) #Good
-    '''   
-    
+    '''  
+     
+    '''
     #Test single_fw, add interfaces and routes
     smc.remove.element('myfw')
     time.sleep(10)
@@ -360,6 +392,7 @@ if __name__ == '__main__':
     smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
     smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) #Next hop, dest network, interface
     smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
+    '''
     
     print("--- %s seconds ---" % (time.time() - start_time))    
     web_api.session.logout()
