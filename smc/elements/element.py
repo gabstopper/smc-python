@@ -40,7 +40,21 @@ class Group(object):
             group['comment'] = self.comment
         return group
 
-
+class IpRange(object):
+    def __init__(self):
+        self.name = None
+        self.iprange = None
+        self.comment = None
+        
+    def create(self):
+        iprange = smc.helpers.get_json_template('iprange.json')
+        iprange['name'] = self.name
+        iprange['ip_range'] = self.iprange
+        if self.comment:
+            iprange['comment'] = self.comment
+        print iprange
+        return iprange
+        
 class Router(object):
     def __init__(self):
         self.name = None
