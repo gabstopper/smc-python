@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+#TODO: Need to fix - not sending back etag from search library - causes a second query
 def get_element(name, obj_type=None, use_name_field=True):
     """ Get specified element/s by name
         When specifying just name arg, all elements are searched
@@ -20,15 +21,20 @@ def get_element(name, obj_type=None, use_name_field=True):
             Returns:
                 Json record/s representing top level element match
                 None; no results
-    """   
+    """
+    #cache = web_api.session.cache.get_element(name)
+    #if cache is not None:
+    #    print "Found in cache: %s, location: %s" % (name,cache)
+    #    return cache
+       
     entry_href = None
     if obj_type:
-        entry_href = web_api.session.cache.get_href(obj_type)
+        entry_href = web_api.session.get_entry_href(obj_type)
         if not entry_href:
             logger.error("Object type entry point specified was not found: %s" % obj_type)
-            return
+            return None
     else:
-        entry_href = web_api.session.cache.get_href('elements') #entry point for all elements
+        entry_href = web_api.session.get_entry_href('elements') #entry point for all elements
     
     logger.debug("Searching for element: %s" % name)
     result = web_api.session.http_get(entry_href + '?filter=' + name) #execute search
@@ -36,11 +42,11 @@ def get_element(name, obj_type=None, use_name_field=True):
     if not result.msg: #no results returned
         logger.info("No results found for element name: %s" % name)
     else:
-        if not use_name_field: # Return any host objects using name as filter (wildcard match)
+        if not use_name_field: # Return any host objects using name as filter (match all)
             logger.debug("Returning all elements matching: %s" % name)
             return result.msg  # Return anything that was found
         else: # Only return object where name matches host object name field
-            match = None #TODO: This could return multiple entries!!!
+            match = None #TODO: This could return multiple entries
             for host in result.msg:
                 if host['name'] == name:
                     match = host
@@ -51,7 +57,7 @@ def get_element(name, obj_type=None, use_name_field=True):
                 logger.debug("Search found direct match for element: %s, %s" % (name,match))
             return match
 
-def get_element_by_href(name):
+def get_element_by_href(name): #TODO: Check to see what other methods get this result, should return ResultObject in case etag is needed
     """ Get specified element from fully qualified href
         For example, name could be: http://1.1.1.1:8082/elements/single_fw/119
         Args: 
@@ -74,7 +80,7 @@ def get_element_by_entry_point(name):
         Returns:
             Json representation of name match
     """
-    entry = web_api.session.cache.get_href(name)
+    entry = web_api.session.get_entry_href(name)
     
     if entry: #in case an invalid entry point is specified
         result = web_api.session.http_get(entry)
@@ -85,44 +91,9 @@ def get_element_by_entry_point(name):
      
 if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    
-    web_api.session.logout()
-    
-    '''
-    #Get FW link
-    fw = smc.filter_by_type('single_fw', 'test-run') 
-    print "Getting fw at: %s" % fw['href']   
-    #Get FW detaild
-    fw_details = smc.get_element_by_href(fw['href'])
-    #pprint(fw_details['link'])
-    #print any(d['rel'] == 'routing' for d in fw_details['link'])
-    #Get link to routing
-    link_to_routing = next(item for item in fw_details['link'] if item['rel'] == 'routing')
-    print "Link to routing: %s" % link_to_routing['href']
-    routing_details = smc.get_element_by_href(link_to_routing['href'])
-    #print "Routing details:"
-    #pprint(routing_details)
-    #Find routing node in hash
-    print "I'm here"
-    pprint(routing_details['routing_node'][0]['routing_node'])
-    print "Routing"
-    a = routing_details['routing_node'][0]['routing_node'][0]
-    
-    b = { 'invalid': False,
-        'key': 765,
-        'name': 'network-3.3.3.0/24',
-        'routing_node': [] }
-    #pprint(a)
-    print "......"
-    smc.http_get('http://172.18.1.150:8082/6.0/elements/single_fw/1326/physical_interface/321')
-    #Just try and PUT it anyways....
-    try:
-        r = smc.web_api.http_put('http://172.18.1.150:8082/6.0/elements/single_fw/1326/physical_interface/321', b, "MzIxMzk5MQ==")
-    except SMCOperationFailure, e:
-        print e.msg
-    
-    #pprint(smc.get_element_by_href('http://172.18.1.150:8082/6.0/elements/network/677'))
-    #Generic routing node level
-    #pprint(smc.web_api.get_all_entry_points())'''
-    
+      
+    p = get_element('1.1.1.1a')
+    q = get_element_by_href(p['href'])
+    from pprint import pprint
+    pprint(q)
     web_api.session.logout()

@@ -14,14 +14,20 @@ def element(name, objtype=None):
         Returns:
             None
     """
-    #removable = smc.search.get_element(name, objtype)
     removable = smc.actions.search.get_element(name, objtype)
-    if removable:
+    if removable is not None:
         logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable['type']))
         try:
             #smc.web_api.http_delete(removable['href']) #delete to href
             web_api.session.http_delete(removable['href']) #delete to href
             logger.info("Successfully removed host: %s" % name)
+            #try:
+            #    a = web_api.session.cache.elements.pop(name)
+            #    print "Popped that beeotch: %s" % a
+            #except KeyError:
+            #    print "Key not found in cache: %s" % name
+            #    pass
+            
         except SMCOperationFailure, e:
             logger.error("Failed removing host: %s, msg: %s" % (name, e.msg))
     else:

@@ -18,7 +18,7 @@ def host(name, ip, secondary_ip=[], comment=None):
             None
     """
     if smc.helpers.is_valid_ipv4(ip): #TODO: Change these to if x is not None:
-        entry_href = web_api.session.cache.get_href('host')        
+        entry_href = web_api.session.get_entry_href('host')        
         
         host = smc.elements.element.Host()            
         host.name = name
@@ -57,7 +57,7 @@ def iprange(name, ip_range, comment=None):
     iprange.name = name
     iprange.iprange = ip_range
     
-    entry_href = web_api.session.cache.get_href('address_range')
+    entry_href = web_api.session.get_entry_href('address_range')
     
     try:
         r = web_api.session.http_post(entry_href, iprange.create())
@@ -76,7 +76,7 @@ def router(name, ip, secondary_ip=None, comment=None):
             None
     """    
     if smc.helpers.is_valid_ipv4(ip):
-        entry_href = web_api.session.cache.get_href('router')
+        entry_href = web_api.session.get_entry_href('router')
         
         router = smc.elements.element.Router() #TODO: Need router comment field
         router.name = name
@@ -104,8 +104,8 @@ def network(name, ip_network, comment=None):
     """
     cidr = smc.helpers.ipaddr_as_network(ip_network)
     if cidr:
-        entry_href = web_api.session.cache.get_href('network')
-        
+        entry_href = web_api.session.get_entry_href('network')
+        web_api.session.get_entry_href('network')
         network = smc.elements.element.Network()
         network.name = name
         network.ip4_network = cidr
@@ -132,7 +132,7 @@ def group(name, members=[], comment=None):
         Returns:
             None
     """
-    entry_href = web_api.session.cache.get_href('group')
+    entry_href = web_api.session.get_entry_href('group')
     
     group = smc.elements.element.Group()
     group.name = name
@@ -210,7 +210,7 @@ def single_fw(name, mgmt_ip, mgmt_network, interface_id=None, dns=None, fw_licen
         #TODO: If multiple log servers are present, how to handle - just get the first one
         single_fw.log_server = found['href']
     
-    entry_href = web_api.session.cache.get_href('single_fw') #get entry point for single_fw
+    entry_href = web_api.session.get_entry_href('single_fw') #get entry point for single_fw
     
     new_fw = single_fw.create()
     
@@ -358,7 +358,7 @@ if __name__ == '__main__':
     import time
     start_time = time.time()
 
-    '''  
+     
     #Test create hosts, networks, group and routers   
     smc.create.host('aidan', '23.23.23.23')   
     smc.create.group('lepagegroup', comment='test comments - see this')
@@ -369,7 +369,7 @@ if __name__ == '__main__':
 
     smc.remove.element('aidan')
     smc.remove.element('lepagegroup')
-    '''
+    
     
     '''
     #Test l3route creation
@@ -379,7 +379,7 @@ if __name__ == '__main__':
     smc.create.l3route('myfw4', '172.18.1.80', 'Any network', 0) #Good
     '''  
      
-    '''
+    
     #Test single_fw, add interfaces and routes
     smc.remove.element('myfw')
     time.sleep(10)
@@ -392,7 +392,7 @@ if __name__ == '__main__':
     smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
     smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) #Next hop, dest network, interface
     smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
-    '''
+    
     
     print("--- %s seconds ---" % (time.time() - start_time))    
     web_api.session.logout()
