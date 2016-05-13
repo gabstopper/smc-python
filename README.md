@@ -35,15 +35,16 @@ smc.logout()
 
 Once a valid session is obtained, it will be re-used for each operation performed. 
 
-###### Creating / removing host records
+###### Creating network objects
 ```python
-smc.create.host('ami', '1.1.1.2')
-smc.remove.element('ami')		#remove host named 'ami'
-smc.remove.element('agroup')	#remove group
-smc.remove.element('myfw')		#remove firewall instance
+smc.create.host('ami', '1.1.1.2')	#host
+smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')	#network 
+smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')	#network with comment
+smc.create.router('myrouter', '7.7.7.7')			#router object
+smc.create.iprange('myrange', '1.1.1.1-1.2.3.4')	#iprange object
 ```
 
-###### Create group and add members
+###### Create groups and add members
 ```python
 smc.create.group('group_with_no_members')
 smc.create.host('ami', '1.1.1.1')
@@ -51,12 +52,11 @@ smc.create.host('ami2', '2.2.2.2', comment='this is my comment')	#with optional 
 smc.create.group('anewgroup', ['ami','ami2']) #group with member list
 ```
 
-###### Create networks and router objects
+###### Removing elements
 ```python
-smc.create.network('hostbitsnotinnetwork', '1.2.3.0/255.255.252.0')
-smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')
-smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')
-smc.create.router('myrouter', '7.7.7.7')
+smc.remove.element('ami')		#remove host named 'ami'
+smc.remove.element('agroup')	#remove group
+smc.remove.element('myfw')		#remove firewall instance
 ```
 
 ###### Create / remove a single_fw instance
@@ -73,7 +73,7 @@ smc.create.l3route('myfw6', '172.18.1.250', '192.168.3.0/24', 0)	#gateway 172.18
 ```python
 smc.get.element('myobject')  		#Search for element named 'myobject', match on 'name' field (looks at all object types)
 smc.get.element('myobject', 'host')	#Search for host element named 'myobject'; match on 'name' field
-smc.get.element('myobject', 'host', False)	#Search for host element/s with 'myobject' somewhere in the object definition
+smc.get.element('myobject', 'host', False)	#Search for host element/s with 'myobject' in all elements
 ```
 
 ###### Full provision of layer 3 fw including multiple interfaces and routes
