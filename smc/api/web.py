@@ -10,14 +10,76 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class SMCAPIConnection(object):
-    def __init__(self, SMCEntryCache):
+class SMCEntryCache(object):
+    def __init__(self):
+        self.cache = None
+        self.api_entry = None
+        
+    def get_api_entry(self, url, api_version=None):
+        """ Called internally after login to get cache of SMC entry points """
+        try:
+            if api_version is None:
+                r = requests.get('%s/api' % url) #no session required
+                j = json.loads(r.text)
+                versions = []
+                for version in j['version']:
+                    versions.append(version['rel'])
+                versions = [float(i) for i in versions]
+                api_version = max(versions)
+            
+            #else api_version was defined
+            logger.info("Using SMC API version: %s" % api_version)
+            smc_url = url + '/' + str(api_version)
+      
+            r = requests.get('%s/api' % (smc_url))
+            if r.status_code==200:
+                j = json.loads(r.text)
+                logger.debug("Successfully retrieved API entry points from SMC")
+            else:
+                raise Exception("Error occurred during initial api request, json was not returned. Return data was: %s" % r.text)
+            self.api_entry = j['entry_point']
+                
+        except requests.exceptions.RequestException as e:
+            raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
+                      
+    def get_entry_href(self, verb):
+        """ Get entry point from entry point cache 
+            Call get_all_entry_points to find all available entry points 
+            Args: 
+                * verb: top level entry point into SMC api
+            Returns:
+                * dict of entry point specified
+            Raises
+                Exception is no entry points are found. That would mean 
+                no login has occurred
+        """
+        if self.api_entry:
+            for entry in self.api_entry:
+                if entry['rel'] == verb:
+                    return entry['href']
+        else:
+            raise Exception("No entry points found, it is likely there is no valid login session.") 
+           
+    def get_all_entry_points(self): #for callers outside of the module
+        """ Returns all entry points into SMC api """   
+        return self.api_entry
+    
+    def get_element(self, name):
+        """ Check if we've already retrieved the item location """
+        return self.elements.get(name)
+    
+    def get_my_mom(self):
+        pass
+    
+class SMCAPIConnection(SMCEntryCache):
+    def __init__(self):
+        SMCEntryCache.__init__(self)
+        
         self.url = None
         self.key = None
         self.api_version = None
         self.cookies = None
         self.session = None
-        self.cache = SMCEntryCache
         
     def login(self, url, smc_key, api_version=None):    
         """ Login to SMC API and retrieve a valid session. 
@@ -30,11 +92,11 @@ class SMCAPIConnection(object):
             Logout should be called to remove the session immediately from the SMC server
             TODO: pickle session for longer term re-use? Implement SSL tracking
         """
-           
-        self.cache.get_api_entry(url, api_version)  #Find the login entry point
-                
+        
+        self.get_api_entry(url, api_version)
+        
         s = requests.session() #no session yet
-        r = s.post(self.cache.get_href('login'),
+        r = s.post(self.get_entry_href('login'),
                    json={'authenticationkey': smc_key},
                    headers={'content-type': 'application/json'}
                    )
@@ -47,7 +109,7 @@ class SMCAPIConnection(object):
         
     def logout(self):
         """ Logout session from SMC """
-        r = self.session.put(self.cache.get_href('logout'))
+        r = self.session.put(self.get_entry_href('logout'))
         if r.status_code==204:
             logger.info("Logged out successfully")
         else:
@@ -167,64 +229,6 @@ class SMCAPIConnection(object):
         except requests.exceptions.RequestException as e:
             raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
           
-        
-class SMCEntryCache(object):
-    def __init__(self):
-        self.api_entry = None #cache of api entry points
-        self.elements = {}
-        
-    def get_api_entry(self, url, api_version=None):
-        """ Called internally after login to get cache of SMC entry points """
-        try:
-            if api_version is None:
-                r = requests.get('%s/api' % url) #no session required
-                j = json.loads(r.text)
-                versions = []
-                for version in j['version']:
-                    versions.append(version['rel'])
-                versions = [float(i) for i in versions]
-                api_version = max(versions)
-            
-            #else api_version was defined
-            logger.info("Using SMC API version: %s" % api_version)
-            smc_url = url + '/' + str(api_version)
-      
-            r = requests.get('%s/api' % (smc_url))
-            if r.status_code==200:
-                j = json.loads(r.text)
-                logger.debug("Successfully retrieved API entry points from SMC")
-            else:
-                raise Exception("Error occurred during initial api request, json was not returned. Return data was: %s" % r.text)
-            self.api_entry = j['entry_point']
-                
-        except requests.exceptions.RequestException as e:
-            raise Exception("Connection problem to SMC, ensure the API service is running and host is correct: %s, exiting." % e)
-                      
-    def get_href(self, verb):
-        """ Get entry point from entry point cache 
-            Call get_all_entry_points to find all available entry points 
-            Args: 
-                * verb: top level entry point into SMC api
-            Returns:
-                * dict of entry point specified
-            Raises
-                Exception is no entry points are found. That would mean 
-                no login has occurred
-        """    
-        if self.api_entry:
-            for entry in self.api_entry:
-                if entry['rel'] == verb:
-                    return entry['href']
-        else:
-            raise Exception("No entry points found, it is likely there is no valid login session.")
-                     
-    def get_all_entry_points(self): #for callers outside of the module
-        """ Returns all entry points into SMC api """   
-        return self.api_entry
-    
-    def get_element(self, name):
-        """ Check if we've already retrieved the item location """
-        return self.elements.get(name)
 
 class SMCResult(object):
     def __init__(self, respobj=None):
@@ -274,7 +278,7 @@ class SMCOperationFailure(Exception):
                 errorstr.append(str(i) + ": " + str(self.body[i]))
         return ' '.join(errorstr)
     
-session = SMCAPIConnection(SMCEntryCache())
+session = SMCAPIConnection()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
@@ -283,7 +287,7 @@ if __name__ == '__main__':
         session.http_post('http://172.18.1.152:8082/6.0/efw', {"test":"test"})
     except SMCOperationFailure, e:
         logger.error(e.msg)
-  
+        
     session.logout()
     
     
