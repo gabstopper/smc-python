@@ -1,7 +1,7 @@
 import logging
 import smc.actions
 import smc.api.web as web_api
-import smc.api.common as common
+import smc.api.common as common_api
 from smc.elements.element import SMCElement
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ def element(name, objtype=None):
         element.type = removable['type']
         element.href = removable['href']
         
-        common._remove(element)
+        common_api._remove(element)
         
     else:
         logger.info("No element named: %s, nothing to remove" % name)
