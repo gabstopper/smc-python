@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 class SMCEntryCache(object):
     def __init__(self):
+        
         self.cache = None
         self.api_entry = None
         
@@ -68,8 +69,6 @@ class SMCEntryCache(object):
         """ Check if we've already retrieved the item location """
         return self.elements.get(name)
     
-    def get_my_mom(self):
-        pass
     
 class SMCAPIConnection(SMCEntryCache):
     def __init__(self):
