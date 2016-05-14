@@ -1,18 +1,31 @@
 import smc.helpers
 
-
 class SMCElement(object):
-    def __init__(self, json):
-        self.json = json
-
-        
-class Host(object):
     def __init__(self):
+        self.json = None
+        self.etag = None
+        self.type = None
         self.name = None
+        self.href = None
+        self.comment = None
+        self.element = None
+
+    def create(self):
+        return self
+    
+    def modify(self):
+        raise "Not Implemented"
+    
+    def remove(self):
+        raise "Not Implemented"
+    
+
+class Host(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
         self.ip = None
         self.secondary_ip = None
-        self.comment = None
-    
+        
     def create(self):
         host = smc.helpers.get_json_template('host.json')
         host['name'] = self.name
@@ -22,15 +35,15 @@ class Host(object):
         if self.secondary_ip:
             for addr in self.secondary_ip:
                 host['secondary'].append(addr)
-        return host 
-    
-    
-class Group(object):
+        
+        self.json = host
+        return self
+ 
+class Group(SMCElement):
     def __init__(self):
-        self.name = None
+        SMCElement.__init__(self)
         self.members = None
-        self.comment = None
-    
+     
     def create(self):
         group = smc.helpers.get_json_template('group.json')
         group['name'] = self.name
@@ -38,13 +51,15 @@ class Group(object):
             group['element'] = self.members
         if self.comment:
             group['comment'] = self.comment
-        return group
+        
+        self.json = group
+        return self
 
-class IpRange(object):
+
+class IpRange(SMCElement):
     def __init__(self):
-        self.name = None
+        SMCElement.__init__(self)
         self.iprange = None
-        self.comment = None
         
     def create(self):
         iprange = smc.helpers.get_json_template('iprange.json')
@@ -52,12 +67,14 @@ class IpRange(object):
         iprange['ip_range'] = self.iprange
         if self.comment:
             iprange['comment'] = self.comment
-        print iprange
-        return iprange
         
-class Router(object):
+        self.json = iprange
+        return self
+
+        
+class Router(SMCElement):
     def __init__(self):
-        self.name = None
+        SMCElement.__init__(self)
         self.address = None
         self.secondary_ip = None 
     
@@ -68,14 +85,15 @@ class Router(object):
         if self.secondary_ip:
             for addr in self.secondary_ip:
                 router['secondary'].append(addr)
-        return router   
+        
+        self.json = router
+        return self   
     
 
-class Network(object):
+class Network(SMCElement):
     def __init__(self):
-        self.name = None
+        SMCElement.__init__(self)
         self.ip4_network = None
-        self.comment = None
     
     def create(self):
         network = smc.helpers.get_json_template('network.json')
@@ -83,12 +101,14 @@ class Network(object):
         network['ipv4_network'] = self.ip4_network
         if self.comment:
             network['comment'] = self.comment
-        return network
+        
+        self.json = network
+        return self
 
 
-class Route(object):
-    def __init__(self, SMCElement=None):
-        self.engine = None
+class Route(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
         self.gw_ip = None
         self.gw_name = None
         self.gw_href = None
@@ -96,7 +116,7 @@ class Route(object):
         self.network_name = None
         self.network_href = None
         self.interface_id = None
-        self.element = SMCElement
+        self.element = None
         
     def create(self):
         routing = smc.helpers.get_json_template('routing.json')
@@ -104,7 +124,7 @@ class Route(object):
         routing['gateway']['href'] = self.gw_href
         routing['gateway']['ip'] = self.gw_ip
         routing['gateway']['name'] = self.gw_name
-        
+ 
         #Network behind Next Hop
         routing['network']['href'] = self.network_href
         routing['network']['ip'] = self.network_ip
@@ -115,27 +135,25 @@ class Route(object):
         
         if self.interface_id is not None:
             try:
-                self.interface_id = next(item for item in self.element.json['routing_node'] if item['nic_id'] == str(self.interface_id))
+                self.interface_id = next(item for item in self.element['routing_node'] if item['nic_id'] == str(self.interface_id))
             except StopIteration:
                 return None
                 
         self.interface_id['routing_node'][0]['routing_node'].append(routing['gateway'])
         
-        #from pprint import pprint
-        #pprint(self.element.json)
-        return self.element.json
-
-            
-class SingleFW(object):
-    def __init__(self, SMCElement=None):
-        self.name = None
+        self.json = self.element
+        return self
+    
+    
+class SingleFW(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
         self.mgmt_ip = None
         self.mgmt_network = None
         self.log_server = None
         self.dns = None
         self.fw_license = None
         self.interface_id = None
-        self.element = SMCElement    #existing json for modification/add
     
     def add_interface(self, ip, mask, int_id=None): #TODO: Allow setting the interface
         """ Add physical interface to firewall
@@ -168,9 +186,10 @@ class SingleFW(object):
         iface['nicid'] = str(self.interface_id)
         iface['network_value'] = mask
         
-        self.element.json['physicalInterfaces'].append(interface)
+        self.element['physicalInterfaces'].append(interface)
         
-        return self.element.json
+        self.json = self.element
+        return self
         
     def create(self):
         """ Create initial single l3 fw 
@@ -192,8 +211,9 @@ class SingleFW(object):
                 if self.dns:
                     single_fw[k].append({"rank": 0, "value": self.dns})
         
-        return single_fw    
-    
+        self.json = single_fw
+        return self  
+                
 
 class L2FW(object):
     def __init__(self, SMCElement=None):
