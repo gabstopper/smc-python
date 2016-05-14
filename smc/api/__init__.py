@@ -1,3 +1,3 @@
-__all__ = ["web"]
+__all__ = []
 
 class mem: pass
