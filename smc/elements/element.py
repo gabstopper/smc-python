@@ -19,7 +19,10 @@ class SMCElement(object):
     def remove(self):
         raise "Not Implemented"
     
-
+    def __str__(self):
+        return "name: %s, type: %s" % (self.name, self.type)
+ 
+        
 class Host(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
@@ -38,11 +41,15 @@ class Host(SMCElement):
         
         self.json = host
         return self
- 
+    
+    def __str__(self):
+        return "name: %s, type: %s, address: %s" % (self.name, self.type, self.ip)
+
+    
 class Group(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
-        self.members = None
+        self.members = []
      
     def create(self):
         group = smc.helpers.get_json_template('group.json')
@@ -54,6 +61,9 @@ class Group(SMCElement):
         
         self.json = group
         return self
+    
+    def __str__(self):
+        return "name: %s, type: %s, members: %s" % (self.name, self.type, len(self.members))
 
 
 class IpRange(SMCElement):
@@ -71,6 +81,9 @@ class IpRange(SMCElement):
         self.json = iprange
         return self
 
+    def __str__(self):
+        return "name: %s, type: %s, iprange: %s" % (self.name, self.type, self.iprange)
+    
         
 class Router(SMCElement):
     def __init__(self):
@@ -85,10 +98,15 @@ class Router(SMCElement):
         if self.secondary_ip:
             for addr in self.secondary_ip:
                 router['secondary'].append(addr)
-        
+        if self.comment:
+            router['comment'] = self.comment
+            
         self.json = router
         return self   
-    
+
+    def __str__(self):
+        return "name: %s, type: %s, address: %s" % (self.name, self.type, self.address)
+
 
 class Network(SMCElement):
     def __init__(self):
@@ -105,6 +123,9 @@ class Network(SMCElement):
         self.json = network
         return self
 
+    def __str__(self):
+        return "name: %s, type: %s, ip4_network: %s" % (self.name, self.type, self.ip4_network)
+
 
 class Route(SMCElement):
     def __init__(self):
@@ -116,6 +137,7 @@ class Route(SMCElement):
         self.network_name = None
         self.network_href = None
         self.interface_id = None
+        self.interface_json = None
         self.element = None
         
     def create(self):
@@ -134,15 +156,18 @@ class Route(SMCElement):
         routing['gateway']['routing_node'].append(routing['network'])
         
         if self.interface_id is not None:
-            try:
-                self.interface_id = next(item for item in self.element['routing_node'] if item['nic_id'] == str(self.interface_id))
+            try:    #find specified nic_id
+                self.interface_json = next(item for item in self.element['routing_node'] if item['nic_id'] == str(self.interface_id))
             except StopIteration:
                 return None
                 
-        self.interface_id['routing_node'][0]['routing_node'].append(routing['gateway'])
+        self.interface_json['routing_node'][0]['routing_node'].append(routing['gateway'])
         
         self.json = self.element
         return self
+    
+    def __str__(self):
+        return "name: %s, type: %s, gw: %s, net: %s, int_id: %s" % (self.name, self.type, self.gw_name, self.network_ip, self.interface_id)
     
     
 class SingleFW(SMCElement):
@@ -154,42 +179,6 @@ class SingleFW(SMCElement):
         self.dns = None
         self.fw_license = None
         self.interface_id = None
-    
-    def add_interface(self, ip, mask, int_id=None): #TODO: Allow setting the interface
-        """ Add physical interface to firewall
-            Args: 
-                * ip: address of interface
-                * mask: in cidr format
-                * int_id (optional): id for interface, if not set, uses next available
-            Implementation detail: mgmt is always installed to interface 0. If the
-            operator specifies to add an interface at pos 5 (for example) and adds 
-            additional interfaces without specifying position, it will always be +1 of
-            the highest interface defined.
-        """
-        interface = smc.helpers.get_json_template('routed_interface.json')
-        interface_ids = [] #store existing node_id to find next open
-        
-        if int_id is not None: #specific int id requested
-            self.interface_id = int_id
-        else:
-            for node_interface in self.element.json['physicalInterfaces']:
-                interface_ids.append(node_interface['physical_interface']['interface_id'])
-        
-                interface_id = [int(i) for i in interface_ids]  #needed to find max
-                self.interface_id = max(interface_id)+1
-           
-        phys_iface = interface['physical_interface']
-        phys_iface['interface_id'] = str(self.interface_id)
-        iface = interface['physical_interface']['interfaces'][0]
-        iface = iface['single_node_interface']
-        iface['address'] = ip
-        iface['nicid'] = str(self.interface_id)
-        iface['network_value'] = mask
-        
-        self.element['physicalInterfaces'].append(interface)
-        
-        self.json = self.element
-        return self
         
     def create(self):
         """ Create initial single l3 fw 
@@ -215,6 +204,51 @@ class SingleFW(SMCElement):
         return self  
                 
 
+class L3interface(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        self.ip = None
+        self.mask = None
+        self.interface_id = None
+        
+    def create(self):
+        """ Add physical interface to firewall
+            Args: 
+                * ip: address of interface
+                * mask: in cidr format
+                * int_id (optional): id for interface, if not set, uses next available
+            Implementation detail: mgmt is always installed to interface 0. If the
+            operator specifies to add an interface at pos 5 (for example) and adds 
+            additional interfaces without specifying position, it will always be +1 of
+            the highest interface defined.
+        """
+        interface = smc.helpers.get_json_template('routed_interface.json')
+        interface_ids = [] #store existing node_id to find next open
+        
+        if self.interface_id is None:
+            for node_interface in self.element['physicalInterfaces']:
+                interface_ids.append(node_interface['physical_interface']['interface_id'])
+        
+                interface_id = [int(i) for i in interface_ids]  #needed to find max
+                self.interface_id = max(interface_id)+1
+        
+        phys_iface = interface['physical_interface']
+        phys_iface['interface_id'] = str(self.interface_id)
+        iface = interface['physical_interface']['interfaces'][0]
+        iface = iface['single_node_interface']
+        iface['address'] = self.ip
+        iface['nicid'] = str(self.interface_id)
+        iface['network_value'] = self.mask
+        
+        self.element['physicalInterfaces'].append(interface)
+        
+        self.json = self.element
+        return self        
+    
+    def __str__(self):
+        return "name: %s, type: %s, ip: %s, mask: %s, int_id: %s" % (self.name, self.type, self.ip, self.mask, self.interface_id)   
+ 
+        
 class L2FW(object):
     def __init__(self, SMCElement=None):
         pass
