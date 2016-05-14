@@ -1,11 +1,11 @@
 import logging
 import smc.actions
 import smc.api.web as web_api
-from smc.api.web import SMCOperationFailure
+import smc.api.common as common
+from smc.elements.element import SMCElement
 
 logger = logging.getLogger(__name__)
 
-#generic
 def element(name, objtype=None):
     """ Remove by element
         Args:
@@ -17,19 +17,13 @@ def element(name, objtype=None):
     removable = smc.actions.search.get_element(name, objtype)
     if removable is not None:
         logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable['type']))
-        try:
-            #smc.web_api.http_delete(removable['href']) #delete to href
-            web_api.session.http_delete(removable['href']) #delete to href
-            logger.info("Successfully removed host: %s" % name)
-            #try:
-            #    a = web_api.session.cache.elements.pop(name)
-            #    print "Popped that beeotch: %s" % a
-            #except KeyError:
-            #    print "Key not found in cache: %s" % name
-            #    pass
-            
-        except SMCOperationFailure, e:
-            logger.error("Failed removing host: %s, msg: %s" % (name, e.msg))
+        element = SMCElement()
+        element.name = name
+        element.type = removable['type']
+        element.href = removable['href']
+        
+        common._remove(element)
+        
     else:
         logger.info("No element named: %s, nothing to remove" % name)
 
