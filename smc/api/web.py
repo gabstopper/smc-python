@@ -45,14 +45,13 @@ class SMCEntryCache(object):
                       
     def get_entry_href(self, verb):
         """ Get entry point from entry point cache 
-            Call get_all_entry_points to find all available entry points 
-            Args: 
-                * verb: top level entry point into SMC api
-            Returns:
-                * dict of entry point specified
-            Raises
-                Exception is no entry points are found. That would mean 
-                no login has occurred
+        Call get_all_entry_points to find all available entry points 
+        Args: 
+            * verb: top level entry point into SMC api
+        Returns:
+            * dict of entry point specified
+        Raises
+            Exception is no entry points are found. That would mean no login has occurred
         """
         if self.api_entry:
             for entry in self.api_entry:
@@ -82,14 +81,14 @@ class SMCAPIConnection(SMCEntryCache):
         
     def login(self, url, smc_key, api_version=None):    
         """ Login to SMC API and retrieve a valid session. 
-            Session will be re-used when multiple queries are required.
-            Args:
-                * url: ip of SMC management server
-                * smc_key: API key created for api client in SMC
-                * api_version (optional): specify api version
+        Session will be re-used when multiple queries are required.
+        Args:
+            * url: ip of SMC management server
+            * smc_key: API key created for api client in SMC
+            * api_version (optional): specify api version
                     
-            Logout should be called to remove the session immediately from the SMC server
-            TODO: pickle session for longer term re-use? Implement SSL tracking
+        Logout should be called to remove the session immediately from the SMC server
+        TODO: pickle session for longer term re-use? Implement SSL tracking
         """
         
         self.get_api_entry(url, api_version)
@@ -117,13 +116,13 @@ class SMCAPIConnection(SMCEntryCache):
     
     def http_get(self, href): #TODO: Implement self.visited for already seen queries
         """ Get data object from SMC
-            If response code is success, results are returned with etag
-            Args:
-                * href: fully qualified href for resource
-            Returns:
-                SMCResult object with json data and etag attrs
-            Raises:
-                SMCOperationFailure if non-http 200 response received
+        If response code is success, results are returned with etag
+        Args:
+            * href: fully qualified href for resource
+        Returns:
+            SMCResult object with json data and etag attrs
+        Raises:
+            SMCOperationFailure if non-http 200 response received
         """   
         try:
             if self.session:
@@ -144,16 +143,16 @@ class SMCAPIConnection(SMCEntryCache):
             
     def http_post(self, href, data, uri=None):
         """ Add object to SMC
-            If response code is success, return href to new object location
-            If not success, raise exception, caught in middle tier calling method
-            Args:
-                * href: entry point to add specific object type
-                * data: json document with object def
-                * uri (optional): not implemented
-            Returns:
-                Href of the resource pulled from returned location header
-            Raises:
-                SMCOperationFailure in case of non-http 201 return
+        If response code is success, return href to new object location
+        If not success, raise exception, caught in middle tier calling method
+        Args:
+            * href: entry point to add specific object type
+            * data: json document with object def
+            * uri (optional): not implemented
+        Returns:
+            Href of the resource pulled from returned location header
+        Raises:
+            SMCOperationFailure in case of non-http 201 return
         """ 
         try:
             if self.session:         
@@ -178,13 +177,13 @@ class SMCAPIConnection(SMCEntryCache):
             
     def http_put(self, href, data, etag):
         """ Change state of existing SMC object
-            Args: 
-                * data: json encoded document
-                * etag: required by SMC, retrieve first via http get
-            Returns:
-                Href of the resource pulled from returned location header
-            Raises:
-                SMCOperationFailure in case of non-http 200 return
+        Args: 
+            * data: json encoded document
+            * etag: required by SMC, retrieve first via http get
+        Returns:
+            Href of the resource pulled from returned location header
+        Raises:
+            SMCOperationFailure in case of non-http 200 return
         """ 
         try:
             if self.session:  
@@ -207,12 +206,12 @@ class SMCAPIConnection(SMCEntryCache):
         
     def http_delete(self, href):
         """ Delete element by fully qualified href
-            Args:
-                *href: fully qualified reference to object in SMC
-            Returns:
-                None
-            Raises:
-                SMCOperationFailure for non-http 204 code
+        Args:
+            *href: fully qualified reference to object in SMC
+        Returns:
+            None
+        Raises:
+            SMCOperationFailure for non-http 204 code
         """
         try: 
             if self.session:
@@ -232,7 +231,7 @@ class SMCAPIConnection(SMCEntryCache):
 class SMCResult(object):
     def __init__(self, respobj=None):
         self.etag = None
-        self.msg = self.extract(respobj)
+        self.json = self.extract(respobj)
         
     def extract(self, response):
         if response:
@@ -241,10 +240,10 @@ class SMCResult(object):
                 result = json.loads(response.text)
                 if result:
                     if 'result' in result:
-                        self.msg = result['result']
+                        self.json = result['result']
                     else:
-                        self.msg = result
-                return self.msg
+                        self.json = result
+                return self.json
             
            
 class SMCOperationFailure(Exception):
