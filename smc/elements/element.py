@@ -1,4 +1,5 @@
 import smc.helpers
+from pprint import pprint
 
 class SMCElement(object):
     def __init__(self):
@@ -175,8 +176,7 @@ class SingleFW(SMCElement):
         self.fw_license = None
         self.interface_id = None
         
-    def create(self):
-        
+    def create(self):      
         single_fw = smc.helpers.get_json_template('single_fw.json')
         
         for k in single_fw:
@@ -213,13 +213,9 @@ class L3interface(SMCElement):
         self.mask = None
         self.interface_id = None
         
-    def create(self):
-        
+    def create(self):       
         interface = smc.helpers.get_json_template('routed_interface.json')
         interface_ids = [] #store existing node_id to find next open
-        
-        from pprint import pprint
-        pprint(self.json)
         
         if self.interface_id is None:
             for node_interface in self.json['physicalInterfaces']:
@@ -243,8 +239,8 @@ class L3interface(SMCElement):
     def __str__(self):
         return "name: %s, type: %s, ip: %s, mask: %s, int_id: %s" % \
             (self.name, self.type, self.ip, self.mask, self.interface_id)   
- 
-        
+
+               
 class L2FW(SMCElement):
     def __init__(self, SMCElement=None):
         SMCElement.__init__(self)
@@ -254,38 +250,70 @@ class L2FW(SMCElement):
         self.dns = None
         self.fw_license = None
         self.log_server = None
-        self.interface_id = None
+        self.inline_pair = None
         self.logical_interface = None
         
-    def create(self):
+    def create(self):        
+        self.json = smc.helpers.get_json_template('layer2_fw.json')
         
-        layer2_fw = smc.helpers.get_json_template('layer2_fw.json')
-        
-        for k in layer2_fw:
+        for k in self.json:
             if k == 'name':
-                layer2_fw[k] = self.name
+                self.json[k] = self.name
             elif k == 'nodes':
-                layer2_fw[k][0]['fwlayer2_node']['name'] = self.name + ' node 1'
+                self.json[k][0]['fwlayer2_node']['name'] = self.name + ' node 1'
             elif k == 'physicalInterfaces':               
-                inline_int = layer2_fw[k][0]
-                inline_int['physical_interface']['interfaces'][0]['inline_interface']['logical_interface_ref'] = self.logical_interface
-                
-                from pprint import pprint
-                pprint(inline_int)
-                
-                mgmt_int = layer2_fw[k][1]
+                mgmt_int = self.json[k][0]
                 mgmt_int['physical_interface']['interfaces'][0]['node_interface']['address'] = self.mgmt_ip
                 mgmt_int['physical_interface']['interfaces'][0]['node_interface']['network_value'] = self.mgmt_network
             elif k == 'log_server_ref':
-                layer2_fw[k] = self.log_server
+                self.json[k] = self.log_server
             elif k == 'domain_server_address':
                 if self.dns:
-                    layer2_fw[k].append({"rank": 0, "value": self.dns})
-                    
-        self.json = layer2_fw
-        
+                    self.json[k].append({"rank": 0, "value": self.dns})
+                           
+        self.json['physicalInterfaces'].append(self.inline_pair)
+                
         return self
 
+
+class Logicalinterface(SMCElement):
+    def __init__(self, SMCElement=None):
+        SMCElement.__init__(self)
+    
+    def create(self):
+        self.json = {
+                    "comment": self.comment,
+                    "name": self.name
+        }
+    
+        return self
+    
+class L2interface(SMCElement):
+    def __init__(self, SMCElement=None):
+        SMCElement.__init__(self)
+        self.interface_id = []
+        self.logical_int_href = None
+        
+    def create(self):
+        interface = smc.helpers.get_json_template('inline_interface.json')
+        
+        int_str = [str(i) for i in self.interface_id]
+        
+        phys_int = interface['physical_interface']
+        phys_int['interface_id'] = self.interface_id[0]
+        inline_int = interface['physical_interface']['interfaces'][0]['inline_interface']
+        inline_int['logical_interface_ref'] = self.logical_int_href
+        inline_int['nicid'] = ('-').join(int_str)
+        
+        if self.json is not None: #modify existing l2fw
+            self.json['physicalInterfaces'].append(interface)
+        else:   #add to new l2fw (required by l2fw to have at least one inline pair)
+            self.json = interface
+        
+        return self
+        
+        
+        
         
         
         
