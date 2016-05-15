@@ -1,0 +1,203 @@
+{
+	"alias_value": [],
+	"antivirus": {
+		"antivirus_enabled": false,
+		"antivirus_update": "daily",
+		"antivirus_update_day": "mo",
+		"antivirus_update_time": 21600000,
+		"virus_log_level": "none",
+		"virus_mirror": "update.nai.com/Products/CommonUpdater"
+	},
+	"atd_settings": {
+		"atd_server": []
+	},
+	"auto_reboot_timeout": 10,
+	"automatic_rules_settings": {
+		"log_level": "none"
+	},
+	"connection_limit": 0,
+	"connection_timeout": [{
+		"protocol": "other",
+		"timeout": 180
+	}, {
+		"protocol": "icmp",
+		"timeout": 5
+	}, {
+		"protocol": "udp",
+		"timeout": 50
+	}, {
+		"protocol": "tcp",
+		"timeout": 1800
+	}],
+	"contact_timeout": 120000,
+	"domain_server_address": [],
+	"dos_protection": "default_off",
+	"gti_settings": {
+		"file_reputation_context": "disabled",
+		"http_proxy": []
+	},
+	"is_cert_auto_renewal": true,
+	"is_config_encrypted": true,
+	"is_virtual_defrag": true,
+	"log_buffer_size": 16777216,
+	"log_moderation": [{
+		"log_event": "2"
+	}],
+	"log_server_ref": "@LOG_SERVER@",
+	"log_spooling_policy": "discard",
+	"max_spooled_conf_count": 100,
+	"name": "@NAME@",
+	"nodes": [{
+		"fwlayer2_node": {
+			"activate_test": true,
+			"disabled": false,
+			"loopback_node_dedicated_interface": [],
+			"name": "@NAME_NODE_NUM@",
+			"nodeid": 1
+		}
+	}],
+	"opcua_client_x509_credentials": [],
+	"opcua_decryption_mode": "none",
+	"opcua_server_x509_credentials": [],
+	"passive_discard_access_mode": false,
+	"passive_discard_mode": false,
+	"physicalInterfaces": [{
+		"physical_interface": {
+			"aggregate_mode": "none",
+			"arp_entry": [],
+			"cvi_mode": "none",
+			"dhcp_server_on_interface": {
+				"default_lease_time": 7200,
+				"dhcp_range_per_node": []
+			},
+			"interface_id": "1",
+			"interfaces": [{
+				"inline_interface": {
+					"failure_mode": "normal",
+					"inspect_unspecified_vlans": true,
+					"logical_interface_ref": "@LOGICAL_INTERFACE_REF@",
+					"nicid": "1-2"
+				}
+			}],
+			"log_moderation": [{
+				"log_event": "2"
+			}],
+			"managed_address_flag": false,
+			"mtu": -1,
+			"other_configuration_flag": false,
+			"qos_limit": -1,
+			"qos_mode": "no_qos",
+			"router_advertisement": false,
+			"syn_mode": "default",
+			"sync_parameter": {
+				"full_sync_interval": 5000,
+				"heartbeat_group_ip": "224.0.0.221",
+				"incr_sync_interval": 50,
+				"statesync_group_ip": "224.0.0.222",
+				"sync_mode": "sync_all",
+				"sync_security": "sign"
+			},
+			"virtual_engine_vlan_ok": false,
+			"vlanInterfaces": []
+		}
+	}, {
+		"physical_interface": {
+			"aggregate_mode": "none",
+			"arp_entry": [],
+			"cvi_mode": "none",
+			"dhcp_server_on_interface": {
+				"default_lease_time": 7200,
+				"dhcp_range_per_node": []
+			},
+			"interface_id": "0",
+			"interfaces": [{
+				"node_interface": {
+					"address": "@IP@",
+					"auth_request": false,
+					"auth_request_source": false,
+					"backup_for_web_access": false,
+					"backup_heartbeat": false,
+					"backup_mgt": false,
+					"dynamic": false,
+					"igmp_mode": "none",
+					"network_value": "@NETWORK@",
+					"nicid": "0",
+					"nodeid": 1,
+					"outgoing": true,
+					"pppoa": false,
+					"pppoe": false,
+					"pppoe_password": "*****",
+					"primary_for_web_access": false,
+					"primary_heartbeat": false,
+					"primary_mgt": true,
+					"reverse_connection": false,
+					"vrrp": false,
+					"vrrp_id": -1,
+					"vrrp_priority": -1
+				}
+			}],
+			"log_moderation": [{
+				"log_event": "2"
+			}],
+			"managed_address_flag": false,
+			"mtu": -1,
+			"other_configuration_flag": false,
+			"qos_limit": -1,
+			"qos_mode": "no_qos",
+			"router_advertisement": false,
+			"syn_mode": "default",
+			"sync_parameter": {
+				"full_sync_interval": 5000,
+				"heartbeat_group_ip": "224.0.0.221",
+				"incr_sync_interval": 50,
+				"statesync_group_ip": "224.0.0.222",
+				"sync_mode": "sync_all",
+				"sync_security": "sign"
+			},
+			"virtual_engine_vlan_ok": false,
+			"vlanInterfaces": []
+		}
+	}],
+	"read_only": false,
+	"rollback_timeout": 60,
+	"scan_detection": {
+		"scan_detection_icmp_events": 220,
+		"scan_detection_icmp_timewindow": 1,
+		"scan_detection_tcp_events": 220,
+		"scan_detection_tcp_timewindow": 1,
+		"scan_detection_type": "default off",
+		"scan_detection_udp_events": 220,
+		"scan_detection_udp_timewindow": 1
+	},
+	"server_credential": [],
+	"slow_request_blacklist_timeout": 300,
+	"slow_request_sensitivity": "low",
+	"strict_tcp_mode": false,
+	"syn_flood_sensitivity": "medium",
+	"syn_mode": "off",
+	"system": false,
+	"tester_parameters": {
+		"alert_interval": 3600,
+		"auto_recovery": true,
+		"boot_delay": 30,
+		"boot_recovery": true,
+		"restart_delay": 5,
+		"status_delay": 5
+	},
+	"tests": [{
+		"inline_test": {
+			"alert_notification": true,
+			"key": 30,
+			"name": "Inline Pair Link Speed",
+			"offline_state": true,
+			"snmp_notification": false,
+			"standby_state": true,
+			"test_action": "forcespeed",
+			"test_active": true,
+			"test_interval": 60,
+			"test_timeout": 30000
+		}
+	}],
+	"tls_client_protection": [],
+	"tracking_mode": "normal"
+}
