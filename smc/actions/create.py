@@ -89,7 +89,7 @@ def router(name, ip, secondary_ip=None, comment=None):
 
 
 def network(name, ip_network, comment=None):
-    """ Create network element
+    """ Create network element   
     Args:
         * name: name for object
         * ip_network: ipv4 address in cidr or full netmask format (1.1.1.1/24, or 1.1.1.0/255.255.0.0)
@@ -117,7 +117,7 @@ def network(name, ip_network, comment=None):
 def group(name, members=[], comment=None):
     """ Create group element, optionally with members
     Members must already exist in SMC. Before being added to the group a search will be 
-    performed for each member specified. 
+    performed for each member specified.     
     Args:
         * name: name for object
         * members list; i.e. ['element1', 'element2', etc]. Most elements can be used in a group
@@ -169,7 +169,7 @@ def group(name, members=[], comment=None):
 '''
        
 def single_fw(name, mgmt_ip, mgmt_network, interface_id=None, dns=None, fw_license=False):
-    """ Create single firewall with a single management interface
+    """ Create single firewall with a single management interface    
     Args:
         * name: name of fw instance
         * mgmt_ip: ipv4 address of management interface (interface 0)
@@ -191,7 +191,6 @@ def single_fw(name, mgmt_ip, mgmt_network, interface_id=None, dns=None, fw_licen
     else:
         logger.error("Can't seem to find an available Log Server on specified SMC, cannot add single_fw: %s" % name)
         return None
-
     
     entry_href = web_api.session.get_entry_href('single_fw') #get entry point for single_fw
     
@@ -224,7 +223,7 @@ def single_fw(name, mgmt_ip, mgmt_network, interface_id=None, dns=None, fw_licen
     
 
 def l3interface(node, ip, network, interface_id=None):
-    """ Add L3 interface for single FW 
+    """ Add L3 interface for single FW    
     Args:
         * l3fw: name of firewall to add interface to
         * ip: ip of interface
@@ -265,7 +264,7 @@ def l3interface(node, ip, network, interface_id=None):
 def l3route(engine, gw, network, interface_id): 
     """ Add route to l3fw 
     This could be added to any engine type. Non-routable engine roles (L2/IPS) may
-    still require route/s defined on the L3 management interface
+    still require route/s defined on the L3 management interface   
     Args:
         * l3fw: name of firewall to add route
         * gw: next hop router object
@@ -325,7 +324,20 @@ def l3route(engine, gw, network, interface_id):
         logger.error("Can not find specified interface: %s for route add, double check the interface configuration" % route.interface_id)
 
 
-def single_layer2(name, mgmt_ip, mgmt_network, l2_int=[], dns=None, fw_license=False):
+def single_layer2(name, mgmt_ip, mgmt_network, interface_id=[1,2], dns=None, fw_license=False):
+    """ Create single layer 2 firewall element
+    Layer 2 firewall will have a layer 3 management interface (interface 0) and will also need to
+    create at least one inline or capture interface. 
+    Args:
+        * name: name of single layer 2 fw
+        * mgmt_ip: ip address for management layer 3 interface
+        * mgmt_network: netmask for management network
+        * interface_id: int specifying interface id's to be used for inline interfaces (default: [1,2])
+        * dns: dns servers for management interface (optional)
+        * fw_license: attempt license after creation (optional)
+    Returns:
+        None
+    """
     if not smc.helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
         logger.error("Management IP: %s is not in the management network: %s, cannot add single_fw" % (mgmt_ip,mgmt_network))
         return None
@@ -340,22 +352,99 @@ def single_layer2(name, mgmt_ip, mgmt_network, l2_int=[], dns=None, fw_license=F
         return None
     
     entry_href = web_api.session.get_entry_href('single_layer2') #get entry point for layer2
-    logical_interface = smc.search.get_element('default_eth')['href'] #TODO: If doesn't exist, create one
     
     layer2_fw = smc.elements.element.L2FW()
     layer2_fw.href = entry_href
     layer2_fw.type = "single_layer2"
-    layer2_fw.dns = dns
     layer2_fw.name = name
+    layer2_fw.dns = dns
     layer2_fw.mgmt_ip = mgmt_ip
     layer2_fw.fw_license = fw_license
     layer2_fw.mgmt_network = mgmt_network
-    layer2_fw.logical_interface = logical_interface
     layer2_fw.log_server = available_log_servers
+
+    #create l2 interface
+    inline_pair = smc.elements.element.L2interface()
+    inline_pair.name = name
+    inline_pair.json = None
+    inline_pair.interface_id = interface_id
+    
+    layer2_fw.inline_pair = inline_pair.create().json #add inline interface
     
     common_api._create(layer2_fw.create())
 
 
+def l2interface(node, interface_id=[1,2], logical_int='default_eth'):
+    """ Add layer 2 inline interface   
+    Inline interfaces require two physical interfaces for the bridge and a logical 
+    interface to be assigned. By default, interface 1,2 will be used if interface_id is 
+    not specified. 
+    The logical interface is used by SMC for policy to logically group both interfaces
+    It is not possible to have inline and capture interfaces on the same node with the
+    same logical interface definition. Automatically create logical interface if it does
+    not already exist.    
+    Args: 
+        * node: node name to add inline interface pair
+        * interface_id [], int values of interfaces to use for inline pair (default: 1,2)
+        * logical_int: logical interface name to map to inline pair (default: 'default_eth')
+    Returns:
+        None
+    """
+    if len(interface_id) != 2:
+        logger.error("Layer 2 interface requires two interfaces be defined, specified: %s" % interface_id)
+        return None
+          
+    entry_href = smc.search.get_element(node)
+    
+    if entry_href is not None:
+        entry_href = entry_href['href']
+        
+        node_orig = web_api.session.http_get(entry_href)
+        
+        logical_int_href = smc.search.get_logical_interface(logical_int)
+        if logical_int_href is None:
+            logger.info("Logical interface: %s not found, creating automatically" % logical_int)
+            logical_int_href = logical_interface(logical_int, comment="made by api tool")
+   
+        l2_interface = smc.elements.element.L2interface()
+        l2_interface.name = node
+        l2_interface.href = entry_href
+        l2_interface.etag = node_orig.etag
+        l2_interface.json = node_orig.json
+        l2_interface.type = "inline interface"
+        l2_interface.interface_id = interface_id
+        l2_interface.logical_int_href = logical_int_href
+        
+        common_api._update(l2_interface.create())
+        
+    else:
+        logger.error("Cannot find node specified to add layer 2 inline interface: %s" % node)
+    
+
+def logical_interface(name, comment=None):
+    """ Create logical interface
+    Logical interfaces are required to be unique for a single IPS or layer 2 firewall that
+    has both inline and capture interfaces on the same host. If the IPS or layer2 FW only 
+    use capture or inline interfaces, the same logical interface can be used. 
+    Args: 
+        * name: name of logical interface
+        * comment: optional
+    Returns:
+        str href for new logical interface element
+    """
+    entry_href = web_api.session.get_entry_href('logical_interface')
+    
+    logical_int = smc.elements.element.Logicalinterface()
+    logical_int.name = name
+    logical_int.type = "logical interface"
+    logical_int.href = entry_href
+    if comment:
+        logical_int.comment = comment
+    else:
+        logical_int.comment = ""
+        
+    return common_api._create(logical_int.create())
+           
 def single_ips(data):
     pass
      
@@ -410,7 +499,7 @@ if __name__ == '__main__':
     smc.create.l3route('myfw4', '172.18.1.80', 'Any network', 0) #Good
     '''  
     
-    
+    '''
     #Test single_fw, add interfaces and routes
     smc.remove.element('myfw')
     time.sleep(10)
@@ -419,15 +508,23 @@ if __name__ == '__main__':
     smc.create.router('172.20.1.250', '172.20.1.250')   #name, #ip
     smc.create.network('192.168.3.0/24', '192.168.3.0/24') #name, #ip  
     smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-    smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)
+    smc.create.l3interface('myfw2', '10.10.0.1', '10.10.0.0/16', 3)
     #time.sleep(10)
     smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
     smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) #Next hop, dest network, interface
     smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
+    '''
+    
     
     smc.remove.element('mylayer2')
+    smc.remove.element('mylogical')
     time.sleep(10)
     smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+    smc.create.l2interface('mylayer2', interface_id=[8,9], logical_int='mylogical') #default logical int (default_eth)
+    #smc.create.l2interface('mylayer2', interface_id=[8,9]) #default logical int (default_eth)
+    smc.create.router('mynexthop', '172.18.1.50')
+    smc.create.l3route('mylayer2', 'mynexthop', '192.168.3.0/24', 0)
+    
     
     print("--- %s seconds ---" % (time.time() - start_time))    
     web_api.session.logout()
