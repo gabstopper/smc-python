@@ -16,8 +16,8 @@ def _create(element):
     logger.debug("Creating element: %s, href: %s, json: %s" % (element.name, element.href, element.json))
     try:
         smc_result = web_api.session.http_post(element.href, element.json)
-        element.href = smc_result #new href          
         logger.info("Success creating element; %s" % (element))
+        return smc_result #new href          
         
     except SMCOperationFailure, e:
             logger.error("Failed creating element; %s, %s" % (element, e.msg))
