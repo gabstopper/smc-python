@@ -72,6 +72,9 @@ smc.create.l3route('myfw6', '172.18.1.250', '192.168.3.0/24', 0)	#gateway 172.18
 ###### Create / remove a single L2 instance with management port and inline interfaces
 ```python
 smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+smc.create.l2interface('mylayer2', interface_id=[8,9])
+smc.create.router('mynexthop', '172.18.1.50')
+smc.create.l3route('mylayer2', 'mynexthop', '192.168.3.0/24', 0)
 ```
 
 ###### Example of using a search filter 
