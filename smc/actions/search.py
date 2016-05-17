@@ -52,7 +52,7 @@ def _get_element_json(name):
     Returns: 
         json data representing element 
     """
-    element = _fetch_element('ami', follow_href=True)
+    element = _fetch_element(name, follow_href=True)
     if element:
         return element.json
         
@@ -172,7 +172,15 @@ def get_log_servers():
     if not available_log_servers:
         return None
     return available_log_servers
-     
+
+def get_first_log_server():
+    available_log_servers = get_element_by_entry_point('log_server')
+    if not available_log_servers:
+        return None
+    for found in available_log_servers:
+            #TODO: If multiple log servers are present, how to handle - just get the first one
+            return found['href']
+                 
 if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
@@ -193,6 +201,9 @@ if __name__ == '__main__':
     print _get_element_href_json('default_eth')
     print "Logical interface: %s" % get_logical_interface('default_eth')
     
+    pprint(_get_element_json('mylayer3'))
+    #pprint(_get_element_json_by_href('http://172.18.1.150:8082/6.0/elements/single_layer2/1151'))
+    #pprint(_get_element_json('InlineFW'))
     #print "element as smcobject: %s" % _get_element_as_smc_element('ami')
     #########
     #by name and object type
