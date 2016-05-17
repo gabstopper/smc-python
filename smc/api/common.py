@@ -13,14 +13,19 @@ logger = logging.getLogger(__name__)
 
 
 def _create(element):
+    """ create element
+    If the creation was successful, SMCElement.href will reference the new location
+    If creation fails, it will be None
+    """
     logger.debug("Creating element: %s, href: %s, json: %s" % (element.name, element.href, element.json))
     try:
-        smc_result = web_api.session.http_post(element.href, element.json)
-        logger.info("Success creating element; %s" % (element))
-        return smc_result #new href          
+        #smc_result = web_api.session.http_post(element.href, element.json)
+        element.href = web_api.session.http_post(element.href, element.json)
+        logger.info("Success creating element; %s" % (element))       
         
     except SMCOperationFailure, e:
-            logger.error("Failed creating element; %s, %s" % (element, e.msg))
+        element.href = None
+        logger.error("Failed creating element; %s, %s" % (element, e.msg))
 
 
 def _update(element):
