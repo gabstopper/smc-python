@@ -1,6 +1,7 @@
 {
 	"address": "@ADDRESS@",
 	"name": "@NAME@",
+	"comment": "",
 	"read_only": false,
 	"secondary": [],
 	"system": false,
