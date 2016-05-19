@@ -20,12 +20,12 @@ class SMCElement(object):
     
     def __str__(self):
         return "name: %s, type: %s" % (self.name, self.type)
-    #    return "name: %s" % self.name
- 
+  
         
 class Host(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
+        self.type = "host"
         self.ip = None
         self.secondary_ip = None
         
@@ -33,8 +33,7 @@ class Host(SMCElement):
         self.json = smc.helpers.get_json_template('host.json')
         self.json['name'] = self.name
         self.json['address'] = self.ip
-        if self.comment:
-            self.json['comment'] = self.comment
+        self.comment = self.json['comment'] if self.comment is not None else ""
         if self.secondary_ip:
             for addr in self.secondary_ip:
                 self.json['secondary'].append(addr)
@@ -48,15 +47,14 @@ class Host(SMCElement):
 class Group(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
+        self.type = "group"
         self.members = []
      
     def create(self):
         self.json = smc.helpers.get_json_template('group.json')
         self.json['name'] = self.name
-        if self.members:
-            self.json['element'] = self.members
-        if self.comment:
-            self.json['comment'] = self.comment
+        self.members = self.json['element'] if self.members is not None else []
+        self.comment = self.json['comment'] if self.comment is not None else ""
         
         return self
     
@@ -67,14 +65,14 @@ class Group(SMCElement):
 class IpRange(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
+        self.type = "address range"
         self.iprange = None
         
     def create(self):
         self.json = smc.helpers.get_json_template('iprange.json')
         self.json['name'] = self.name
         self.json['ip_range'] = self.iprange
-        if self.comment:
-            self.json['comment'] = self.comment
+        self.comment = self.json['comment'] if self.comment is not None else ""
         
         return self
 
@@ -85,6 +83,7 @@ class IpRange(SMCElement):
 class Router(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
+        self.type = "router"
         self.address = None
         self.secondary_ip = None 
     
@@ -92,12 +91,11 @@ class Router(SMCElement):
         self.json = smc.helpers.get_json_template('router.json')
         self.json['name'] = self.name
         self.json['address'] = self.address
+        self.comment = self.json['comment'] if self.comment is not None else ""
         if self.secondary_ip:
             for addr in self.secondary_ip:
                 self.json['secondary'].append(addr)
-        if self.comment:
-            self.json['comment'] = self.comment
-            
+           
         return self   
 
     def __str__(self):
@@ -107,14 +105,14 @@ class Router(SMCElement):
 class Network(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
+        self.type  = "network"
         self.ip4_network = None
     
     def create(self):        
         self.json = smc.helpers.get_json_template('network.json')
         self.json['name'] = self.name
         self.json['ipv4_network'] = self.ip4_network
-        if self.comment:
-            self.json['comment'] = self.comment
+        self.comment = self.json['comment'] if self.comment is not None else ""
         
         return self
 
@@ -125,6 +123,7 @@ class Network(SMCElement):
 class Route(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
+        self.type = "route"
         self.gw_ip = None
         self.gw_name = None
         self.gw_href = None
@@ -162,16 +161,40 @@ class Route(SMCElement):
     
     def __str__(self):
         return "name: %s, type: %s, gw: %s, net: %s, int_id: %s" % (self.name, self.type, self.gw_name, self.network_ip, self.interface_id)
+
+
+class EngineNodeFactory(object):
+    def makeNode(self, node_type, mgmt_ip, mgmt_network, interface_id, dns, log_server):
+        if node_type == "ips":
+            pass 
+         
+        elif node_type == "l3fw":
+            l3_intf = SingleNodeInterface()
+            l3_intf.address = mgmt_ip
+            l3_intf.network_value = mgmt_network
+            l3_intf.auth_request = True
+            l3_intf.primary_mgt = True
+            l3_intf.outgoing = True
+            l3_intf.nicid = l3_intf.interface_id = interface_id
+            l3_intf.create()
+            
+            l3fw = L3FW()
+            l3fw.dns += [dns] if dns is not None else []
+            l3fw.interfaces.append(l3_intf.json)
+            l3fw.log_server = log_server
+            
+            return l3fw
+        
+        elif node_type == "l2fw":
+            print "l2fw"    
     
-
-
 class EngineNode(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
         self.dns = []
         self.log_server = None
         self.interfaces = []
-        
+                 
     def create(self):
         self.json = {
             "name": self.name,
@@ -185,7 +208,7 @@ class EngineNode(SMCElement):
                 "activate_test": True,
                 "disabled": False,
                 "loopback_node_dedicated_interface": [],
-                "name": self.name + " node 1 ",
+                "name": self.name + " node 1",
                 "nodeid": 1
                 }
         }
@@ -264,7 +287,6 @@ class NodeInterface(Interface):
         self.type = "node interface"
         self.address = None
         self.network_value = None
-        self.auth_request = False
         self.primary_mgt = False
         self.outgoing = False
         
@@ -274,7 +296,6 @@ class NodeInterface(Interface):
         self.int_json['node_interface']['network_value'] = self.network_value
         self.int_json['node_interface']['nodeid'] = self.nodeid
         self.int_json['node_interface']['nicid'] = self.nicid
-        self.int_json['node_interface']['auth_request'] = self.auth_request
         self.int_json['node_interface']['primary_mgt'] = self.primary_mgt
         self.int_json['node_interface']['outgoing'] = self.outgoing
         super(NodeInterface, self).create()
@@ -306,7 +327,7 @@ class CaptureInterface(Interface):
         super(CaptureInterface, self).create()
 
 
-class Logicalinterface(SMCElement):
+class LogicalInterface(SMCElement):
     def __init__(self, SMCElement=None):
         SMCElement.__init__(self)
         self.type = "logical interface"
