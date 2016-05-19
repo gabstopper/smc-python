@@ -8,13 +8,14 @@ logger = logging.getLogger(__name__)
 
 def element(name, objtype=None):
     """ Remove by element
-        Args:
-            * name: name for object to remove
-            * objtype (optional): filter to add to search for element, i.e. host,network,single_fw,etc
-        Returns:
-            None
+    Args:
+        * name: name for object to remove
+        * objtype (optional): filter to add to search for element, i.e. host,network,single_fw,etc
+    Returns:
+        None
     """
-    removable = smc.actions.search.get_element(name, objtype)
+  
+    removable = smc.actions.search.element_info_as_json(name)
     if removable is not None:
         logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable['type']))
         element = SMCElement()
@@ -32,6 +33,8 @@ if __name__ == '__main__':
 
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
+    smc.create.host('test-run', '2.2.2.2')
+    smc.create.host('ami2', '3.4.5.6')
     smc.remove.element('test-run')  #single fw
     smc.remove.element('ami2')      #single host
     smc.remove.element('anewgroup')      #group
