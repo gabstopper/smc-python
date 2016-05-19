@@ -62,8 +62,8 @@ smc.remove.element('myfw')		#remove firewall instance
 ###### Create / remove a single_fw L3 instance
 ```python
 smc.create.single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-smc.create.l3interface('myfw', '5.5.5.5', '5.5.0.0/16')
-smc.create.l3interface('myfw', '6.6.6.6', '6.6.6.0/255.255.255.0')
+smc.create.l3interface('myfw', '5.5.5.5', '5.5.0.0/16', 3)	#name, ip, network, interface
+smc.create.l3interface('myfw', '6.6.6.6', '6.6.6.0/255.255.255.0', 6)
 smc.create.router('172.18.1.250', '172.18.1.250')
 smc.create.l3route('myfw6', '172.18.1.80', 'Any network', 0) 	#add route to myfw6, gateway 172.18.1.80 as default gw
 smc.create.l3route('myfw6', '172.18.1.250', '192.168.3.0/24', 0)	#gateway 172.18.1.250 for network 192.168.3.0/24
@@ -72,16 +72,15 @@ smc.create.l3route('myfw6', '172.18.1.250', '192.168.3.0/24', 0)	#gateway 172.18
 ###### Create / remove a single L2 instance with management port and inline interfaces
 ```python
 smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-smc.create.l2interface('mylayer2', interface_id=[8,9])
+smc.create.l2interface('mylayer2', interface_id='8,9')
 smc.create.router('mynexthop', '172.18.1.50')
 smc.create.l3route('mylayer2', 'mynexthop', '192.168.3.0/24', 0)
 ```
 
 ###### Example of using a search filter 
 ```python
-smc.get.element('myobject')  		#Search for element named 'myobject', match on 'name' field (looks at all object types)
-smc.get.element('myobject', 'host')	#Search for host element named 'myobject'; match on 'name' field
-smc.get.element('myobject', 'host', False)	#Search for host element/s with 'myobject' in all elements
+smc.search.element('ami')
+smc.search.element_as_json('myobject')  #Search for element named 'myobject'
 ```
 
 ###### Full provision of layer 3 fw including multiple interfaces and routes
