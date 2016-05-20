@@ -10,6 +10,10 @@ from smc.api.common import _fetch_element
 logger = logging.getLogger(__name__)
 
 
+def element(name):
+    return element_href(name)
+
+
 def element_href(name):
     """ Get specified element href by element name 
     Args:
@@ -92,6 +96,7 @@ def element_by_href_as_json(href):
     if element:
         return element.json
 
+
 def element_by_href_as_smcelement(href):
     """ Get specified element returned as an SMCElement object 
     Args: 
@@ -103,6 +108,7 @@ def element_by_href_as_smcelement(href):
     element = _fetch_element(href=href)
     if element:
         return element
+
             
 def element_as_smc_element(name):
     
@@ -162,23 +168,20 @@ def get_routing_node(name):
         
 def get_logical_interface(name):
     interface = element_href(name)
-    if not interface:
-        return None
-    return interface
+    if interface:
+        return interface
 
      
 def get_log_servers():
     available_log_servers = all_elements_by_type('log_server')
-    if not available_log_servers:
-        return None
-    return available_log_servers
+    if available_log_servers:
+        return available_log_servers
 
 
 def get_first_log_server():
     available_log_servers = all_elements_by_type('log_server')
-    if not available_log_servers:
-        return None
-    for found in available_log_servers:
+    if available_log_servers:
+        for found in available_log_servers:
             #TODO: If multiple log servers are present, how to handle - just get the first one
             return found['href']
  
@@ -225,5 +228,7 @@ if __name__ == '__main__':
     
     print "First log server: %s" % get_first_log_server()
     
+    from pprint import pprint
+    pprint(element_as_json('ips-test'))
    
     web_api.session.logout()
