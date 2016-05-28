@@ -11,7 +11,7 @@ setup(name='smc-py',
       author='David LePage',
       author_email='dwlepage70@gmail.com',
       license='None',
-      packages=['smc'],
+      packages=['smc', 'actions', 'api', 'elements'],
       install_requires=[
           'requests',
           'ipaddress'
