@@ -1,5 +1,5 @@
-from .actions import *
-from .api.web import *
+from smc.actions import *
+from smc.api.web import *
 
 # Set default logging handler to avoid "No handler found" warnings.
 try:  # Python 2.7+
