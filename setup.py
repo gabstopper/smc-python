@@ -4,7 +4,7 @@ def readme():
     with open('README.rst') as f:
         return f.read()
     
-setup(name='smc_py',
+setup(name='smc-py',
       version='0.1',
       description='Python based API to Stonesoft Security Management Center',
       url='http://github.com/gabstopper/smc-python',
