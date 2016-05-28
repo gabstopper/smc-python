@@ -164,10 +164,39 @@ class Route(SMCElement):
 
 
 class EngineNodeFactory(object):
-    def makeNode(self, node_type, mgmt_ip, mgmt_network, interface_id, dns, log_server):
-        if node_type == "ips":
-            pass 
-         
+        
+    def makeNode(self, name, mgmt_ip, mgmt_network, log_server, kwargs):
+        
+        element = None
+        node_type = kwargs['node_type']
+        if node_type == "ips" or node_type == "l2fw":
+            l3_intf = NodeInterface()
+            l3_intf.address = mgmt_ip
+            l3_intf.network_value = mgmt_network
+            l3_intf.primary_mgt = True
+            l3_intf.outgoing = True
+            l3_intf.nicid = l3_intf.interface_id = 0
+            l3_intf.create()
+            
+            inline_intf = InlineInterface()
+            inline_intf.logical_interface_ref = kwargs['logical_interface']
+            inline_intf.interface_id = kwargs['interface_id'].split('-')[0]
+            inline_intf.nicid = kwargs['interface_id']
+            inline_intf.create() 
+            
+            if node_type == "l2fw":
+                element = FWLayer2()
+            elif node_type == "ips":
+                element = IPS()
+                
+            element.name = name
+            element.dns += [kwargs['dns']] if kwargs['dns'] is not None else []
+            element.log_server = log_server
+            element.interfaces.append(l3_intf.json)
+            element.interfaces.append(inline_intf.json)
+                
+            return element
+                                       
         elif node_type == "l3fw":
             l3_intf = SingleNodeInterface()
             l3_intf.address = mgmt_ip
@@ -175,18 +204,16 @@ class EngineNodeFactory(object):
             l3_intf.auth_request = True
             l3_intf.primary_mgt = True
             l3_intf.outgoing = True
-            l3_intf.nicid = l3_intf.interface_id = interface_id
+            l3_intf.nicid = l3_intf.interface_id = kwargs['interface_id']
             l3_intf.create()
             
             l3fw = L3FW()
-            l3fw.dns += [dns] if dns is not None else []
+            l3fw.dns += [kwargs['dns']] if kwargs['dns'] is not None else []
             l3fw.interfaces.append(l3_intf.json)
             l3fw.log_server = log_server
             
             return l3fw
         
-        elif node_type == "l2fw":
-            print "l2fw"    
     
 class EngineNode(SMCElement):
     def __init__(self):
