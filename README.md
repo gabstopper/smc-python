@@ -11,7 +11,7 @@ Installing package
 
 use pip
 
-`pip git+https://github.com/gabstopper/smc-python.git`
+`pip install git+https://github.com/gabstopper/smc-python.git`
 
 download the latest tarball: [smc-python](https://github.com/gabstopper/smc-python/archive/master.zip), unzip and run
 
