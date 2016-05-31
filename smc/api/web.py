@@ -272,7 +272,7 @@ class SMCOperationFailure(Exception):
         if isinstance(self.body, dict):
             for i in self.body:
                 print "i: %s, self.body: %s" % (i,self.body)
-                if isinstance(self.body[i]) is list:
+                if isinstance(self.body[i], list):
                 #if type(self.body) is list:
                     errorstr.append(str(i) + ": ")
                     for err in self.body[i]:
