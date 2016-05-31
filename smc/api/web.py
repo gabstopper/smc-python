@@ -11,13 +11,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SMCEntryCache(object):
+    """ Keep track of api entry points retrieved after login to prevent subsequent queries """
     def __init__(self):
         
         self.cache = None
         self.api_entry = None
         
     def get_api_entry(self, url, api_version=None):
-        """ Called internally after login to get cache of SMC entry points """
+        """ Called internally after login to get cache of SMC entry points 
+        :param: url for SMC api 
+        :param api_version: if specified, use this version
+        """
         try:
             if api_version is None:
                 r = requests.get('%s/api' % url) #no session required
@@ -46,12 +50,9 @@ class SMCEntryCache(object):
     def get_entry_href(self, verb):
         """ Get entry point from entry point cache 
         Call get_all_entry_points to find all available entry points 
-        Args: 
-            * verb: top level entry point into SMC api
-        Returns:
-            * dict of entry point specified
-        Raises
-            Exception is no entry points are found. That would mean no login has occurred
+        :param verb: top level entry point into SMC api
+        :return dict of entry point specified
+        :raises Exception is no entry points are found. That would mean no login has occurred
         """
         if self.api_entry:
             for entry in self.api_entry:
@@ -60,7 +61,7 @@ class SMCEntryCache(object):
         else:
             raise Exception("No entry points found, it is likely there is no valid login session.") 
            
-    def get_all_entry_points(self): #for callers outside of the module
+    def get_all_entry_points(self): 
         """ Returns all entry points into SMC api """   
         return self.api_entry
     
@@ -82,10 +83,9 @@ class SMCAPIConnection(SMCEntryCache):
     def login(self, url, smc_key, api_version=None):    
         """ Login to SMC API and retrieve a valid session. 
         Session will be re-used when multiple queries are required.
-        Args:
-            * url: ip of SMC management server
-            * smc_key: API key created for api client in SMC
-            * api_version (optional): specify api version
+        :param url: ip of SMC management server
+        :param smc_key: API key created for api client in SMC
+        :param api_version (optional): specify api version
                     
         Logout should be called to remove the session immediately from the SMC server
         TODO: pickle session for longer term re-use? Implement SSL tracking
@@ -120,12 +120,9 @@ class SMCAPIConnection(SMCEntryCache):
     def http_get(self, href): #TODO: Implement self.visited for already seen queries
         """ Get data object from SMC
         If response code is success, results are returned with etag
-        Args:
-            * href: fully qualified href for resource
-        Returns:
-            SMCResult object with json data and etag attrs
-        Raises:
-            SMCOperationFailure if non-http 200 response received
+        :param href: fully qualified href for resource
+        :return SMCResult object with json data and etag attrs
+        :raise SMCOperationFailure if non-http 200 response received
         """   
         try:
             if self.session:
@@ -148,14 +145,11 @@ class SMCAPIConnection(SMCEntryCache):
         """ Add object to SMC
         If response code is success, return href to new object location
         If not success, raise exception, caught in middle tier calling method
-        Args:
-            * href: entry point to add specific object type
-            * data: json document with object def
-            * uri (optional): not implemented
-        Returns:
-            Href of the resource pulled from returned location header
-        Raises:
-            SMCOperationFailure in case of non-http 201 return
+        :param href: entry point to add specific object type
+        :param data: json document with object def
+        :param uri (optional): not implemented
+        :return href of the resource pulled from returned location header
+        :raise SMCOperationFailure in case of non-http 201 return
         """ 
         try:
             if self.session:         
@@ -180,13 +174,10 @@ class SMCAPIConnection(SMCEntryCache):
             
     def http_put(self, href, data, etag):
         """ Change state of existing SMC object
-        Args: 
-            * data: json encoded document
-            * etag: required by SMC, retrieve first via http get
-        Returns:
-            Href of the resource pulled from returned location header
-        Raises:
-            SMCOperationFailure in case of non-http 200 return
+        :param data: json encoded document
+        :param etag: required by SMC, retrieve first via http get
+        :return Href of the resource pulled from returned location header
+        :raise SMCOperationFailure in case of non-http 200 return
         """ 
         try:
             if self.session:  
@@ -209,12 +200,9 @@ class SMCAPIConnection(SMCEntryCache):
         
     def http_delete(self, href):
         """ Delete element by fully qualified href
-        Args:
-            *href: fully qualified reference to object in SMC
-        Returns:
-            None
-        Raises:
-            SMCOperationFailure for non-http 204 code
+        :param href: fully qualified reference to object in SMC
+        :return None
+        :raise SMCOperationFailure for non-http 204 code
         """
         try: 
             if self.session:
