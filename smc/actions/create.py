@@ -3,7 +3,7 @@ import smc.elements.element
 import smc.api.web as web_api
 import smc.api.common as common_api
 from smc.actions.search import get_logical_interface
-from smc.elements.element import EngineNode, SingleLayer3, l2_mgmt_interface
+from smc.elements.element import EngineNode, SingleLayer3, SingleIPS, SingleLayer2, inline_interface
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +174,8 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
                logical_interface='default_eth', dns=None, fw_license=False):    
     """ create single layer 2 firewall 
-    Layer 2 firewall will have a layer 3 management interface (interface 0) and will also need to
-    create at least one inline or capture interface. 
+    Layer 2 firewall will have a layer 3 management interface and initially needs atleast 
+    one inline or capture interface. 
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
     :param mgmt_network: netmask for management network
@@ -199,7 +199,9 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
         logger.error("Can't seem to find an available Log Server on specified SMC, cannot add single_fw: %s" % name)
         return None
     
-    single_layer2.log_server = log_server   
+    single_layer2.log_server = log_server
+    single_layer2.logical_interface = get_logical_interface(logical_interface) \
+                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface)   
     single_layer2._mgmt_interface()
     single_layer2._inline_interface()
     
@@ -230,7 +232,9 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
         logger.error("Can't seem to find an available Log Server on specified SMC, cannot add ips: %s" % single_ips.name)
         return None     
     
-    single_ips.log_server = log_server   
+    single_ips.log_server = log_server
+    single_ips.logical_interface = get_logical_interface(logical_interface) \
+                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface) 
     single_ips._mgmt_interface()
     single_ips._inline_interface()
     
@@ -258,7 +262,7 @@ def l3interface(name, ip, network, interface_id=None):
     
     if entry_href is not None:
         
-        fw_orig = web_api.session.http_get(entry_href)
+        fw_orig = smc.search.element_by_href_as_smcelement(entry_href)
         
         l3_intf = smc.elements.element.SingleNodeInterface()
         l3_intf.address = ip
@@ -279,7 +283,7 @@ def l3interface(name, ip, network, interface_id=None):
         logger.error("Can't find layer 3 FW specified: %s, cannot add interface" % name)
  
  
-def l2interface(name, interface_id='1-2', logical_int='default_eth'):
+def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
     """ Add layer 2 inline interface   
     Inline interfaces require two physical interfaces for the bridge and a logical 
     interface to be assigned. By default, interface 1,2 will be used if interface_id is 
@@ -298,16 +302,16 @@ def l2interface(name, interface_id='1-2', logical_int='default_eth'):
     
     if entry_href is not None:
         
-        l2_orig = web_api.session.http_get(entry_href)
+        l2_orig = smc.search.element_by_href_as_smcelement(entry_href)
         
-        logical_int_href = smc.search.get_logical_interface(logical_int)
+        logical_int_href = smc.search.get_logical_interface(logical_interface)
         if logical_int_href is None:
-            logger.info("Logical interface: %s not found, creating automatically" % logical_int)
-            logical_int_href = logical_interface(logical_int, comment="made by api tool")
+            logger.info("Logical interface: %s not found, creating automatically" % logical_interface)
+            logical_int_href = logical_interface(logical_interface, comment="made by api tool")
         
-        inline_intf = inline_interface(interface_id)
+        inline_intf = inline_interface(logical_int_href, interface_id)
         
-        engine = smc.elements.element.EngineNode()
+        engine = EngineNode()
         engine.interfaces.append(inline_intf.json)
         engine.type = inline_intf.type
         engine.name = name
@@ -322,7 +326,7 @@ def l2interface(name, interface_id='1-2', logical_int='default_eth'):
         logger.error("Cannot find node specified to add layer 2 inline interface: %s" % name)
 
    
-def logical_interface(name, comment=None):
+def _logical_interface(name, comment=None):
     """ Create logical interface
     Logical interfaces are required to be unique for a single IPS or layer 2 firewall that
     has both inline and capture interfaces on the same host. If the IPS or layer2 FW only 
@@ -332,7 +336,7 @@ def logical_interface(name, comment=None):
     :return str href for new logical interface element
     """
     
-    entry_href = web_api.session.get_entry_href('logical_interface')
+    entry_href = smc.search.element_entry_point('logical_interface')
     
     logical_int = smc.elements.element.LogicalInterface()
     logical_int.name = name
@@ -422,62 +426,6 @@ def virtual_fw(data):
     pass
 
 
-                 
-class SingleIPS(EngineNode):
-    def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0', 
-                 dns=None, inline_interface='1-2', logical_interface='default_eth', fw_license=False):
-        EngineNode.__init__(self)
-        self.type = "ips_node"
-        self.name = name
-        self.mgmt_ip = mgmt_ip
-        self.mgmt_network = mgmt_network
-        self.mgmt_interface = mgmt_interface
-        self.dns += [dns] if dns is not None else []
-        self.inline_interface = inline_interface
-        self.logical_interface = logical_interface
-        self.fw_license = fw_license
-        
-    def _mgmt_interface(self):        
-        mgmt_intf = l2_mgmt_interface(self.mgmt_ip, self.mgmt_network, 
-                                    interface_id=self.mgmt_interface)
-        self.interfaces.append(mgmt_intf.json)
-        
-    def _inline_interface(self):
-        inline_intf = inline_interface(interface_id=self.inline_interface, 
-                                       logical_interface=self.logical_interface)
-        self.interfaces.append(inline_intf.json)
-
-        
-class SingleLayer2(SingleIPS):
-    def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0', 
-                 dns=None, inline_interface='1-2', logical_interface='default_eth', fw_license=False):
-        
-        SingleIPS.__init__(self, name, mgmt_ip, mgmt_network, mgmt_interface=mgmt_interface, 
-                 dns=dns, inline_interface=inline_interface, logical_interface=logical_interface, fw_license=fw_license)
-        self.type = "fwlayer2_node"   
-    
-
-def inline_interface(interface_id='1-2', logical_interface='default_eth'):
-    #TODO: protect this from incorrectly specified input format
-    inline_intf = smc.elements.element.InlineInterface()
-    inline_intf.logical_interface_ref = get_logical_interface(logical_interface)
-    inline_intf.interface_id = interface_id.split('-')[0]
-    inline_intf.nicid = interface_id
-    
-    inline_intf.create()
-    return inline_intf
- 
-        
-def capture_interface(interface_id=1, logical_interface='default_eth'):
-    capture = smc.elements.element.CaptureInterface()
-    capture.logical_interface_ref = get_logical_interface(logical_interface)
-    capture.interface_id = interface_id
-    capture.nicid = interface_id
-    
-    capture.create()
-    return capture
-
-           
 
 if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
@@ -485,14 +433,16 @@ if __name__ == '__main__':
     import time
     start_time = time.time()
 
-    #smc.remove.element('myips')
+    smc.remove.element('myips')
     time.sleep(3)
-    #smc.create.single_ips('myips', '172.18.1.254', '172.18.1.0/24', mgmt_interface='3', inline_interface='4-5', dns='1.2.3.4')
-    smc.remove.element('myfw')
+    #smc.create.single_ips('myips', '172.18.1.254', '172.18.1.0/24', mgmt_interface='3', inline_interface='4-5', dns='1.2.3.4',
+    #                      logical_interface='apitool')
+    #smc.remove.element('myfw')
     #smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', mgmt_interface='5', dns='5.5.5.5', fw_license=True)
-    #smc.remove.element('mylayer2')
-    #smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', mgmt_interface='5', dns='5.5.5.5', fw_license=True)
-    
+    smc.remove.element('mylayer2')
+    smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', mgmt_interface='5', dns='5.5.5.5', fw_license=True,
+                            logical_interface='apitool')
+    smc.create.l2interface('mylayer2', interface_id='6-7')
     '''    
     smc.create.host('testobject', '1.2.3.4')
     smc.remove.element('testobject')
@@ -512,14 +462,14 @@ if __name__ == '__main__':
     smc.create.router('testrouter','1.1.2.3')
     smc.remove.element('testrouter')
     '''
-    '''
+    
     smc.remove.element('myfw')
     smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
     smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)
     smc.create.l3interface('myfw', '10.10.1.1', '10.10.0.0/16', 4)
     smc.create.l3route('myfw', '172.18.1.80', 'Any network', 0) #Good
     smc.create.l3route('myfw', '10.10.0.1', '192.168.3.0/24', 3) #Good
-    '''
+    
     
     
     '''time.sleep(15)

@@ -201,7 +201,7 @@ class EngineNode(SMCElement):
         return self
  
                    
-class IPS(EngineNode):
+'''class IPS(EngineNode):
     def __init__(self):
         EngineNode.__init__(self)
         self.type = "ips_node"
@@ -211,7 +211,39 @@ class FWLayer2(EngineNode):
     def __init__(self):
         EngineNode.__init__(self)
         self.type = "fwlayer2_node"
+'''
+class SingleIPS(EngineNode):
+    def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0', 
+                 dns=None, inline_interface='1-2', logical_interface='default_eth', fw_license=False):
+        EngineNode.__init__(self)
+        self.type = "ips_node"
+        self.name = name
+        self.mgmt_ip = mgmt_ip
+        self.mgmt_network = mgmt_network
+        self.mgmt_interface = mgmt_interface
+        self.dns += [dns] if dns is not None else []
+        self.inline_interface = inline_interface
+        self.logical_interface = logical_interface #should be href of logical interface
+        self.fw_license = fw_license
+        
+    def _mgmt_interface(self):        
+        mgmt_intf = l2_mgmt_interface(self.mgmt_ip, self.mgmt_network, 
+                                    interface_id=self.mgmt_interface)
+        self.interfaces.append(mgmt_intf.json)
+        
+    def _inline_interface(self):
+        inline_intf = inline_interface(self.logical_interface, interface_id=self.inline_interface)
+        self.interfaces.append(inline_intf.json)
 
+        
+class SingleLayer2(SingleIPS):
+    def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0', 
+                 dns=None, inline_interface='1-2', logical_interface='default_eth', fw_license=False):
+        
+        SingleIPS.__init__(self, name, mgmt_ip, mgmt_network, mgmt_interface=mgmt_interface, 
+                 dns=dns, inline_interface=inline_interface, logical_interface=logical_interface, fw_license=fw_license)
+        self.type = "fwlayer2_node"   
+    
  
 class SingleLayer3(EngineNode):
     def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0',
@@ -353,6 +385,32 @@ def l2_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
     
     l3_intf.create()
     return l3_intf
+
         
+def inline_interface(logical_interface_ref, interface_id='1-2'):
+    """ create inline interface
+    The logical interface href is required, can't be referenced by name
+    """
+    #TODO: protect this from incorrectly specified input format
+    inline_intf = InlineInterface()
+    inline_intf.logical_interface_ref = logical_interface_ref
+    inline_intf.interface_id = interface_id.split('-')[0]
+    inline_intf.nicid = interface_id
+    
+    inline_intf.create()
+    return inline_intf
+ 
+        
+def capture_interface(logical_interface_ref, interface_id=1):
+    """ create capture interface
+    The logical interface href is required, can't be referenced by name
+    """
+    capture = CaptureInterface()
+    capture.logical_interface_ref = logical_interface_ref
+    capture.interface_id = interface_id
+    capture.nicid = interface_id
+    
+    capture.create()
+    return capture
         
         
