@@ -3,10 +3,10 @@ import smc.helpers
 class SMCElement(object):
     def __init__(self):
         self.json = None    #required for post/put
-        self.etag = None    #required for put
-        self.type = None    #required
+        self.etag = None    #required for updates to existing elements
+        self.type = None    
         self.name = None    #required
-        self.href = None    #required
+        self.href = None    #required for identifying location of element
         self.comment = None
 
     def create(self):
@@ -161,59 +161,7 @@ class Route(SMCElement):
     
     def __str__(self):
         return "name: %s, type: %s, gw: %s, net: %s, int_id: %s" % (self.name, self.type, self.gw_name, self.network_ip, self.interface_id)
-
-
-class EngineNodeFactory(object):
-        
-    def makeNode(self, name, mgmt_ip, mgmt_network, log_server, kwargs):
-        
-        element = None
-        node_type = kwargs['node_type']
-        if node_type == "ips" or node_type == "l2fw":
-            l3_intf = NodeInterface()
-            l3_intf.address = mgmt_ip
-            l3_intf.network_value = mgmt_network
-            l3_intf.primary_mgt = True
-            l3_intf.outgoing = True
-            l3_intf.nicid = l3_intf.interface_id = 0
-            l3_intf.create()
-            
-            inline_intf = InlineInterface()
-            inline_intf.logical_interface_ref = kwargs['logical_interface']
-            inline_intf.interface_id = kwargs['interface_id'].split('-')[0]
-            inline_intf.nicid = kwargs['interface_id']
-            inline_intf.create() 
-            
-            if node_type == "l2fw":
-                element = FWLayer2()
-            elif node_type == "ips":
-                element = IPS()
-                
-            element.name = name
-            element.dns += [kwargs['dns']] if kwargs['dns'] is not None else []
-            element.log_server = log_server
-            element.interfaces.append(l3_intf.json)
-            element.interfaces.append(inline_intf.json)
-                
-            return element
-                                       
-        elif node_type == "l3fw":
-            l3_intf = SingleNodeInterface()
-            l3_intf.address = mgmt_ip
-            l3_intf.network_value = mgmt_network
-            l3_intf.auth_request = True
-            l3_intf.primary_mgt = True
-            l3_intf.outgoing = True
-            l3_intf.nicid = l3_intf.interface_id = kwargs['interface_id']
-            l3_intf.create()
-            
-            l3fw = L3FW()
-            l3fw.dns += [kwargs['dns']] if kwargs['dns'] is not None else []
-            l3fw.interfaces.append(l3_intf.json)
-            l3fw.log_server = log_server
-            
-            return l3fw
-        
+   
     
 class EngineNode(SMCElement):
     def __init__(self):
@@ -263,12 +211,26 @@ class FWLayer2(EngineNode):
     def __init__(self):
         EngineNode.__init__(self)
         self.type = "fwlayer2_node"
+
  
-                           
-class L3FW(EngineNode):
-    def __init__(self):
+class SingleLayer3(EngineNode):
+    def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0',
+                 dns=None, fw_license=False):
         EngineNode.__init__(self)
+        
         self.type = "firewall_node"
+        self.name = name
+        self.mgmt_ip = mgmt_ip
+        self.mgmt_network = mgmt_network
+        self.mgmt_interface = mgmt_interface
+        self.dns += [dns] if dns is not None else []
+        self.fw_license = fw_license
+        
+    def _mgmt_interface(self):   
+        mgmt_intf = l3_mgmt_interface(self.mgmt_ip, self.mgmt_network, 
+                                    interface_id=self.mgmt_interface)            
+        self.interfaces.append(mgmt_intf.json)
+        
 
         
 class Interface(object):
@@ -367,7 +329,30 @@ class LogicalInterface(SMCElement):
     
         return self
 
-        
+
+def l3_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
+    l3_intf = SingleNodeInterface()
+    l3_intf.address = mgmt_ip
+    l3_intf.network_value = mgmt_network
+    l3_intf.auth_request = True
+    l3_intf.primary_mgt = True
+    l3_intf.outgoing = True
+    l3_intf.nicid = l3_intf.interface_id = interface_id
+    
+    l3_intf.create()
+    return l3_intf        
+
+
+def l2_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
+    l3_intf = NodeInterface()
+    l3_intf.address = mgmt_ip
+    l3_intf.network_value = mgmt_network
+    l3_intf.primary_mgt = True
+    l3_intf.outgoing = True
+    l3_intf.nicid = l3_intf.interface_id = interface_id
+    
+    l3_intf.create()
+    return l3_intf
         
         
         
