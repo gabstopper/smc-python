@@ -1,2 +1,2 @@
-__all__ = ["create", "modify", "remove", "search", "show"]
+__all__ = ["create", "modify", "remove", "search"]
 
