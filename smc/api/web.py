@@ -111,7 +111,10 @@ class SMCAPIConnection(SMCEntryCache):
         if r.status_code==204:
             logger.info("Logged out successfully")
         else:
-            logger.error("Logout failed, session may not have been logged out, status code: %s and msg: %s" % (r.status_code, r.text))
+            if r.status_code == 401:
+                logger.error("Logout failed, session has already expired, status code: %s" % (r.status_code))
+            else:
+                logger.error("Logout failed, status code: %s" % (r.status_code))
         sys.exit()
     
     def http_get(self, href): #TODO: Implement self.visited for already seen queries
@@ -267,7 +270,9 @@ class SMCOperationFailure(Exception):
     def formatmsg(self):
         errorstr = []
         for i in self.body:
+            print "i: %s, self.body: %s" % (i,self.body)
             if type(self.body[i]) is list:
+            #if type(self.body) is list:
                 errorstr.append(str(i) + ": ")
                 for err in self.body[i]:
                     a =  err.rstrip().split('\n')
@@ -281,13 +286,16 @@ session = SMCAPIConnection()
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    try:
-        session.http_post('http://172.18.1.152:8082/6.0/efw', {"test":"test"})
-    except SMCOperationFailure, e:
-        logger.error(e.msg)
+    #try:
+    #    session.http_post('http://172.18.1.150:8082/6.0/efw', {"test":"test"})
+    #except SMCOperationFailure, e:
+    #    logger.error(e.msg)
         
-    session.logout()
+    #
+    import smc.actions.search
     
-    
+    log_server = smc.search.get_first_log_server()
+    print log_server
+    #session.logout()
     
     
