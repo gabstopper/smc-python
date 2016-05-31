@@ -269,31 +269,30 @@ class SMCOperationFailure(Exception):
     
     def formatmsg(self):
         errorstr = []
-        if type(self.body) is list:
-            print "Self.body is list: %s" % self.body
+        if isinstance(self.body, dict):
             for i in self.body:
+                print "i: %s, self.body: %s" % (i,self.body)
+                if isinstance(self.body[i]) is list:
                 #if type(self.body) is list:
-                errorstr.append(str(i) + ": ")
-                for err in self.body[i]:
-                    a =  err.rstrip().split('\n')
-                errorstr.append(' '.join(a))
-        else:
-            print "Self.body is not list: %s" % self.body
-            errorstr.append(str(i) + ": " + str(self.body[i]))
-        
+                    errorstr.append(str(i) + ": ")
+                    for err in self.body[i]:
+                        a =  err.rstrip().split('\n')
+                    errorstr.append(' '.join(a))
+                else:
+                    errorstr.append(str(i) + ": " + str(self.body[i]))
         return ' '.join(errorstr)
     
 session = SMCAPIConnection()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    #session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     #try:
     #    session.http_post('http://172.18.1.150:8082/6.0/efw', {"test":"test"})
     #except SMCOperationFailure, e:
     #    logger.error(e.msg)
         
     #
-    #session.logout()
+    session.logout()
     
     
