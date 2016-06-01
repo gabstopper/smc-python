@@ -14,7 +14,8 @@ setup(name='smc-py',
       packages=['smc', 'smc.actions', 'smc.api', 'smc.elements'],
       install_requires=[
           'requests',
-          'ipaddress'
+          'ipaddress',
+          'prompt-toolkit'
       ],
       include_package_data=True,
       zip_safe=False)
