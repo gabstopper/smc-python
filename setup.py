@@ -15,7 +15,8 @@ setup(name='smc-py',
       install_requires=[
           'requests',
           'ipaddress',
-          'prompt-toolkit'
+          'prompt-toolkit',
+          'pygments'
       ],
       include_package_data=True,
       zip_safe=False)
