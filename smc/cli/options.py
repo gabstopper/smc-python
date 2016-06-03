@@ -22,8 +22,8 @@ ARG_NAME = CommandOption(
     meta = 'name of element')
 
 ARG_IP_NETWORK = CommandOption(
-    name = 'cidr',
-    meta = 'format: 1.1.1.1/24',
+    name = 'ip_network',
+    meta = 'format: x/24 or x/255.255.255.0',
     regex = _IP_NETWORK)
 
 ARG_MGMT_IP = CommandOption(
@@ -32,7 +32,7 @@ ARG_MGMT_IP = CommandOption(
     regex = _IP_ADDR)
 
 ARG_IP_RANGE = CommandOption(
-    name = 'range',
+    name = 'addr_range',
     meta = 'format: 1.1.1.1-1.1.1.150',
     regex = _IP_RANGE)
 
@@ -51,7 +51,7 @@ ARG_INT_ID = CommandOption(
     regex = _ID_INTERFACE)
 
 ARG_LOGICAL_INT = CommandOption(
-    name='logical_interface',
+    name='logical_intf',
     meta = 'name for logical interface')
 
 ARG_IP_ADDR = CommandOption(
@@ -83,8 +83,8 @@ TARGET_L2_INT = CommandOption(
     nargs = [ARG_NAME, ARG_INT_ID, ARG_LOGICAL_INT])
                
 TARGET_LOGICAL_INT = CommandOption(
-    name = 'logical_int',
-    nargs=[ARG_NAME, ARG_LOGICAL_INT])
+    name = 'logical_interface',
+    nargs=[ARG_NAME])
                
 TARGET_NETWORK= CommandOption(
     name = 'network',

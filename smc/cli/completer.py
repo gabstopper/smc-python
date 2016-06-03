@@ -3,6 +3,9 @@ from options import get_cmd, get_cmd_target, sub_menus, split_command_and_args
 
 
 class CommandCompleter(Completer):
+    """ class implementing prompt-toolkit completer
+    provides completion menu results, auto-completion and type matching 
+    """
     def __init__(self, ignore_case=True):
         self.ignore_case = ignore_case
     

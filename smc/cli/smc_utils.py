@@ -20,15 +20,16 @@ class SMCBroker(object):
             try:
                 parser = CLIParser(self.document)
                 self.document = parser.document
-                if self.document.get('action') == 'create':
-                    self.document.pop("action", None) #remove not needed attrs
-                    target = self.document.get('target') and self.document.pop('target', None)
-                    
-                    try:
+                action = self.document.get('action') and self.document.pop('action', None) #remove not needed attrs
+                target = self.document.get('target') and self.document.pop('target', None)
+                try:
+                    if action == 'create':
                         getattr(smc.actions.create, target)(**self.document) #dispatch
-                    except Exception, e:
-                        traceback.print_exc(file=sys.stdout)
-                        
+                    elif action == 'remove':
+                        getattr(smc.actions.remove, target)(**self.document) #dispatch
+                except Exception, e:
+                    traceback.print_exc(file=sys.stdout)
+                                
             except ArgumentParserError, e: #missing arguments
                 return "Incorrect syntax, %s" % e
             except AttributeError, e: #incorrect argument given
@@ -39,10 +40,9 @@ class SMCBroker(object):
         
 
 if __name__ == "__main__":
-    #TODO: Make ssure the CLI catches exception at end
     try:
-        executor = SMCBroker(['create', 'host', 'name', 'dasf', 'ipaddress', 'wefew'])
-        #executor = SMCBroker(['create', 'single_fw', 'name', 'dasf', 'mgmt_ip', 'wefew', 'mgmt_network', '23g'])
+        #executor = SMCBroker(['create', 'host', 'name', 'dasf', 'ipaddress', '1.1.1.1'])
+        executor = SMCBroker(['remove', 'element', '--name', 'efwe'])
         
         executor.validate()
     except Exception, e:
