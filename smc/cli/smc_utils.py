@@ -33,7 +33,7 @@ class SMCBroker(object):
             except ArgumentParserError, e: #missing arguments
                 return "Incorrect syntax, %s" % e
             except AttributeError, e: #incorrect argument given
-                return "Attribute error: %s" % e
+                return "Invalid command"
             except SystemExit: #argparse does a sys.exit after running -h
                 print "Stopping exit"
                 pass
@@ -41,7 +41,6 @@ class SMCBroker(object):
 
 if __name__ == "__main__":
     try:
-        #executor = SMCBroker(['create', 'host', 'name', 'dasf', 'ipaddress', '1.1.1.1'])
         executor = SMCBroker(['remove', 'element', '--name', 'efwe'])
         
         executor.validate()

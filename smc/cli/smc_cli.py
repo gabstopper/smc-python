@@ -35,7 +35,7 @@ class StonesoftCLI(object):
         results = SMCBroker(command.split()).validate()
         if results:
             print '\033[91m' + results
-
+            #print '\033[1m' + results
         
     def _login(self):
         if self.url or self.apikey is None:

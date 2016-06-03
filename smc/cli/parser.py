@@ -26,9 +26,9 @@ class CLIParser(object):
         args, self.unknown = parser.parse_known_args(document)
         if not hasattr(self, args.command):
             parser.print_help()
-
-        getattr(self, args.command)()
        
+        getattr(self, args.command)()
+            
     def create(self):
         """ create actions""" 
         parser = ThrowingArgumentParser(add_help=False)        
@@ -91,8 +91,7 @@ class CLIParser(object):
         parser_l3route.add_argument('--gateway', required=True)
         parser_l3route.add_argument('--ip_network', required=True)
         
-        
-        
+           
         _logical_intf = subparsers.add_parser('logical_interface', parents=[element_parser])
         
         self.document = parser.parse_args(self.unknown)
@@ -120,14 +119,15 @@ class CLIParser(object):
 
 if __name__ == "__main__":
 
-    #cli = CLIParser(['create','host', '--name', 'grger', '--ipaddress', 'wefw', '--secondary_ip', '1.1.1.1'])
+    cli = CLIParser(['create','host', '--name', 'grger', '--ipaddress', 'wefw', '--secondary_ip', '1.1.1.1'])
     #cli = CLIParser(['create','iprange', '--name', 'efewf', '--addr_range', 'rgr'])
     #cli = CLIParser(['create','router', '--name', 'wgwe', '--ipaddress', 'wef', '--secondary_ip', 'rrg'])
     #cli = CLIParser(['create','network', '--name', 'wg', '--ip_network', 'fe'])
     #cli = CLIParser(['create','group', '--name', 'wg','--members'])
     #cli = CLIParser(['remove', 'element', '--name', 'wefwefw'])
-    cli = CLIParser(['create', 'l3interface', '--name', 'wef', '--ipaddress', 'wef', '--ip_network', '3f3f', '--interface_id', 'rger'])
-        
+    #cli = CLIParser(['create', 'l3interface', '--name', 'wef', '--ipaddress', 'wef', '--ip_network', '3f3f', '--interface_id', 'rger'])
+    cli = CLIParser(['create', 'l3route', '--name', 'test', '--gateway', '172.18.1.2', '--ip_network', 'fefe', '--interface_id', '3'])    
+    #name, gateway, ip_network, interface_id
     #cli = CLIParser(['create','single_ips', '--mgmt_ip', '1.1.1.1', '--mgmt_network', '1.1.1.1', '--name', 'asd', '--logical_interface', 'logicaltest'])
     print cli.document
     
