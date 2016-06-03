@@ -46,7 +46,7 @@ class Host(SMCElement):
     
 class Group(SMCElement):
     def __init__(self):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)       
         self.type = "group"
         self.members = []
      
@@ -64,7 +64,7 @@ class Group(SMCElement):
 
 class IpRange(SMCElement):
     def __init__(self):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)        
         self.type = "address range"
         self.iprange = None
         
@@ -82,7 +82,7 @@ class IpRange(SMCElement):
         
 class Router(SMCElement):
     def __init__(self):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)       
         self.type = "router"
         self.address = None
         self.secondary_ip = None 
@@ -104,7 +104,7 @@ class Router(SMCElement):
 
 class Network(SMCElement):
     def __init__(self):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)        
         self.type  = "network"
         self.ip4_network = None
     
@@ -122,7 +122,7 @@ class Network(SMCElement):
 
 class Route(SMCElement):
     def __init__(self):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)        
         self.type = "route"
         self.gw_ip = None
         self.gw_name = None
@@ -165,7 +165,7 @@ class Route(SMCElement):
     
 class EngineNode(SMCElement):
     def __init__(self):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)        
         self.dns = []
         self.log_server = None
         self.interfaces = []
@@ -199,23 +199,12 @@ class EngineNode(SMCElement):
         for interface in self.interfaces:
             self.json['physicalInterfaces'].append(interface)
         return self
- 
-                   
-'''class IPS(EngineNode):
-    def __init__(self):
-        EngineNode.__init__(self)
-        self.type = "ips_node"
- 
-        
-class FWLayer2(EngineNode):
-    def __init__(self):
-        EngineNode.__init__(self)
-        self.type = "fwlayer2_node"
-'''
+
+
 class SingleIPS(EngineNode):
     def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0', 
                  dns=None, inline_interface='1-2', logical_interface='default_eth', fw_license=False):
-        EngineNode.__init__(self)
+        EngineNode.__init__(self)        
         self.type = "ips_node"
         self.name = name
         self.mgmt_ip = mgmt_ip
@@ -236,12 +225,9 @@ class SingleIPS(EngineNode):
         self.interfaces.append(inline_intf.json)
 
         
-class SingleLayer2(SingleIPS):
-    def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0', 
-                 dns=None, inline_interface='1-2', logical_interface='default_eth', fw_license=False):
-        
-        SingleIPS.__init__(self, name, mgmt_ip, mgmt_network, mgmt_interface=mgmt_interface, 
-                 dns=dns, inline_interface=inline_interface, logical_interface=logical_interface, fw_license=fw_license)
+class SingleLayer2(SingleIPS):      
+    def __init__(self, *args, **kwargs):
+        super(SingleLayer2, self).__init__(*args, **kwargs)
         self.type = "fwlayer2_node"   
     
  
@@ -249,7 +235,6 @@ class SingleLayer3(EngineNode):
     def __init__(self, name, mgmt_ip, mgmt_network, mgmt_interface='0',
                  dns=None, fw_license=False):
         EngineNode.__init__(self)
-        
         self.type = "firewall_node"
         self.name = name
         self.mgmt_ip = mgmt_ip
@@ -282,7 +267,7 @@ class Interface(object):
         
 class SingleNodeInterface(Interface):
     def __init__(self):
-        Interface.__init__(self)
+        Interface.__init__(self)        
         self.type = "single node interface"
         self.address = None
         self.network_value = None
@@ -304,7 +289,7 @@ class SingleNodeInterface(Interface):
 
 class NodeInterface(Interface):
     def __init__(self):
-        Interface.__init__(self)
+        Interface.__init__(self)       
         self.type = "node interface"
         self.address = None
         self.network_value = None
@@ -324,7 +309,7 @@ class NodeInterface(Interface):
         
 class InlineInterface(Interface):
     def __init__(self):
-        Interface.__init__(self)
+        Interface.__init__(self)       
         self.type = "inline interface"
         self.logical_interface_ref = None
         
@@ -337,7 +322,7 @@ class InlineInterface(Interface):
                
 class CaptureInterface(Interface):
     def __init__(self):
-        Interface.__init__(self)
+        Interface.__init__(self)       
         self.type = "capture interface"
         self.logical_interface_ref = None
         
@@ -350,7 +335,7 @@ class CaptureInterface(Interface):
 
 class LogicalInterface(SMCElement):
     def __init__(self, SMCElement=None):
-        SMCElement.__init__(self)
+        SMCElement.__init__(self)        
         self.type = "logical interface"
     
     def create(self):
@@ -386,12 +371,20 @@ def l2_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
     l3_intf.create()
     return l3_intf
 
-        
+
+def l3_interface(ipaddress, network, interface_id):
+    l3_intf = SingleNodeInterface()
+    l3_intf.address = ipaddress
+    l3_intf.network_value = network
+    l3_intf.nicid = l3_intf.interface_id = interface_id
+    
+    l3_intf.create() 
+    return l3_intf    
+           
 def inline_interface(logical_interface_ref, interface_id='1-2'):
     """ create inline interface
     The logical interface href is required, can't be referenced by name
     """
-    #TODO: protect this from incorrectly specified input format
     inline_intf = InlineInterface()
     inline_intf.logical_interface_ref = logical_interface_ref
     inline_intf.interface_id = interface_id.split('-')[0]
