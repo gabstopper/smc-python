@@ -20,8 +20,8 @@ def element(name, objtype=None):
         logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable['type']))
         element = SMCElement()
         element.name = name
-        element.type = removable['type']
-        element.href = removable['href']
+        element.type = removable.get('type', None)
+        element.href = removable.get('href', None)
         
         common_api._remove(element)
         
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     smc.create.host('test-run', '2.2.2.2')
     smc.create.host('ami2', '3.4.5.6')
     smc.remove.element('test-run')  #single fw
-    smc.remove.element('ami2')      #single host
+    smc.remove.element('fe')      #single host
     smc.remove.element('anewgroup')      #group
     
     web_api.session.logout()
