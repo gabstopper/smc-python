@@ -50,6 +50,10 @@ ARG_INT_ID = CommandOption(
     meta = 'id of interface',
     regex = _ID_INTERFACE)
 
+ARG_GW = CommandOption(
+    name = 'gateway',
+    meta = 'next hop gateway')
+
 ARG_LOGICAL_INT = CommandOption(
     name='logical_intf',
     meta = 'name for logical interface')
@@ -74,12 +78,16 @@ TARGET_SINGLE_FW = CommandOption(
     name = 'single_fw',
     nargs = [ARG_NAME, ARG_MGMT_IP, ARG_MGMT_NET, ARG_MGMT_INT])
 
+TARGET_L3_ROUTE = CommandOption(
+    name = 'l3route',
+    nargs = [ARG_NAME, ARG_IP_NETWORK, ARG_GW, ARG_INT_ID])
+
 TARGET_L3_INT = CommandOption(
-    name = 'l3_interface',
+    name = 'l3interface',
     nargs = [ARG_NAME, ARG_IP_ADDR, ARG_IP_NETWORK, ARG_INT_ID])
 
 TARGET_L2_INT = CommandOption(
-    name = 'l2_interface',
+    name = 'l2interface',
     nargs = [ARG_NAME, ARG_INT_ID, ARG_LOGICAL_INT])
                
 TARGET_LOGICAL_INT = CommandOption(
@@ -95,7 +103,7 @@ TARGET_HOST = CommandOption(
     nargs = [ARG_NAME, ARG_IP_ADDR])
 
 TARGET_IPRANGE = CommandOption(
-    name = 'address_range',
+    name = 'iprange',
     nargs = [ARG_NAME, ARG_IP_RANGE])
 
 TARGET_ROUTER = CommandOption(
@@ -115,9 +123,10 @@ COMMAND_OPTIONS = {
                TARGET_SINGLE_FW,
                TARGET_SINGLE_IPS,
                TARGET_SINGLE_L2,
+               TARGET_L3_ROUTE,
                TARGET_L3_INT,
                TARGET_L2_INT,
-               TARGET_LOGICAL_INT,
+               #TARGET_LOGICAL_INT,
                TARGET_NETWORK,
                TARGET_HOST,
                TARGET_IPRANGE,

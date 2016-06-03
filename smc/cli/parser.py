@@ -86,6 +86,13 @@ class CLIParser(object):
         parser_l2intf.add_argument('--interface_id', required=True)
         parser_l2intf.add_argument('--logical_intf', required=True)
         
+        parser_l3route = subparsers.add_parser('l3route', parents=[element_parser])
+        parser_l3route.add_argument('--interface_id', required=True)
+        parser_l3route.add_argument('--gateway', required=True)
+        parser_l3route.add_argument('--ip_network', required=True)
+        
+        
+        
         _logical_intf = subparsers.add_parser('logical_interface', parents=[element_parser])
         
         self.document = parser.parse_args(self.unknown)
