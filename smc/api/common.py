@@ -107,7 +107,7 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
                 return result.json
             else: # Only return object where name matches host object name field
                 for host in result.json:
-                    if host['name'] == name:
+                    if host.get('name', None) == name:
                         match = host
                         break   #exits on first match
                 if not match:
