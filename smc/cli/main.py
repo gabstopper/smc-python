@@ -5,27 +5,77 @@ Created on May 28, 2016
 '''
 from __future__ import unicode_literals
 
+import os, sys
+import ConfigParser
 from smc_cli import StonesoftCLI
 import smc
-
-__version__ = '0.1'
+from __init__ import __version__
 
 #@click.command()
 def cli():
+    print "\033[95mVersion: %s" % __version__
+    init = InitLogin()
     try:
-        print "Version: %s" % __version__ 
-        smc.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+        init.login()
         smc_cli = StonesoftCLI()
         smc_cli.run_cli()
     except (EOFError, KeyboardInterrupt):
-        smc.session.logout()
+        init.logout()
         
-
     print('GoodBye!')
 
+class InitLogin(object):
+    def __init__(self, url=None, apikey=None, api_version=None):
+        self.url = url
+        self.apikey = apikey
+        self.api_version = api_version
+        self.creds = '~/.smcrc'
+        self.load_cfg()
+        
+    def load_cfg(self):
+        if self.url or self.apikey is None:
+            cfg_path = os.path.join(
+                            os.path.dirname(__file__), self.creds) 
+            parser = DotConfigParser()
+            parser.read(os.path.expanduser(cfg_path))
+            d=parser._sections.copy()
+            if d:
+                self.url = d.get('common', None).get('url', None)
+                self.apikey = d.get('common', None).get('apikey', None)
+                self.api_version = d.get('common', None).get('api_version', None)
+                
+    def login(self):
+        if not self.apikey or not self.url:
+            print "Cannot find SMC api credentials. Missing .smcrc in home directory? Not logged in."
+        else:
+            smc.session.login(self.url, self.apikey, self.api_version)
+    
+    def logout(self):
+        smc.session.logout()   
+
+
+class DotConfigParser(ConfigParser.ConfigParser):
+    
+    def as_dict(self):
+        d = dict(self._sections)
+        for k in d:
+            d[k] = dict(self._defaults, **d[k])
+            d[k].pop('__name__', None)
+        return d     
+
+        
 if __name__ == '__main__':
     import logging
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("smc").setLevel(logging.DEBUG)
+ 
+    root = logging.getLogger('smc')
+    root.setLevel(logging.DEBUG)
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(message)s')
+    ch.setFormatter(formatter)
+    root.addHandler(ch)
+
     cli()    
