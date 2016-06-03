@@ -3,51 +3,52 @@ import smc.elements.element
 import smc.api.web as web_api
 import smc.api.common as common_api
 from smc.actions.search import get_logical_interface
-from smc.elements.element import EngineNode, SingleLayer3, SingleIPS, SingleLayer2, inline_interface
+from smc.elements.element import EngineNode, SingleLayer3, SingleIPS, SingleLayer2, \
+    inline_interface, l3_interface
 
 logger = logging.getLogger(__name__)
 
 
-def host(name, ip, secondary_ip=[], comment=None):
+def host(name, ipaddress, secondary_ip=[], comment=None):
     """ create host object       
     :param name: name, must be unique
-    :param ip: ip address of host
+    :param ipaddress: ip address of host
     :param secondary_ip[] (optional): optional additional IP's for host
     :param comment (optional)
     :return None
     """
     
-    if smc.helpers.is_valid_ipv4(ip): 
+    if smc.helpers.is_valid_ipv4(ipaddress): 
         entry_href = smc.search.element_entry_point('host')
         
         host = smc.elements.element.Host()
         host.href = entry_href         
         host.name = name
-        host.ip = ip
+        host.ip = ipaddress
         host.secondary_ip = secondary_ip
         host.comment = comment
         
         common_api._create(host.create())
                               
     else:
-        logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
+        logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
     
 
-def iprange(name, ip_range, comment=None):
+def iprange(name, addr_range, comment=None):
     """ create iprange object 
     :param name: name for object
-    :param iprange: ip address range, i.e. 1.1.1.1-1.1.1.10
+    :param addr_range: ip address range, i.e. 1.1.1.1-1.1.1.10
     :param comment (optional)
     :return None
     """
     
-    addr = ip_range.split('-') #just verify each side is valid ip addr
+    addr = addr_range.split('-') #just verify each side is valid ip addr
     if len(addr) == 2: #has two parts
         if not smc.helpers.is_valid_ipv4(addr[0]) or not smc.helpers.is_valid_ipv4(addr[1]):
-            logger.error("Invalid ip address range provided: %s" % ip_range)
+            logger.error("Invalid ip address range provided: %s" % addr_range)
             return None
     else: 
-        logger.error("Invalid ip address range provided: %s" % ip_range)
+        logger.error("Invalid ip address range provided: %s" % addr_range)
         return None
     
     entry_href = smc.search.element_entry_point('address_range')
@@ -55,33 +56,33 @@ def iprange(name, ip_range, comment=None):
     iprange = smc.elements.element.IpRange()
     iprange.href = entry_href
     iprange.name = name
-    iprange.iprange = ip_range
+    iprange.iprange = addr_range
     
     common_api._create(iprange.create())
     
     
-def router(name, ip, secondary_ip=None, comment=None):
+def router(name, ipaddress, secondary_ip=None, comment=None):
     """ create router element
     :param name: name for object
-    :param ip: ipv4 address
+    :param ipaddress: ipv4 address
     :param comment (optional)
     :return None
     """  
       
-    if smc.helpers.is_valid_ipv4(ip):
+    if smc.helpers.is_valid_ipv4(ipaddress):
         entry_href = smc.search.element_entry_point('router')
         
         router = smc.elements.element.Router()
         router.href = entry_href
         router.name = name
         router.comment = comment
-        router.address = ip
+        router.address = ipaddress
         router.secondary_ip = secondary_ip
         
         common_api._create(router.create())  
                                 
     else:
-        logger.error("Invalid IPv4 address specified: %s, create object: %s failed" % (ip, name)) 
+        logger.error("Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
 
 
 def network(name, ip_network, comment=None):
@@ -172,7 +173,7 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
  
 
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_interface='default_eth', dns=None, fw_license=False):    
+               logical_intf='default_eth', dns=None, fw_license=False):    
     """ create single layer 2 firewall 
     Layer 2 firewall will have a layer 3 management interface and initially needs atleast 
     one inline or capture interface. 
@@ -200,8 +201,8 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
         return None
     
     single_layer2.log_server = log_server
-    single_layer2.logical_interface = get_logical_interface(logical_interface) \
-                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface)   
+    single_layer2.logical_interface = get_logical_interface(logical_intf) \
+                        if get_logical_interface(logical_intf) is not None else logical_interface(logical_intf)   
     single_layer2._mgmt_interface()
     single_layer2._inline_interface()
     
@@ -211,7 +212,7 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_interface='default_eth', dns=None, fw_license=False):
+               logical_intf='default_eth', dns=None, fw_license=False):
     """ create single ips  
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
@@ -233,8 +234,8 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
         return None     
     
     single_ips.log_server = log_server
-    single_ips.logical_interface = get_logical_interface(logical_interface) \
-                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface) 
+    single_ips.logical_interface = get_logical_interface(logical_intf) \
+                        if get_logical_interface(logical_intf) is not None else logical_interface(logical_intf) 
     single_ips._mgmt_interface()
     single_ips._inline_interface()
     
@@ -243,7 +244,7 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     #pprint(ips.json)
 
     
-def l3interface(name, ip, network, interface_id=None):
+def l3interface(name, ipaddress, ip_network, interface_id):
     """ Add L3 interface for single FW    
     :param l3fw: name of firewall to add interface to
     :param ip: ip of interface
@@ -252,8 +253,8 @@ def l3interface(name, ip, network, interface_id=None):
     :return None
     """
     
-    if not smc.helpers.is_ipaddr_in_network(ip, network):
-        logger.error("IP address: %s is not part of the network provided: %s, cannot add interface" % (ip,network))
+    if not smc.helpers.is_ipaddr_in_network(ipaddress, ip_network):
+        logger.error("IP address: %s is not part of the network provided: %s, cannot add interface" % (ipaddress,ip_network))
         return None
     
     network = smc.helpers.ipaddr_as_network(network)    #convert to cidr in case full mask provided
@@ -263,12 +264,8 @@ def l3interface(name, ip, network, interface_id=None):
     if entry_href is not None:
         
         fw_orig = smc.search.element_by_href_as_smcelement(entry_href)
-        
-        l3_intf = smc.elements.element.SingleNodeInterface()
-        l3_intf.address = ip
-        l3_intf.network_value = network
-        l3_intf.nicid = l3_intf.interface_id = interface_id
-        l3_intf.create()
+               
+        l3_intf = l3_interface(ipaddress, network, interface_id)
         
         engine = smc.elements.element.EngineNode()
         engine.interfaces.append(l3_intf.json)
@@ -283,7 +280,7 @@ def l3interface(name, ip, network, interface_id=None):
         logger.error("Can't find layer 3 FW specified: %s, cannot add interface" % name)
  
  
-def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
+def l2interface(name, interface_id='1-2', logical_intf='default_eth'):
     """ Add layer 2 inline interface   
     Inline interfaces require two physical interfaces for the bridge and a logical 
     interface to be assigned. By default, interface 1,2 will be used if interface_id is 
@@ -304,10 +301,10 @@ def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
         
         l2_orig = smc.search.element_by_href_as_smcelement(entry_href)
         
-        logical_int_href = smc.search.get_logical_interface(logical_interface)
+        logical_int_href = smc.search.get_logical_interface(logical_intf)
         if logical_int_href is None:
-            logger.info("Logical interface: %s not found, creating automatically" % logical_interface)
-            logical_int_href = logical_interface(logical_interface, comment="made by api tool")
+            logger.info("Logical interface: %s not found, creating automatically" % logical_intf)
+            logical_int_href = logical_interface(logical_intf, comment="made by api tool")
         
         inline_intf = inline_interface(logical_int_href, interface_id)
         
@@ -326,7 +323,7 @@ def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
         logger.error("Cannot find node specified to add layer 2 inline interface: %s" % name)
 
    
-def _logical_interface(name, comment=None):
+def logical_interface(name, comment=None):
     """ Create logical interface
     Logical interfaces are required to be unique for a single IPS or layer 2 firewall that
     has both inline and capture interfaces on the same host. If the IPS or layer2 FW only 
