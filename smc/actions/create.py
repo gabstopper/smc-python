@@ -173,7 +173,7 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
  
 
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_intf='default_eth', dns=None, fw_license=False):    
+               logical_interface='default_eth', dns=None, fw_license=False):    
     """ create single layer 2 firewall 
     Layer 2 firewall will have a layer 3 management interface and initially needs atleast 
     one inline or capture interface. 
@@ -201,8 +201,8 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
         return None
     
     single_layer2.log_server = log_server
-    single_layer2.logical_interface = get_logical_interface(logical_intf) \
-                        if get_logical_interface(logical_intf) is not None else logical_interface(logical_intf)   
+    single_layer2.logical_interface = get_logical_interface(logical_interface) \
+                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface)   
     single_layer2._mgmt_interface()
     single_layer2._inline_interface()
     
@@ -212,7 +212,7 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_intf='default_eth', dns=None, fw_license=False):
+               logical_interface='default_eth', dns=None, fw_license=False):
     """ create single ips  
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
@@ -234,8 +234,8 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
         return None     
     
     single_ips.log_server = log_server
-    single_ips.logical_interface = get_logical_interface(logical_intf) \
-                        if get_logical_interface(logical_intf) is not None else logical_interface(logical_intf) 
+    single_ips.logical_interface = get_logical_interface(logical_interface) \
+                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface) 
     single_ips._mgmt_interface()
     single_ips._inline_interface()
     
@@ -257,7 +257,7 @@ def l3interface(name, ipaddress, ip_network, interface_id):
         logger.error("IP address: %s is not part of the network provided: %s, cannot add interface" % (ipaddress,ip_network))
         return None
     
-    network = smc.helpers.ipaddr_as_network(network)    #convert to cidr in case full mask provided
+    ip_network = smc.helpers.ipaddr_as_network(ip_network)    #convert to cidr in case full mask provided
     
     entry_href = smc.search.element_href(name)
     
@@ -265,7 +265,7 @@ def l3interface(name, ipaddress, ip_network, interface_id):
         
         fw_orig = smc.search.element_by_href_as_smcelement(entry_href)
                
-        l3_intf = l3_interface(ipaddress, network, interface_id)
+        l3_intf = l3_interface(ipaddress, ip_network, interface_id)
         
         engine = smc.elements.element.EngineNode()
         engine.interfaces.append(l3_intf.json)
@@ -280,7 +280,7 @@ def l3interface(name, ipaddress, ip_network, interface_id):
         logger.error("Can't find layer 3 FW specified: %s, cannot add interface" % name)
  
  
-def l2interface(name, interface_id='1-2', logical_intf='default_eth'):
+def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
     """ Add layer 2 inline interface   
     Inline interfaces require two physical interfaces for the bridge and a logical 
     interface to be assigned. By default, interface 1,2 will be used if interface_id is 
@@ -301,10 +301,10 @@ def l2interface(name, interface_id='1-2', logical_intf='default_eth'):
         
         l2_orig = smc.search.element_by_href_as_smcelement(entry_href)
         
-        logical_int_href = smc.search.get_logical_interface(logical_intf)
+        logical_int_href = smc.search.get_logical_interface(logical_interface)
         if logical_int_href is None:
-            logger.info("Logical interface: %s not found, creating automatically" % logical_intf)
-            logical_int_href = logical_interface(logical_intf, comment="made by api tool")
+            logger.info("Logical interface: %s not found, creating automatically" % logical_interface)
+            logical_int_href = _logical_interface(logical_interface, comment="made by api tool")
         
         inline_intf = inline_interface(logical_int_href, interface_id)
         
@@ -323,7 +323,7 @@ def l2interface(name, interface_id='1-2', logical_intf='default_eth'):
         logger.error("Cannot find node specified to add layer 2 inline interface: %s" % name)
 
    
-def logical_interface(name, comment=None):
+def _logical_interface(name, comment=None):
     """ Create logical interface
     Logical interfaces are required to be unique for a single IPS or layer 2 firewall that
     has both inline and capture interfaces on the same host. If the IPS or layer2 FW only 
