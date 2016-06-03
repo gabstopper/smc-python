@@ -345,7 +345,7 @@ def _logical_interface(name, comment=None):
     return logical_int.href
  
 
-def l3route(engine, gw, network, interface_id): 
+def l3route(name, gateway, ip_network, interface_id): 
     """ Add route to l3fw 
     This could be added to any engine type. Non-routable engine roles (L2/IPS) may
     still require route/s defined on the L3 management interface   
@@ -356,19 +356,19 @@ def l3route(engine, gw, network, interface_id):
     :return None
     """
     
-    engine_href = smc.search.element_href(engine) #ref to engine
+    engine_href = smc.search.element_href(name) #ref to engine
     if engine_href is None:
-        logger.error("Can't find engine node: %s, cannot process route add" % engine)
+        logger.error("Can't find engine node: %s, cannot process route add" % name)
         return None
     
-    router_element = smc.search.element_href_use_filter(gw, 'router') #router object
+    router_element = smc.search.element_href_use_filter(gateway, 'router') #router object
     if router_element is None:
-        logger.error("Can't find router object: %s, cannot process route add" % gw)
+        logger.error("Can't find router object: %s, cannot process route add" % gateway)
         return None
     
-    network_element = smc.search.element_href_use_filter(network, 'network')
+    network_element = smc.search.element_href_use_filter(ip_network, 'network')
     if network_element is None:
-        logger.error("Can't find network object: %s, cannot process route add" % network)
+        logger.error("Can't find network object: %s, cannot process route add" % ip_network)
         return None
     
     node = smc.search.element_by_href_as_json(engine_href) #get node json
@@ -377,7 +377,7 @@ def l3route(engine, gw, network, interface_id):
     routing_orig = smc.search.element_by_href_as_smcelement(route_link['href']) 
    
     route = smc.elements.element.Route()
-    route.name = engine
+    route.name = name
     route.href = route_link['href']
     route.etag = routing_orig.etag
     route.json = routing_orig.json  #will append to original routing json
