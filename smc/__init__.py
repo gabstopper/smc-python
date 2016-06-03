@@ -11,4 +11,3 @@ except ImportError:
 
 logging.getLogger(__name__).addHandler(NullHandler())
 #logging.basicConfig(level=logging.INFO)
-logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
