@@ -4,7 +4,6 @@ Created on May 21, 2016
 @author: davidlepage
 '''
 import re
-from smc.actions.show import ElementContainer
 
 _IP_ADDR = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 _IP_NETWORK = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}")
@@ -141,7 +140,7 @@ COMMAND_OPTIONS = {
                TARGET_ELEMENT
                ],
     'show':   [
-               ElementContainer().showKeys()
+               
                ]
     }
 
