@@ -6,7 +6,7 @@ Created on May 29, 2016
 import sys, traceback
 from parser import CLIParser, ArgumentParserError
 from options import all_arg_names
-import smc.actions.create
+from smc.actions import create, remove
 
 class SMCBroker(object):
     def __init__(self, document):
@@ -24,9 +24,9 @@ class SMCBroker(object):
                 target = self.document.get('target') and self.document.pop('target', None)
                 try:
                     if action == 'create':
-                        getattr(smc.actions.create, target)(**self.document) #dispatch
+                        getattr(create, target)(**self.document) #dispatch
                     elif action == 'remove':
-                        getattr(smc.actions.remove, target)(**self.document) #dispatch
+                        getattr(remove, target)(**self.document) #dispatch
                 except Exception, e:
                     traceback.print_exc(file=sys.stdout)
                                 

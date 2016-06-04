@@ -14,8 +14,6 @@ from style import CustomizedStyle
 from completer import CommandCompleter
 from smc_utils import SMCBroker
 
-
-__version__ = '0.1'
     
 class StonesoftCLI(object):
     
@@ -29,8 +27,8 @@ class StonesoftCLI(object):
     def _exec_command(self, command):
         results = SMCBroker(command.split()).validate()
         if results:
-            print '\033[91m' + results
-            #print '\033[1m' + results
+            #print '\033[91m' + results
+            print '\033[95m' + results
     
             
     def _create_cli(self):

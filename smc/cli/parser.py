@@ -22,10 +22,10 @@ class CLIParser(object):
             usage='''<command> <target> [<args>]''')
         parser.add_argument('command')
         
-        #TODO: should the exception be caught here or default value provided
         args, self.unknown = parser.parse_known_args(document)
         if not hasattr(self, args.command):
-            parser.print_help()
+            #parser.print_help()
+            pass
        
         getattr(self, args.command)()
             

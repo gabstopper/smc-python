@@ -4,6 +4,7 @@ Created on May 21, 2016
 @author: davidlepage
 '''
 import re
+from smc.actions.show import ElementContainer
 
 _IP_ADDR = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 _IP_NETWORK = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}")
@@ -140,7 +141,7 @@ COMMAND_OPTIONS = {
                TARGET_ELEMENT
                ],
     'show':   [
-               TARGET_ELEMENT
+               ElementContainer().showKeys()
                ]
     }
 
@@ -211,4 +212,3 @@ def split_command_and_args(tokens):
         else:
             command = tokens[0] if tokens[0] in get_cmd() else command
     return command, args 
- 
