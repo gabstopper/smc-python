@@ -1,6 +1,5 @@
 import logging
 from smc.actions import search
-from smc.cli.options import all_option_names
 from smc.api import web as web_api
 from pprint import pprint
 
@@ -12,7 +11,8 @@ class ElementContainer(object):
         self.json = None
         
     def showKeys(self):
-        return all_option_names()      
+        #return all_option_names()
+        pass      
 
     def showByName(self, name):
         t = search.element_info_as_json(name)
