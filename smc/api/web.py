@@ -52,12 +52,12 @@ class SMCEntryCache(object):
         Call get_all_entry_points to find all available entry points 
         :param verb: top level entry point into SMC api
         :return dict of entry point specified
-        :raises Exception is no entry points are found. That would mean no login has occurred
+        :raises Exception if no entry points are found. That would mean no login has occurred
         """
         if self.api_entry:
             for entry in self.api_entry:
-                if entry['rel'] == verb:
-                    return entry['href']
+                if entry.get('rel') == verb:
+                    return entry.get('href', None)
         else:
             raise Exception("No entry points found, it is likely there is no valid login session.") 
            
@@ -187,7 +187,7 @@ class SMCAPIConnection(SMCEntryCache):
                     )
                 if r.status_code==200:
                     logger.debug("Successful modification, new host href: %s" % r.headers['location'])
-                    return r.headers.get('location') #TODO: Return these as an SMCResult in msg
+                    return r.headers.get('location') #TODO: Return these as an SMCResult 
                 else:
                     raise SMCOperationFailure(r)
             else:
@@ -222,6 +222,7 @@ class SMCAPIConnection(SMCEntryCache):
 class SMCResult(object):
     def __init__(self, respobj=None):
         self.etag = None
+        self.href = None
         self.json = self.extract(respobj)
         
     def extract(self, response):
@@ -259,9 +260,7 @@ class SMCOperationFailure(Exception):
         errorstr = []
         if isinstance(self.body, dict):
             for i in self.body:
-                print "i: %s, self.body: %s" % (i,self.body)
                 if isinstance(self.body[i], list):
-                #if type(self.body) is list:
                     errorstr.append(str(i) + ": ")
                     for err in self.body[i]:
                         a =  err.rstrip().split('\n')
@@ -272,15 +271,10 @@ class SMCOperationFailure(Exception):
     
 session = SMCAPIConnection()
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
     session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    #try:
-    #    session.http_post('http://172.18.1.150:8082/6.0/efw', {"test":"test"})
-    #except SMCOperationFailure, e:
-    #    logger.error(e.msg)
-        
-    #
+    print session.get_all_entry_points()
     session.logout()
     
     
