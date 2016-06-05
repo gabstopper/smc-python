@@ -112,6 +112,7 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
                         break   #exits on first match
                 if not match:
                     logger.debug("No search results found for name: %s" % name)
+                    return
                 else:
                     logger.debug("Search found direct match for element: %s, %s" % (name,match))
             if follow_href: #follow the href to element
