@@ -27,8 +27,9 @@ class StonesoftCLI(object):
     def _exec_command(self, command):
         results = SMCBroker(command.split()).validate()
         if results:
+            print results
             #print '\033[91m' + results
-            print '\033[95m' + results
+            #print '\033[95m' + results
     
             
     def _create_cli(self):

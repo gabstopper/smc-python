@@ -24,8 +24,7 @@ class CLIParser(object):
         
         args, self.unknown = parser.parse_known_args(document)
         if not hasattr(self, args.command):
-            #parser.print_help()
-            pass
+            pass #don't display help at the top level
        
         getattr(self, args.command)()
             
@@ -111,7 +110,23 @@ class CLIParser(object):
         self.document.action = 'remove'
         self.document = vars(self.document)
     
-    
+    def show(self):
+        """ show actions """
+        parser = ThrowingArgumentParser(add_help=False)        
+        subparsers = parser.add_subparsers(dest='target')
+        
+        show_args = ThrowingArgumentParser(add_help=False)
+        show_args.add_argument('--name')
+        show_args.add_argument('--all', action="store_true")
+        
+        _parser_fw = subparsers.add_parser('single_fw', parents=[show_args])
+        _parser_ips = subparsers.add_parser('single_ips', parents=[show_args])
+        _parser_l2 = subparsers.add_parser('single_layer2', parents=[show_args]) 
+        
+        self.document = parser.parse_args(self.unknown)
+        self.document.action = 'show'
+        self.document = vars(self.document)
+        
     def search(self):
         pass
 
@@ -119,15 +134,16 @@ class CLIParser(object):
 
 if __name__ == "__main__":
 
-    cli = CLIParser(['create','host', '--name', 'grger', '--ipaddress', 'wefw', '--secondary_ip', '1.1.1.1'])
+    #cli = CLIParser(['create','host', '--name', 'grger', '--ipaddress', 'wefw', '--secondary_ip', '1.1.1.1'])
     #cli = CLIParser(['create','iprange', '--name', 'efewf', '--addr_range', 'rgr'])
     #cli = CLIParser(['create','router', '--name', 'wgwe', '--ipaddress', 'wef', '--secondary_ip', 'rrg'])
     #cli = CLIParser(['create','network', '--name', 'wg', '--ip_network', 'fe'])
     #cli = CLIParser(['create','group', '--name', 'wg','--members'])
     #cli = CLIParser(['remove', 'element', '--name', 'wefwefw'])
     #cli = CLIParser(['create', 'l3interface', '--name', 'wef', '--ipaddress', 'wef', '--ip_network', '3f3f', '--interface_id', 'rger'])
-    cli = CLIParser(['create', 'l3route', '--name', 'test', '--gateway', '172.18.1.2', '--ip_network', 'fefe', '--interface_id', '3'])    
+    #cli = CLIParser(['create', 'l3route', '--name', 'test', '--gateway', '172.18.1.2', '--ip_network', 'fefe', '--interface_id', '3'])    
     #name, gateway, ip_network, interface_id
     #cli = CLIParser(['create','single_ips', '--mgmt_ip', '1.1.1.1', '--mgmt_network', '1.1.1.1', '--name', 'asd', '--logical_interface', 'logicaltest'])
+    cli = CLIParser(['show', 'single_i', '--name', 'wefwefweef'])
     print cli.document
     

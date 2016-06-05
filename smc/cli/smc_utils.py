@@ -7,6 +7,7 @@ import sys, traceback
 from parser import CLIParser, ArgumentParserError
 from options import all_arg_names
 from smc.actions import create, remove
+from smc.actions.show import ElementContainer as show
 
 class SMCBroker(object):
     def __init__(self, document):
@@ -24,9 +25,11 @@ class SMCBroker(object):
                 target = self.document.get('target') and self.document.pop('target', None)
                 try:
                     if action == 'create':
-                        getattr(create, target)(**self.document) #dispatch
+                        getattr(create, target)(**self.document) #dispatch                       
                     elif action == 'remove':
                         getattr(remove, target)(**self.document) #dispatch
+                    elif action == 'show':
+                        getattr(show(), target)(**self.document) #dispatch
                 except Exception, e:
                     traceback.print_exc(file=sys.stdout)
                                 
@@ -41,7 +44,8 @@ class SMCBroker(object):
 
 if __name__ == "__main__":
     try:
-        executor = SMCBroker(['remove', 'element', '--name', 'efwe'])
+        #executor = SMCBroker(['remove', 'element', '--name', 'efwe'])
+        executor = SMCBroker(['show', 'single_fw', '--all'])
         
         executor.validate()
     except Exception, e:

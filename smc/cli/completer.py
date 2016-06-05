@@ -75,6 +75,10 @@ class CommandCompleter(Completer):
             if [(x,y) for x,y in context_menu_items if x == prev] and prev != sub_cmd: #input
                 return
             
+            if top_cmd == "show":
+                if len(unused_menu_items) < 2:
+                    return
+                          
             for menu, meta in unused_menu_items:  #return unused_menu_items
                 if menu.startswith(word) or not word:
                     yield Completion(menu, -len(word), display_meta=meta)
@@ -89,7 +93,8 @@ class CommandCompleter(Completer):
         for name in sorted(lst):
             if name.startswith(word) or not word:
                     yield Completion(name, -len(word))
-        
+
+                    
     @staticmethod
     def get_tokens(text):
         """ Parse out all tokens.

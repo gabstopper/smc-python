@@ -3,10 +3,10 @@ from pygments.lexer import RegexLexer
 from pygments.lexer import words
 from pygments.token import Keyword, Name, Literal
 
-from options import all_option_names, all_arg_names, get_cmd
+from options import all_target_names, all_arg_names, get_cmd
 
 commands = get_cmd()
-options = all_option_names()
+options = all_target_names()
 args = all_arg_names()
 
 class CommandLexer(RegexLexer):

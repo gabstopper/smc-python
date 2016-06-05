@@ -140,12 +140,19 @@ COMMAND_OPTIONS = {
                TARGET_ELEMENT
                ],
     'show':   [
-               
+               TARGET_SINGLE_FW,
+               TARGET_SINGLE_IPS,
+               TARGET_SINGLE_L2,
+               TARGET_NETWORK,
+               TARGET_HOST,
+               TARGET_IPRANGE,
+               TARGET_ROUTER,
+               TARGET_GROUP
                ]
     }
 
 
-def all_option_names():
+def all_target_names():
     """ get all option names 
     :return: sorted list of all options by name 
     """
@@ -160,7 +167,7 @@ def all_arg_names():
     """ get all argument names 
     :return: sorted list of all arguments by name 
     """
-    opts = set([])
+    opts = set(['all']) #set all for show cmds
     for command in COMMAND_OPTIONS:
         for c in COMMAND_OPTIONS[command]:
             cmd_opt = c.nargs
@@ -194,7 +201,10 @@ def sub_menus(command, target):
     if command in COMMAND_OPTIONS:
         #CommandOption
         cmd_target_nargs = next(command_opt.nargs for command_opt in COMMAND_OPTIONS[command] if command_opt.name == target)
-        menu_meta_tuple = list((command_option.name,command_option.meta) for command_option in cmd_target_nargs)
+        if command == "show":
+            menu_meta_tuple = [('name', 'name of element'),('all', 'all elements')]
+        else:
+            menu_meta_tuple = list((command_option.name,command_option.meta) for command_option in cmd_target_nargs)
         return menu_meta_tuple
 
 
@@ -211,3 +221,4 @@ def split_command_and_args(tokens):
         else:
             command = tokens[0] if tokens[0] in get_cmd() else command
     return command, args 
+

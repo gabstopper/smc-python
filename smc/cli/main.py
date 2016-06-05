@@ -68,12 +68,12 @@ if __name__ == '__main__':
     import logging
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("smc").setLevel(logging.ERROR)
+    logging.getLogger("smc").setLevel(logging.INFO)
     
-    logging.basicConfig(filename=os.path.expanduser('~/smc.log'), format='%(asctime)s %(levelname)s: %(message)s')
+    logging.basicConfig(filename=os.path.expanduser('~/smc.log'), format='%(asctime)s %(levelname)s: [%(name)s] %(message)s')
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(message)s')
+    formatter = logging.Formatter('%(name)s %(message)s')
     ch.setFormatter(formatter)
     logging.getLogger("smc").addHandler(ch)
 
