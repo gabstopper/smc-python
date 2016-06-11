@@ -146,7 +146,11 @@ def element_entry_point(name):
    
 def get_routing_node(name):
     """ Get the json routing node for name """
-    pass
+    node = element_as_json(name)
+    if node:
+        route_link = next(item for item in node.get('link') if item.get('rel') == 'routing')   
+        routing_orig = element_by_href_as_json(route_link.get('href'))
+        return routing_orig
 
         
 def get_logical_interface(name):
@@ -173,12 +177,12 @@ def get_first_log_server():
                  
 if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    
-    from pprint import pprint  
-    
+
+    logging.getLogger()
+    logging.basicConfig(level=logging.DEBUG)
     #import smc
     #smc.create.host('ami', '12.12.12.12')
-    
+    '''
     print "all elements by type: %s" % all_elements_by_type('log_server') #good
     assert all_elements_by_type('hostssd') == None
     
@@ -187,10 +191,10 @@ if __name__ == '__main__':
       
     print "element href: %s" % element_href('ami')        #good
     assert element_href('regergergr') == None   
-    
-    print "element as json: %s" % element_as_json('ami')    #good
-    assert element_as_json('weewfe') == None
-    
+    '''
+    print "element as json: %s" % element_as_json('ewf')    #good
+    #assert element_as_json('weewfe') == None
+    '''
     print "element full json: %s" % element_info_as_json('ami') #good   
     assert element_info_as_json('asdfdsfsd') == None
     
@@ -209,8 +213,6 @@ if __name__ == '__main__':
     print "get log servers: %s" % get_log_servers()
     
     print "First log server: %s" % get_first_log_server()
-    
-    from pprint import pprint
-    pprint(element_as_json('ips-test'))
+    '''
     
     web_api.session.logout()
