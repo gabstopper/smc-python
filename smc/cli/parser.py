@@ -4,6 +4,7 @@ Created on May 28, 2016
 @author: davidlepage
 '''
 import argparse
+from smc.cli.options import COMMAND_OPTIONS
 
 __version__ = '0.1'
 
@@ -33,6 +34,18 @@ class CLIParser(object):
         parser = ThrowingArgumentParser(add_help=False)        
         subparsers = parser.add_subparsers(dest='target')
         
+        '''
+        for cmd in COMMAND_OPTIONS['create']:
+            print "cmd name: %s" % cmd.name
+            cmd.name_p = subparsers.add_parser(cmd.name)
+            for arg in cmd.nargs:
+                cmd.name_p.add_argument(
+                        "--{}, {}".format(arg.name, ",".join(arg.actions)) if arg.actions \
+                            else "'--{}'".format(arg.name))
+                print "--{},{}".format(arg.name, ",".join(arg.actions)) if arg.actions \
+                            else "'--{}'".format(arg.name)
+        '''
+            
         #common engine settings
         engine_parser = ThrowingArgumentParser(add_help=False)
         engine_parser.add_argument('--name', required=True)
@@ -43,7 +56,7 @@ class CLIParser(object):
         engine_parser.add_argument("--fw_license", action="store_true", default=False)
         
         #security engine specific subparsers        
-        _parser_fw = subparsers.add_parser('single_fw', parents=[engine_parser])        
+        subparsers.add_parser('single_fw', parents=[engine_parser])        
         
         parser_l2 = subparsers.add_parser('single_layer2', parents=[engine_parser])
         parser_l2.add_argument('--inline_interface', default=argparse.SUPPRESS)
@@ -67,7 +80,7 @@ class CLIParser(object):
         
         parser_router = subparsers.add_parser('router', parents=[element_parser])
         parser_router.add_argument('--ipaddress', required=True)
-        parser_router.add_argument('--secondary_ip', action="append", default=argparse.SUPPRESS) 
+        parser_router.add_argument('--secondary_ip',nargs=1, default=argparse.SUPPRESS) 
         
         parser_network = subparsers.add_parser('network', parents=[element_parser])
         parser_network.add_argument('--ip_network', required=True)
@@ -83,16 +96,16 @@ class CLIParser(object):
         
         parser_l2intf = subparsers.add_parser('l2interface', parents=[element_parser])
         parser_l2intf.add_argument('--interface_id', required=True)
-        parser_l2intf.add_argument('--logical_intf', required=True)
+        parser_l2intf.add_argument('--logical_interface', required=True)
         
         parser_l3route = subparsers.add_parser('l3route', parents=[element_parser])
         parser_l3route.add_argument('--interface_id', required=True)
         parser_l3route.add_argument('--gateway', required=True)
         parser_l3route.add_argument('--ip_network', required=True)
         
-           
-        _logical_intf = subparsers.add_parser('logical_interface', parents=[element_parser])
+        subparsers.add_parser('logical_interface', parents=[element_parser])
         
+                                
         self.document = parser.parse_args(self.unknown)
         self.document.action = 'create'
         self.document = vars(self.document)
@@ -115,13 +128,12 @@ class CLIParser(object):
         parser = ThrowingArgumentParser(add_help=False)        
         subparsers = parser.add_subparsers(dest='target')
         
-        show_args = ThrowingArgumentParser(add_help=False)
-        show_args.add_argument('--name')
-        show_args.add_argument('--all', action="store_true")
-        
-        _parser_fw = subparsers.add_parser('single_fw', parents=[show_args])
-        _parser_ips = subparsers.add_parser('single_ips', parents=[show_args])
-        _parser_l2 = subparsers.add_parser('single_layer2', parents=[show_args]) 
+        for cmd in COMMAND_OPTIONS['show']:
+            cmd.name_p = subparsers.add_parser(cmd.name)
+            cmd.name_p.add_argument('--name')
+            cmd.name_p.add_argument('--interfaces', action="store_true")
+            cmd.name_p.add_argument('--routes', action="store_true")
+            cmd.name_p.add_argument('--details', action="store_true")
         
         self.document = parser.parse_args(self.unknown)
         self.document.action = 'show'
@@ -144,6 +156,6 @@ if __name__ == "__main__":
     #cli = CLIParser(['create', 'l3route', '--name', 'test', '--gateway', '172.18.1.2', '--ip_network', 'fefe', '--interface_id', '3'])    
     #name, gateway, ip_network, interface_id
     #cli = CLIParser(['create','single_ips', '--mgmt_ip', '1.1.1.1', '--mgmt_network', '1.1.1.1', '--name', 'asd', '--logical_interface', 'logicaltest'])
-    cli = CLIParser(['show', 'single_i', '--name', 'wefwefweef'])
+    cli = CLIParser(['show', 'single_fw', '--name', 'defe', '--interfaces'])
     print cli.document
     

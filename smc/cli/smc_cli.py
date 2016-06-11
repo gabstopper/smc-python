@@ -13,7 +13,6 @@ from lexer import CommandLexer
 from style import CustomizedStyle
 from completer import CommandCompleter
 from smc_utils import SMCBroker
-
     
 class StonesoftCLI(object):
     
@@ -27,18 +26,17 @@ class StonesoftCLI(object):
     def _exec_command(self, command):
         results = SMCBroker(command.split()).validate()
         if results:
-            print results
+            print results           
             #print '\033[91m' + results
             #print '\033[95m' + results
-    
-            
+                
     def _create_cli(self):
         
         application = create_prompt_application(
             message = 'smc> ', 
             wrap_lines = True, 
             complete_while_typing=Always(), 
-            enable_history_search = True,
+            #enable_history_search = True,
             lexer = CommandLexer,
             completer = CommandCompleter(), 
             style = CustomizedStyle(self.theme).style,
@@ -51,8 +49,7 @@ class StonesoftCLI(object):
         self.smc_cli = CommandLineInterface(
             application=application,
             eventloop=eventloop)
-        
-        
+               
     def run_cli(self):
         while True:
             document = self.smc_cli.run(reset_current_buffer=True)
@@ -60,6 +57,5 @@ class StonesoftCLI(object):
          
            
 class AppTitle(object):
-    def get_title(self):
+    def __call__(self):
         return 'SMC Command Line Utility'
-    __call__ = get_title 

@@ -34,7 +34,3 @@ class CustomizedStyle(object):
     
         return style_from_dict(styles)
     
-def get_prompt_tokens(cli):
-    return [
-        (Token.Prompt, 'smc_cli> ')
-    ]           

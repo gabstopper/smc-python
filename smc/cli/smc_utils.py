@@ -6,8 +6,8 @@ Created on May 29, 2016
 import sys, traceback
 from parser import CLIParser, ArgumentParserError
 from options import all_arg_names
-from smc.actions import create, remove
-from smc.actions.show import ElementContainer as show
+from smc.actions import create, remove, show
+from smc.actions.show import Element as element
 
 class SMCBroker(object):
     def __init__(self, document):
@@ -24,12 +24,13 @@ class SMCBroker(object):
                 action = self.document.get('action') and self.document.pop('action', None) #remove not needed attrs
                 target = self.document.get('target') and self.document.pop('target', None)
                 try:
+                    #dispatch
                     if action == 'create':
-                        getattr(create, target)(**self.document) #dispatch                       
+                        getattr(create, target)(**self.document) 
                     elif action == 'remove':
-                        getattr(remove, target)(**self.document) #dispatch
+                        getattr(remove, target)(**self.document) 
                     elif action == 'show':
-                        getattr(show(), target)(**self.document) #dispatch
+                        getattr(element(target,**self.document), 'show')() 
                 except Exception, e:
                     traceback.print_exc(file=sys.stdout)
                                 
@@ -45,7 +46,7 @@ class SMCBroker(object):
 if __name__ == "__main__":
     try:
         #executor = SMCBroker(['remove', 'element', '--name', 'efwe'])
-        executor = SMCBroker(['show', 'single_fw', '--all'])
+        executor = SMCBroker(['show', 'single_fw', 'details'])
         
         executor.validate()
     except Exception, e:

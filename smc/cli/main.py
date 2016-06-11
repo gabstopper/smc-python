@@ -5,11 +5,12 @@ Created on May 28, 2016
 '''
 
 import os, sys
+import logging
 import ConfigParser
-from smc_cli import StonesoftCLI
+from smc.cli.smc_cli import StonesoftCLI
 import smc
 
-from __init__ import __version__
+from smc.cli import __version__
 
 #@click.command()
 def cli():
@@ -20,8 +21,7 @@ def cli():
         smc_cli = StonesoftCLI()
         smc_cli.run_cli()
     except (EOFError, KeyboardInterrupt):
-        init.logout()
-        
+        init.logout()        
     print('GoodBye!')
 
 class InitLogin(object):
@@ -35,14 +35,14 @@ class InitLogin(object):
     def load_cfg(self):
         if self.url or self.apikey is None:
             cfg_path = os.path.join(
-                            os.path.dirname(__file__), self.creds) 
+                os.path.dirname(__file__), self.creds) 
             parser = DotConfigParser()
             parser.read(os.path.expanduser(cfg_path))
-            d=parser._sections.copy()
-            if d:
-                self.url = d.get('main', None).get('url', None)
-                self.apikey = d.get('main', None).get('apikey', None)
-                self.api_version = d.get('main', None).get('api_version', None)
+            data = parser._sections.copy()
+            if data:
+                self.url = data.get('main', None).get('url', None)
+                self.apikey = data.get('main', None).get('apikey', None)
+                self.api_version = data.get('main', None).get('api_version', None)
                 
     def login(self):
         if not self.apikey or not self.url:
@@ -65,16 +65,16 @@ class DotConfigParser(ConfigParser.ConfigParser):
 
         
 if __name__ == '__main__':
-    import logging
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("smc").setLevel(logging.INFO)
     
-    logging.basicConfig(filename=os.path.expanduser('~/smc.log'), format='%(asctime)s %(levelname)s: [%(name)s] %(message)s')
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(name)s %(message)s')
-    ch.setFormatter(formatter)
-    logging.getLogger("smc").addHandler(ch)
+    logging.basicConfig(filename=os.path.expanduser('~/smc.log'), 
+                        format='%(asctime)s %(levelname)s: [%(name)s] %(message)s')
+    cli_logger = logging.StreamHandler(sys.stdout)
+    cli_logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(message)s')
+    cli_logger.setFormatter(formatter)
+    logging.getLogger("smc").addHandler(cli_logger)
 
     cli()    

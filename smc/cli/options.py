@@ -11,15 +11,17 @@ _IP_RANGE = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\-\d{1,3}\.\d{1,3}\.\
 _ID_INTERFACE = re.compile("^[01][0-9][0-9]|2[0-4][0-9]|25[0-5]")
 
 class CommandOption(object):
-    def __init__(self, name, meta=None, nargs=None, regex=None):
+    def __init__(self, name, meta=None, nargs=None, actions=None, regex=None):
         self.name = name
         self.meta = meta
         self.nargs = nargs
+        self.actions = actions
         self.regex = regex
 
 ARG_NAME = CommandOption(
     name = 'name',
-    meta = 'name of element')
+    meta = 'name of element',
+    actions = ['required=True'])
 
 ARG_IP_NETWORK = CommandOption(
     name = 'ip_network',
@@ -29,6 +31,7 @@ ARG_IP_NETWORK = CommandOption(
 ARG_MGMT_IP = CommandOption(
     name = 'mgmt_ip',
     meta = 'format: x.x.x.x',
+    actions = ['required=True'],
     regex = _IP_ADDR)
 
 ARG_IP_RANGE = CommandOption(
@@ -39,6 +42,7 @@ ARG_IP_RANGE = CommandOption(
 ARG_MGMT_NET = CommandOption(
     name = 'mgmt_network',
     meta = 'format: x.x.x.x/y',
+    actions = ['required=True'],
     regex = _IP_NETWORK)
 
 ARG_MGMT_INT = CommandOption(
@@ -55,8 +59,9 @@ ARG_GW = CommandOption(
     meta = 'next hop gateway')
 
 ARG_LOGICAL_INT = CommandOption(
-    name='logical_intf',
-    meta = 'name for logical interface')
+    name='logical_interface',
+    meta = 'name for logical interface',
+    actions = ['default=argparse.SUPPRESS'])
 
 ARG_IP_ADDR = CommandOption(
     name = 'ipaddress',
@@ -143,6 +148,7 @@ COMMAND_OPTIONS = {
                TARGET_SINGLE_FW,
                TARGET_SINGLE_IPS,
                TARGET_SINGLE_L2,
+               #TARGET_LOGICAL_INT,
                TARGET_NETWORK,
                TARGET_HOST,
                TARGET_IPRANGE,
@@ -167,7 +173,7 @@ def all_arg_names():
     """ get all argument names 
     :return: sorted list of all arguments by name 
     """
-    opts = set(['all']) #set all for show cmds
+    opts = set(['details', 'interfaces', 'routes']) #set details for show cmds
     for command in COMMAND_OPTIONS:
         for c in COMMAND_OPTIONS[command]:
             cmd_opt = c.nargs
@@ -202,7 +208,7 @@ def sub_menus(command, target):
         #CommandOption
         cmd_target_nargs = next(command_opt.nargs for command_opt in COMMAND_OPTIONS[command] if command_opt.name == target)
         if command == "show":
-            menu_meta_tuple = [('name', 'name of element'),('all', 'all elements')]
+            menu_meta_tuple = [('name', 'name of element'),('interfaces', 'show interface info'), ('routes', 'show routes'),('details', 'all results')]
         else:
             menu_meta_tuple = list((command_option.name,command_option.meta) for command_option in cmd_target_nargs)
         return menu_meta_tuple
