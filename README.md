@@ -59,7 +59,7 @@ smc.remove.element('agroup')	#remove group
 smc.remove.element('myfw')		#remove firewall instance
 ```
 
-###### Create / remove a single_fw L3 instance
+###### Create / remove a single fw L3 instance
 ```python
 smc.create.single_fw('myfw', '172.18.1.5', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
 smc.create.l3interface('myfw', '5.5.5.5', '5.5.0.0/16', 3)	#name, ip, network, interface
@@ -69,12 +69,20 @@ smc.create.l3route('myfw6', '172.18.1.80', 'Any network', 0) 	#add route to myfw
 smc.create.l3route('myfw6', '172.18.1.250', '192.168.3.0/24', 0)	#gateway 172.18.1.250 for network 192.168.3.0/24
 ```
 
-###### Create / remove a single L2 instance with management port and inline interfaces
+###### Create / remove a single L2 instance with management port on interface 0, inline interfaces on 2-3, and DNS of 5.5.5.5
 ```python
-smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-smc.create.l2interface('mylayer2', interface_id='8,9')
+smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', mgmt_interface='0', inline_interface='2-3', dns='5.5.5.5', fw_license=True)
+smc.create.l2interface('mylayer2', interface_id='8,9')	#add additional inline interfaces on 8,9
+smc.create.router('mynexthop', '172.18.1.50')			#create next hop router element
+smc.create.l3route('mylayer2', 'mynexthop', '192.168.3.0/24', 0)	#create route using router element for net 192.168.3.0/24
+```
+
+###### Create / remove a single IPS instance with management port and inline interfaces
+```python
+smc.create.single_ips('myips', '172.18.1.254', '172.18.1.0/24', mgmt_interface='0', dns='5.5.5.5', fw_license=True)
+smc.create.l2interface('myips', interface_id='8,9')
 smc.create.router('mynexthop', '172.18.1.50')
-smc.create.l3route('mylayer2', 'mynexthop', '192.168.3.0/24', 0)
+smc.create.l3route('myips', 'mynexthop', '192.168.3.0/24', 0)
 ```
 
 ###### Example of using a search filter 
