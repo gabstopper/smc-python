@@ -10,7 +10,7 @@ from pygments.styles import get_style_by_name
 from prompt_toolkit.styles import style_from_dict, default_style_extensions
 
 class CustomizedStyle(object):
-    
+
     def __init__(self, theme):
         self.style = self.style_factory(theme)
 
@@ -33,4 +33,3 @@ class CustomizedStyle(object):
         })
     
         return style_from_dict(styles)
-    
