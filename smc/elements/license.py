@@ -1,37 +1,101 @@
-import smc
+""" License module handles operations for licensing and un-licensing engines """
+
 import logging
-import smc.api.web as web_api
-from smc.api.web import SMCOperationFailure
+from smc.elements.element import SMCElement
+import smc.actions.search
+import smc.api.common
 
 logger = logging.getLogger(__name__)
 
-def get_dynamic_license():
-    """ Check for unbound dynamic licenses or return None """
-    licenses = smc.search.get_element_by_entry_point('licenses')
-    license_id = None 
-    for l in licenses['license']:
-        if l['bindings'] == 'dynamic' and l['binding_state'] == 'Unassigned':
-            logger.debug("Found a dynamic license; License_info: %s" % l)
-            license_id = l['license_id']
-            break
-    if license_id:
-        return license_id
-    else:
-        logger.error("No dynamic licenses were found. Cannot license security engine")
-        
-def bind_license(node_bind_license_href, license_id=None):
-    """ Bind license using dynamic license, or set license_id. For hardware FW's with
-        a POS, call fetch_license with POST instead. It will retrieve it's license from SMC
-        Args:
-            * node_bind_license_href: specific to engine
-            * license_id (optional): specific license id requested
-        Returns:
-            None
+class License(object):
+    """ 
+    Class to perform license based operations
+    Bind will attach a license for an engine. It will first attempt to 'fetch' the
+    license which auto maps based on the engine POS (for physical appliances). Otherwise
+    it will fall back to finding an unassigned dynamic license and auto-assign.
+    Unbind removes the license
+    :param name: name of engine
     """
-    license_id = get_dynamic_license()
-    t = {'license_id': license_id}
-    try:
-        web_api.session.http_post(node_bind_license_href, t)
-    except SMCOperationFailure, e:
-        logger.error("Error binding license: %s" % e.msg)
-    
+    def __init__(self, name):
+        self.name = name
+        self.links = []
+        self.license_id = None
+        self.element = None
+        self.get_license_links()
+
+    def bind(self):
+        """ 
+        Attempt to bind a license by calling fetch first, if the engine has
+        a serial number mapped to license, SMC will auto-bind the right one.
+        Otherwise try to find an available dynamic license and bind an available
+        one
+        :return None
+        """
+        self.fetch()
+
+        if not self.element.href: #if fetch fails, element.href = None
+            logger.warning("Could not fetch license, trying to get a dynamic license")
+
+            for links in self.links:
+                if links.get('rel') == 'bind':
+                    self.element.href = links.get('href')
+
+            self.get_dynamic_license()
+            if self.license_id:
+                self.element.json = {'license_id': self.license_id}
+                smc.api.common._create(self.element)
+
+    def unbind(self):
+        """ unbind a license by device name """
+        for links in self.links:
+            if links.get('rel') == 'unbind':
+                self.element.href = links.get('href')
+        smc.api.common._create(self.element)
+
+    def fetch(self):
+        """ 
+        fetch the license for the engine. If the engine has a mapped
+        license by POS, it will be automatically assigned 
+        """
+        for links in self.links:
+            if links.get('rel') == 'fetch':
+                self.element.href = links.get('href')
+        smc.api.common._create(self.element)
+
+    def get_license_links(self):
+        """ get the needed href links based on the engine location """
+        entry_json = smc.actions.search.element_as_json(self.name)
+
+        if entry_json:
+            self.element = SMCElement()
+            self.element.name = self.name
+            self.element.type = 'license'
+
+            entry = entry_json.get('nodes')[0]
+            for _, entries in entry.iteritems():
+                for keys in entries:
+                    if keys == 'link':
+                        self.links = entries[keys]
+                        break
+
+    def get_dynamic_license(self):
+        """ 
+        Check for unbound dynamic licenses
+        :return None
+        """
+        sys_license = smc.search.element_entry_point('licenses')
+        licenses = smc.actions.search.element_by_href_as_json(sys_license)
+        logger.debug("Searching for dynamic licenses in existing licenses: %s", licenses)
+
+        license_id = None
+        for _license in licenses.get('license'):
+            if _license.get('bindings') == 'dynamic' and \
+            _license.get('binding_state') == 'Unassigned':
+
+                license_id = _license.get('license_id')
+                logger.debug("Found a dynamic license; License_info: %s", license_id)
+                break
+        if license_id:
+            self.license_id = license_id
+        else:
+            logger.error("No dynamic licenses were found. Cannot license security engine")
