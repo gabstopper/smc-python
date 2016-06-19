@@ -31,7 +31,7 @@ def _create(element):
         
     except SMCOperationFailure, e:
         element.href = None
-        logger.error("Failed creating element; %s, %s" % (element, e.msg))
+        logger.error("Failed creating element: %s, %s", element, e)
 
 
 def _update(element):
@@ -45,7 +45,7 @@ def _update(element):
         logger.info("Success updating element; %s" % element)
         
     except SMCOperationFailure, e:
-        logger.error("Failed updating element; %s, %s" % (element, e.msg))
+        logger.error("Failed updating element; %s, %s" % (element, e))
 
         
 def _remove(element):
@@ -59,7 +59,7 @@ def _remove(element):
         logger.info("Success removing element; %s" % element)
             
     except SMCOperationFailure, e:
-        logger.error("Failed removing element; %s, %s" % (element, e.msg))
+        logger.error("Failed removing element; %s, %s" % (element, e))
 
         
 def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
@@ -121,6 +121,6 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
                 return match    #return href str
     
     except SMCOperationFailure, e:
-        logger.error("Failure occurred fetching element: %s" % e.msg)
+        logger.error("Failure occurred fetching element: %s" % e)
 
         
