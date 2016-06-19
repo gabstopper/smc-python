@@ -100,7 +100,7 @@ class SMCAPIConnection(SMCEntryCache):
                     
         Logout should be called to remove the session immediately from the 
         SMC server.
-        TODO: pickle session for longer term re-use? Implement SSL tracking
+        TODO: Implement SSL tracking
         """
         
         self.get_api_entry(url, api_version)
@@ -124,7 +124,7 @@ class SMCAPIConnection(SMCEntryCache):
         """ Logout session from SMC """
         if self.session:
             r = self.session.put(self.get_entry_href('logout'))
-            if r.status_code==204:
+            if r.status_code == 204:
                 logger.info("Logged out successfully")
             else:
                 if r.status_code == 401:
@@ -361,9 +361,4 @@ class SMCConnectionError(Exception):
 
 session = SMCAPIConnection()
 
-if __name__ == "__main__":
-    
-    import smc.api.web
-    session.http_get('http://172.18.1.150:8082/api/6.0/elements')
-    
     
