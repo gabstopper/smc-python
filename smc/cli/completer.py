@@ -3,7 +3,8 @@ from smc.cli.options import get_cmd, get_cmd_target, all_sub_menus, split_comman
 
 
 class CommandCompleter(Completer):
-    """ class implementing prompt-toolkit completer
+    """ 
+    Class implementing prompt-toolkit completer
     provides completion menu results, auto-completion and type matching
     """
     def __init__(self, ignore_case=True):
@@ -15,12 +16,12 @@ class CommandCompleter(Completer):
         words = CommandCompleter.get_tokens(document.text)
 
         command_name = split_command_and_args(words)[0]
-
+        
         in_command = (len(words) > 1) and \
-            (len(command_name.split(' ')) == 2)
+            (command_name and len(command_name.split(' ')) == 2)
 
         if in_command:
-
+           
             previous_word = ''
             previous_start = document.find_start_of_previous_word(WORD=True)
 
@@ -51,7 +52,8 @@ class CommandCompleter(Completer):
 
     @staticmethod
     def find_command_matches(command, word='', prev='', params=[]):
-        """ find matches in the context of a given command
+        """ 
+        Find matches in the context of a given command
         :param command: two part command compiled before it reaches here
         :param word: chars typed
         :param prev: previous word seen
@@ -84,7 +86,8 @@ class CommandCompleter(Completer):
 
     @staticmethod
     def find_matches(word, lst):
-        """ find initial command and target match [cmd] [target]
+        """ 
+        Find initial command and target match [cmd] [target]
         :param word searchable
         :param lst list to look for matches
         """
@@ -96,7 +99,8 @@ class CommandCompleter(Completer):
 
     @staticmethod
     def get_tokens(text):
-        """ Parse out all tokens.
+        """ 
+        Parse out all tokens.
         :param text:
         :return: list
         """

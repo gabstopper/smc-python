@@ -31,7 +31,7 @@ class SMCBroker(object):
                         getattr(remove, target)(**self.document)
                     elif action == 'show':
                         getattr(element(target,**self.document), 'show')()
-                except Exception, e:
+                except Exception:
                     traceback.print_exc(file=sys.stdout)
 
             except ArgumentParserError, e: #missing arguments

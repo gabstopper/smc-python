@@ -49,8 +49,7 @@ class StonesoftCLI(object):
         while True:
             document = self.smc_cli.run(reset_current_buffer=True)
             self._exec_command(document.text)
-
-
+    
 class AppTitle(object):
     def __call__(self):
         return 'SMC Command Line Utility'

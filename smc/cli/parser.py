@@ -5,7 +5,6 @@ Created on May 28, 2016
 '''
 
 import argparse
-import logging
 from options import format_arguments
 
 class ArgumentParserError(Exception):
@@ -50,8 +49,7 @@ class CLIParser(object):
         subparsers = parser.add_subparsers(dest='target')
 
         for target, actions in format_arguments(action):
-            logging.debug("Subparser: %s, args: %s" % (target, actions))
-
+          
             _target = subparsers.add_parser(target)
             for name, action_val in actions:
                 if action_val:
@@ -62,3 +60,7 @@ class CLIParser(object):
         self.document = parser.parse_args(self.unknown)
         self.document.action = action
         self.document = vars(self.document)
+
+if __name__ == "__main__":
+    p = CLIParser(['create','single_fw','--name','test', '--mgmt_network', '1.1.1.0/24','--mgmt_ip', '1.1.1.1', '----fw_license'])
+    print p.document

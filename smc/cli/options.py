@@ -4,15 +4,12 @@ Created on May 21, 2016
 @author: davidlepage
 '''
 
+#import re
 
-'''
-import re
-
-_IP_ADDR = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
-_IP_NETWORK = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}")
-_IP_RANGE = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\-\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
-_ID_INTERFACE = re.compile("^[01][0-9][0-9]|2[0-4][0-9]|25[0-5]")
-'''
+#_IP_ADDR = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+#_IP_NETWORK = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}")
+#_IP_RANGE = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\-\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+#_ID_INTERFACE = re.compile("^[01][0-9][0-9]|2[0-4][0-9]|25[0-5]")
 
 import argparse
 
@@ -102,31 +99,43 @@ OPT_NAME = ArgCommand(
     meta='name of element')
 
 OPT_DNS = ArgCommand(
-    name='dns',
-    meta='add dns servers',
+    name='--dns',
+    meta='add dns (optional)',
     actions=dict(default=argparse.SUPPRESS))
 
 OPT_FW_LICENSE = ArgCommand(
-    name='fw_license',
-    meta='attempt to license fw',
+    name='--fw_license',
+    meta='license fw (optional)',
     actions=dict(action="store_true", default=False))
 
 OPT_DETAILS = ArgCommand(
-    name='details',
+    name='--details',
     actions=dict(action="store_true"))
 
 OPT_INTERFACES = ArgCommand(
-    name='interfaces',
+    name='--interfaces',
+    meta='show interfaces (optional)',
     actions=dict(action="store_true"))
 
 OPT_ROUTES = ArgCommand(
-    name='routes',
+    name='--routes',
+    meta='show routes (optional)',
     actions=dict(action="store_true"))
 
 
 COMMAND_OPTIONS = {
     'create': {
-        'single_layer2': (ARG_NAME,
+        'host':          (ARG_NAME,
+                          ARG_IP_ADDR),
+        'group':         (ARG_NAME,
+                          ARG_MEMBERS),
+        'router':        (ARG_NAME,
+                          ARG_IP_ADDR),
+        'network':       (ARG_NAME,
+                          ARG_IP_NETWORK),
+        'iprange':       (ARG_NAME,
+                          ARG_IP_RANGE),
+        'single_fw':     (ARG_NAME,
                           ARG_MGMT_IP,
                           ARG_MGMT_NET,
                           ARG_MGMT_INT,
@@ -138,7 +147,7 @@ COMMAND_OPTIONS = {
                           ARG_MGMT_INT,
                           OPT_DNS,
                           OPT_FW_LICENSE),
-        'single_fw':     (ARG_NAME,
+        'single_layer2': (ARG_NAME,
                           ARG_MGMT_IP,
                           ARG_MGMT_NET,
                           ARG_MGMT_INT,
@@ -155,16 +164,6 @@ COMMAND_OPTIONS = {
                           ARG_IP_NETWORK,
                           ARG_GW,
                           ARG_INT_ID),
-        'iprange':       (ARG_NAME,
-                          ARG_IP_RANGE),
-        'host':          (ARG_NAME,
-                          ARG_IP_ADDR),
-        'group':         (ARG_NAME,
-                          ARG_MEMBERS),
-        'router':        (ARG_NAME,
-                          ARG_IP_ADDR),
-        'network':       (ARG_NAME,
-                          ARG_IP_NETWORK),
         'logical_interface': (ARG_NAME,),
         },
     'remove': {
@@ -213,7 +212,7 @@ def all_arg_names():
     """
     opts = []
     for command in COMMAND_OPTIONS:
-        opts.extend(list(values.name for args in COMMAND_OPTIONS[command].itervalues() 
+        opts.extend(list(values.name for args in COMMAND_OPTIONS[command].itervalues()
                          for values in args))
     return sorted(set(opts))
 
