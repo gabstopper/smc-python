@@ -8,16 +8,14 @@ logger = logging.getLogger(__name__)
 
 def element(name, objtype=None):
     """ Remove by element
-    Args:
-        * name: name for object to remove
-        * objtype (optional): filter to add to search for element, i.e. host,network,single_fw,etc
-    Returns:
-        None
+    :param name: name for object to remove
+    :param objtype (optional): filter to add to search for element, i.e. host,network,single_fw,etc
+    :return None 
     """
   
     removable = smc.actions.search.element_info_as_json(name)
     if removable is not None:
-        logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable['type']))
+        logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable.get('type')))
         element = SMCElement()
         element.name = name
         element.type = removable.get('type', None)

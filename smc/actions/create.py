@@ -2,40 +2,39 @@ import logging
 import smc.elements.element
 import smc.api.web as web_api
 import smc.api.common as common_api
+import smc.elements.license
 from smc.actions.search import get_logical_interface
-from smc.elements.element import EngineNode, SingleLayer3, SingleIPS, SingleLayer2, \
-    inline_interface, l3_interface
+from smc.elements.element import EngineNode, inline_interface, l3_interface
+from smc.actions import helpers
+
 
 logger = logging.getLogger(__name__)
 
 
 def host(name, ipaddress, secondary_ip=[], comment=None):
-    """ create host object       
+    """ Create host object       
     :param name: name, must be unique
     :param ipaddress: ip address of host
-    :param secondary_ip[] (optional): optional additional IP's for host
+    :param secondary_ip[] (optional): additional IP for host
     :param comment (optional)
     :return None
     """
     
-    if smc.helpers.is_valid_ipv4(ipaddress): 
+    if helpers.is_valid_ipv4(ipaddress): 
         entry_href = smc.search.element_entry_point('host')
         
-        host = smc.elements.element.Host()
-        host.href = entry_href         
-        host.name = name
-        host.ip = ipaddress
-        host.secondary_ip = secondary_ip
-        host.comment = comment
-        
+        host = smc.elements.element.Host(name, ipaddress, entry_href, 
+                                         secondary_ip=secondary_ip, 
+                                         comment=comment)
+       
         common_api._create(host.create())
-                              
+                                    
     else:
         logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
     
 
 def iprange(name, addr_range, comment=None):
-    """ create iprange object 
+    """ Create iprange object 
     :param name: name for object
     :param addr_range: ip address range, i.e. 1.1.1.1-1.1.1.10
     :param comment (optional)
@@ -44,7 +43,7 @@ def iprange(name, addr_range, comment=None):
     
     addr = addr_range.split('-') #just verify each side is valid ip addr
     if len(addr) == 2: #has two parts
-        if not smc.helpers.is_valid_ipv4(addr[0]) or not smc.helpers.is_valid_ipv4(addr[1]):
+        if not helpers.is_valid_ipv4(addr[0]) or not helpers.is_valid_ipv4(addr[1]):
             logger.error("Invalid ip address range provided: %s" % addr_range)
             return None
     else: 
@@ -53,31 +52,26 @@ def iprange(name, addr_range, comment=None):
     
     entry_href = smc.search.element_entry_point('address_range')
     
-    iprange = smc.elements.element.IpRange()
-    iprange.href = entry_href
-    iprange.name = name
-    iprange.iprange = addr_range
+    iprange = smc.elements.element.IpRange(name, addr_range, entry_href, 
+                                           comment=comment)
     
     common_api._create(iprange.create())
     
     
 def router(name, ipaddress, secondary_ip=None, comment=None):
-    """ create router element
+    """ Create router element
     :param name: name for object
     :param ipaddress: ipv4 address
     :param comment (optional)
     :return None
     """  
       
-    if smc.helpers.is_valid_ipv4(ipaddress):
+    if helpers.is_valid_ipv4(ipaddress):
         entry_href = smc.search.element_entry_point('router')
         
-        router = smc.elements.element.Router()
-        router.href = entry_href
-        router.name = name
-        router.comment = comment
-        router.address = ipaddress
-        router.secondary_ip = secondary_ip
+        router = smc.elements.element.Router(name, ipaddress, entry_href,
+                                             secondary_ip=secondary_ip,
+                                             comment=comment)
         
         common_api._create(router.create())  
                                 
@@ -86,23 +80,20 @@ def router(name, ipaddress, secondary_ip=None, comment=None):
 
 
 def network(name, ip_network, comment=None):
-    """ create network element   
+    """ Create network element   
     :param name: name for object
     :param ip_network: ipv4 address in cidr or full netmask format (1.1.1.1/24, or 1.1.1.0/255.255.0.0)
     :param comment (optional)
     :return None
     """
     
-    cidr = smc.helpers.ipaddr_as_network(ip_network)
+    cidr = helpers.ipaddr_as_network(ip_network)
     if cidr:
         entry_href = smc.search.element_entry_point('network')
         
-        network = smc.elements.element.Network()
-        network.href = entry_href
-        network.name = name
-        network.ip4_network = cidr
-        network.comment = comment
-        
+        network = smc.elements.element.Network(name, cidr, entry_href,
+                                               comment=comment)
+       
         common_api._create(network.create()) 
         
     else:
@@ -110,7 +101,7 @@ def network(name, ip_network, comment=None):
 
            
 def group(name, members=[], comment=None):
-    """ create group element, optionally with members
+    """ Create group element, optionally with members
     Members must already exist in SMC. Before being added to the group a search will be 
     performed for each member specified.     
     :param name: name for object
@@ -120,29 +111,27 @@ def group(name, members=[], comment=None):
     """
     
     entry_href = smc.search.element_entry_point('group')
-    
-    group = smc.elements.element.Group()
-    group.href = entry_href
-    group.name = name
-    group.comment = comment
-    
+   
+    grp_members = []
     if members:
         for m in members: #add each member
             found_member = smc.search.element_href(m)
             if found_member:
-                logger.debug("Found member: %s, adding to group: %s" % (m, group.name))
-                group.members.append(found_member)
+                logger.debug("Found member: %s, adding to group" % m)
+                grp_members.append(found_member)
                 continue
             else:
                 logger.info("Element: %s could not be found, not adding to group" % m)    
     
-    common_api._create(group.create())     
-    #from pprint import pprint
-    #pprint(group.json)                     
-
+    group = smc.elements.element.Group(name, entry_href,
+                                       members=grp_members,
+                                       comment=comment)
+    
+    common_api._create(group.create())
+    
        
 def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_license=False):
-    """ create single firewall with a single management interface
+    """ Create single firewall with a single management interface
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
     :param mgmt_network: netmask for management network
@@ -152,29 +141,32 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     :return None
     """
     
-    if not smc.helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
-        logger.error("Management IP: %s is not in the management network: %s, cannot add single_fw" % (mgmt_ip,mgmt_network))
+    if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
+        logger.error("Management IP: %s is not in the management network: %s, "
+                     "cannot add single_fw" % (mgmt_ip,mgmt_network))
         return None
-      
-    single_fw = SingleLayer3(**locals())
-    single_fw.href = smc.search.element_entry_point('single_fw') #get entry point for single_fw
-        
+  
     log_server = smc.search.get_first_log_server()
     if not log_server:
-        logger.error("Can't seem to find an available Log Server on specified SMC, cannot add single_fw: %s" % name)
+        logger.error("Can't seem to find an available Log Server on specified SMC, "
+                     "cannot add single_fw: %s" % name)
         return None
     
-    single_fw.log_server = log_server
-    single_fw._mgmt_interface()
+    entry_href = smc.search.element_entry_point('single_fw')
 
-    common_api._create(single_fw.create())    
-    #from pprint import pprint
-    #pprint(l3fw.json)
- 
+    single_fw = smc.elements.element.SingleLayer3(name, mgmt_ip, mgmt_network, 
+                                                  entry_href, log_server,
+                                                  mgmt_interface=mgmt_interface,
+                                                  dns=dns)
 
+    common_api._create(single_fw.create())
+    
+    if single_fw.href and fw_license:
+        bind_license(name)  
+    
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
                logical_interface='default_eth', dns=None, fw_license=False):    
-    """ create single layer 2 firewall 
+    """ Create single layer 2 firewall 
     Layer 2 firewall will have a layer 3 management interface and initially needs atleast 
     one inline or capture interface. 
     :param name: name of single layer 2 fw
@@ -187,11 +179,8 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
     :param fw_license: attempt license after creation (optional)
     :return None
     """
-    
-    single_layer2 = SingleLayer2(**locals())
-    single_layer2.href = smc.search.element_entry_point('single_layer2')
-    
-    if not smc.helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
+   
+    if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
         logger.error("Management IP: %s is not in the management network: %s, cannot add single_fw" % (mgmt_ip,mgmt_network))
         return None
 
@@ -200,20 +189,31 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
         logger.error("Can't seem to find an available Log Server on specified SMC, cannot add single_fw: %s" % name)
         return None
     
-    single_layer2.log_server = log_server
-    single_layer2.logical_interface = get_logical_interface(logical_interface) \
-                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface)   
-    single_layer2._mgmt_interface()
-    single_layer2._inline_interface()
+    logical = get_logical_interface(logical_interface) \
+                        if get_logical_interface(logical_interface) is not None \
+                        else _logical_interface(logical_interface)
+                        
+    entry_href = smc.search.element_entry_point('single_layer2')
     
-    common_api._create(single_layer2.create())   
+    single_layer2 = smc.elements.element.SingleLayer2(name, mgmt_ip, mgmt_network,
+                                                      entry_href, log_server,
+                                                      mgmt_interface=mgmt_interface,
+                                                      inline_interface=inline_interface,
+                                                      logical_interface=logical,
+                                                      dns=dns)
+   
+   
+    common_api._create(single_layer2.create())
+    
+    if single_layer2.href and fw_license:
+        bind_license(name)   
     #from pprint import pprint
     #pprint(single_layer2.json)
 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
                logical_interface='default_eth', dns=None, fw_license=False):
-    """ create single ips  
+    """ Create single IPS 
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
     :param mgmt_network: netmask for management network
@@ -224,22 +224,33 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     :param fw_license: attempt license after creation (optional)
     :return None
     """
-    
-    single_ips = SingleIPS(**locals())
-    single_ips.href = smc.search.element_entry_point('single_ips')
+   
+    if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
+        logger.error("Management IP: %s is not in the management network: %s, cannot add single_fw" % (mgmt_ip,mgmt_network))
+        return None
     
     log_server = smc.search.get_first_log_server()
     if not log_server:
         logger.error("Can't seem to find an available Log Server on specified SMC, cannot add ips: %s" % single_ips.name)
         return None     
     
-    single_ips.log_server = log_server
-    single_ips.logical_interface = get_logical_interface(logical_interface) \
-                        if get_logical_interface(logical_interface) is not None else _logical_interface(logical_interface) 
-    single_ips._mgmt_interface()
-    single_ips._inline_interface()
+    logical = get_logical_interface(logical_interface) \
+                        if get_logical_interface(logical_interface) is not None \
+                        else _logical_interface(logical_interface)
+                        
+    entry_href = smc.search.element_entry_point('single_ips')
     
-    common_api._create(single_ips.create())        
+    single_ips = smc.elements.element.SingleIPS(name, mgmt_ip, mgmt_network,
+                                                entry_href, log_server,
+                                                mgmt_interface=mgmt_interface,
+                                                inline_interface=inline_interface,
+                                                logical_interface=logical,
+                                                dns=dns)
+    
+    common_api._create(single_ips.create())
+    
+    if single_ips.href and fw_license:
+        bind_license(name)        
     #from pprint import pprint
     #pprint(ips.json)
 
@@ -253,11 +264,12 @@ def l3interface(name, ipaddress, ip_network, interface_id):
     :return None
     """
     
-    if not smc.helpers.is_ipaddr_in_network(ipaddress, ip_network):
-        logger.error("IP address: %s is not part of the network provided: %s, cannot add interface" % (ipaddress,ip_network))
+    if not helpers.is_ipaddr_in_network(ipaddress, ip_network):
+        logger.error("IP address: %s is not part of the network provided: %s, \
+            cannot add interface" % (ipaddress,ip_network))
         return None
     
-    ip_network = smc.helpers.ipaddr_as_network(ip_network)    #convert to cidr in case full mask provided
+    ip_network = helpers.ipaddr_as_network(ip_network)    #convert to cidr in case full mask provided
     
     entry_href = smc.search.element_href(name)
     
@@ -335,10 +347,9 @@ def _logical_interface(name, comment=None):
     
     entry_href = smc.search.element_entry_point('logical_interface')
     
-    logical_int = smc.elements.element.LogicalInterface()
-    logical_int.name = name
-    logical_int.href = entry_href
-    logical_int.comment = comment if comment is not None else ""
+    logical_int = smc.elements.element.LogicalInterface(name, entry_href,
+                                                        comment=comment)
+   
    
     common_api._create(logical_int.create())
     
@@ -357,45 +368,40 @@ def l3route(name, gateway, ip_network, interface_id):
     """
     
     engine_href = smc.search.element_href(name) #ref to engine
+         
     if engine_href is None:
         logger.error("Can't find engine node: %s, cannot process route add" % name)
         return None
     
-    router_element = smc.search.element_href_use_filter(gateway, 'router') #router object
-    if router_element is None:
+    router_href = smc.search.element_href_use_filter(gateway, 'router') #router object
+    if router_href is None:
         logger.error("Can't find router object: %s, cannot process route add" % gateway)
         return None
     
-    network_element = smc.search.element_href_use_filter(ip_network, 'network')
-    if network_element is None:
+    network_href = smc.search.element_href_use_filter(ip_network, 'network')
+    if network_href is None:
         logger.error("Can't find network object: %s, cannot process route add" % ip_network)
         return None
     
     node = smc.search.element_by_href_as_json(engine_href) #get node json
    
-    route_link = next(item for item in node['link'] if item['rel'] == 'routing')   
-    routing_orig = smc.search.element_by_href_as_smcelement(route_link['href']) 
+    route_link = next(item for item in node.get('link') if item.get('rel') == 'routing')
+    routing_orig = smc.search.element_by_href_as_smcelement(route_link.get('href')) 
    
-    route = smc.elements.element.Route()
+    gw = smc.search.element_by_href_as_json(router_href)
+    
+    dest_net = smc.search.element_by_href_as_json(network_href) #dest net info
+    
+    
+    route = smc.elements.element.Route(gw.get('name'), gw.get('address'), router_href,
+                                       dest_net.get('name'), dest_net.get('ipv4_network'), 
+                                       network_href, interface_id)
+    
     route.name = name
-    route.href = route_link['href']
+    route.href = route_link.get('href')
     route.etag = routing_orig.etag
     route.json = routing_orig.json  #will append to original routing json
-    
-    result = smc.search.element_by_href_as_json(router_element)
-    route.gw_href = router_element
-    route.gw_ip = result['address']             
-    route.gw_name = result['name']
-            
-    result = smc.search.element_by_href_as_json(network_element) #dest net info
-    route.network_href = network_element
-    route.network_ip = result['ipv4_network']
-    route.network_name = result['name']
-    
-    route.interface_id = interface_id
-    
     routing_json = route.create()
-    
     #from pprint import pprint
     #pprint (vars(route))
     
@@ -404,9 +410,16 @@ def l3route(name, gateway, ip_network, interface_id):
         common_api._update(routing_json)
        
     else:
-        logger.error("Can not find specified interface: %s for route add, double check the interface configuration" % route.interface_id)
+        logger.error("Can not find specified interface: %s for route add, double check the "
+                     "interface configuration" % route.interface_id)
 
-     
+
+def bind_license(name):
+    smc.elements.license.License(name).bind()
+    
+def unbind_license(name):
+    smc.elements.license.License(name).unbind()
+         
 def cluster_fw(data):
     pass
 
@@ -422,14 +435,27 @@ def virtual_ips(data):
 def virtual_fw(data):
     pass
 
-
+def _output_status():
+    pass
 
 if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-   
+    
+    logging.getLogger()
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+    
     import time
     start_time = time.time()
-
+    
+    smc.create.host('blah', '1.1.1.1')
+    smc.create.host('blah', '1.1.1.1')
+    smc.remove.element('myfw')
+    smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
+    smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)
+    smc.create.l3interface('myfw', '10.10.1.1', '10.10.0.0/16', 4)
+    smc.create.l3route('myfw', '172.18.1.80', 'Any network', 0)
+           
+    '''
     smc.remove.element('myips')
     time.sleep(3)
     #smc.create.single_ips('myips', '172.18.1.254', '172.18.1.0/24', mgmt_interface='3', inline_interface='4-5', dns='1.2.3.4',
@@ -440,7 +466,7 @@ if __name__ == '__main__':
     smc.create.single_layer2('mylayer2', '172.18.1.254', '172.18.1.0/24', mgmt_interface='5', dns='5.5.5.5', fw_license=True,
                             logical_interface='apitool')
     smc.create.l2interface('mylayer2', interface_id='6-7')
-    '''    
+        
     smc.create.host('testobject', '1.2.3.4')
     smc.remove.element('testobject')
     
@@ -460,13 +486,8 @@ if __name__ == '__main__':
     smc.remove.element('testrouter')
     '''
     
-    smc.remove.element('myfw')
-    smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
-    smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)
-    smc.create.l3interface('myfw', '10.10.1.1', '10.10.0.0/16', 4)
-    smc.create.l3route('myfw', '172.18.1.80', 'Any network', 0) #Good
-    smc.create.l3route('myfw', '10.10.0.1', '192.168.3.0/24', 3) #Good
-    
+    #smc.create.l3route('myfw', '172.18.1.85', '192.168.3.0/24', 3) #Good
+    #'''
     
     
     '''time.sleep(15)

@@ -3,7 +3,7 @@ Created on May 1, 2016
 
 @author: davidlepage
 '''
-import smc.api.web as web_api
+
 import logging
 from smc.api.common import _fetch_element
 
@@ -27,7 +27,7 @@ def element_href(name):
     
     element = _fetch_element(name)
     if element:
-        return element['href'] 
+        return element.get('href') 
 
 
 def element_as_json(name):
@@ -76,7 +76,7 @@ def element_href_use_filter(name, _filter):
     
     element = _fetch_element(name, obj_type=_filter)
     if element:
-        return element['href']
+        return element.get('href')
 
             
 def element_by_href_as_json(href):
@@ -85,9 +85,10 @@ def element_by_href_as_json(href):
     :return json data representing element
     """
     
-    element = _fetch_element(href=href)
-    if element:
-        return element.json
+    if href:
+        element = _fetch_element(href=href)
+        if element:
+            return element.json
 
 
 def element_by_href_as_smcelement(href):
@@ -96,9 +97,10 @@ def element_by_href_as_smcelement(href):
     :return SMCElement with etag, href and element field holding json
     """
     
-    element = _fetch_element(href=href)
-    if element:
-        return element
+    if href:
+        element = _fetch_element(href=href)
+        if element:
+            return element
 
             
 def element_as_smc_element(name):   
@@ -170,49 +172,4 @@ def get_first_log_server():
     if available_log_servers:
         for found in available_log_servers:
             #TODO: If multiple log servers are present, how to handle - just get the first one
-            return found['href']
- 
- 
- 
-                 
-if __name__ == '__main__':
-    web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-
-    logging.getLogger()
-    logging.basicConfig(level=logging.DEBUG)
-    #import smc
-    #smc.create.host('ami', '12.12.12.12')
-    '''
-    print "all elements by type: %s" % all_elements_by_type('log_server') #good
-    assert all_elements_by_type('hostssd') == None
-    
-    print "element entry point: %s" % element_entry_point('host')  #good
-    assert element_entry_point('host2') == None
-      
-    print "element href: %s" % element_href('ami')        #good
-    assert element_href('regergergr') == None   
-    '''
-    print "element as json: %s" % element_as_json('ewf')    #good
-    #assert element_as_json('weewfe') == None
-    '''
-    print "element full json: %s" % element_info_as_json('ami') #good   
-    assert element_info_as_json('asdfdsfsd') == None
-    
-    print "element href w/ wildcard: %s" % element_href_use_wildcard('ami') #good
-    assert element_href_use_wildcard('amissss') == None
-    
-    print "element href using filter: %s " % element_href_use_filter('ami', 'host') #good
-    assert element_href_use_filter('amisss', 'host') == None    
-    
-    print "element by href as json: %s" % element_by_href_as_json(element_href('ami')) #good
-    #assert element_by_href_as_json(element_href('ami2322')) == None
-    
-    print "logical interface: %s" % get_logical_interface('default_eth') #good
-    assert get_logical_interface('wregregerg') == None
-    
-    print "get log servers: %s" % get_log_servers()
-    
-    print "First log server: %s" % get_first_log_server()
-    '''
-    
-    web_api.session.logout()
+            return found.get('href')
