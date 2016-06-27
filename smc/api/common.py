@@ -6,7 +6,7 @@ Created on May 13, 2016
 
 import logging
 import smc.api.web as web_api
-from smc.api.web import SMCOperationFailure
+from smc.api.web import SMCOperationFailure, SMCConnectionError
 from smc.elements.element import SMCElement
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,8 @@ def _create(element):
     """ internal for wrapping exceptions when making web post
     If the creation was successful, SMCElement.href will reference the new location
     If creation fails, it will be None
-    :param element: element to create, SMCElement.json is payload
+    :param element: element to create, this is an instance of SMCElement. See elements module for
+    more information. SMCElement.json is the payload, href is the location to POST
     :return None
     """
     logger.debug("Creating element: %s, href: %s, json: %s" % (element.name, element.href, element.json))
@@ -31,8 +32,10 @@ def _create(element):
         
     except SMCOperationFailure, e:
         element.href = None
-        logger.error("Failed creating element: %s, %s", element, e)
+        logger.error("Failed creating element: %s", e)
 
+    except SMCConnectionError, e:
+        raise
 
 def _update(element):
     """ internal for wrapping exceptions when making web put
@@ -45,8 +48,10 @@ def _update(element):
         logger.info("Success updating element; %s" % element)
         
     except SMCOperationFailure, e:
-        logger.error("Failed updating element; %s, %s" % (element, e))
+        logger.error("Failed updating element; %s %s" % (element, e))
 
+    except SMCConnectionError, e:
+        raise
         
 def _remove(element):
     """ internal for wrapping exceptions when making web delete
@@ -61,6 +66,8 @@ def _remove(element):
     except SMCOperationFailure, e:
         logger.error("Failed removing element; %s, %s" % (element, e))
 
+    except SMCConnectionError, e:
+        raise
         
 def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
                    follow_href=False, use_name_field=True):
@@ -111,7 +118,7 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
                         match = host
                         break   #exits on first match
                 if not match:
-                    logger.debug("No search results found for name: %s" % name)
+                    logger.info("No search results found for name: %s" % name)
                     return
                 else:
                     logger.debug("Search found direct match for element: %s, %s" % (name,match))
@@ -123,4 +130,5 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
     except SMCOperationFailure, e:
         logger.error("Failure occurred fetching element: %s" % e)
 
-        
+    except SMCConnectionError, e:
+        raise    

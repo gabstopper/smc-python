@@ -11,20 +11,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SMCEntryCache(object):
-    """ 
-    Keep track of api entry points retrieved after login to 
-    prevent subsequent queries 
+    """
+    Keep track of api entry points retrieved after login to
+    prevent subsequent queries
     """
     def __init__(self):
-        
+
         self.cache = None
         self.api_entry = None
         self.api_version = None
-        
+
     def get_api_entry(self, url, api_version=None):
-        """ 
-        Called internally after login to get cache of SMC entry points 
-        :param: url for SMC api 
+        """
+        Called internally after login to get cache of SMC entry points
+        :param: url for SMC api
         :param api_version: if specified, use this version
         """
         try:
@@ -36,11 +36,11 @@ class SMCEntryCache(object):
                     versions.append(version['rel'])
                 versions = [float(i) for i in versions]
                 api_version = max(versions)
-            
+
             #else api_version was defined
             logger.info("Using SMC API version: %s", api_version)
             smc_url = url + '/' + str(api_version)
-      
+
             r = requests.get('%s/api' % (smc_url), timeout=5)
             if r.status_code==200:
                 j = json.loads(r.text)
@@ -51,17 +51,17 @@ class SMCEntryCache(object):
                                          "request, json was not returned. "
                                          "Return data was: %s" % r.text)
             self.api_entry = j['entry_point']
-                
+
         except requests.exceptions.RequestException as e:
             raise SMCConnectionError(e)
-                  
+
     def get_entry_href(self, verb):
-        """ 
-        Get entry point from entry point cache 
-        Call get_all_entry_points to find all available entry points 
+        """
+        Get entry point from entry point cache
+        Call get_all_entry_points to find all available entry points
         :param verb: top level entry point into SMC api
         :return dict of entry point specified
-        :raises Exception if no entry points are found. 
+        :raises Exception if no entry points are found.
         That would mean no login has occurred
         """
         if self.api_entry:
@@ -70,41 +70,40 @@ class SMCEntryCache(object):
                     return entry.get('href', None)
         else:
             raise SMCConnectionError("No entry points found, it is likely "
-                                     "there is no valid login session.") 
-           
-    def get_all_entry_points(self): 
-        """ Returns all entry points into SMC api """   
+                                     "there is no valid login session.")
+
+    def get_all_entry_points(self):
+        """ Returns all entry points into SMC api """
         return self.api_entry
-    
+
     def get_element(self, name):
         """ Check if we've already retrieved the item location """
         return self.elements.get(name)
-    
-    
+
 class SMCAPIConnection(SMCEntryCache):
     def __init__(self):
         SMCEntryCache.__init__(self)
-        
+
         self.url = None
         self.key = None
         self.cookies = None
         self.session = None
-        
-    def login(self, url, smc_key, api_version=None):    
-        """ 
-        Login to SMC API and retrieve a valid session. 
+
+    def login(self, url, smc_key, api_version=None):
+        """
+        Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
         :param url: ip of SMC management server
         :param smc_key: API key created for api client in SMC
         :param api_version (optional): specify api version
-                    
-        Logout should be called to remove the session immediately from the 
+
+        Logout should be called to remove the session immediately from the
         SMC server.
         TODO: Implement SSL tracking
         """
-        
+
         self.get_api_entry(url, api_version)
-        
+
         s = requests.session() #no session yet
         r = s.post(self.get_entry_href('login'),
                    json={'authenticationkey': smc_key},
@@ -132,9 +131,9 @@ class SMCAPIConnection(SMCEntryCache):
                                  "status code: %s", (r.status_code))
                 else:
                     logger.error("Logout failed, status code: %s", r.status_code)
-    
+
     def refresh(self):
-        """ 
+        """
         Refresh SMC session if it timed out. This may be the case if the CLI
         is being used and the user was idle. SMC has a time out value for API
         client sessions (configurable). Refresh will use the previously saved url
@@ -146,24 +145,24 @@ class SMCAPIConnection(SMCEntryCache):
         else:
             logger.error("No previous SMC session found. "
                          "This may require a new login attempt")
-            
+
     def http_get(self, href): #TODO: Implement self.visited for already seen queries
-        """ 
+        """
         Get data object from SMC
         If response code is success, results are returned with etag
         :param href: fully qualified href for resource
         :return SMCResult object with json data and etag attrs
         :raise SMCOperationFailure if non-http 200 response received
-        """   
+        """
         try:
             if self.session:
                 r = self.session.get(href, timeout=5)
-                if r.status_code == 200: 
+                if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
                 elif r.status_code == 401:
                     #unauthorized, session timed out
-                    self.refresh() #TODO: Exception could be thrown here however unlikely
+                    self.refresh() 
                     return self.http_get(href)
                 else:
                     logger.error("HTTP get returned non-http 200 code [%s] "
@@ -171,15 +170,14 @@ class SMCAPIConnection(SMCEntryCache):
                     raise SMCOperationFailure(r)
             else:
                 raise SMCConnectionError("No session found. Please login to continue")
-                
+
         except requests.exceptions.RequestException as e:
             raise SMCConnectionError("Connection problem to SMC, ensure the "
                             "API service is running and host is correct: %s, "
                             "exiting." % e)
-     
-            
+
     def http_post(self, href, data, uri=None):
-        """ 
+        """
         Add object to SMC
         If response code is success, return href to new object location
         If not success, raise exception, caught in middle tier calling method
@@ -188,9 +186,9 @@ class SMCAPIConnection(SMCEntryCache):
         :param uri (optional): not implemented
         :return href of the resource pulled from returned location header
         :raise SMCOperationFailure in case of non-http 201 return
-        """ 
+        """
         try:
-            if self.session:         
+            if self.session:
                 r = self.session.post(href,
                             data=json.dumps(data),
                             headers={'content-type': 'application/json'}
@@ -206,23 +204,23 @@ class SMCAPIConnection(SMCEntryCache):
                     raise SMCOperationFailure(r)
             else:
                 raise SMCConnectionError("No session found. Please login to continue")
-                
+
         except requests.exceptions.RequestException as e:
             raise SMCConnectionError("Connection problem to SMC, ensure the "
                                      "API service is running and host is "
                                      "correct: %s, exiting." % e)
-      
-            
+
     def http_put(self, href, data, etag):
-        """ 
+        """
         Change state of existing SMC object
+        :param href: href of resource location
         :param data: json encoded document
         :param etag: required by SMC, retrieve first via http get
         :return Href of the resource pulled from returned location header
         :raise SMCOperationFailure in case of non-http 200 return
-        """ 
+        """
         try:
-            if self.session:  
+            if self.session:
                 r = self.session.put(href,
                     data = json.dumps(data),
                     headers={'content-type': 'application/json', 'Etag': etag}
@@ -233,26 +231,25 @@ class SMCAPIConnection(SMCEntryCache):
                     return r.headers.get('location') #TODO: Return these as an SMCResult
                 elif r.status_code == 401:
                     self.refresh()
-                    return self.http_put(href, data, etag) 
+                    return self.http_put(href, data, etag)
                 else:
                     raise SMCOperationFailure(r)
             else:
                 raise SMCConnectionError("No session found. Please login to continue")
-                
+
         except requests.exceptions.RequestException as e:
             raise SMCConnectionError("Connection problem to SMC, ensure the "
                                      "API service is running and host is "
                                      "correct: %s, exiting." % e)
-    
-        
+
     def http_delete(self, href):
-        """ 
+        """
         Delete element by fully qualified href
         :param href: fully qualified reference to object in SMC
         :return None
         :raise SMCOperationFailure for non-http 204 code
         """
-        try: 
+        try:
             if self.session:
                 r = self.session.delete(href)
                 if r.status_code == 204:
@@ -264,22 +261,22 @@ class SMCAPIConnection(SMCEntryCache):
                     raise SMCOperationFailure(r)
             else:
                 raise SMCConnectionError("No session found. Please login to continue")
-                
+
         except requests.exceptions.RequestException as e:
             raise SMCConnectionError("Connection problem to SMC, ensure the "
                                      "API service is running and host is "
                                      "correct: %s, exiting." % e)
-          
+
 
 class SMCResult(object):
-    """ 
+    """
     SMCResult will store the data needed to do modify based operations on
-    an existing record. To modify, an HTTP GET is first made returning the 
-    element json and the current etag. The modified json will be POST to the
-    SMC with json as payload and etag to verify the element has not been 
+    an existing record. To modify, an HTTP GET is first made returning the
+    element json and the current etag. The modified json should be POST to the
+    SMC with json as payload and etag header to verify the element has not been
     modified since previous GET.
     :attributes
-        self.etag: etag from HTTP GET, representing unique str from server
+        self.etag: etag from HTTP GET, representing unique value from server
         self.href: None
         self.json: element full json
     """
@@ -287,7 +284,7 @@ class SMCResult(object):
         self.etag = None
         self.href = None
         self.json = self.extract(respobj)
-        
+
     def extract(self, response):
         if response:
             self.etag = response.headers.get('ETag')
@@ -295,70 +292,80 @@ class SMCResult(object):
                 result = json.loads(response.text)
                 if result:
                     if 'result' in result:
-                        self.json = result['result']
+                        self.json = result.get('result')
                     else:
                         self.json = result
                 return self.json
-            
-           
-class SMCOperationFailure(Exception):
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, self.__dict__)
+
+    
+class SMCException(Exception):
+    """ Base class for exceptions """
+    pass
+
+
+class SMCOperationFailure(SMCException):
     """ Exception class for storing results from calls to the SMC
     This is thrown for HTTP methods that do not return the expected HTTP
     status code. See each method above for expected success status
-    :param respobj: response object returned from HTTP method
+    :param response: response object returned from HTTP method
     :attributes
-        self.code: HTTP response status code
-        self.body: HTTP response body
-        self.msg: parsed representation of the error string to display
+        self.response: http request response object
+        self.code: http status code
+        self.status: status from SMC API
+        self.message: message attribute from SMC API
+        self.details: details list from SMC API (may not always exist)
     """
-    def __init__(self, respobj):
+    def __init__(self, response):
+        self.response = response
         self.code = None
-        self.body= None
-        self.msg = self.extract(respobj)
-        
-    def extract(self, response):
-        self.code = response.status_code
-        if response.headers.get('content-type') == 'application/json':
-            j = json.loads(response.text)
-            self.body = j
-        else:
-            if response.text:
-                self.body = response.text
-            else:
-                self.body = response.headers
-        return '{}, {}'.format("Http status code: %s" % self.code, self.formatmsg())
+        self.status = None
+        self.message = None
+        self.details = None
+        self.parse_error()
     
-    def formatmsg(self):
-        errorstr = []
-        if isinstance(self.body, dict):
-            for i in self.body:
-                if isinstance(self.body[i], list):
-                    errorstr.append(str(i) + ": ")
-                    for err in self.body[i]:
-                        a =  err.rstrip().split('\n')
-                    errorstr.append(' '.join(a))
-                else:
-                    errorstr.append(str(i) + ": " + str(self.body[i]))
-        return ' '.join(errorstr)
+    def parse_error(self):
+        self.code = self.response.status_code
+        if self.response.headers.get('content-type') == 'application/json':
+            data = json.loads(self.response.text)
+            self.status = data.get('status', None)
+            self.message = data.get('message', None)
+            details = data.get('details', None)
+            if isinstance(details, list):
+                self.details = ' '.join(details)
+            else:
+                self.details = details        
+        else: #it's not json
+            if self.response.text:
+                self.message = self.response.text
+            else:
+                self.message = self.response.headers
     
     def __str__(self):
-        return self.msg
+        if self.message and self.details:
+            return "%s %s" % (self.message, ''.join(self.details))
+        else:
+            return self.message
+        
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, self.__dict__)
 
-class SMCConnectionError(Exception):
-    """ 
-    Thrown when there are connection related issues with the SMC. 
+
+class SMCConnectionError(SMCException):
+    """
+    Thrown when there are connection related issues with the SMC.
     This could be that the underlying http requests library could not connect
-    due to wrong IP address, wrong port, time out, or the operator provided 
+    due to wrong IP address, wrong port, time out, or the operator provided
     invalid credentials (API Client and API key)
     :param value: Error message to display. If http requests exception thrown,
     this just wraps the error
     """
     def __init__(self, value):
         self.value = value
-    
+
     def __str__(self):
         return self.value
 
 session = SMCAPIConnection()
-
-    
