@@ -1,14 +1,14 @@
 """ License module handles operations for licensing and un-licensing engines """
 
-import logging
 from smc.elements.element import SMCElement
 import smc.actions.search
 import smc.api.common
+import logging
 
 logger = logging.getLogger(__name__)
 
 class License(object):
-    """ 
+    """
     Class to perform license based operations
     Bind will attach a license for an engine. It will first attempt to 'fetch' the
     license which auto maps based on the engine POS (for physical appliances). Otherwise
@@ -24,17 +24,16 @@ class License(object):
         self.get_license_links()
 
     def bind(self):
-        """ 
+        """
         Attempt to bind a license by calling fetch first, if the engine has
         a serial number mapped to license, SMC will auto-bind the right one.
-        Otherwise try to find an available dynamic license and bind an available
-        one
+        Otherwise try to find an available dynamic license and bind
         :return None
         """
         self.fetch()
 
         if not self.element.href: #if fetch fails, element.href = None
-            logger.warning("Could not fetch license, trying to get a dynamic license")
+            logger.info("Could not fetch license, trying to get a dynamic license")
 
             for links in self.links:
                 if links.get('rel') == 'bind':
@@ -46,16 +45,18 @@ class License(object):
                 smc.api.common._create(self.element)
 
     def unbind(self):
-        """ unbind a license by device name """
+        """ 
+        Unbind a license by device name 
+        """
         for links in self.links:
             if links.get('rel') == 'unbind':
                 self.element.href = links.get('href')
         smc.api.common._create(self.element)
 
     def fetch(self):
-        """ 
-        fetch the license for the engine. If the engine has a mapped
-        license by POS, it will be automatically assigned 
+        """
+        Fetch the license for the engine. If the engine has a mapped
+        license by POS, it will be automatically assigned
         """
         for links in self.links:
             if links.get('rel') == 'fetch':
@@ -63,7 +64,9 @@ class License(object):
         smc.api.common._create(self.element)
 
     def get_license_links(self):
-        """ get the needed href links based on the engine location """
+        """ 
+        Get the needed href links based on the engine 
+        """
         entry_json = smc.actions.search.element_as_json(self.name)
 
         if entry_json:
@@ -79,7 +82,7 @@ class License(object):
                         break
 
     def get_dynamic_license(self):
-        """ 
+        """
         Check for unbound dynamic licenses
         :return None
         """
