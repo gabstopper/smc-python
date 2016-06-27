@@ -60,7 +60,3 @@ class CLIParser(object):
         self.document = parser.parse_args(self.unknown)
         self.document.action = action
         self.document = vars(self.document)
-
-if __name__ == "__main__":
-    p = CLIParser(['create','single_fw','--name','test', '--mgmt_network', '1.1.1.0/24','--mgmt_ip', '1.1.1.1', '----fw_license'])
-    print p.document

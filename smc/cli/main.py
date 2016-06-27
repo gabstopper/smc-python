@@ -5,10 +5,9 @@ Created on May 28, 2016
 '''
 
 import os
-import sys
-import traceback
 from functools import wraps
 import ConfigParser
+from ConfigParser import NoSectionError
 from logging.config import fileConfig
 import logging
 
@@ -16,7 +15,7 @@ from smc.api.web import session as smc, SMCConnectionError
 from smc.cli.smc_cli import StonesoftCLI
 
 from smc.cli import __version__
-from ConfigParser import NoSectionError
+
 
 print u'\033[94;1mSMC CLI Version: %s\033[0m' % __version__
 

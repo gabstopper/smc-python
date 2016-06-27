@@ -4,190 +4,135 @@ Created on May 21, 2016
 @author: davidlepage
 '''
 
-#import re
-
-#_IP_ADDR = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
-#_IP_NETWORK = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}")
-#_IP_RANGE = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\-\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
-#_ID_INTERFACE = re.compile("^[01][0-9][0-9]|2[0-4][0-9]|25[0-5]")
-
+import re
 import argparse
+import collections
 
-class ArgCommand(object):
-    def __init__(self, name, meta=None, actions=None):
-        self.name = name
-        self.meta = meta
-        self.actions = actions
-
-    def __repr__(self, *args, **kwargs):
-        return "%s(%r)" % (self.__class__, self.__dict__)
+_IP_ADDR = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+_IP_NETWORK = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}")
+_IP_RANGE = re.compile("^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\-\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
+_ID_INTERFACE = re.compile("^[01][0-9][0-9]|2[0-4][0-9]|25[0-5]")
 
 
-class ArgIterator(object):
-    def __init__(self, ArgCommand, include_actions=False):
-        self.command = iter(ArgCommand)
-        self.include_actions = include_actions
+ArgTuple = collections.namedtuple('ArgTuple', 'name meta regex actions')
 
-    def next(self):
-        option = self.command.next()
-        self.last = option
-        if self.include_actions:
-            return (option.name, option.actions)
-        else:
-            return (option.name, option.meta)
+dns = ArgTuple('--dns',
+               'add dns servers',
+               None,
+               dict(default=argparse.SUPPRESS))
 
-    def __iter__(self):
-        return self
+name = ArgTuple('name',
+                'name of element',
+                None,
+                dict(required=True))
 
+routes = ArgTuple('routes',
+                  None,
+                  None,
+                  dict(action="store_true"))
 
-ARG_NAME = ArgCommand(
-    name='name',
-    meta='name of element',
-    actions=dict(required=True))
+mgmt_ip = ArgTuple('mgmt_ip',
+                   'format: x.x.x.x',
+                   _IP_ADDR,
+                   dict(required=True))
 
-ARG_IP_NETWORK = ArgCommand(
-    name='ip_network',
-    meta='format: x/24 or x/255.255.255.0',
-    actions=dict(required=True))
+mgmt_net = ArgTuple('mgmt_network',
+                    'ex: 1.1.1.0/24',
+                    _IP_NETWORK,
+                    dict(required=True))
 
-ARG_IP_RANGE = ArgCommand(
-    name='addr_range',
-    meta='format: 1.1.1.1-1.1.1.150',
-    actions=dict(required=True))
+ip_addr = ArgTuple('ipaddress',
+                   'ip address of element',
+                   _IP_ADDR,
+                   dict(required=True))
 
-ARG_MGMT_IP = ArgCommand(
-    name='mgmt_ip',
-    meta='format: x.x.x.x',
-    actions=dict(required=True))
+network = ArgTuple('ip_network',
+                   'format: x/24 or x/255.255.255.0',
+                   None,
+                   dict(required=True))
 
-ARG_MGMT_NET = ArgCommand(
-    name='mgmt_network',
-    meta='format: x.x.x.x/y',
-    actions=dict(required=True))
+members = ArgTuple('members',
+                   'member list, comma separated',
+                   None,
+                   dict(required=True, nargs="*"))
 
-ARG_MGMT_INT = ArgCommand(
-    name='mgmt_interface',
-    meta='interface id for mgmt',
-    actions=dict(default=argparse.SUPPRESS))
+gateway = ArgTuple('gateway',
+                   'next hop gateway',
+                   None,
+                   dict(required=True))
 
-ARG_INT_ID = ArgCommand(
-    name='interface_id',
-    meta='id of interface')
+by_name = ArgTuple('by_name',
+                   None,
+                   None,
+                   dict(default=argparse.SUPPRESS))
 
-ARG_GW = ArgCommand(
-    name='gateway',
-    meta='next hop gateway',
-    actions=dict(required=True))
+by_type = ArgTuple('by_type',
+                   None,
+                   None,
+                   dict(default=argparse.SUPPRESS))
 
-ARG_LOGICAL_INT = ArgCommand(
-    name='logical_interface',
-    meta='name for logical interface',
-    actions=dict(default=argparse.SUPPRESS))
+mgmt_int = ArgTuple('mgmt_interface',
+                    'interface id: 0',
+                    _ID_INTERFACE,
+                    dict(default=argparse.SUPPRESS))
 
-ARG_IP_ADDR = ArgCommand(
-    name='ipaddress',
-    meta='ip address for element',
-    actions=dict(required=True))
+interfaces = ArgTuple('interfaces',
+                     None,
+                     None,
+                     dict(action="store_true", default=argparse.SUPPRESS))
 
-ARG_MEMBERS = ArgCommand(
-    name='members',
-    meta='member list, comma separated',
-    actions=dict(required=True, nargs="*"))
+addr_range = ArgTuple('addr_range',
+                      'format: 1.1.1.1-1.1.1.150',
+                      _IP_RANGE,
+                      dict(required=True))
 
-OPT_NAME = ArgCommand(
-    name='name',
-    meta='name of element')
+fw_license = ArgTuple('--fw_license',
+                      'attempt to license fw',
+                      None,
+                      dict(action="store_true", default=False))
 
-OPT_DNS = ArgCommand(
-    name='--dns',
-    meta='add dns (optional)',
-    actions=dict(default=argparse.SUPPRESS))
+logical_int = ArgTuple('logical_interface',
+                       'name for logical interface',
+                       None,
+                       dict(default=argparse.SUPPRESS))
 
-OPT_FW_LICENSE = ArgCommand(
-    name='--fw_license',
-    meta='license fw (optional)',
-    actions=dict(action="store_true", default=False))
-
-OPT_DETAILS = ArgCommand(
-    name='--details',
-    actions=dict(action="store_true"))
-
-OPT_INTERFACES = ArgCommand(
-    name='--interfaces',
-    meta='show interfaces (optional)',
-    actions=dict(action="store_true"))
-
-OPT_ROUTES = ArgCommand(
-    name='--routes',
-    meta='show routes (optional)',
-    actions=dict(action="store_true"))
+interface_id = ArgTuple('interface_id',
+                        'id of interface',
+                        _ID_INTERFACE,
+                        None)
 
 
 COMMAND_OPTIONS = {
-    'create': {
-        'host':          (ARG_NAME,
-                          ARG_IP_ADDR),
-        'group':         (ARG_NAME,
-                          ARG_MEMBERS),
-        'router':        (ARG_NAME,
-                          ARG_IP_ADDR),
-        'network':       (ARG_NAME,
-                          ARG_IP_NETWORK),
-        'iprange':       (ARG_NAME,
-                          ARG_IP_RANGE),
-        'single_fw':     (ARG_NAME,
-                          ARG_MGMT_IP,
-                          ARG_MGMT_NET,
-                          ARG_MGMT_INT,
-                          OPT_DNS,
-                          OPT_FW_LICENSE),
-        'single_ips':    (ARG_NAME,
-                          ARG_MGMT_IP,
-                          ARG_MGMT_NET,
-                          ARG_MGMT_INT,
-                          OPT_DNS,
-                          OPT_FW_LICENSE),
-        'single_layer2': (ARG_NAME,
-                          ARG_MGMT_IP,
-                          ARG_MGMT_NET,
-                          ARG_MGMT_INT,
-                          OPT_DNS,
-                          OPT_FW_LICENSE),
-        'l3interface':   (ARG_NAME,
-                          ARG_IP_ADDR,
-                          ARG_IP_NETWORK,
-                          ARG_INT_ID),
-        'l2interface':   (ARG_NAME,
-                          ARG_INT_ID,
-                          ARG_LOGICAL_INT),
-        'l3route':       (ARG_NAME,
-                          ARG_IP_NETWORK,
-                          ARG_GW,
-                          ARG_INT_ID),
-        'logical_interface': (ARG_NAME,),
-        },
-    'remove': {
-        'element':       (ARG_NAME,)
-        },
-    'show': {
-        'host':          (OPT_NAME,
-                          OPT_DETAILS),
-        'element' :      (ARG_NAME,
-                          OPT_DETAILS),
-        'single_fw':     (OPT_NAME,
-                          OPT_INTERFACES,
-                          OPT_ROUTES,
-                          OPT_DETAILS),
-        'single_ips':    (OPT_NAME,
-                          OPT_INTERFACES,
-                          OPT_ROUTES,
-                          OPT_DETAILS),
-        'single_layer2': (OPT_NAME,
-                          OPT_INTERFACES,
-                          OPT_ROUTES,
-                          OPT_DETAILS),
+        'create': [
+                   {'single_fw': [name, mgmt_ip, mgmt_net, mgmt_int, fw_license, dns]},
+                   {'single_ips': [name, mgmt_ip, mgmt_net, mgmt_int, fw_license, dns]},
+                   {'single_layer2': [name, mgmt_ip, mgmt_net, fw_license, dns]},
+                   {'host': [name, ip_addr]},
+                   {'group': [name, members]},
+                   {'router': [name, ip_addr]},
+                   {'network': [name, network]},
+                   {'iprange': [name, addr_range]},
+                   {'l3route': [name, network, gateway, interface_id]},
+                   {'l3interface': [name, ip_addr, network, interface_id]},
+                   {'l2interface': [name, interface_id, logical_int]},
+                   {'logical_interface': [name]}
+                   ],
+        'remove': [
+                   {'element': [name]}
+                   ],
+        'show'  : [
+                   {'single_fw': [name, interfaces, routes]},
+                   {'single_ips': [name, interfaces, routes]},
+                   {'single_layer2': [name, interfaces, routes]},
+                   {'element': [by_name, by_type]},
+                   {'host': [name]},
+                   {'group': [name]},
+                   {'router': [name]},
+                   {'network': [name]},
+                   {'iprange': [name]},
+                   {'logical_interface': [name]}
+                   ],
         }
-}
 
 
 def get_cmd():
@@ -200,29 +145,43 @@ def all_target_names():
     """ get all target names
     :return: sorted list of all options by name
     """
-    opts = set([])
-    for command in COMMAND_OPTIONS:
-        for target in COMMAND_OPTIONS[command]:
-            opts.add(target)
-    return sorted(list(opts))
+    mylst = [name
+             for command in COMMAND_OPTIONS
+             for target in COMMAND_OPTIONS[command]
+             for name in target
+             ]
+    return sorted(set(mylst))
 
 def all_arg_names():
     """ get all argument names
     :return: sorted list of all arguments by name
     """
-    opts = []
+    opts = set([])
     for command in COMMAND_OPTIONS:
-        opts.extend(list(values.name for args in COMMAND_OPTIONS[command].itervalues()
-                         for values in args))
-    return sorted(set(opts))
+        for cmd_target in COMMAND_OPTIONS[command]:
+            for args in cmd_target.itervalues():
+                for arg in args:
+                    opts.add(arg.name)
+    return sorted(opts)
+
+def all_arg_tuples():
+    """ get all argument tuples as list
+    :return list of all arg tuples
+    """
+    return [ (arg_name,arg_tuple)
+            for command in COMMAND_OPTIONS
+            for target in COMMAND_OPTIONS[command]
+            for arg_name,arg_tuple in target.iteritems()
+            ]
 
 def get_cmd_target(command):
     """ get targets for top level command given
     :param command: name of command (create/remove/show)
     :return list of available next level commands
     """
-    if command in COMMAND_OPTIONS:
-        return list(target for target in COMMAND_OPTIONS[command])
+    return [target 
+            for lst in COMMAND_OPTIONS[command] 
+            for target in lst.keys()]
 
 def all_sub_menus(command, target):
     """ get the menu's available based on the top and sub level cmd
@@ -230,18 +189,32 @@ def all_sub_menus(command, target):
     :param target: target given (i.e. host, single_fw, single_ips, etc)
     :return list of tuples (ArgCommand.name, ArgCommand.meta) to display by completer
     """
-    menus = ArgIterator(COMMAND_OPTIONS[command][target])
-    return list(items for items in menus)
+    menus = [ (arg.name,arg.meta)      
+            for command in COMMAND_OPTIONS[command]
+            if target in command     
+            for arg in command[target]
+            ]
+       
+    return menus
 
+def has_sub_menu(prev):
+    if prev == "by_type":
+        return all_target_names()
+    
+def reduce_lst(lst):
+    return [x for x in all_target_names() if x not in lst]
+            
 def format_arguments(command):
     """ format arguments for argparse
     :param command: command given, (create/remove/show)
-    :return generator object with target name and actions list
+    :return generator object with target name and actions list tuple
     """
-    for target, args in COMMAND_OPTIONS[command].iteritems():
-        arg = ArgIterator(args, include_actions=True)
-        args = list(items for items in arg)
-        yield (target, args)
+    for option in COMMAND_OPTIONS[command]:
+        for target in option:
+            args = [(arg.name, arg.actions)    
+                    for arg in option[target]
+                    ]
+            yield (target, args)
 
 def split_command_and_args(tokens):
     """ split out [command target] from args
@@ -255,4 +228,4 @@ def split_command_and_args(tokens):
             args = tokens[2:] if len(tokens) > 2 else None
         else:
             command = tokens[0] if tokens[0] in get_cmd() else command
-    return command, args
+    return command, args   

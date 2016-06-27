@@ -1,5 +1,6 @@
 from prompt_toolkit.completion import Completer, Completion
-from smc.cli.options import get_cmd, get_cmd_target, all_sub_menus, split_command_and_args
+from smc.cli.options import get_cmd, get_cmd_target, all_sub_menus, split_command_and_args,\
+    has_sub_menu
 
 
 class CommandCompleter(Completer):
@@ -78,12 +79,29 @@ class CommandCompleter(Completer):
                                  if name not in params]
 
             if [(x, y) for x, y in context_menu_items if x == prev] and prev != sub_cmd: #input
-                return
+                for m in CommandCompleter.filter_submenu(word, prev):
+                    yield m
+                else:
+                    return
 
             for menu, meta in unused_menu_items:  #return unused_menu_items
                 if menu.startswith(word) or not word:
                     yield Completion(menu, -len(word), display_meta=meta)
-
+    
+    @staticmethod
+    def filter_submenu(word, prev):
+        """ 
+        Check for a submenu for specific arguments and return
+        :param current word 
+        :param previous command or input
+        :return iterable
+        """
+        items = has_sub_menu(prev)
+        if items:
+            for menu in items:
+                if menu.startswith(word) or not word:
+                    yield Completion(menu, -len(word))
+                    
     @staticmethod
     def find_matches(word, lst):
         """ 
@@ -95,8 +113,7 @@ class CommandCompleter(Completer):
         for name in sorted(lst):
             if name.startswith(word) or not word:
                 yield Completion(name, -len(word))
-
-
+                
     @staticmethod
     def get_tokens(text):
         """ 

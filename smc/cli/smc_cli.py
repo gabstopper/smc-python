@@ -34,6 +34,7 @@ class StonesoftCLI(object):
             complete_while_typing=Always(),
             lexer=CommandLexer,
             completer=CommandCompleter(),
+            #validator=CommandValidator(),
             style=CustomizedStyle(self.theme).style,
             history=InMemoryHistory(),
             get_title=AppTitle(),
@@ -49,6 +50,7 @@ class StonesoftCLI(object):
         while True:
             document = self.smc_cli.run(reset_current_buffer=True)
             self._exec_command(document.text)
+
     
 class AppTitle(object):
     def __call__(self):
