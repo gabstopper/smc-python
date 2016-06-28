@@ -15,8 +15,8 @@ def element(name):
     :param name
     :return str href of element
     """
-    
-    return element_href(name)
+    if name:
+        return element_href(name)
 
 
 def element_href(name):
@@ -24,10 +24,10 @@ def element_href(name):
     :param name: name of element
     :return string href location of object 
     """
-    
-    element = _fetch_element(name)
-    if element:
-        return element.get('href') 
+    if name:
+        element = _fetch_element(name)
+        if element:
+            return element.get('href') 
 
 
 def element_as_json(name):
@@ -35,10 +35,10 @@ def element_as_json(name):
     :param name: name of element
     :return json data representing element 
     """
-    
-    element = _fetch_element(name, follow_href=True)
-    if element:
-        return element.json
+    if name:
+        element = _fetch_element(name, follow_href=True)
+        if element:
+            return element.json
 
 
 def element_info_as_json(name):
@@ -47,11 +47,11 @@ def element_info_as_json(name):
     including the href to find the full data
     :param name: name of element
     :return json representation of top level element and location (contains multiple attributes)
-    """
-    
-    element = _fetch_element(name)
-    if element:
-        return element
+    """   
+    if name:
+        element = _fetch_element(name)
+        if element:
+            return element
 
         
 def element_href_use_wildcard(name):
@@ -60,10 +60,10 @@ def element_href_use_wildcard(name):
     :param name: name of element
     :return list of matched elements
     """
-    
-    element = _fetch_element(name, use_name_field=False)
-    if element:
-        return element  #list
+    if name:
+        element = _fetch_element(name, use_name_field=False)
+        if element:
+            return element  #list
 
     
 def element_href_use_filter(name, _filter):
@@ -73,18 +73,17 @@ def element_href_use_filter(name, _filter):
     :param _filter: filter type, unknown filter will result in no matches
     :return element href (if found), or None
     """
-    
-    element = _fetch_element(name, obj_type=_filter)
-    if element:
-        return element.get('href')
+    if name and _filter:
+        element = _fetch_element(name, obj_type=_filter)
+        if element:
+            return element.get('href')
 
             
 def element_by_href_as_json(href):
     """ Get specified element by href  
     :param href: link to object
     :return json data representing element
-    """
-    
+    """   
     if href:
         element = _fetch_element(href=href)
         if element:
@@ -95,8 +94,7 @@ def element_by_href_as_smcelement(href):
     """ Get specified element returned as an SMCElement object 
     :param href: href direct link to object
     :return SMCElement with etag, href and element field holding json
-    """
-    
+    """   
     if href:
         element = _fetch_element(href=href)
         if element:
@@ -108,10 +106,10 @@ def element_as_smc_element(name):
     :param name: name of object
     :return SMCElement with etag, href and element field holding json
     """
-    
-    element = _fetch_element(name, follow_href=True)
-    if element:
-        return element
+    if name:
+        element = _fetch_element(name, follow_href=True)
+        if element:
+            return element
 
 
 def all_elements_by_type(name):
@@ -123,14 +121,14 @@ def all_elements_by_type(name):
     :param name: top level entry point name
     :return Json representation of name match
     """
+    if name:
+        entry = element_entry_point(name)
     
-    entry = element_entry_point(name)
-
-    if entry: #in case an invalid entry point is specified
-        result = element_by_href_as_json(entry)
-        return result
-    else:
-        logger.error("Entry point specified was not found: %s" % name)
+        if entry: #in case an invalid entry point is specified
+            result = element_by_href_as_json(entry)
+            return result
+        else:
+            logger.error("Entry point specified was not found: %s" % name)
 
 
 def element_entry_point(name):
@@ -140,19 +138,20 @@ def element_entry_point(name):
     :param name: top level entry point name
     :return href or None
     """
-    
-    element = _fetch_element(entry_point=name)
-    if element:
-        return element
-   
+    if name:   
+        element = _fetch_element(entry_point=name)
+        if element:
+            return element
+       
    
 def get_routing_node(name):
     """ Get the json routing node for name """
-    node = element_as_json(name)
-    if node:
-        route_link = next(item for item in node.get('link') if item.get('rel') == 'routing')   
-        routing_orig = element_by_href_as_json(route_link.get('href'))
-        return routing_orig
+    if name:
+        node = element_as_json(name)
+        if node:
+            route_link = next(item for item in node.get('link') if item.get('rel') == 'routing')   
+            routing_orig = element_by_href_as_json(route_link.get('href'))
+            return routing_orig
 
         
 def get_logical_interface(name):

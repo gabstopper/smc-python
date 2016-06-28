@@ -106,7 +106,7 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
         result = web_api.session.http_get(entry_href + '?filter=' + name) #execute search
        
         if not result.json: #no results returned
-            logger.info("No results found for element name: %s" % name)
+            logger.debug("No results found for element name: %s" % name)
         else:
             match = None
             if not use_name_field: # Return any host objects using name as filter (match all)
@@ -118,7 +118,7 @@ def _fetch_element(name=None, href=None, entry_point=None, obj_type=None, \
                         match = host
                         break   #exits on first match
                 if not match:
-                    logger.info("No search results found for name: %s" % name)
+                    logger.debug("No search results found for name: %s" % name)
                     return
                 else:
                     logger.debug("Search found direct match for element: %s, %s" % (name,match))
