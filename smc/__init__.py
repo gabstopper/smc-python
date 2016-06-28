@@ -1,7 +1,9 @@
 from smc.actions import *
 from smc.api.web import *
+from smc.cli import *
 
 # Set default logging handler to avoid "No handler found" warnings.
+# Best practice from http://docs.python-guide.org/en/latest/writing/logging/
 try:  # Python 2.7+
     from logging import NullHandler
 except ImportError:
@@ -10,4 +12,4 @@ except ImportError:
             pass
 
 logging.getLogger(__name__).addHandler(NullHandler())
-#logging.basicConfig(level=logging.INFO)
+
