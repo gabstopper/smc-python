@@ -146,7 +146,7 @@ class SMCAPIConnection(SMCEntryCache):
             logger.error("No previous SMC session found. "
                          "This may require a new login attempt")
 
-    def http_get(self, href): #TODO: Implement self.visited for already seen queries
+    def http_get(self, href, params=None): #TODO: Implement self.visited for already seen queries
         """
         Get data object from SMC
         If response code is success, results are returned with etag
@@ -156,7 +156,7 @@ class SMCAPIConnection(SMCEntryCache):
         """
         try:
             if self.session:
-                r = self.session.get(href, timeout=5)
+                r = self.session.get(href, params=params, timeout=5)
                 if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
@@ -176,7 +176,7 @@ class SMCAPIConnection(SMCEntryCache):
                             "API service is running and host is correct: %s, "
                             "exiting." % e)
 
-    def http_post(self, href, data, uri=None):
+    def http_post(self, href, data, params=None):
         """
         Add object to SMC
         If response code is success, return href to new object location
@@ -191,12 +191,16 @@ class SMCAPIConnection(SMCEntryCache):
             if self.session:
                 r = self.session.post(href,
                             data=json.dumps(data),
-                            headers={'content-type': 'application/json'}
+                            headers={'content-type': 'application/json'},
+                            params=params
                             )
                 if r.status_code == 201 or r.status_code == 200:
                     logger.debug("Successfully added: %s, linked to href: %s", \
                                  data, r.headers.get('location'))
                     return r.headers.get('location')
+                elif r.status_code == 202:
+                    #in progress
+                    logger.debug("Waiting on progress: %s" % r.headers)
                 elif r.status_code == 401:
                     self.refresh()
                     return self.http_post(href, data)
@@ -336,16 +340,18 @@ class SMCOperationFailure(SMCException):
             if isinstance(details, list):
                 self.details = ' '.join(details)
             else:
-                self.details = details        
+                self.details = details
         else: #it's not json
             if self.response.text:
                 self.message = self.response.text
             else:
-                self.message = self.response.headers
-    
+                self.message = "HTTP error code: %s, no message" % self.code
+          
     def __str__(self):
         if self.message and self.details:
             return "%s %s" % (self.message, ''.join(self.details))
+        elif self.details:
+            return ''.join(self.details)
         else:
             return self.message
         

@@ -1,3 +1,17 @@
+""" 
+Shortcuts to access common operations done by the SMC python API. Each function defined 
+is specifically for creating certain object types. Input validation is done to ensure the 
+correct fields are provided and that they are the right type. In addition, in some cases 
+other objects will need to be retrieved as a reference to create another object. 
+If these references are not resolvable, the create operation can fail. 
+All functions will return the HREF of the newly created object or NONE if there was a failure.
+In order to view error messages, do the following in your calling script:
+
+import logging
+logging.getLogger()
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s: %(message)s')
+"""
+
 import logging
 import smc.elements.element
 import smc.api.web as web_api
@@ -17,7 +31,7 @@ def host(name, ipaddress, secondary_ip=[], comment=None):
     :param ipaddress: ip address of host
     :param secondary_ip[] (optional): additional IP for host
     :param comment (optional)
-    :return None
+    :return href upon success otherwise None
     """
     
     if helpers.is_valid_ipv4(ipaddress): 
@@ -27,10 +41,11 @@ def host(name, ipaddress, secondary_ip=[], comment=None):
                                          secondary_ip=secondary_ip, 
                                          comment=comment)
        
-        common_api._create(host.create())
+        return common_api._create(host.create())
                                     
     else:
-        logger.error("Failed: Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
+        logger.error("Failed: Invalid IPv4 address specified: %s, "
+                     "create object: %s failed" % (ipaddress, name)) 
     
 
 def iprange(name, addr_range, comment=None):
@@ -38,7 +53,7 @@ def iprange(name, addr_range, comment=None):
     :param name: name for object
     :param addr_range: ip address range, i.e. 1.1.1.1-1.1.1.10
     :param comment (optional)
-    :return None
+    :return href upon success otherwise None
     """
     
     addr = addr_range.split('-') #just verify each side is valid ip addr
@@ -55,7 +70,7 @@ def iprange(name, addr_range, comment=None):
     iprange = smc.elements.element.IpRange(name, addr_range, entry_href, 
                                            comment=comment)
     
-    common_api._create(iprange.create())
+    return common_api._create(iprange.create())
     
     
 def router(name, ipaddress, secondary_ip=None, comment=None):
@@ -63,7 +78,7 @@ def router(name, ipaddress, secondary_ip=None, comment=None):
     :param name: name for object
     :param ipaddress: ipv4 address
     :param comment (optional)
-    :return None
+    :return href upon success otherwise None
     """  
       
     if helpers.is_valid_ipv4(ipaddress):
@@ -73,7 +88,7 @@ def router(name, ipaddress, secondary_ip=None, comment=None):
                                              secondary_ip=secondary_ip,
                                              comment=comment)
         
-        common_api._create(router.create())  
+        return common_api._create(router.create())  
                                 
     else:
         logger.error("Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
@@ -84,7 +99,7 @@ def network(name, ip_network, comment=None):
     :param name: name for object
     :param ip_network: ipv4 address in cidr or full netmask format (1.1.1.1/24, or 1.1.1.0/255.255.0.0)
     :param comment (optional)
-    :return None
+    :return href upon success otherwise None
     """
     
     cidr = helpers.ipaddr_as_network(ip_network)
@@ -94,7 +109,7 @@ def network(name, ip_network, comment=None):
         network = smc.elements.element.Network(name, cidr, entry_href,
                                                comment=comment)
        
-        common_api._create(network.create()) 
+        return common_api._create(network.create()) 
         
     else:
         logger.error("Invalid address specified for network: %s; make sure address specified is in network: %s" % (name, ip_network))
@@ -107,7 +122,7 @@ def group(name, members=[], comment=None):
     :param name: name for object
     :param members list; i.e. ['element1', 'element2', etc]. Most elements can be used in a group
     :param comment (optional)
-    :return None
+    :return href upon success otherwise None
     """
     
     entry_href = smc.search.element_entry_point('group')
@@ -127,9 +142,32 @@ def group(name, members=[], comment=None):
                                        members=grp_members,
                                        comment=comment)
     
-    common_api._create(group.create())
+    return common_api._create(group.create())
     
-       
+def service(name, min_dst_port, proto, comment=None):
+    """ Create a service element in SMC 
+    :param name: name of element
+    :param min_dst_port: port to use
+    :param proto: protocol, i.e. tcp, udp, icmp
+    :param comment: custom comment
+    :return href upon success otherwise None
+    """
+    
+    entry_href = smc.search.element_entry_point(proto)
+    if entry_href:
+        try:
+            int(min_dst_port)
+        except ValueError:
+            logger.error("Min Dst Port was not integer: %s" % min_dst_port)
+            return
+        
+        service = smc.elements.element.Service(name, min_dst_port,
+                                               entry_href,
+                                               proto=proto, 
+                                               comment=comment)
+        
+        return common_api._create(service.create())
+         
 def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_license=False):
     """ Create single firewall with a single management interface
     :param name: name of single layer 2 fw
@@ -138,7 +176,7 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     :param mgmt_interface: interface id for l3 mgmt
     :param dns: dns servers for management interface (optional)
     :param fw_license: attempt license after creation (optional)
-    :return None
+    :return href upon success otherwise None
     """
     
     if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
@@ -159,10 +197,12 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
                                                   mgmt_interface=mgmt_interface,
                                                   dns=dns)
 
-    common_api._create(single_fw.create())
+    result = common_api._create(single_fw.create())
     
-    if single_fw.href and fw_license:
-        bind_license(name)  
+    if result and fw_license:
+        bind_license(name)
+    
+    return result  
     
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
                logical_interface='default_eth', dns=None, fw_license=False):    
@@ -177,7 +217,7 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
     :param logical_interface: name of logical interface, must be unique if using capture and inline interfaces
     :param dns: dns servers for management interface (optional)
     :param fw_license: attempt license after creation (optional)
-    :return None
+    :return href upon success otherwise None
     """
    
     if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
@@ -201,12 +241,13 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
                                                       inline_interface=inline_interface,
                                                       logical_interface=logical,
                                                       dns=dns)
-   
-   
-    common_api._create(single_layer2.create())
+     
+    result = common_api._create(single_layer2.create())
     
-    if single_layer2.href and fw_license:
-        bind_license(name)   
+    if result and fw_license:
+        bind_license(name)
+        
+    return result   
     #from pprint import pprint
     #pprint(single_layer2.json)
 
@@ -222,7 +263,7 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     :param logical_interface: name of logical interface, must be unique if using capture and inline interfaces
     :param dns: dns servers for management interface (optional)
     :param fw_license: attempt license after creation (optional)
-    :return None
+    :return href upon success otherwise None
     """
    
     if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
@@ -247,10 +288,12 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
                                                 logical_interface=logical,
                                                 dns=dns)
     
-    common_api._create(single_ips.create())
+    result = common_api._create(single_ips.create())
     
-    if single_ips.href and fw_license:
-        bind_license(name)        
+    if result and fw_license:
+        bind_license(name)
+        
+    return result     
     #from pprint import pprint
     #pprint(ips.json)
 
@@ -261,7 +304,7 @@ def l3interface(name, ipaddress, ip_network, interface_id):
     :param ip: ip of interface
     :param network: ip is validated to be in network before sending
     :param interface_id: interface_id to use
-    :return None
+    :return href upon success otherwise None
     """
     
     if not helpers.is_ipaddr_in_network(ipaddress, ip_network):
@@ -286,7 +329,7 @@ def l3interface(name, ipaddress, ip_network, interface_id):
         engine.href = entry_href
         engine.etag = fw_orig.etag
            
-        common_api._update(engine.update(fw_orig.json))
+        return common_api._update(engine.update(fw_orig.json))
         
     else:
         logger.error("Can't find layer 3 FW specified: %s, cannot add interface" % name)
@@ -304,7 +347,7 @@ def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
     :param node: node name to add inline interface pair
     :param interface_id [], int values of interfaces to use for inline pair (default: 1,2)
     :param logical_int: logical interface name to map to inline pair (default: 'default_eth')
-    :return None
+    :return href upon success otherwise None
     """
           
     entry_href = smc.search.element_href(name)
@@ -327,7 +370,7 @@ def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
         engine.href = entry_href
         engine.etag = l2_orig.etag
         
-        common_api._update(engine.update(l2_orig.json))       
+        return common_api._update(engine.update(l2_orig.json))       
         #from pprint import pprint
         #pprint(l2_orig.json)
         
@@ -342,19 +385,15 @@ def _logical_interface(name, comment=None):
     use capture or inline interfaces, the same logical interface can be used for all. 
     :param name: name of logical interface
     :param comment: optional
-    :return str href for new logical interface element
+    :return href upon success otherwise None
     """
     
     entry_href = smc.search.element_entry_point('logical_interface')
     
     logical_int = smc.elements.element.LogicalInterface(name, entry_href,
                                                         comment=comment)
-   
-   
-    common_api._create(logical_int.create())
-    
-    return logical_int.href
- 
+      
+    return common_api._create(logical_int.create()) 
 
 def l3route(name, gateway, ip_network, interface_id): 
     """ Add route to l3fw 
@@ -364,7 +403,7 @@ def l3route(name, gateway, ip_network, interface_id):
     :param gw: next hop router object
     :param network: next hop network behind gw
     :param interface_id: interface to apply route
-    :return None
+    :return href upon success otherwise None
     """
     
     engine_href = smc.search.element_href(name) #ref to engine
@@ -407,7 +446,7 @@ def l3route(name, gateway, ip_network, interface_id):
     
     if routing_json is not None:    
         
-        common_api._update(routing_json)
+        return common_api._update(routing_json) #TODO
        
     else:
         logger.error("Can not find specified interface: %s for route add, double check the "
@@ -431,7 +470,7 @@ def master_engine(data):
 
 def virtual_ips(data):
     pass
-
+    
 def virtual_fw(data):
     pass
 
@@ -442,13 +481,15 @@ if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
     logging.getLogger()
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
     
     import time
     start_time = time.time()
     
-    smc.create.host('blah', '1.1.1.1')
-    smc.create.host('blah', '1.1.1.1')
+    print smc.remove.element('blahservice')
+    smc.create.service('blahservice', 6666, 'udp_service')
+    #smc.create.service('mytestservice7', '5555', 'tcp_service', comment='blah server')
+    
     smc.remove.element('myfw')
     smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
     smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)

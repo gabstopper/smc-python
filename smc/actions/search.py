@@ -5,7 +5,8 @@ Created on May 1, 2016
 '''
 
 import logging
-from smc.api.common import _fetch_element
+from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
+    fetch_json_by_name, fetch_entry_point, fetch_by_name_and_filter
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,9 @@ def element_href(name):
     :return string href location of object 
     """
     if name:
-        element = _fetch_element(name)
+        element = fetch_href_by_name(name)
         if element:
-            return element.get('href') 
-
+            return element.get('href')
 
 def element_as_json(name):
     """ Get specified element json data by name 
@@ -36,7 +36,7 @@ def element_as_json(name):
     :return json data representing element 
     """
     if name:
-        element = _fetch_element(name, follow_href=True)
+        element = fetch_json_by_name(name)
         if element:
             return element.json
 
@@ -49,7 +49,7 @@ def element_info_as_json(name):
     :return json representation of top level element and location (contains multiple attributes)
     """   
     if name:
-        element = _fetch_element(name)
+        element = fetch_href_by_name(name)
         if element:
             return element
 
@@ -61,7 +61,7 @@ def element_href_use_wildcard(name):
     :return list of matched elements
     """
     if name:
-        element = _fetch_element(name, use_name_field=False)
+        element = fetch_href_by_name(name, use_name_field=False)
         if element:
             return element  #list
 
@@ -74,7 +74,7 @@ def element_href_use_filter(name, _filter):
     :return element href (if found), or None
     """
     if name and _filter:
-        element = _fetch_element(name, obj_type=_filter)
+        element = fetch_by_name_and_filter(name, _filter)
         if element:
             return element.get('href')
 
@@ -85,7 +85,7 @@ def element_by_href_as_json(href):
     :return json data representing element
     """   
     if href:
-        element = _fetch_element(href=href)
+        element = fetch_json_by_href(href)
         if element:
             return element.json
 
@@ -96,7 +96,7 @@ def element_by_href_as_smcelement(href):
     :return SMCElement with etag, href and element field holding json
     """   
     if href:
-        element = _fetch_element(href=href)
+        element = fetch_json_by_href(href)
         if element:
             return element
 
@@ -107,7 +107,7 @@ def element_as_smc_element(name):
     :return SMCElement with etag, href and element field holding json
     """
     if name:
-        element = _fetch_element(name, follow_href=True)
+        element = fetch_json_by_name(name)
         if element:
             return element
 
@@ -139,7 +139,7 @@ def element_entry_point(name):
     :return href or None
     """
     if name:   
-        element = _fetch_element(entry_point=name)
+        element = fetch_entry_point(name)
         if element:
             return element
        

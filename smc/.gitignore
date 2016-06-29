@@ -7,5 +7,6 @@
 /util_helper.pyc
 /web_api.pyc
 /helpers.pyc
+*.pyc
 
 

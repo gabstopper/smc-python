@@ -1,4 +1,5 @@
 import util
+from pickle import PROTO
 
 class SMCElement(object):
     """ SMCElement is the base class for all objects added, removed or
@@ -63,7 +64,31 @@ class Host(SMCElement):
         return "name: %s, type: %s, address: %s, secondary_ip: %s, comment: %s" % \
             (self.name, self.type, self.ip, self.secondary_ip, self.comment)  
 
+
+class Service(SMCElement):
+    def __init__(self, name, min_dst_port, entry_href, proto=None, comment=None):
+        SMCElement.__init__(self)
+        self.name = name
+        self.href = entry_href
+        self.type = proto if proto is not None else 'service'
+        self.min_dst_port = min_dst_port
+        self.proto = proto
+        self.comment = comment
+        self.services = ['tcp_service', 'icmp_service', 'icmp_ipv6_service', 'ip_service', 'protocol' \
+                         'ethernet_service', 'udp_service']
+        
+    def create(self):
+        self.json = util.get_json_template('service.json')
+        self.json['name'] = self.name
+        self.json['min_dst_port'] = self.min_dst_port
+        self.json['comment'] = self.comment if self.comment is not None else ""
+        
+        return self
     
+    def __str__(self):
+        return "name: %s, type: %s, port: %s" % (self.name, self.type, self.min_dst_port)
+        
+        
 class Group(SMCElement):
     def __init__(self, name, href, members=None, comment=None):
         SMCElement.__init__(self)       
