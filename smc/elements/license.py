@@ -43,7 +43,7 @@ class License(object):
             if self.license_id:
                 self.element.json = {'license_id': self.license_id}
                 smc.api.common._create(self.element)
-
+                
     def unbind(self):
         """ 
         Unbind a license by device name 
@@ -61,7 +61,7 @@ class License(object):
         for links in self.links:
             if links.get('rel') == 'fetch':
                 self.element.href = links.get('href')
-        smc.api.common._create(self.element)
+        self.element.href = smc.api.common._create(self.element)
 
     def get_license_links(self):
         """ 

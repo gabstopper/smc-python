@@ -200,7 +200,8 @@ class SMCAPIConnection(SMCEntryCache):
                     return r.headers.get('location')
                 elif r.status_code == 202:
                     #in progress
-                    logger.debug("Waiting on progress: %s" % r.headers)
+                    logger.debug("Asynchronous response received, monitor progress: %s" % r.content)
+                    return SMCResult(r)
                 elif r.status_code == 401:
                     self.refresh()
                     return self.http_post(href, data)

@@ -490,6 +490,7 @@ if __name__ == '__main__':
     smc.create.service('blahservice', 6666, 'udp_service')
     #smc.create.service('mytestservice7', '5555', 'tcp_service', comment='blah server')
     
+    
     smc.remove.element('myfw')
     smc.create.single_fw('myfw', '172.18.1.254', '172.18.1.0/24', dns='5.5.5.5', fw_license=True)
     smc.create.l3interface('myfw', '10.10.0.1', '10.10.0.0/16', 3)

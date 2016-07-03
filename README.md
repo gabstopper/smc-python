@@ -103,3 +103,17 @@ smc.create.l3interface('myfw', '172.20.1.254', '172.20.1.0/255.255.255.0', 6)
 smc.create.l3route('myfw', '172.18.1.250', 'Any network', 0) 		#next hop, dest network, interface num
 smc.create.l3route('myfw', '172.20.1.250', '192.168.3.0/24', 6)
 ```
+
+###### Policy creation, loading and add/remove rules
+```python
+policy = FirewallPolicy.create('pythonapi', 
+                                   smc.search.fw_template_policies(
+                                                    policy='Firewall Inspection Template'))
+policy = FirewallPolicy('pythonapi').load()   
+policy.open()
+policy.ipv4_rule.create('api1', 'kiley-test', 'smi', 'any', 'allow')
+policy.ipv4_rule.create('api2', 'kiley-test', 'kiley-test', 'any', 'discard')
+policy.ipv4_rule.create('api3', 'ami', 'any', 'any', 'refuse')
+policy.save()
+policy.ipv4_rule.delete('api3')
+```

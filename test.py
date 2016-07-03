@@ -4,7 +4,9 @@ from pprint import pprint
 
 import smc.api.web as web_api
 import smc.actions.search
-from smc.elements.policy import Policy
+import smc.elements.element
+from smc.elements.policy import Policy, FirewallPolicy
+from smc.api.web import SMCException
 
 logger = logging.getLogger(__name__)
 logging.getLogger()
@@ -14,17 +16,55 @@ web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
 
 #pprint(web_api.session.get_all_entry_points())
 
-policy = Policy('api-test-policy').load()
-policy.open()
-policy.create_ipv4_rule('ami', 'any', 'ssh', 'allow')
-policy.save()
-#policy.export()
-#policy.load_ipv4_rules()
-
-pprint(policy.links)
-#for rule in policy.ipv4_rules:
+try:
+    
+    smc.remove.element('pythonapi')
+  
+    policy = FirewallPolicy.create('pythonapi', 
+                                   smc.search.fw_template_policies(
+                                                    policy='Firewall Inspection Template'))
+    
+    #policy = FirewallPolicy('Standard Firewall Policy with Inspection').load()
+    #for msg in policy.upload('sg_vm', wait_for_finish=False):
+    #    print "%s" % msg
+    policy = FirewallPolicy('pythonapi').load()   
+    policy.open()
+    policy.ipv4_rule.create('api1', 'kiley-test', 'smi', 'any', 'allow')
+    policy.ipv4_rule.create('api2', 'kiley-test', 'kiley-test', 'any', 'discard')
+    policy.ipv4_rule.create('api3', 'ami', 'any', 'any', 'refuse')
+    policy.save()
+    policy.ipv4_rule.delete('api3')
+except SMCException, e:
+    print "Exception occurred: %s" % e
+    
+#for rule in policy.ipv4_rule.ipv4_rules:
 #    pprint(smc.search.element_by_href_as_json(rule.get('href')))
+#policy.export()
+'''
+policy.load_ipv4_rules()
+target_rule = None
+for rule in policy.ipv4_rules:
+    if rule.get('name') == 'api rule':
+        print "Found my rule: %s" % rule
+        #web_api.session.http_delete(rule.get('href'))
+        
+        target_rule = smc.search.element_by_href_as_smcelement(rule.get('href'))
+        #pprint(target_rule)
+        break
 
+if target_rule:
+    rule = policy.modify_ipv4_rule(target_rule.json)
+    pprint(rule)
+    rule.add(services='blah')
+    
+    #rule.remove(service='blah')
+    rule.update()
+    
+    #rule.add(service='blah')
+    #rule.remove(src='test')
+    #rule.add(dst='test')
+    
+'''    
 #pprint(policy.ipv4_rules)
 
 #policy.load_ipv6_rules()

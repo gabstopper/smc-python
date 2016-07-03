@@ -1,5 +1,4 @@
 import util
-from pickle import PROTO
 
 class SMCElement(object):
     """ SMCElement is the base class for all objects added, removed or
@@ -11,7 +10,8 @@ class SMCElement(object):
     to existing records
     :param type: type of object, used only for str printing from api.common
     :param name: name of object, used for str printing from api.common
-    :param href: REQUIRED for create or modify operations to identify 
+    :param href: REQUIRED for create or modify operations to identify
+    :param params: If additional parameters are needed for href
     the location of the element
     """
     def __init__(self):
@@ -20,16 +20,22 @@ class SMCElement(object):
         self.type = None
         self.name = None
         self.href = None
-        self.comment = None
+        self.params = None 
 
     def create(self):
         return self
     
-    def modify(self):
-        raise "Not Implemented"
-    
-    def remove(self):
-        raise "Not Implemented"
+    @staticmethod
+    def factory(name=None, href=None, etag=None, 
+                _type=None, json=None, params=None):
+        element = SMCElement()
+        element.name = name
+        element.href = href
+        element.etag = etag
+        element._type = type
+        element.json = json
+        element.params = params
+        return element
     
     def __str__(self):
         return "name: %s, type: %s" % (self.name, self.type)

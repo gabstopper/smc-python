@@ -119,7 +119,7 @@ def all_elements_by_type(name):
     match. 
     For example: smc.get_element_by_entry_point('log_server')
     :param name: top level entry point name
-    :return Json representation of name match
+    :return list with json representation of name match. 
     """
     if name:
         entry = element_entry_point(name)
@@ -160,8 +160,9 @@ def get_logical_interface(name):
         return interface
 
      
-def get_log_servers():
+def log_servers():
     available_log_servers = all_elements_by_type('log_server')
+    print "a: %s" % available_log_servers
     if available_log_servers:
         return available_log_servers
 
@@ -172,3 +173,124 @@ def get_first_log_server():
         for found in available_log_servers:
             #TODO: If multiple log servers are present, how to handle - just get the first one
             return found.get('href')
+
+def fw_template_policies(policy=None):
+    """ Convenience method to find fw templates 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('fw_template_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+
+def ips_template_policies(policy=None):
+    """ Convenience method to find ips templates 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('ips_template_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+
+def layer2_template_policies(policy=None):
+    """ Convenience method to find layer2 templates 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('layer2_template_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+
+def inspection_template_policies(policy=None):
+    """ Convenience method to find inspection templates 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('inspection_template_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+
+def fw_policies(policy=None):
+    """ Convenience method to find file fw policies 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('fw_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+    
+def ips_policies(policy=None):
+    """ Convenience method to find ips policies 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('ips_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+    
+def layer2_policies(policy=None):
+    """ Convenience method to find file layer2 policies 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('layer2_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+
+def inspection_policies(policy=None):
+    """ Convenience method to find inspection policies 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('inspection_template_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+
+def file_filtering_policies(policy=None):
+    """ Convenience method to find file filtering policies 
+    :return list of tuple (name, href) for found file filtering policies 
+    """
+    policies = all_elements_by_type('file_filtering_policy')
+    if policies:
+        if policy:
+            return _href_from_name_href_tuple(policies, policy)
+        else:
+            return _iter_list_to_tuple(policies)
+            
+def _iter_list_to_tuple(lst):
+    """ Return tuple name,href from top level json query:
+    {'href'='http://x.x.x.x', 'name'='blah', 'type'='sometype'}
+    :return list of tuple (name, href)
+    """
+    return [(opt.get('name'),opt.get('href')) for opt in lst]
+
+def _href_from_name_href_tuple(dictentry, element_name):
+    element = [entry.get('href') for entry in dictentry if entry.get('name') == element_name]
+    if element:
+        return element.pop()
+    
+if __name__ == "__main__":
+    
+    import smc.api.web as web_api    
+    from pprint import pprint
+    web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    
+    print file_filtering_policies(policy='No Scanning')
+    
+    web_api.session.logout()

@@ -27,15 +27,16 @@ def _create(element):
     """
     logger.debug("Creating element: %s, href: %s, json: %s" % (element.name, element.href, element.json))
     try:
-        element.href = web_api.session.http_post(element.href, element.json)
-        logger.info("Success creating element; %s" % (element))       
+        element.href = web_api.session.http_post(element.href, element.json, element.params)
+        logger.info("Success creating element; %s" % (element))   
         
     except SMCOperationFailure, e:
         element.href = None
         logger.error("Failed creating element: %s, Reason: %s", element.name, e)
     except SMCConnectionError, e:
         raise
-    return element.href
+    finally:
+        return element.href
 
 def _update(element):
     """ 
@@ -57,12 +58,14 @@ def _update(element):
         logger.error("Failed updating element; %s %s" % (element, e))
     except SMCConnectionError, e:
         raise
-    return element
+    finally:
+        return element
     
 def _remove(element):
-    """ 
-    Internal for wrapping exceptions when making web delete
-    :param element: name of element to remove
+    """
+    Remove object using HTTP DELETE 
+    HTTP 204 is success, everything else is an error
+    :param element: SMCElement of element to remove
     :return None
     """
     logger.debug("Removing element: %s, href: %s" % (element.name, element.href))
@@ -130,11 +133,13 @@ def fetch_json_by_href(href):
     try:
         result = web_api.session.http_get(href)
         if result:
-            element = SMCElement()
-            element.href = href
-            element.etag = result.etag
-            element.json = result.json
-            return element
+            #element = SMCElement()
+            #element.href = href
+            #element.etag = result.etag
+            #element.json = result.json
+            #return element
+            return SMCElement.factory(href=href, etag=result.etag,
+                                      json=result.json)
     
     except SMCOperationFailure, e:
         logger.error("Failure occurred fetching element: %s" % e)
