@@ -7,7 +7,8 @@ Created on May 13, 2016
 import logging
 import smc.api.web as web_api
 from smc.api.web import SMCOperationFailure, SMCConnectionError
-from smc.elements.element import SMCElement
+#from smc.elements.element import SMCElement
+import smc.elements.element
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,8 @@ def _remove(element):
             
     except SMCOperationFailure, e:
         logger.error("Failed removing element; %s, %s" % (element, e))
+        return "Failed removing element; %s, %s" % (element,e)
+
     except SMCConnectionError, e:
         raise
 
@@ -133,13 +136,13 @@ def fetch_json_by_href(href):
     try:
         result = web_api.session.http_get(href)
         if result:
-            #element = SMCElement()
-            #element.href = href
-            #element.etag = result.etag
-            #element.json = result.json
-            #return element
-            return SMCElement.factory(href=href, etag=result.etag,
-                                      json=result.json)
+            element = smc.elements.element.SMCElement()
+            element.href = href
+            element.etag = result.etag
+            element.json = result.json
+            return element
+            #return SMCElement.factory(href=href, etag=result.etag,
+            #                          json=result.json)
     
     except SMCOperationFailure, e:
         logger.error("Failure occurred fetching element: %s" % e)

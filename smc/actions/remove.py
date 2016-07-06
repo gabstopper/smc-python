@@ -23,7 +23,7 @@ def element(name, objtype=None):
         element.type = removable.get('type', None)
         element.href = removable.get('href', None)
         
-        common_api._remove(element)
+        return common_api._remove(element)
         
     else:
         logger.info("No element named: %s, nothing to remove" % name)

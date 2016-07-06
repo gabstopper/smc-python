@@ -1,8 +1,3 @@
-'''
-Created on Jul 2, 2016
-
-@author: davidlepage
-'''
 import smc.api.common
 import smc.actions.search as search
 from smc.elements.element import SMCElement
@@ -13,6 +8,7 @@ class Rule(object):
     and file filtering.
     Functions provided should be called from inheriting class to perform the create, 
     modify or delete operations.
+    
     All attributes are used to calculate the rule with exception of rules_href which 
     will hold the href to where the rule type exists. For operations like create/delete, 
     this is required to be an SMCElement.href attribute
@@ -65,20 +61,24 @@ class IPv4Rule(Rule):
     Represents an IPv4 Rule in SMC Policy
     Each rule type may have different requirements, although some fields are
     common across all policies such as source and destination. This class is used
-    when the policy to create or delete is an ipv4 rule. 
-    :attributes
-        :ip4_rules list of existing rules, this holds a list of references for each
+    when the policy to create or delete is an ipv4 rule.
+     
+    :attributes:
+    
+    :ip4_rules: list of existing rules, this holds a list of references for each
         rule, content looks like:
         [{u'href': u'http://172.18.1.150:8082/6.0/elements/fw_policy/226/fw_ipv4_access_rule/2098650', 
         u'type': u'fw_ipv4_access_rule', 
         u'name': u'api rule'}] 
+        
         Use refresh() to re-retrieve a current list of rules, especially if
         operations need to be performed after adding or removing rules
-        :actions action options for ipv4 rules    
+        
+    :actions: action options for ipv4 rules    
     """
     def __init__(self):
         Rule.__init__(self)
-        self.ipv4_rules = []
+        self.ipv4_rules = [] #: List reference of existing rules
         self.actions = ['allow', 'continue', 'discard', 'refuse', 'use_vpn'] 
       
     def create(self, name, source, destination, service, action, 
@@ -118,28 +118,27 @@ class IPv4Rule(Rule):
                 rule_values['services']['service'].append(svc)
             else:
                 rule_values['services'] = self.none
-          
-        rule_dict = {}
-        for header in rule_values.keys():
-            rule_dict[header] = rule_values.get(header)
-        
-        element = SMCElement.factory(json=rule_dict, 
+      
+        element = SMCElement.factory(json=rule_values, 
                                      href=self.href)
        
         return super(IPv4Rule, self).create(element)
      
     def modify(self, existing_rule):
         """ Modify existing rule
+        
         :param existing_rule: full json of existing rule 
         """
         pass
         
     def delete(self, name):
         """ Delete ipv4 rule based on the name of the rule
-        Note: if a policy has been 'open' for edit, a previous snapshot in time was made so
+        
+        If a policy has been 'open' for edit, a previous snapshot in time was made so
         queries will result in showing the policy before it was opened. You should save 
         policy before deleting or just delete without opening (which locks policy), modifying,
         then deleting. 
+        
         :param name: name of rule
         """
         self.refresh()

@@ -93,13 +93,21 @@ class SMCAPIConnection(SMCEntryCache):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
+        
+        An example login and logout session::
+        
+            import smc.api.web as web_api    
+            web_api.session.login('http://1.1.1.1:8082', 'SomeSMCG3ener@t3dPwd')
+            .....do stuff.....
+            web_api.session.logout()
+            
         :param url: ip of SMC management server
         :param smc_key: API key created for api client in SMC
         :param api_version (optional): specify api version
 
         Logout should be called to remove the session immediately from the
         SMC server.
-        TODO: Implement SSL tracking
+        #TODO: Implement SSL tracking
         """
 
         self.get_api_entry(url, api_version)
@@ -366,6 +374,7 @@ class SMCConnectionError(SMCException):
     This could be that the underlying http requests library could not connect
     due to wrong IP address, wrong port, time out, or the operator provided
     invalid credentials (API Client and API key)
+    
     :param value: Error message to display. If http requests exception thrown,
     this just wraps the error
     """
