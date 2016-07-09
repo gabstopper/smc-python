@@ -2,7 +2,7 @@
 Element module holding logic to add network elements to SMC. 
 All element's are a subclass of SMCElement (is-a). The create() function for each
 element type class will generate the proper json for the given element type and returning that
-element. The results can then be sent to the SMC through the :mod:`smc.api.common._create`. The
+element. The results can then be sent to the SMC through the :mod:`smc.api.common.create`. The
 result will be the href for the newly created object.
 
 See SMCElement for more details:
@@ -19,49 +19,50 @@ class SMCElement(object):
     
     Common parameters that are needed are stored in this base class
     
-    :param json: json data to be added or modified
+    :param json: json data to be sent to SMC
     :param etag: returned during http get and used for modifying elements 
     :param type: type of object, used only for str printing from api.common
     :param name: name of object, used for str printing from api.common
     :param href: REQUIRED for create or modify operations to identify
     :param params: If additional parameters are needed for href
+    :param stream: If file download is required, set to True
+    :param filename: If stream=True, this specifies name of file
     the location of the element
     """
     def __init__(self):
         self.json = None
         self.etag = None
         self.type = None
-        self.name = None
         self.href = None
-        self.params = None 
+        self.params = None
+        self.stream = False
+        self.filename = None
 
     def create(self):
         return self
     
     @classmethod
     def factory(cls, name=None, href=None, etag=None, 
-                _type=None, json=None, params=None):
+                _type=None, json=None, params=None,
+                stream=False, filename=None):
         cls.name = name
         cls.href = href
         cls.etag = etag
         cls.type = _type
         cls.json = json
         cls.params = params
+        cls.stream = stream
+        cls.filename = filename
         return cls
-        #element = SMCElement()
-        #element.name = name
-        #element.href = href
-        #element.etag = etag
-        #element._type = type
-        #element.json = json
-        #element.params = params
-        #return element
     
     def _fetch_href(self):
         self.href = search.element_entry_point(self.type)
         
     def __str__(self):
-        return "name: %s, type: %s" % (self.name, self.type)
+        sb = []
+        for key in self.__dict__:
+            sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
+        return ', '.join(sb)
   
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)  
@@ -100,11 +101,6 @@ class Host(SMCElement):
                 self.json['secondary'].append(addr)
         self._fetch_href()        
         return self
-    
-    def __str__(self):
-        return "name: %s, type: %s, address: %s, secondary_ip: %s, comment: %s" % \
-            (self.name, self.type, self.ip, self.secondary_ip, self.comment)  
-
 
 class Service(SMCElement):
     """ Class representing a Service object used in access rules
@@ -138,10 +134,6 @@ class Service(SMCElement):
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()      
         return self
-    
-    def __str__(self):
-        return "name: %s, type: %s, port: %s" % (self.name, self.type, self.min_dst_port)
-        
         
 class Group(SMCElement):
     """ Class representing a Group object used in access rules
@@ -179,10 +171,6 @@ class Group(SMCElement):
         self._fetch_href()    
         return self
     
-    def __str__(self):
-        return "name: %s, type: %s, members: %s" % (self.name, self.type, len(self.members))
-
-
 class IpRange(SMCElement):
     """ Class representing a IpRange object used in access rules
     
@@ -210,11 +198,6 @@ class IpRange(SMCElement):
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()        
         return self
-
-    def __str__(self):
-        return "name: %s, type: %s, iprange: %s, comment: %s" % \
-            (self.name, self.type, self.iprange, self.comment)
-    
     
 class Router(SMCElement):
     """ Class representing a Router object used in access rules
@@ -252,11 +235,6 @@ class Router(SMCElement):
         self._fetch_href()           
         return self   
 
-    def __str__(self):
-        return "name: %s, type: %s, address: %s, secondary_ip: %s, comment: %s" % \
-            (self.name, self.type, self.address, self.secondary_ip, self.comment)
-
-
 class Network(SMCElement):
     """ Class representing a Network object used in access rules   
     
@@ -290,9 +268,64 @@ class Network(SMCElement):
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()
         return self
+    
+class Protocol(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    
+class IPService(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
 
-    def __str__(self):
-        return "name: %s, type: %s, ip4_network: %s, comment: %s" % \
-            (self.name, self.type, self.ip4_network, self.comment)
+class EthernetService(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
 
-        
+class UDPService(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+
+class ICMPService(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    
+class IPServiceGroup(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+
+class TCPService(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    
+class UDPServiceGroup(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+
+class TCPServiceGroup(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    
+class ServiceGroup(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    
+class ICMPIPv6Service(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    
+class DomainName(SMCElement):
+    def __init__(self):
+        SMCElement.__init__(self)
+        pass
+    

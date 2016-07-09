@@ -5,12 +5,14 @@ from smc.elements.interfaces import inline_intf, l2_mgmt_interface, \
 import smc.actions.search as search
 import smc.api.common as common_api
 from smc.api.web import SMCException
+from smc.elements.system import SystemInfo
 
 class Engine(object):
     """
-    Top level engine class representing settings of the generic engine, indepdendent of
-    the engine type. The load class is abstract and must be called from a descendant class,
-    either Node or descendent classes of Node (preferred) such as:
+    Top level engine class representing settings of the generic engine, independent of
+    the engine type. The load method is required to initialize this class properly and 
+    is abstract so must be called from a subclass,
+    either Node or the direct engine types:
     
     :class:`smc.elements.engines.Layer3Firewall`
     
@@ -19,11 +21,10 @@ class Engine(object):
     :class:`smc.elements.engines.IPS`
     
     This is intended to store the top level engine properties and operations specific to 
-    the engine itself.
+    the engine.
     
     :class:`smc.elements.engines.Node` class will store information specific to the individual
     node itself such as rebooting, going online/offline, change user pwd, ssh pwd reset, etc. 
-    All of these methods are inherited by their subclasses.
     """
     
     __metaclass__ = ABCMeta
@@ -66,7 +67,7 @@ class Engine(object):
                 "log_server_ref": cls.log_server_ref,
                 "physicalInterfaces": []
                 }
-        node = {
+        node =  {
                 cls.node_type: {
                     "activate_test": True,
                     "disabled": False,
@@ -84,15 +85,49 @@ class Engine(object):
         cls.engine_json = engine
         return cls
     
-    def refresh(self):
-        print "POST refresh: %s" % self.__load_href('refresh')
+    def refresh(self, wait_for_finish=True, sleep_interval=3):
+        """ 
+        Refresh existing policy on specified device. This is an asynchronous 
+        call that will return a 'follower' link that can be queried to determine 
+        the status of the task. 
+        
+        See :func:`async_handler` for more information on how to obtain results
+        
+        :method: POST
+        :param wait_for_finish: whether to wait in a loop until the upload completes
+        :param sleep_interval: length of time to sleep between progress checks (secs)
+        :return: follower href if wait_for_finish=False, else result href on last yield
+        """
+        element = self._element('refresh')
+        return async_handler(element, wait_for_finish, sleep_interval)
     
-    def upload(self):
-        print "POST upload: %s" % self.__load_href('upload')
+    def upload(self, policy=None, wait_for_finish=True, sleep_interval=3):
+        """ Upload policy to existing engine. If no policy is specified, and the engine
+        has already had a policy installed, this policy will be re-uploaded. 
+        If policy is specified, this will be uploaded to the existing engine.
+        This is typically used to install a new policy on the engine. If you just
+        want to re-push an existing policy, call :func:`refresh`
+        
+        :param policy: name of policy to upload to engine
+        :param wait_for_finish: whether to wait for async responses
+        :param sleep_interval: how long to wait between async responses
+        """
+        if not policy: #if policy not specified SMC seems to apply some random policy: bug?
+            policy = self.status().get('installed_policy')
+            
+        element = self._element('upload')
+        element.params = {'filter': policy}
+        return async_handler(element, wait_for_finish, sleep_interval)
     
-    def add_route(self):
-        print "POST add_route: %s" % self.__load_href('add_route')
-    
+    def node(self):
+        """ Return node/s references for this engine. For a cluster this will
+        contain multiple entries. 
+        
+        :method: GET
+        :return: dict list with reference {href, name, type}
+        """
+        return search.element_by_href_as_json(self.__load_href('nodes')) 
+   
     def interface(self):
         """ Get all interfaces, including non-physical interfaces such
         as tunnel or capture interfaces.
@@ -102,20 +137,122 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('interfaces')) 
     
-    def blacklist(self):
-        print "POST blacklist: %s" % self.__load_href('blacklist')
+    def generate_snapshot(self, filename='snapshot.xml'):
+        """ Generate and retrieve a policy snapshot from the engine
+        This is blocking as file is downloaded
+        
+        :method: GET
+        :param filename: name of file to save file to, including directory path
+        :return: None
+        """
+        element = self._element('generate_snapshot')
+        element.stream = True
+        element.filename = filename
+        return common_api.fetch_content_as_file(element)
+
+    def add_route(self, gateway, network):
+        """ Add a route to engine. Specify gateway and network. If the
+        SMC elements do not exist, they will be created automatically.
+        If this is the default gateway, use a network address of
+        0.0.0.0/0.
+        
+        .. note: This will fail if the gateway provided does not have a 
+        corresponding interface on the network.
+        
+        :method: POST
+        :param gateway: gateway of an existing interface
+        :param network: network address in cidr format
+        """
+        element = self._element('add_route')
+        element.params = {'gateway': gateway, 'network': network}
+        return common_api.create(element)
+
+    def blacklist(self, src, dst, duration=3600):
+        """ Add blacklist entry to engine node by name
+    
+        :method: POST
+        :param name: name of engine node or cluster
+        :param src: source to blacklist, can be /32 or network cidr
+        :param dst: dest to deny to, 0.0.0.0/32 indicates all destinations
+        :param duration: how long to blacklist in seconds
+        :return: href, or None
+        """
+        bl = { "name": "",
+              "duration": duration,
+              "end_point1": { 
+                             "name": "", 
+                             "address_mode": 
+                             "address", 
+                             "ip_network": src },
+              "end_point2": { 
+                             "name": 
+                             "", 
+                             "address_mode": 
+                             "address", 
+                             "ip_network": dst }
+              }
+        element = self._element('blacklist')
+        element.json = bl
+        return common_api.create(element)       
     
     def blacklist_flush(self):
-        print "DELETE blacklist_flush: %s" % self.__load_href('flush_blacklist')
-           
-    def generate_snapshot(self):
-        print "GET generate_snapshot: %s" % self.__load_href('generate_snapshot')
-        #return search.element_by_href_as_json(self.__load_href('generate_snapshot'))
-        pass
+        """ Flush entire blacklist for node name
     
-    def export(self):
-        print "POST export: %s" % self.__load_href('export')
+        :method: DELETE
+        :param name: name of node or cluster to remove blacklist
+        :return: None, or message if failure
+        """
+        element = self._element('flush_blacklist')
+        return common_api.delete(element) 
     
+    def alias_resolving(self):
+        """ Alias definitions defined for this engine (alias is an object type
+        referenced with a different value based on the engine/s it's applied to.
+        Aliases can be used in rules to simplify multiple object creation
+        
+        :method: GET
+        :return: dict list of aliases and their values
+        """
+        return search.element_by_href_as_json(self.__load_href('alias_resolving'))
+       
+    def routing_monitoring(self):
+        """ Return route information for the engine, including gateway, networks
+        and type of route (dynamic, static)
+        
+        :method: GET
+        :return: dict of dict list entries representing routes
+        """
+        return search.element_by_href_as_json(self.__load_href('routing_monitoring'))
+    
+    def export(self, wait_for_finish=True, sleep_interval=3,
+               filename='export.xml'): 
+        """ Generate export on engine. Once the export is complete, 
+        a result href is returned.  
+        
+        :mathod: POST
+        :param wait_for_finish: whether to wait for task to finish
+        :param sleep_interval: length of time between async messages
+        :param filename: if set, the export will download the file. 
+        :return: href of export
+        """
+        element = self._element('export')
+        element.params = {'filter': self.name}
+        #wait for the export to be complete, fetch result export by href
+        for msg in async_handler(element, display_msg=False):
+            element.href = msg
+        if element.href:
+            element.stream = True
+            element.filename = filename
+        return common_api.fetch_content_as_file(element)
+    
+    def internal_gateway(self):
+        """ Engine level VPN gateway reference
+        
+        :method: GET
+        :return: dict list of internal gateway references
+        """
+        return search.element_by_href_as_json(self.__load_href('internal_gateway'))
+        
     def routing(self):
         """ Retrieve routing json from engine node
         
@@ -124,6 +261,24 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('routing'))
     
+    def antispoofing(self):
+        """ Antispoofing interface information. By default is based on routing
+        but can be modified in special cases
+        
+        :method: GET
+        :return: dict of antispoofing settings per interface
+        """
+        return search.element_by_href_as_json(self.__load_href('antispoofing'))
+    
+    def snapshot(self):
+        """ References to policy based snapshots for this engine, including
+        the date the snapshot was made
+        
+        :method: GET
+        :return: dict list with {href,name,type}
+        """
+        return search.element_by_href_as_json(self.__load_href('snapshots'))
+               
     def physical_interface(self):
         """ Get only physical interfaces for this engine node. This will not include
         tunnel interfaces or capture interfaces.
@@ -174,11 +329,23 @@ class Engine(object):
         return search.element_by_href_as_json(self.__load_href('switch_physical_interface'))
     
     def __load_href(self, action):
+        """ Pull the direct HREF from engine link list cache """
         href = [entry.get('href') for entry in self.engine_links \
                 if entry.get('rel') == action]      
         if href:
             return href.pop()
-           
+    
+    def _element(self, link):
+        """ 
+        Simple iterator factory to return SMCElement for policy 
+        based events such as 'save', 'open', 'export' and 'force_unlock'       
+        :param link: entry point based on the link name
+        :return: SMCElement
+        """
+        link_href = self.__load_href(link)    
+        return SMCElement.factory(name=link, 
+                                  href=link_href)
+       
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
 
@@ -191,24 +358,21 @@ class Node(Engine):
     changing ssh or changing the user password. 
     All inheriting classes will have access to node level commands available in this
     class.
+    It is possible to have more than one node in an engine, specifically with clustering.
     """
     def __init__(self, name):
         Engine.__init__(self, name)
-        self.name = name
-        self.node_type = None
-        self.node_links = []
-        
+        self.name = name        #name of engine
+        self.node_type = None   #engine node type
+        self.node_links = {}    #node level links
+ 
     def load(self):
-        print "Before super, object"
-        from pprint import pprint
-        pprint(self)
         super(Node, self).load()
-        print "After super, object"
-        pprint(self)
         for node in self.engine_json.get('nodes'): #list
             for node_type, node_info in node.iteritems():
                 self.node_type = node_type
-                self.node_links.extend(node_info.get('link'))
+                #add to dict using node name as {key: [link]}
+                self.node_links[node_info.get('name')] = node_info.get('link')
         return self
     
     @classmethod
@@ -220,7 +384,7 @@ class Node(Engine):
         element = SMCElement.factory(href=self.href, 
                                     json=self.engine_json, 
                                     etag=self.etag)
-        return common_api._update(element)
+        return common_api.update(element)
     
     def add_l3_interface(self, ipaddress, network, interface_id):
         interface = l3_interface(ipaddress, network, interface_id)
@@ -229,7 +393,7 @@ class Node(Engine):
     def add_inline_interface(self, logical_interface='default_eth', 
                              interface_id='1-2'):
         try:
-            assert(isinstance(self, (Layer2Firewall, IPS, Node)))
+            assert(self.node_type in ['ips_node', 'fwlayer2_node']) #TODO: Maybe better way
             logical_href = search.element_href(logical_interface)
             interface = inline_interface(logical_href, 
                                          interface_id=interface_id)
@@ -241,90 +405,261 @@ class Node(Engine):
     def add_capture_interface(self, logical_interface='default_eth',
                               interface_id='1'):
         try:
-            assert(isinstance(self, (Layer2Firewall, IPS)))
+            assert(self.node_type in ['ips_node', 'fwlayer2_node'])
             logical_href = search.element_href(logical_interface)
             interface = capture_interface(logical_href, interface_id)
             self.engine_json.get('physicalInterfaces').append(interface.json)
         except AssertionError:
             raise SMCException("Cannot add a capture interface to node type: %s, class: %s" % 
                                (self.node_type, self)) 
-        
+    
+    def node_names(self):
+        return self.node_links.keys()
+    
     def add_tunnel_interface(self):
         pass
         
-    def fetch_license(self):
-        print "POST fetch license: %s" % self.__load_href('fetch')
-    
-    def bind_license(self):
-        print "POST bind license: %s" % self.__load_href('bind')
+    def fetch_license(self, node=None):
+        """ Allows to fetch the license for the specified node """
+        return self._commit_create('fetch', node)
+
+    def bind_license(self, node=None, license_item_id=None):
+        """ Allows to bind the optional specified license for the specified 
+        node. If no license is specified, an auto bind will be tried.
         
-    def unbind_license(self):
-        print "POST unbind license: %s" % self.__load_href('unbind')
+        :param license_item_id: license id, otherwise auto bind will be tried
+        """
+        params = {'license_item_id': license_item_id} if license_item_id \
+            else None
+        return self._commit_create('bind', node, params=params)
         
-    def cancel_unbind_license(self):
-        print "POST cancel unbind: %s" % self.__load_href('cancel_unbind')
+    def unbind_license(self, node=None):
+        """ Allows to unbind the possible already bound license for the 
+        specified node If no license has been found, nothing is done and 
+        NO_CONTENT is returned otherwise OK is returned 
+        """
+        return self._commit_create('unbind', node)
         
-    def initial_contact(self):
-        print "POST initial contact: %s" % self.__load_href('initial_contact')
+    def cancel_unbind_license(self, node):
+        """ Allows to cancel the possible unbind license for the specified 
+        node. If no license has been found, nothing is done and NO_CONTENT 
+        is returned otherwise OK is returned.
+        """
+        return self._commit_create('cancel_unbind', node)
         
-    def appliance_status(self): #TODO This causes string formatting problem in SMCOperationFailure
-        return search.element_by_href_as_json(self.__load_href('appliance_status'))
+    def initial_contact(self, node=None, enable_ssh=True,
+                        time_zone=None, keyboard=None, 
+                        install_on_server=None):
+        """ Allows to save the initial contact for for the specified node
         
-    def status(self):
+        :param node: node to run initial contact command against
+        :param enable_ssh: flag to know if we allow the ssh daemon on the specified node
+        :param time_zone: optional time zone to set on the specified node 
+        :param keyboard: optional keyboard to set on the specified node
+        :param install_on_server: optional flag to know if the generated configuration 
+        needs to be installed on SMC Install server (POS is needed)
+        """
+        print "POST initial contact: %s" % self._load_href('initial_contact')
+        element = SMCElement.factory()
+        element.href = self._load_href('initial_contact').pop()
+        element.params = {'enable_ssh': True}
+        print common_api.create(element)
+        #print "POST initial contact: %s" % self.__load_href('initial_contact')
+        
+    def appliance_status(self, node=None):
+        """ Gets the appliance status for the specified node 
+        for the specific supported engine 
+        
+        :method: GET
+        :param node: Name of node to retrieve from, if single node, can be ignored
+        :return: list of status information
+        """
+        return [search.element_by_href_as_json(status) #TODO: This can return [None]
+                for status in self._load_href('appliance_status', node)]
+
+    def status(self, node=None):
         """ Basic status for individual node. Specific information such as node name,
         dynamic package version, configuration status, platform and version.
         
+        :method: GET
+        :param node: Name of node to retrieve from, otherwise all nodes
         :return: dict of status fields returned from SMC
         """
-        return search.element_by_href_as_json(self.__load_href('status'))
+        return [search.element_by_href_as_json(status) 
+                for status in self._load_href('status', node)]
         
-    def go_online(self):
-        print "PUT go online: %s" % self.__load_href('go_online')
-    
-    def go_offline(self):
-        print "PUT go offline: %s" % self.__load_href('go_offline')
+    def go_online(self, node=None, comment=None):
+        """ Executes a Go-Online operation on the specified node 
+        typically done when the node has already been forced offline 
+        via :func:`go_offline`
         
-    def go_standby(self):
-        print "PUT go_standby: %s" % self.__load_href('go_standby')
-        
-    def lock_online(self):
-        print "PUT lock online: %s" % self.__load_href('lock_online')
-        
-    def lock_offline(self):
-        print "PUT lock offline: %s" % self.__load_href('lock_offline')
-        
-    def reset_user_db(self):
-        print "PUT reset user db: %s" % self.__load_href('reset_user_db')
-        
-    def diagnostic(self):
-        print "GET diagnostic: %s" % self.__load_href('diagnostic')
-        
-    def send_diagnostic(self):
-        print "POST send diagnostic: %s" % self.__load_href('send_diagnostic')
-        
-    def reboot(self):
-        print "PUT reboot: %s" % self.__load_href('reboot')
-        
-    def sginfo(self):
-        print "GET sginfo: %s" % self.__load_href('sginfo')
-        
-    def ssh(self):
-        print "PUT ssh: %s" % self.__load_href('ssh')
-        
-    def change_ssh_pwd(self):
-        print "PUT change SSH pwd: %s" % self.__load_href('change_ssh_pwd')
-        
-    def time_sync(self):
-        print "PUT time sync: %s" % self.__load_href('time_sync')
-        
-    def certificate_info(self):
-        print "GET cert info: %s" % self.__load_href('certificate_info')
+        :method: PUT
+        :param node: if a cluster, provide the specific node name
+        :param comment: optional comment to audit
+        :return: href or None
+        """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('go_online', node, params)
 
-    def __load_href(self, action):
-        href = [entry.get('href') for entry in self.node_links \
-                if entry.get('rel') == action]      
+    def go_offline(self, node=None, comment=None):
+        """ Executes a Go-Offline operation on the specified node
+        
+        :method: PUT
+        :param node: if a cluster, provide the specific node name
+        :param comment: optional comment to audit
+        :return: href, or None
+        """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('go_offline', node, params)
+        
+    def go_standby(self, node=None, comment=None):
+        """ Executes a Go-Standby operation on the specified node. 
+        To get the status of the current node/s, run :func:`status`
+        
+        :method: PUT
+        :param node: if a cluster, provide the specific node name
+        :param comment: optional comment to audit
+        :return: href, or None
+        """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('go_standby', node, params)
+        
+    def lock_online(self, node=None, comment=None):
+        """ Executes a Lock-Online operation on the specified node
+        
+        :method: PUT
+        :param node: if a cluster, provide the specific node name
+        :return: href, or None
+        """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('lock_online', node, params=params)
+        
+    def lock_offline(self, node=None, comment=None):
+        """ Executes a Lock-Offline operation on the specified node
+        Bring back online by running :func:`go_online`.
+        
+        :method: PUT
+        :param node: if a cluster, provide the specific node name
+        :return: href or None if failure
+        """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('lock_offline', node, params=params)
+    
+    def reset_user_db(self, node=None, comment=None):
+        """ 
+        Executes a Send Reset LDAP User DB Request operation on the 
+        specified node
+        
+        :method: PUT
+        :param node: if a cluster, provide the specific node name
+        :param comment: optional comment to audit
+        """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('reset_user_db', node, params=params)
+        
+    def diagnostic(self, node=None, filter_enabled=False):
+        """ Provide a list of diagnostic options to enable
+        #TODO: implement filter_enabled
+        :method: GET
+        :param node: if a cluster, provide the specific node name
+        :param filter_enabled: returns all enabled diagnostics
+        :return: list of dict items with diagnostic info
+        """
+        return [search.element_by_href_as_json(status) 
+                for status in self._load_href('diagnostic', node)]
+        
+    def send_diagnostic(self, node=None):
+        """ Send the diagnostics to the specified node 
+        Send diagnostics in payload
+        """
+        print "POST send diagnostic: %s" % self._load_href('send_diagnostic')
+        
+    def reboot(self, node=None, comment=None):
+        """ Reboots the specified node """
+        params = {'comment': comment} if comment else None
+        return self._commit_update('reboot', node, params=params)
+        
+    def sginfo(self, node=None, include_core_files=False,
+               include_slapcat_output=False):
+        """ Get the SG Info of the specified node 
+        ?include_core_files
+        ?include_slapcat_output
+        :param include_core_files: flag to include or not core files
+        :param include_slapcat_output: flag to include or not slapcat output
+        """
+        print "GET sginfo: %s" % self._load_href('sginfo')
+        
+    def ssh(self, node=None, enable=True, comment=None):
+        """ Enable or disable SSH
+        ?enable=
+        ?comment=
+        :param enable: enable SSH daemon
+        :type enable: boolean
+        :param comment: optional comment for audit log
+        :param
+        """
+        print "PUT ssh: %s" % self._load_href('ssh')
+        
+    def change_ssh_pwd(self, node=None, comment=None):
+        """
+        Executes a change SSH password operation on the specified node 
+        {"value": "NewPassword"}
+        query param (comment=YourAuditComment) representing the optional comment for audit log
+        """
+        print "PUT change SSH pwd: %s" % self._load_href('change_ssh_pwd')
+        
+    def time_sync(self, node=None):
+        return self._commit_update('time_sync', node)
+      
+    def certificate_info(self, node=None):
+        """ Get the certificate info of the specified node 
+        
+        :return: list with links to cert info
+        """
+        return [search.element_by_href_as_json(status) 
+                for status in self._load_href('certificate_info', node)]
+       
+    def _commit_create(self, action, node, params=None):
+        href = self._load_href(action, node)
         if href:
-            return href.pop()
+            element = SMCElement.factory(href=href.pop(),
+                                         params=params)
+            return common_api.create(element)
+            
+                                         
+    def _commit_update(self, action, node, json=None, params=None):
+        href = self._load_href(action, node)
+        if href:
+            element = SMCElement.factory(href=href.pop(),
+                                         json=json,
+                                         params=params,
+                                         etag=self.etag)
+            return common_api.update(element)
+                   
+    def _load_href(self, action, node=None):
+        """ Get href from self.node_links cache based on the node name. 
+        If this is a cluster, the node parameter is required. 
+        Since these are node level commands, we need to be able to specify
+        which node to run against. If not a cluster, then node param is not
+        required and is ignored if given.
+        :param action: link to get
+        :param node: name of node, only used for clusters with multiple nodes
+        :return: list of href, or []
+        """
+        if not self.cluster_mode: #ignore node if single device node
+            href = [link.get('href')
+                    for node, links in self.node_links.iteritems()
+                    for link in links
+                    if link.get('rel') == action]
+        else: #require node for cluster
+            if node and node in self.node_links.keys():
+                href = [entry.get('href') 
+                        for entry in self.node_links.get(node)
+                        if entry.get('rel') == action]
+            else:
+                return []
+        return href
+
         
 class Layer3Firewall(Node):
     """
@@ -333,18 +668,13 @@ class Layer3Firewall(Node):
     
         engine = Layer3Firewall.create('mylayer3', '1.1.1.1', '1.1.1.0/24', href_to_log_server)
         
-    To obtain the log server reference, first call::
-        
-        smc.search.get_first_log_server()    #first log server found
-        smc.search.log_servers()    #all available log servers
-        
     """ 
     def __init__(self, name):
         Node.__init__(self, name)
         self.node_type = 'firewall_node'
 
     @classmethod   
-    def create(cls, name, mgmt_ip, mgmt_network, log_server,
+    def create(cls, name, mgmt_ip, mgmt_network, log_server=None,
                  mgmt_interface='0', dns=None):
         """ 
         Create a single layer 3 firewall with management interface and DNS
@@ -361,11 +691,13 @@ class Layer3Firewall(Node):
         """
         cls.name = name
         cls.node_type = 'firewall_node'
-        cls.log_server_ref = log_server
+        cls.log_server_ref = log_server if log_server \
+            else SystemInfo().first_log_server()  
         cls.domain_server_address = []
         if dns:
             for entry in dns:
-                cls.domain_server_address.append(entry)  
+                cls.domain_server_address.append(entry)
+        
         super(Layer3Firewall, cls).create()
         mgmt = l3_mgmt_interface(mgmt_ip, mgmt_network, 
                                  interface_id=mgmt_interface)
@@ -381,11 +713,6 @@ class Layer2Firewall(Node):
     
         engine = Layer2Firewall.create('mylayer2', '1.1.1.1', '1.1.1.0/24', href_to_log_server)
         
-    To obtain the log server reference, first call::
-        
-        smc.search.get_first_log_server()    #first log server found
-        smc.search.log_servers()    #all available log servers
-        
     """ 
     def __init__(self, name):
         Node.__init__(self, name)
@@ -393,7 +720,7 @@ class Layer2Firewall(Node):
     
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network, 
-               log_server, mgmt_interface='0', 
+               log_server=None, mgmt_interface='0', 
                inline_interface='1-2', logical_interface='default_eth', 
                dns=None):
         """ 
@@ -416,12 +743,13 @@ class Layer2Firewall(Node):
         """
         cls.name = name
         cls.node_type = 'fwlayer2_node'
-        cls.log_server_ref = log_server
+        cls.log_server_ref = log_server if log_server \
+            else SystemInfo().first_log_server()
         cls.domain_server_address = []
         if dns:
             for entry in dns:
                 cls.domain_server_address.append(entry)
-                   
+        
         super(Layer2Firewall, cls).create()
         mgmt = l2_mgmt_interface(mgmt_ip, mgmt_network, 
                                  interface_id=mgmt_interface)
@@ -440,12 +768,7 @@ class IPS(Node):
     Represents an IPS engine configuration.
     To instantiate and create, call 'create' classmethod as follows::
     
-        engine = IPS.create('myips', '1.1.1.1', '1.1.1.0/24', href_to_log_server)
-        
-    To obtain the log server reference, first call::
-        
-        smc.search.get_first_log_server()    #first log server found
-        smc.search.log_servers()    #all available log servers
+        engine = IPS.create('myips', '1.1.1.1', '1.1.1.0/24')
         
     """ 
     def __init__(self, name):
@@ -454,7 +777,7 @@ class IPS(Node):
 
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network, 
-               log_server, mgmt_interface='0', 
+               log_server=None, mgmt_interface='0', 
                inline_interface='1-2', logical_interface='default_eth', 
                dns=None):
         """ 
@@ -477,7 +800,8 @@ class IPS(Node):
         """
         cls.name = name
         cls.node_type = 'ips_node'
-        cls.log_server_ref = log_server
+        cls.log_server_ref = log_server if log_server \
+            else SystemInfo().first_log_server()
         cls.domain_server_address = []
         if dns:
             for entry in dns:
@@ -495,5 +819,41 @@ class IPS(Node):
         cls.href = search.element_entry_point('single_ips')
         return cls
 
-def NodeLoader():
-    pass
+def async_handler(element, wait_for_finish=True, 
+                  sleep_interval=3, 
+                  display_msg=True):
+    """ Handles asynchronous operations called on engine or node levels
+    
+    :param element: The element to be sent to SMC
+    :param wait_for_finish: whether to wait for it to finish or not
+    :param display_msg: whether to return display messages or not
+    :param sleep_interval: how long to wait between async checks
+    
+    If wait_for_finish is False, the generator will yield the follower 
+    href only. If true, will return messages as they arrive and location 
+    to the result after complete.
+    To obtain messages as they arrive, call the async method in a for loop::
+        for msg in engine.export():
+            print msg
+    """
+    import time
+    upload = common_api.create(element)
+    if upload.json:
+        if wait_for_finish:
+            last_msg = ''
+            while True:
+                status = search.element_by_href_as_json(upload.json.get('follower'))
+                msg = status.get('last_message')
+                if display_msg:
+                    if msg != last_msg:
+                        #yield re.sub(cleanr,'', msg)
+                        yield msg
+                        last_msg = msg
+                if status.get('success') == True:
+                    for link in status.get('link'):
+                        if link.get('rel') == 'result':
+                            yield link.get('href')
+                    break
+                time.sleep(sleep_interval)
+        else:
+            yield upload.json.get('follower')

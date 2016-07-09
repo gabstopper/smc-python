@@ -1,3 +1,25 @@
+"""
+Search module provides convenience methods for retrieving specific data from 
+the SMC. Each method will return data in a certain way with different inputs.
+All methods are using :mod:`smc.api.common` methods which wrap any exceptions
+and if there are no results, each method would return None
+
+Example of retrieving an SMC element by name, as json::
+
+    smc.actions.search.element_as_json('myelement')
+    
+Element as json with etag (etag is required for modifications::
+
+    smc.actions.search.element_as_json_with_etag('myelement')
+    
+Get element reference::
+    
+    smc.actions.search.element_href('myelement')
+    
+All elements by type::
+    
+    smc.actions.search.element_by_type('host')
+"""
 import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
     fetch_json_by_name, fetch_entry_point, fetch_by_name_and_filter
@@ -44,8 +66,7 @@ def element_as_json_with_etag(name):
     :return: SMCElement
     """
     return element_as_smc_element(name)
-    
-   
+       
 def element_info_as_json(name):
     """ Get specified element full json based on search query
     This is the base level search that returns basic object info
@@ -87,7 +108,16 @@ def element_href_use_filter(name, _filter):
         if element:
             return element.get('href')
 
-            
+def element_href_by_batch(list_to_find):
+    """ Find batch of entries by name. Reduces number of find calls from
+    calling class. 
+    
+    :param list_to_find: list of names to find
+    :type: list
+    :return: dict: {name: href, name: href}, href may be None if not found
+    """
+    return {k:element_href(k) for k in list_to_find} 
+          
 def element_by_href_as_json(href):
     """ Get specified element by href
       
@@ -184,12 +214,22 @@ def get_logical_interface(name):
 
      
 def log_servers():
+    """ Retrieve a list of all available log servers 
+    
+    :return: list of log servers, each item is dict(href,name,type), or None
+    """
+    
     available_log_servers = all_elements_by_type('log_server')
     if available_log_servers:
         return available_log_servers
 
 
 def get_first_log_server():
+    """ Convenience method to return the first log server match in
+    the case where there might be multiple
+    
+    :return: href of log server, or None
+    """
     available_log_servers = all_elements_by_type('log_server')
     if available_log_servers:
         for found in available_log_servers:
@@ -333,7 +373,15 @@ if __name__ == "__main__":
     from pprint import pprint
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
-    pprint(element_as_json('myips'))
+    pprint(element_by_href_as_json(element_entry_point('appliance_information')))
+    pprint(element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/appliance_information/541'))
+    #pprint(web_api.session.get_all_entry_points())
+    #pprint(element_as_json('henry'))
+    #batched = element_href_by_batch(['ami21245','kiley-2test'])
+    #one_values = [key for key,value in batched.iteritems() if value is None]
+    #if none_values:
+    #    print "Cannot find values for: %s" % ','.join(none_values
+    
     #print file_filtering_policies(policy='No Scanning')
     
     web_api.session.logout()

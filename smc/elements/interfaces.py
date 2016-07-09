@@ -100,51 +100,7 @@ class LogicalInterface(SMCElement):
     
         return self
 
-class Route(SMCElement):
-    def __init__(self, gw_name, gw_ip, gw_href, 
-                 network_name, network_ip, network_href,
-                 interface_id):
-        SMCElement.__init__(self)        
-        self.type = "route"
-        self.gw_name = gw_name
-        self.gw_ip = gw_ip
-        self.gw_href = gw_href
-        self.network_name = network_name
-        self.network_ip = network_ip
-        self.network_href = network_href
-        self.interface_id = interface_id
-        
-    def create(self):
-        routing = util.get_json_template('routing.json')
-        #Next Hop Gateway
-        #self.json holds original routing table
-        routing['gateway']['href'] = self.gw_href
-        routing['gateway']['ip'] = self.gw_ip
-        routing['gateway']['name'] = self.gw_name
- 
-        #Network behind Next Hop
-        routing['network']['href'] = self.network_href
-        routing['network']['ip'] = self.network_ip
-        routing['network']['name'] = self.network_name   
-        
-        #append next hop into gateway router
-        routing['gateway']['routing_node'].append(routing['network'])
-        
-        if self.interface_id is not None:
-            try:    #find specified nic_id node and save to interface_json to be modified
-                interface_json = next(item for item in self.json['routing_node'] \
-                                           if item['nic_id'] == str(self.interface_id))
-            except StopIteration:
-                return None
-                
-        interface_json['routing_node'][0]['routing_node'].append(routing['gateway'])
-        
-        return self
-    
-    def __str__(self):
-        return "name: %s, type: %s, gw: %s, net: %s, int_id: %s" % \
-            (self.name, self.type, self.gw_name, self.network_ip, self.interface_id)
-            
+
 #helpers
 def l3_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
     l3_intf = SingleNodeInterface()
@@ -203,7 +159,6 @@ def inline_interface(logical_interface_ref, interface_id='1-2'):
     
     inline_intf.create()
     return inline_intf
- 
         
 def capture_interface(logical_interface_ref, interface_id=1):
     """ create capture interface

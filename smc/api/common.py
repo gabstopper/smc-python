@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 #if cache is not None:
 #    print "Found in cache: %s, location: %s" % (name,cache)
 #    return cache
-    
-def _create(element):
+
+#TODO: Fix returns to be uniform   
+def create(element):
     """ 
     Create object by HTTP POST method
     If the creation was successful, SMCElement.href will reference the new location
@@ -26,20 +27,20 @@ def _create(element):
     more information. SMCElement.json is the payload, href is the location to POST
     :return href upon success otherwise None
     """
-    logger.debug("Creating element: %s, href: %s, json: %s" % (element.name, element.href, element.json))
+    logger.debug("Creating element: %s" % element)
     try:
         element.href = web_api.session.http_post(element.href, element.json, element.params)
         logger.info("Success creating element; %s" % (element))   
         
     except SMCOperationFailure, e:
         element.href = None
-        logger.error("Failed creating element: %s, Reason: %s", element.name, e)
+        logger.error("Failed creating element: %s, Reason: %s", element, e)
     except SMCConnectionError, e:
         raise
     finally:
         return element.href
 
-def _update(element):
+def update(element):
     """ 
     Update object by HTTP PUT
     :param element: SMCElement to update, 
@@ -49,27 +50,27 @@ def _update(element):
         element.json: payload to update
     :return href upon success otherwise None
     """
-    logger.debug("Updating element: %s, href: %s, json: %s" % (element.name, element.href, element.json))
+    logger.debug("Updating element: %s", element)
     try: 
-        element = web_api.session.http_put(element.href, element.json, element.etag)
-        logger.info("Success updating element; %s" % element)
+        element = web_api.session.http_put(element.href, element.json, element.etag, element.params)
+        logger.info("Success updating element; %s", element)
         
     except SMCOperationFailure, e:
         element = None
-        logger.error("Failed updating element; %s %s" % (element, e))
+        logger.error("Failed updating element; %s %s", element, e)
     except SMCConnectionError, e:
         raise
     finally:
         return element
     
-def _remove(element):
+def delete(element):
     """
     Remove object using HTTP DELETE 
     HTTP 204 is success, everything else is an error
     :param element: SMCElement of element to remove
     :return None
     """
-    logger.debug("Removing element: %s, href: %s" % (element.name, element.href))
+    logger.debug("Removing element: %s", element)
     try:
         web_api.session.http_delete(element.href) #delete to href
         logger.info("Success removing element; %s" % element)
@@ -100,6 +101,21 @@ def fetch_entry_point(name):
         logger.error("Failure occurred fetching element: %s" % e)
     except SMCConnectionError, e:
         raise
+
+def fetch_content_as_file(element):
+    logger.debug("Fetching content as file download to file: %s" % element.filename)
+    try:
+        result = web_api.session.http_get(element.href, 
+                                          stream=element.stream, 
+                                          filename=element.filename)
+        print "result: %s" % result #TODO: Return info for downloads
+        return result
+    except IOError, ioe:
+        logger.error("IO Error received with msg: %s" % ioe)
+    except SMCOperationFailure, e:
+        logger.error("Failure occurred fetching by filename: %s" % e)
+    except SMCConnectionError, e:
+        raise    
 
 def fetch_by_name_and_filter(name, of_type):
     """ 

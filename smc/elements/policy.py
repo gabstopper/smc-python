@@ -128,7 +128,7 @@ class Policy(object):
         import time
         element = self._element('upload')
         element.params = {'filter': device}
-        upload = self._commit(element)
+        upload = self._commit_create(element)
         if upload.json:
             if wait_for_finish:
                 last_msg = ''
@@ -152,33 +152,33 @@ class Policy(object):
         
         :method: GET
         """
-        self._commit(self._element('open'))
+        self._commit_create(self._element('open'))
     
     def save(self):
         """ Save policy that was modified 
         
         :method: POST
         """
-        self._commit(self._element('save'))
+        self._commit_create(self._element('save'))
         
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
         
         :method: POST
         """
-        self._commit(self._element('force_unlock'))
+        self._commit_create(self._element('force_unlock'))
 
     def export(self):
-        self._commit(self._element('export'))
+        self._commit_create(self._element('export'))
                 
     def search_rule(self, parameter):
         pass
     
-    def _commit(self, element):
+    def _commit_create(self, element):
         """ Submit command to SMC, i.e. open, save, export, etc """
-        return smc.api.common._create(element)
+        return smc.api.common.create(element)
     
-    def _load_rule_href(self, rule_type):
+    def _load_href(self, rule_type):
         """ 
         Used by subclasses to retrieve the entry point for 
         the rule href's. All links for top level policy are stored
@@ -201,10 +201,11 @@ class Policy(object):
         :param link: entry point based on the link name. i.e. save, open
         :return: SMCElement
         """
-        link_href = [entry.get('href') for entry in self.links \
-                       if entry.get('rel') == link]       
+        link_href = self._load_href(link)
+        #[entry.get('href') for entry in self.links \
+        #               if entry.get('rel') == link]       
         return SMCElement.factory(name=link, 
-                                  href=link_href.pop())
+                                  href=link_href)
        
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
@@ -270,35 +271,35 @@ class FirewallPolicy(Policy):
         
         element = SMCElement.factory(name=name, href=policy_href,
                                   json=policy)
-        return smc.api.common._create(element)
+        return smc.api.common.create(element)
         
     def ipv4_rules_href(self):
         """ Get href to fw_ipv4_access_rules
          
         :return: href
         """
-        return self._load_rule_href('fw_ipv4_access_rules')
+        return self._load_href('fw_ipv4_access_rules')
                 
     def ipv6_rules_href(self):
         """ Get href to fw_ipv6_access_rules
         
         :return: href
         """
-        return self._load_rule_href('fw_ipv6_access_rules')
+        return self._load_href('fw_ipv6_access_rules')
                       
     def ipv4_nat_rules_href(self):
         """ Get href to fw_ipv4_nat_rules
         
         :return: href
         """
-        return self._load_rule_href('fw_ipv4_nat_rules')
+        return self._load_href('fw_ipv4_nat_rules')
         
     def ipv6_nat_rules_href(self):
         """ Get href to fw_ipv4_nat_rules
         
         :return: href
         """
-        return self._load_rule_href('fw_ipv6_nat_rules')
+        return self._load_href('fw_ipv6_nat_rules')
     
     def __str__(self):
         return "Name: %s, policy_type: %s; %s" % (self.name, self.policy_type, self.__dict__)

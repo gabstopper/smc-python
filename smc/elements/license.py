@@ -42,7 +42,7 @@ class License(object):
             self.get_dynamic_license()
             if self.license_id:
                 self.element.json = {'license_id': self.license_id}
-                smc.api.common._create(self.element)
+                smc.api.common.create(self.element)
                 
     def unbind(self):
         """ 
@@ -51,7 +51,7 @@ class License(object):
         for links in self.links:
             if links.get('rel') == 'unbind':
                 self.element.href = links.get('href')
-        smc.api.common._create(self.element)
+        smc.api.common.create(self.element)
 
     def fetch(self):
         """
@@ -61,7 +61,7 @@ class License(object):
         for links in self.links:
             if links.get('rel') == 'fetch':
                 self.element.href = links.get('href')
-        self.element.href = smc.api.common._create(self.element)
+        self.element.href = smc.api.common.create(self.element)
 
     def get_license_links(self):
         """ 

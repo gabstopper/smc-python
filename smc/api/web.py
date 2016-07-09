@@ -3,7 +3,7 @@ Created on May 9, 2016
 
 @author: davidlepage
 '''
-
+import shutil
 import requests
 import json
 import logging
@@ -29,7 +29,7 @@ class SMCEntryCache(object):
         """
         try:
             if api_version is None:
-                r = requests.get('%s/api' % url, timeout=5) #no session required
+                r = requests.get('%s/api' % url, timeout=10) #no session required
                 j = json.loads(r.text)
                 versions = []
                 for version in j['version']:
@@ -88,7 +88,7 @@ class SMCAPIConnection(SMCEntryCache):
         self.key = None
         self.cookies = None
         self.session = None
-
+    
     def login(self, url, smc_key, api_version=None):
         """
         Login to SMC API and retrieve a valid session.
@@ -139,7 +139,7 @@ class SMCAPIConnection(SMCEntryCache):
                                  "status code: %s", (r.status_code))
                 else:
                     logger.error("Logout failed, status code: %s", r.status_code)
-
+        
     def refresh(self):
         """
         Refresh SMC session if it timed out. This may be the case if the CLI
@@ -154,7 +154,7 @@ class SMCAPIConnection(SMCEntryCache):
             logger.error("No previous SMC session found. "
                          "This may require a new login attempt")
 
-    def http_get(self, href, params=None): #TODO: Implement self.visited for already seen queries
+    def http_get(self, href, params=None, stream=False, filename=None): #TODO: Implement self.visited for already seen queries
         """
         Get data object from SMC
         If response code is success, results are returned with etag
@@ -164,7 +164,20 @@ class SMCAPIConnection(SMCEntryCache):
         """
         try:
             if self.session:
-                r = self.session.get(href, params=params, timeout=5)
+                if stream == True: #TODO: this is a temp hack
+                    print "Stream the badboy to file: %s" % filename
+                    r = self.session.get(href, params=params, 
+                                         stream=True)
+                    if r.status_code == 200:
+                        try:
+                            with open(filename, 'wb') as f:
+                                r.raw.decode_content = True
+                                shutil.copyfileobj(r.raw, f)
+                                return href
+                        except IOError:
+                            raise
+                    return SMCResult(r)
+                r = self.session.get(href, params=params, timeout=50)
                 if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
@@ -174,7 +187,7 @@ class SMCAPIConnection(SMCEntryCache):
                     return self.http_get(href)
                 else:
                     logger.error("HTTP get returned non-http 200 code [%s] "
-                                 "for href: %s", (r.status_code, href))
+                                 "for href: %s", r.status_code, href)
                     raise SMCOperationFailure(r)
             else:
                 raise SMCConnectionError("No session found. Please login to continue")
@@ -203,12 +216,13 @@ class SMCAPIConnection(SMCEntryCache):
                             params=params
                             )
                 if r.status_code == 201 or r.status_code == 200:
-                    logger.debug("Successfully added: %s, linked to href: %s", \
-                                 data, r.headers.get('location'))
+                    print "POST has content: %s" % r.text
+                    logger.debug("Success, returning link: %s", \
+                                 r.headers.get('location'))
                     return r.headers.get('location')
                 elif r.status_code == 202:
                     #in progress
-                    logger.debug("Asynchronous response received, monitor progress: %s" % r.content)
+                    logger.debug("Asynchronous response received, monitor progress at link: %s", r.content)
                     return SMCResult(r)
                 elif r.status_code == 401:
                     self.refresh()
@@ -223,7 +237,7 @@ class SMCAPIConnection(SMCEntryCache):
                                      "API service is running and host is "
                                      "correct: %s, exiting." % e)
 
-    def http_put(self, href, data, etag):
+    def http_put(self, href, data, etag, params=None):
         """
         Change state of existing SMC object
         :param href: href of resource location
@@ -236,6 +250,7 @@ class SMCAPIConnection(SMCEntryCache):
             if self.session:
                 r = self.session.put(href,
                     data = json.dumps(data),
+                    params = params,
                     headers={'content-type': 'application/json', 'Etag': etag}
                     )
                 if r.status_code == 200:
@@ -309,7 +324,7 @@ class SMCResult(object):
                     else:
                         self.json = result
                 return self.json
-    
+                
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
 

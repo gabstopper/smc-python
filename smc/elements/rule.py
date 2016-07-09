@@ -34,13 +34,13 @@ class Rule(object):
         pass
     
     def create(self, element):
-        return smc.api.common._create(element)
+        return smc.api.common.create(element)
     
     def modify(self):
         pass
        
     def delete(self, element):
-        smc.api.common._remove(element)
+        smc.api.common.delete(element)
     
     def refresh(self):
         rules = search.element_by_href_as_json(self.href)
