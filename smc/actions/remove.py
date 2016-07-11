@@ -16,14 +16,9 @@ def element(name, objtype=None):
     """
   
     removable = smc.actions.search.element_info_as_json(name)
-    if removable is not None:
-        logger.debug("Element: %s found and is of type: %s. Attempting to remove" % (name, removable.get('type')))
-        element = SMCElement()
-        element.name = name
-        element.type = removable.get('type', None)
-        element.href = removable.get('href', None)
-        
-        return common_api.delete(element)
+    if removable:
+        print "Removing, and removable is: %s" % removable
+        return common_api.delete(removable.get('href'))
         
     else:
         logger.info("No element named: %s, nothing to remove" % name)

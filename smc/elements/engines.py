@@ -104,7 +104,7 @@ class Engine(object):
     def upload(self, policy=None, wait_for_finish=True, sleep_interval=3):
         """ Upload policy to existing engine. If no policy is specified, and the engine
         has already had a policy installed, this policy will be re-uploaded. 
-        If policy is specified, this will be uploaded to the existing engine.
+        
         This is typically used to install a new policy on the engine. If you just
         want to re-push an existing policy, call :func:`refresh`
         
@@ -151,8 +151,7 @@ class Engine(object):
         return common_api.fetch_content_as_file(element)
 
     def add_route(self, gateway, network):
-        """ Add a route to engine. Specify gateway and network. If the
-        SMC elements do not exist, they will be created automatically.
+        """ Add a route to engine. Specify gateway and network. 
         If this is the default gateway, use a network address of
         0.0.0.0/0.
         
@@ -167,7 +166,7 @@ class Engine(object):
         element.params = {'gateway': gateway, 'network': network}
         return common_api.create(element)
 
-    def blacklist(self, src, dst, duration=3600):
+    def blacklist_add(self, src, dst, duration=3600):
         """ Add blacklist entry to engine node by name
     
         :method: POST
@@ -206,8 +205,7 @@ class Engine(object):
         return common_api.delete(element) 
     
     def alias_resolving(self):
-        """ Alias definitions defined for this engine (alias is an object type
-        referenced with a different value based on the engine/s it's applied to.
+        """ Alias definitions defined for this engine 
         Aliases can be used in rules to simplify multiple object creation
         
         :method: GET
@@ -288,6 +286,49 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('physical_interface')) 
     
+    def physical_interface_add(self, ip, ip_network, int_id):
+        """ Add physical interface
+        
+        :param ip: ipaddress of interface
+        :param ip_network: network address in cidr
+        :param int_id: id of interface
+        :return: href of interface, or None
+        """
+        interface = l3_interface(ip, ip_network, int_id)
+        element = self._element('physical_interface')
+        element.json = interface.get('physical_interface')
+        return common_api.create(element)
+    
+    def physical_interface_del(self, name):
+        """ Delete physical interface by name
+        To retrieve name, use :func:`physical_interface` to
+        list all configured interfaces for this engine
+        
+        :param name: name of interface (typically 'Interface <num>'
+        :return
+        """
+        href = [interface.get('href')
+                for interface in self.interface()
+                if interface.get('name') == name]
+        if href:
+            element = SMCElement.factory(href=href.pop())
+            return common_api.delete(element)
+    
+    def inline_interface_add(self, int_id, 
+                             logical_int='default_eth'):
+        inline = inline_interface(interface_id=int_id,
+                                  logical_interface_ref=logical_int)
+        element = self._element('physical_interface')
+        element.json = inline.get('physical_interface')
+        return common_api.create(element)
+    
+    def capture_interface_add(self, int_id, logical_int):
+        capture = capture_interface(interface_id=int_id,
+                                    logical_interface_ref=logical_int)
+        element = self._element('physical_interface')
+        element.json = capture.get('physical_interface')
+        return common_api.create(element)
+          
     def tunnel_interface(self):
         """ Get only tunnel interfaces for this engine node.
         
@@ -329,7 +370,7 @@ class Engine(object):
         return search.element_by_href_as_json(self.__load_href('switch_physical_interface'))
     
     def __load_href(self, action):
-        """ Pull the direct HREF from engine link list cache """
+        """ Pull the direct href from engine link list cache """
         href = [entry.get('href') for entry in self.engine_links \
                 if entry.get('rel') == action]      
         if href:
@@ -337,7 +378,7 @@ class Engine(object):
     
     def _element(self, link):
         """ 
-        Simple iterator factory to return SMCElement for policy 
+        Simple factory to return SMCElement for policy 
         based events such as 'save', 'open', 'export' and 'force_unlock'       
         :param link: entry point based on the link name
         :return: SMCElement
@@ -378,46 +419,10 @@ class Node(Engine):
     @classmethod
     def create(cls):
         #nothing to do here, engine has base settings
-        return super(Node, cls).create()
-    
-    def update(self):
-        element = SMCElement.factory(href=self.href, 
-                                    json=self.engine_json, 
-                                    etag=self.etag)
-        return common_api.update(element)
-    
-    def add_l3_interface(self, ipaddress, network, interface_id):
-        interface = l3_interface(ipaddress, network, interface_id)
-        self.engine_json.get('physicalInterfaces').append(interface.json)
-    
-    def add_inline_interface(self, logical_interface='default_eth', 
-                             interface_id='1-2'):
-        try:
-            assert(self.node_type in ['ips_node', 'fwlayer2_node']) #TODO: Maybe better way
-            logical_href = search.element_href(logical_interface)
-            interface = inline_interface(logical_href, 
-                                         interface_id=interface_id)
-            self.engine_json.get('physicalInterfaces').append(interface.json)
-        except AssertionError:
-            raise SMCException("Cannot add a layer 2 interface to node type: %s, class: %s" % 
-                               (self.node_type, self))     
-    
-    def add_capture_interface(self, logical_interface='default_eth',
-                              interface_id='1'):
-        try:
-            assert(self.node_type in ['ips_node', 'fwlayer2_node'])
-            logical_href = search.element_href(logical_interface)
-            interface = capture_interface(logical_href, interface_id)
-            self.engine_json.get('physicalInterfaces').append(interface.json)
-        except AssertionError:
-            raise SMCException("Cannot add a capture interface to node type: %s, class: %s" % 
-                               (self.node_type, self)) 
+        return super(Node, cls).create()   
     
     def node_names(self):
         return self.node_links.keys()
-    
-    def add_tunnel_interface(self):
-        pass
         
     def fetch_license(self, node=None):
         """ Allows to fetch the license for the specified node """
@@ -429,13 +434,12 @@ class Node(Engine):
         
         :param license_item_id: license id, otherwise auto bind will be tried
         """
-        params = {'license_item_id': license_item_id} if license_item_id \
-            else None
+        params = {'license_item_id': license_item_id}
         return self._commit_create('bind', node, params=params)
         
     def unbind_license(self, node=None):
         """ Allows to unbind the possible already bound license for the 
-        specified node If no license has been found, nothing is done and 
+        specified node. If no license has been found, nothing is done and 
         NO_CONTENT is returned otherwise OK is returned 
         """
         return self._commit_create('unbind', node)
@@ -463,6 +467,8 @@ class Node(Engine):
         element = SMCElement.factory()
         element.href = self._load_href('initial_contact').pop()
         element.params = {'enable_ssh': True}
+        print "Element type for initial contact: %s" % type(element)
+        print "Element by just print: %s" % element
         print common_api.create(element)
         #print "POST initial contact: %s" % self.__load_href('initial_contact')
         
@@ -498,8 +504,8 @@ class Node(Engine):
         :param comment: optional comment to audit
         :return: href or None
         """
-        params = {'comment': comment} if comment else None
-        return self._commit_update('go_online', node, params)
+        params = {'comment': comment}
+        return self._commit_update('go_online', node, params=params)
 
     def go_offline(self, node=None, comment=None):
         """ Executes a Go-Offline operation on the specified node
@@ -509,8 +515,8 @@ class Node(Engine):
         :param comment: optional comment to audit
         :return: href, or None
         """
-        params = {'comment': comment} if comment else None
-        return self._commit_update('go_offline', node, params)
+        params = {'comment': comment}
+        return self._commit_update('go_offline', node, params=params)
         
     def go_standby(self, node=None, comment=None):
         """ Executes a Go-Standby operation on the specified node. 
@@ -521,8 +527,8 @@ class Node(Engine):
         :param comment: optional comment to audit
         :return: href, or None
         """
-        params = {'comment': comment} if comment else None
-        return self._commit_update('go_standby', node, params)
+        params = {'comment': comment}
+        return self._commit_update('go_standby', node, params=params)
         
     def lock_online(self, node=None, comment=None):
         """ Executes a Lock-Online operation on the specified node
@@ -531,7 +537,7 @@ class Node(Engine):
         :param node: if a cluster, provide the specific node name
         :return: href, or None
         """
-        params = {'comment': comment} if comment else None
+        params = {'comment': comment}
         return self._commit_update('lock_online', node, params=params)
         
     def lock_offline(self, node=None, comment=None):
@@ -542,7 +548,7 @@ class Node(Engine):
         :param node: if a cluster, provide the specific node name
         :return: href or None if failure
         """
-        params = {'comment': comment} if comment else None
+        params = {'comment': comment}
         return self._commit_update('lock_offline', node, params=params)
     
     def reset_user_db(self, node=None, comment=None):
@@ -554,7 +560,7 @@ class Node(Engine):
         :param node: if a cluster, provide the specific node name
         :param comment: optional comment to audit
         """
-        params = {'comment': comment} if comment else None
+        params = {'comment': comment}
         return self._commit_update('reset_user_db', node, params=params)
         
     def diagnostic(self, node=None, filter_enabled=False):
@@ -591,22 +597,29 @@ class Node(Engine):
         
     def ssh(self, node=None, enable=True, comment=None):
         """ Enable or disable SSH
+        
+        :method: PUT
+        :param enable: enable or disable SSH daemon
+        :type enable: boolean
+        :param comment: optional comment for audit
         ?enable=
         ?comment=
-        :param enable: enable SSH daemon
-        :type enable: boolean
-        :param comment: optional comment for audit log
-        :param
         """
-        print "PUT ssh: %s" % self._load_href('ssh')
+        params = {'enable': enable, 'comment': comment}
+        return self._commit_update('ssh', node, params=params)
         
-    def change_ssh_pwd(self, node=None, comment=None):
+    def change_ssh_pwd(self, node=None, pwd=None, comment=None):
         """
         Executes a change SSH password operation on the specified node 
-        {"value": "NewPassword"}
-        query param (comment=YourAuditComment) representing the optional comment for audit log
+        
+        :method: PUT
+        :param pwd: changed password value
+        :param comment: optional comment for audit log
         """
-        print "PUT change SSH pwd: %s" % self._load_href('change_ssh_pwd')
+        json = {'value': pwd}
+        params = {'comment': comment}
+        return self._commit_update('change_ssh_pwd', node, json=json, 
+                                   params=params)
         
     def time_sync(self, node=None):
         return self._commit_update('time_sync', node)
@@ -625,8 +638,7 @@ class Node(Engine):
             element = SMCElement.factory(href=href.pop(),
                                          params=params)
             return common_api.create(element)
-            
-                                         
+                                                    
     def _commit_update(self, action, node, json=None, params=None):
         href = self._load_href(action, node)
         if href:

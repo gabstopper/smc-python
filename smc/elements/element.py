@@ -12,10 +12,13 @@ See SMCElement for more details:
 """
 import util
 import smc.actions.search as search
+import smc.api.common
 
 class SMCElement(object):
-    """ SMCElement is the base class for all objects added, removed or
-    modified through the SMC API.
+    """ 
+    SMCElement represents the data structure for sending data to
+    the SMC API. When calling :mod:`smc.api.common` mwthods for 
+    create, update or delete, this is the required object type.
     
     Common parameters that are needed are stored in this base class
     
@@ -23,13 +26,12 @@ class SMCElement(object):
     :param etag: returned during http get and used for modifying elements 
     :param type: type of object, used only for str printing from api.common
     :param name: name of object, used for str printing from api.common
-    :param href: REQUIRED for create or modify operations to identify
-    :param params: If additional parameters are needed for href
+    :param href: REQUIRED location of the resource
+    :param params: If additional URI parameters are needed for href
     :param stream: If file download is required, set to True
-    :param filename: If stream=True, this specifies name of file
-    the location of the element
+    :param filename: If stream=True, this specifies name of file to save to
     """
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.json = None
         self.etag = None
         self.type = None
@@ -37,23 +39,25 @@ class SMCElement(object):
         self.params = None
         self.stream = False
         self.filename = None
-
+    
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+            
     def create(self):
-        return self
+        return smc.api.common.create(self)
     
     @classmethod
     def factory(cls, name=None, href=None, etag=None, 
                 _type=None, json=None, params=None,
                 stream=False, filename=None):
-        cls.name = name
-        cls.href = href
-        cls.etag = etag
-        cls.type = _type
-        cls.json = json
-        cls.params = params
-        cls.stream = stream
-        cls.filename = filename
-        return cls
+        return SMCElement(name=name,
+                          href=href,
+                          etag=etag,
+                          type=_type,
+                          json=json,
+                          params=params,
+                          stream=stream,
+                          filename=filename)
     
     def _fetch_href(self):
         self.href = search.element_entry_point(self.type)
@@ -268,7 +272,22 @@ class Network(SMCElement):
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()
         return self
+
+class LogicalInterface(SMCElement):
+    def __init__(self, name, comment=None):
+        SMCElement.__init__(self)        
+        self.type = 'logical_interface'
+        self.name = name
+        self.comment = comment if comment is not None else ""
     
+    def create(self):
+        self.json = {
+                    "comment": self.comment,
+                    "name": self.name
+        }
+        self._fetch_href()
+        return super(LogicalInterface, self).create()
+        
 class Protocol(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)

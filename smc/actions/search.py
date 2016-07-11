@@ -8,7 +8,7 @@ Example of retrieving an SMC element by name, as json::
 
     smc.actions.search.element_as_json('myelement')
     
-Element as json with etag (etag is required for modifications::
+Element as json with etag (etag is required for modifications)::
 
     smc.actions.search.element_as_json_with_etag('myelement')
     
@@ -22,7 +22,7 @@ All elements by type::
 """
 import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
-    fetch_json_by_name, fetch_entry_point, fetch_by_name_and_filter
+    fetch_json_by_name, fetch_entry_point
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,8 @@ def element_href(name):
     """
     if name:
         element = fetch_href_by_name(name)
-        if element:
-            return element.get('href')
+        if element.href:
+            return element.href
 
 def element_as_json(name):
     """ Get specified element json data by name 
@@ -56,16 +56,16 @@ def element_as_json(name):
     """
     if name:
         element = fetch_json_by_name(name)
-        if element:
+        if element.json:
             return element.json
 
 def element_as_json_with_etag(name):
     """ Convenience method to return SMCElement that
     holds href, etag and json in result object
     
-    :return: SMCElement
+    :return: SMCResult
     """
-    return element_as_smc_element(name)
+    return element_as_smcresult(name)
        
 def element_info_as_json(name):
     """ Get specified element full json based on search query
@@ -77,10 +77,9 @@ def element_info_as_json(name):
     """   
     if name:
         element = fetch_href_by_name(name)
-        if element:
-            return element
-
-        
+        if element.json:
+            return element.json.pop()
+       
 def element_href_use_wildcard(name):
     """ Get element href using a wildcard rather than matching only on the name field
     This will likely return multiple results
@@ -90,10 +89,9 @@ def element_href_use_wildcard(name):
     """
     if name:
         element = fetch_href_by_name(name, use_name_field=False)
-        if element:
-            return element  #list
-
-    
+        if element.json:
+            return element.json  #list
+  
 def element_href_use_filter(name, _filter):
     """ Get element href using filter 
     
@@ -104,9 +102,11 @@ def element_href_use_filter(name, _filter):
     :return: element href (if found), else None
     """
     if name and _filter:
-        element = fetch_by_name_and_filter(name, _filter)
-        if element:
-            return element.get('href')
+        #element = fetch_by_name_and_filter(name, _filter)
+        element = fetch_href_by_name(name, filter_context=_filter)
+        print "Return from using filter: %s" % element
+        if element.json:
+            return element.json.pop().get('href')
 
 def element_href_by_batch(list_to_find):
     """ Find batch of entries by name. Reduces number of find calls from
@@ -116,8 +116,11 @@ def element_href_by_batch(list_to_find):
     :type: list
     :return: dict: {name: href, name: href}, href may be None if not found
     """
-    return {k:element_href(k) for k in list_to_find} 
-          
+    try:
+        return {k:element_href(k) for k in list_to_find} 
+    except TypeError:
+        logger.error(list_to_find, 'is not iterable')
+         
 def element_by_href_as_json(href):
     """ Get specified element by href
       
@@ -129,8 +132,7 @@ def element_by_href_as_json(href):
         if element:
             return element.json
 
-
-def element_by_href_as_smcelement(href):
+def element_by_href_as_smcresult(href):
     """ Get specified element returned as an SMCElement object
      
     :param href: href direct link to object
@@ -140,9 +142,8 @@ def element_by_href_as_smcelement(href):
         element = fetch_json_by_href(href)
         if element:
             return element
-
-            
-def element_as_smc_element(name):   
+           
+def element_as_smcresult(name):   
     """ Get specified element returned as an SMCElement object
     
     :param name: name of object
@@ -150,9 +151,8 @@ def element_as_smc_element(name):
     """
     if name:
         element = fetch_json_by_name(name)
-        if element:
+        if element.json:
             return element
-
 
 def all_elements_by_type(name):
     """ Get specified elements based on the entry point verb from SMC api
@@ -174,7 +174,6 @@ def all_elements_by_type(name):
             return result
         else:
             logger.error("Entry point specified was not found: %s" % name)
-
 
 def element_entry_point(name):
     """ Get specified element from cache based on the entry point verb from SMC api

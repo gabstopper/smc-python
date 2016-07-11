@@ -112,7 +112,7 @@ def l3_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
     l3_intf.nicid = l3_intf.interface_id = interface_id
     
     l3_intf.create()
-    return l3_intf        
+    return l3_intf.json        
 
 
 def l2_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
@@ -124,7 +124,7 @@ def l2_mgmt_interface(mgmt_ip, mgmt_network, interface_id=0):
     l3_intf.nicid = l3_intf.interface_id = interface_id
     
     l3_intf.create()
-    return l3_intf
+    return l3_intf.json
 
 
 def l3_interface(ipaddress, network, interface_id):
@@ -134,7 +134,7 @@ def l3_interface(ipaddress, network, interface_id):
     l3_intf.nicid = l3_intf.interface_id = interface_id
     
     l3_intf.create() 
-    return l3_intf    
+    return l3_intf.json    
 
 def inline_intf(logical_interface_ref, interface_id='1-2'):
     """ create inline interface
@@ -146,7 +146,7 @@ def inline_intf(logical_interface_ref, interface_id='1-2'):
     inline_intf.nicid = interface_id
     
     inline_intf.create()
-    return inline_intf
+    return inline_intf.json
           
 def inline_interface(logical_interface_ref, interface_id='1-2'):
     """ create inline interface
@@ -158,7 +158,7 @@ def inline_interface(logical_interface_ref, interface_id='1-2'):
     inline_intf.nicid = interface_id
     
     inline_intf.create()
-    return inline_intf
+    return inline_intf.json
         
 def capture_interface(logical_interface_ref, interface_id=1):
     """ create capture interface
@@ -170,5 +170,5 @@ def capture_interface(logical_interface_ref, interface_id=1):
     capture.nicid = interface_id
     
     capture.create()
-    return capture
+    return capture.json
         

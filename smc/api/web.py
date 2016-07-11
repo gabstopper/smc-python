@@ -174,10 +174,10 @@ class SMCAPIConnection(SMCEntryCache):
                                 r.raw.decode_content = True
                                 shutil.copyfileobj(r.raw, f)
                                 return href
-                        except IOError:
+                        except IOError: #TODO: handle
                             raise
                     return SMCResult(r)
-                r = self.session.get(href, params=params, timeout=50)
+                r = self.session.get(href, params=params, timeout=50)               
                 if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
@@ -215,9 +215,10 @@ class SMCAPIConnection(SMCEntryCache):
                             headers={'content-type': 'application/json'},
                             params=params
                             )
-                if r.status_code == 201 or r.status_code == 200:
-                    print "POST has content: %s" % r.text
-                    logger.debug("Success, returning link: %s", \
+                if r.status_code == 200 or r.status_code == 201:
+                    print "POST content: %s from href: %s, data: %s" % (r.content,href,data)
+                    return SMCResult(r)
+                    logger.debug("Success, returning link for new element: %s", \
                                  r.headers.get('location'))
                     return r.headers.get('location')
                 elif r.status_code == 202:
@@ -243,7 +244,7 @@ class SMCAPIConnection(SMCEntryCache):
         :param href: href of resource location
         :param data: json encoded document
         :param etag: required by SMC, retrieve first via http get
-        :return Href of the resource pulled from returned location header
+        :return href of the resource pulled from returned location header
         :raise SMCOperationFailure in case of non-http 200 return
         """
         try:
@@ -281,7 +282,8 @@ class SMCAPIConnection(SMCEntryCache):
             if self.session:
                 r = self.session.delete(href)
                 if r.status_code == 204:
-                    pass
+                    #pass
+                    return SMCResult(r)
                 elif r.status_code == 401:
                     self.refresh()
                     return self.http_delete(href)
@@ -305,16 +307,23 @@ class SMCResult(object):
     modified since previous GET.
     :attributes
         self.etag: etag from HTTP GET, representing unique value from server
-        self.href: None
+        self.href: href of location header if it exists
+        self.content: content if return was application/octet
+        self.msg: error message, if set
         self.json: element full json
     """
     def __init__(self, respobj=None):
         self.etag = None
         self.href = None
+        self.content = None
+        self.msg = None
+        self.code = None
         self.json = self.extract(respobj)
 
     def extract(self, response):
         if response:
+            self.code = response.status_code
+            self.href = response.headers.get('location')
             self.etag = response.headers.get('ETag')
             if response.headers.get('content-type') == 'application/json':
                 result = json.loads(response.text)
@@ -324,6 +333,15 @@ class SMCResult(object):
                     else:
                         self.json = result
                 return self.json
+            elif response.headers.get('content-type') == 'application/octet-stream':
+                self.content = response.text
+        #else:
+        #    print "No response recevied!"
+    def __str__(self):
+        sb = []
+        for key in self.__dict__:
+            sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
+        return ', '.join(sb)
                 
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
@@ -352,6 +370,7 @@ class SMCOperationFailure(SMCException):
         self.status = None
         self.message = None
         self.details = None
+        self.smcresult = SMCResult()
         self.parse_error()
     
     def parse_error(self):
@@ -361,6 +380,7 @@ class SMCOperationFailure(SMCException):
             self.status = data.get('status', None)
             self.message = data.get('message', None)
             details = data.get('details', None)
+            print "details: %s" % details
             if isinstance(details, list):
                 self.details = ' '.join(details)
             else:
@@ -370,7 +390,10 @@ class SMCOperationFailure(SMCException):
                 self.message = self.response.text
             else:
                 self.message = "HTTP error code: %s, no message" % self.code
-          
+    
+        self.smcresult.msg = self.__str__()
+        self.smcresult.code = self.code
+        
     def __str__(self):
         if self.message and self.details:
             return "%s %s" % (self.message, ''.join(self.details))

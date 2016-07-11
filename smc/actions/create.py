@@ -25,10 +25,9 @@ import smc.api.web as web_api
 import smc.api.common as common_api
 import smc.elements.license
 import smc.elements.system as systeminfo
-from smc.elements.element import SMCElement
+from smc.elements.element import SMCElement, LogicalInterface
 from smc.actions.search import get_logical_interface
 from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS
-from smc.elements.interfaces import LogicalInterface
 from smc.actions import helpers
 
 from smc.api.web import SMCException
@@ -419,7 +418,7 @@ if __name__ == '__main__':
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
     logging.getLogger()
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
     
     from pprint import pprint
     import time
@@ -432,17 +431,33 @@ if __name__ == '__main__':
     #smc.remove.element('myapi-testrun')
     
     #now load
-    #engine = Node('myapi-testrun').load()        
+    #engine = Node('myapi-testrun').load()    
+    #smc.remove.element('kiley-test')    
+    #smc.remove.element('regergserhatehtsrhs')
     
+    #host = host('henrydavid', '1.1.1.1')
+    #if not host.href:
+    #    print "Creating henry failed: %s" % host.msg
+    print LogicalInterface('mytest-api').create()
+    #print log.create()
+    #element = SMCElement.factory(name='test')
     
     """@type engine: Node"""
-    engine = Node('sg_vm').load()
+    #engine = Node('testips').load()
+    #engine.inline_interface_add('9-10', 'http://172.18.1.150:8082/6.0/elements/logical_interface/1')
+    #engine.capture_interface_add('10', 'http://172.18.1.150:8082/6.0/elements/logical_interface/1')
+    #engine.physical_interface_add('124.124.124.124', '124.124.124.0/24', '124')
+    #engine.blacklist_add('1.1.1.1/32', '0.0.0.0/0', 3600)
+    #pprint(engine.interface())
+    #pprint(engine.physical_interface_del('Interface 54'))
+    #pprint(engine.blacklist_show())
+    #pprint(engine.engine_links)
     #pprint(engine.appliance_status(node='ngf-1035'))
     #pprint(engine.status('ngf-1035'))
     #pprint(engine.go_online('ngf-1035'))
     #pprint(engine.go_offline('ngf-1035'))
-    #pprint(engine.go_standby('ngf-1035', comment="some other comment"))
-    #pprint(engine.lock_online('ngf-1035', comment=None))
+    #pprint(engine.go_standby('ngf-1035'))
+    #pprint(engine.lock_online('ngf-1035', comment='mytestcomment'))
     #pprint(engine.lock_offline('ngf-1035'))
     #pprint(engine.reset_user_db('ngf-1035'))
     #pprint(engine.diagnostic('ngf-1035', filter_enabled=True))
@@ -453,8 +468,66 @@ if __name__ == '__main__':
     #pprint(engine.bind_license(node='ngf-1035', license_item_id='0000310401'))
     #pprint(engine.unbind_license(node='ngf-1035'))
     #pprint(engine.certificate_info(node='ngf-1065'))
+    #pprint(engine.ssh('ngf-1035', enable=True, comment='api test ssh disable'))
+    #pprint(engine.change_ssh_pwd('ngf-1035', '1970keegan', comment='api pwd change'))
+    #engine.export()
+    #engine.initial_contact('ngf-1035')
+    #pprint(engine.engine_links)
+    int = {u'aggregate_mode': u'none',
+ u'arp_entry': [],
+ u'cvi_mode': u'none',
+ u'dhcp_server_on_interface': {u'default_lease_time': 7200,
+                               u'dhcp_range_per_node': []},
+ u'interface_id': u'66',
+ u'interfaces': [{u'single_node_interface': {u'address': u'66.66.66.66',
+                                             u'auth_request': False,
+                                             u'auth_request_source': False,
+                                             u'automatic_default_route': False,
+                                             u'backup_for_web_access': False,
+                                             u'backup_heartbeat': False,
+                                             u'backup_mgt': False,
+                                             u'dynamic': False,
+                                             u'igmp_mode': u'none',
+                                             u'network_value': u'66.66.66.0/24',
+                                             u'nicid': u'66',
+                                             u'nodeid': 1,
+                                             u'outgoing': False,
+                                             u'pppoa': False,
+                                             u'pppoe': False,
+                                             u'pppoe_password': u'*****',
+                                             u'primary_for_web_access': False,
+                                             u'primary_heartbeat': False,
+                                             u'primary_mgt': False,
+                                             u'relayed_by_dhcp': False,
+                                             u'reverse_connection': False,
+                                             u'vrrp': False,
+                                             u'vrrp_id': -1,
+                                             u'vrrp_priority': -1}}],
+ u'log_moderation': [{u'burst': 1000, u'log_event': u'1', u'rate': 100},
+                     {u'log_event': u'2'}],
+ u'managed_address_flag': False,
+ u'mtu': -1,
+ u'other_configuration_flag': False,
+ u'qos_limit': -1,
+ u'qos_mode': u'no_qos',
+ u'router_advertisement': False,
+ u'syn_mode': u'default',
+ u'sync_parameter': {u'full_sync_interval': 5000,
+                     u'heartbeat_group_ip': u'224.0.0.221',
+                     u'incr_sync_interval': 50,
+                     u'statesync_group_ip': u'224.0.0.222',
+                     u'sync_mode': u'sync_all',
+                     u'sync_security': u'sign'},
+ u'virtual_engine_vlan_ok': False,
+ u'vlanInterfaces': []}
     
-   
+    #pprint(smc.elements.interfaces.l3_interface('1.2.3.4', '1.2.3.0/24', '15').json)
+    
+    #interface = smc.elements.interfaces.l3_interface('1.2.3.4', '1.2.3.0/24', '15').json
+    
+    #element = SMCElement.factory(href='http://172.18.1.150:8082/6.0/elements/single_fw/3922/physical_interface', 
+    #                            json=interface.get('physical_interface'))
+    #print common_api.create(element)
     #print engine.initial_contact()
     #print "Engine export: %s" %  engine.export()
     

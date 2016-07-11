@@ -6,8 +6,7 @@ Created on May 13, 2016
 
 import logging
 import smc.api.web as web_api
-from smc.api.web import SMCOperationFailure, SMCConnectionError
-#from smc.elements.element import SMCElement
+from smc.api.web import SMCOperationFailure, SMCConnectionError, SMCResult
 import smc.elements.element
 
 logger = logging.getLogger(__name__)
@@ -17,78 +16,87 @@ logger = logging.getLogger(__name__)
 #    print "Found in cache: %s, location: %s" % (name,cache)
 #    return cache
 
-#TODO: Fix returns to be uniform   
 def create(element):
     """ 
-    Create object by HTTP POST method
-    If the creation was successful, SMCElement.href will reference the new location
-    If creation fails, it will be None
-    :param element: element to create, this is an instance of SMCElement. See elements module for
-    more information. SMCElement.json is the payload, href is the location to POST
-    :return href upon success otherwise None
+    Create element on SMC
+    
+    :method: POST
+    :param element: SMCElement
+    :return: SMCResult
     """
-    logger.debug("Creating element: %s" % element)
-    try:
-        element.href = web_api.session.http_post(element.href, element.json, element.params)
-        logger.info("Success creating element; %s" % (element))   
-        
-    except SMCOperationFailure, e:
-        element.href = None
-        logger.error("Failed creating element: %s, Reason: %s", element, e)
-    except SMCConnectionError, e:
-        raise
-    finally:
-        return element.href
+    assert(isinstance(element, smc.elements.element.SMCElement))
+    if element:
+        connect_err = None
+        try:
+            result = web_api.session.http_post(element.href, 
+                                               element.json, 
+                                               element.params)
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            connect_err = e
+        finally:
+            if connect_err:
+                raise
+            logger.debug(result)
+            return result
 
 def update(element):
     """ 
-    Update object by HTTP PUT
-    :param element: SMCElement to update, 
-    Fields required are:
-        element.etag: etag of element, request should have been made previously to get this value
-        element.href: href of the element
-        element.json: payload to update
-    :return href upon success otherwise None
-    """
-    logger.debug("Updating element: %s", element)
-    try: 
-        element = web_api.session.http_put(element.href, element.json, element.etag, element.params)
-        logger.info("Success updating element; %s", element)
-        
-    except SMCOperationFailure, e:
-        element = None
-        logger.error("Failed updating element; %s %s", element, e)
-    except SMCConnectionError, e:
-        raise
-    finally:
-        return element
+    Update element on SMC
     
-def delete(element):
+    :method: PUT
+    :param element: SMCElement
+    :return: SMCResult
     """
-    Remove object using HTTP DELETE 
-    HTTP 204 is success, everything else is an error
-    :param element: SMCElement of element to remove
-    :return None
+    assert(isinstance(element, smc.elements.element.SMCElement))
+    if element:
+        connect_err = None
+        try: 
+            result = web_api.session.http_put(element.href, 
+                                              element.json, 
+                                              element.etag, 
+                                              element.params)
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            connect_err = e
+        finally:
+            if connect_err:
+                raise
+            logger.debug(result)
+            return result
+
+def delete(href):
     """
-    logger.debug("Removing element: %s", element)
-    try:
-        web_api.session.http_delete(element.href) #delete to href
-        logger.info("Success removing element; %s" % element)
-            
-    except SMCOperationFailure, e:
-        logger.error("Failed removing element; %s, %s" % (element, e))
-        return "Failed removing element; %s, %s" % (element,e)
+    Delete element on SMC
+    
+    :method: DELETE
+    :param: href: item reference to delete
+    :return: SMCResult
+    """
+    if href:
+        connect_err = None
+        try:
+            result = web_api.session.http_delete(href) #delete to href           
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            connect_err = e
+        finally:
+            if connect_err:
+                raise
+            logger.debug(result)
+            return result
 
-    except SMCConnectionError, e:
-        raise
-
-
-def fetch_entry_point(name):
+def fetch_entry_point(name): #TODO: Fix this to return SMCResult??
     """ 
     Get the entry point href based on the input name
-    :param name: valid entry point, i.e. 'log_server', 'tcp_server', 'single_fw', etc.
+    
+    :method: GET
+    :param name: valid element entry point, i.e. 'host', 'iprange', etc
     smc.api.web.get_all_entry_points caches the entry points after login
-    :return href upon success otherwise None
+    :return: SMCResult
     """
     try:
         entry_href = web_api.session.get_entry_href(name) #from entry point cache
@@ -117,107 +125,97 @@ def fetch_content_as_file(element):
     except SMCConnectionError, e:
         raise    
 
-def fetch_by_name_and_filter(name, of_type):
-    """ 
-    Get json data for element name and using a filter
-    Filter should be a valid entry point value, ie host, router, network, single_fw, etc
+
+def fetch_href_by_name(name, filter_context=None, use_name_field=True):
+    """
+    :method: GET
     :param name: element name
-    :param of_type: type of element filter
-    :return json of element
+    :param use_name_field: match on element name field in SMC
+    :return SMCResult
     """
-    try:
-        entry_href = web_api.session.get_entry_href(of_type)
-        if not entry_href:
-            logger.error("Object type entry point specified was not found: %s" % of_type)
-            return None
-        #else
-        result = web_api.session.http_get(entry_href, {'filter': name})
-        if result.json:
-            return result.json.pop()
-                
-    except SMCOperationFailure, e:
-        logger.error("Failure occurred fetching element: %s" % e)
-    except SMCConnectionError, e:
-        raise
-            
-def fetch_json_by_href(href):
-    """ 
-    Fetch json for element by using href
-    :param href: href of the element
-    :return SMCElement with following attributes set:
-        href: href of element
-        etag: etag of the element, used for modifying element
-        json: json representation of element
-    """
-    try:
-        result = web_api.session.http_get(href)
-        if result:
-            element = smc.elements.element.SMCElement()
-            element.href = href
-            element.etag = result.etag
-            element.json = result.json
-            return element
-            #return SMCElement.factory(href=href, etag=result.etag,
-            #                          json=result.json)
-    
-    except SMCOperationFailure, e:
-        logger.error("Failure occurred fetching element: %s" % e)
-    except SMCConnectionError, e:
-        raise
+    if name:
+        connect_err = None
+        try:
+            entry_href = web_api.session.get_entry_href('elements')
+            result = web_api.session.http_get(entry_href, {'filter': name, 
+                                                           'filter_context':filter_context})
+            if result.json:
+                found_lst = []
+                if not use_name_field: # match all
+                    result.msg = 'Returning all elements as a wildcard match'
+                    return result
+                else: # Only return objects where name matches name field
+                    for host in result.json:
+                        if host.get('name', None) == name:
+                            found_lst.append(host)
+                    if not found_lst:
+                        result.msg = "No search results found for name: %s" % name
+                result.json = found_lst
+                if len(found_lst) > 1:
+                    result.msg = "More than one search result found. Try using a filter based on element type"
+                else:
+                    result.href = result.json[0].get('href')
+            else:
+                result.msg = "No results found for: %s" % name                  
         
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            connect_err = e
+        finally:
+            if connect_err:
+                raise
+            logger.debug(result)
+            return result
+
 def fetch_json_by_name(name):
     """ 
     Fetch json based on the element name
     First gets the href based on a search by name, then makes a 
-    second query to obtain the elements json
-    :param name: element name
-    :return SMCElement with following attributes set:
-        href: href of element
-        etag: etag of the element, used for modifying element
-        json: json representation of element
-    """
-    try:
-        element = fetch_href_by_name(name)
-        if element:
-            return fetch_json_by_href(element.get('href'))
+    second query to obtain the element json
     
-    except SMCOperationFailure, e:
-        logger.error("Failure occurred fetching element: %s" % e)
-    except SMCConnectionError, e:
-        raise
-    
-def fetch_href_by_name(name, use_name_field=True):
-    """
-    Fetch href of element by it's name. Use_name_field is used to verify that
-    the returned element/s match what we're looking for. SMC will return multiple
-    results if there are multiple matches. Setting use_name_field to true will 
-    only return the object matching the element name field. Setting to False may 
-    return a list of multiple results
+    :method: GET
     :param name: element name
-    :param use_name_field: match on element name field in SMC db
-    :return dict including href key
+    :return: SMCResult
     """
-    try:
-        entry_href = web_api.session.get_entry_href('elements')
-        result = web_api.session.http_get(entry_href, {'filter': name})
+    if name:
+        connect_err = None
+        try:
+            result = fetch_href_by_name(name)
+            if result.href:
+                result = fetch_json_by_href(result.href)
+                #else element not found
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            connect_err = e
+        finally:
+            if connect_err:
+                raise
+            logger.debug(result)
+            return result
+    
+def fetch_json_by_href(href):
+    """ 
+    Fetch json for element by using href
+    
+    :method: GET
+    :param href: href of the element
+    :return: SMCResult
+    """
+    if href:
+        connect_err = None
+        try:
+            result = web_api.session.http_get(href)
+            if result:
+                result.href = href
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            connect_err = e
+        finally:
+            if connect_err:
+                raise
+            logger.debug(result)
+            return result
         
-        match = None
-        if not use_name_field: # Return any host objects using name as filter (match all)
-            logger.debug("Returning all elements matching: %s" % name)
-            return result.json
-        else: # Only return object where name matches host object name field
-            for host in result.json:
-                if host.get('name', None) == name:
-                    match = host
-                    break   #exits on first match
-            if not match:
-                logger.debug("No search results found for name: %s" % name)
-                return
-            else:
-                logger.debug("Search found direct match for element: %s, %s" % (name, match))
-                return host
-                        
-    except SMCOperationFailure, e:
-        logger.error("Failure occurred fetching element: %s" % e)       
-    except SMCConnectionError, e:
-        raise
