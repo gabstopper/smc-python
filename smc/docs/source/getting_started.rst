@@ -4,17 +4,176 @@ Getting Started
 Creating the session
 --------------------
 
+Before any commands are run, you must obtain a login session. Once the login 
+session has been retrieved successfully, all commands or controls will reuse 
+the same session. When exiting, call `smc.api.web.logout()` 
+to remove the active session from the SMC.
+
+.. note:: Idle API sessions will still time out after a default (configurable) amount of time
+
+Steps to enable API Communication on the Stonesoft Management Center:
+
+#. Enable SMC API service on the properties of the Management Server
+#. Create an API Client and obtain the 'authentication key'
+
+Once you have enabled this and have access to the authentication key (keep this safe), 
+you can establish a session to the SMC by doing the following:
+
+.. code-block:: python
+
+   import smc.api.web
+
+   smc.api.web.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+   ....do stuff....
+   smc.api.web.logout()
+
 Creating elements
 -----------------
 
+Elements within the Stonesoft Management Server are common object types that are referenced
+by other configurable areas of the system such as policy, routing, VPN, etc. 
+
+Creating elements with smc-python can be done for all of the common element types:
+
+* Hosts
+* IP Range
+* Networks
+* Routers
+* Services
+* Groups
+
+Oftentimes these objects are cross referenced within the configuration, like when creating rule or
+NAT policy.
+
+Examples of creating elements are as follows:
+
+.. code-block:: python
+
+   import smc.elements.element
+   
+   smc.elements.element.IpRange('myrange', '10.0.0.1-10.0.0.254').create()
+   smc.elements.element.Host('myhost', '192.168.1.1', secondary_ip='192.168.1.2').create()
+   smc.elements.element.Router('defaultgw', '172.18.1.1', comment='internet facing gw').create()
+   smc.elements.element.Network('vpn network', '10.10.1.0/24').create()
+   
+   smc.elements.element.Group('group').create()  #no members
+   smc.elements.element.Group('group', members=['1.1.1.1','1.1.1.2']).create() 
+   
+   smc.elements.element.Service('tcp666', 666, proto='tcp').create()
+  
+See the :py:mod:`smc.elements.element` reference documentation for more specific details.
+   
+   
 Creating engines
 ----------------
+
+Engines are the definitions for a layer 3 FW, layer 2 FW or IPS deployment. An engine can be 
+represented by a single FW, single L2, or single IPS, or by clustered instances.
+
+An engine defines the basic settings to make the device or virtual instance operational such as
+interfaces, routes, ip addresses, networks, dns servers, etc. 
+
+From a class hierarchy perspective, this relationship can be represented as:
+
+Engine ---> Node ---> Layer3 Firewall / Layer2 Firewall / IPS
+
+Nodes are the individual engine instances, in the case of single device deployments, there is 
+only one node. For clusters, there will be at a minimum 2 nodes, max of 16. The :py:mod:`smc.elements.engines:node`
+class represents the interface to managing and sending commands individually to a node in a cluster. 
+
+By default, each constructor will have default values for the interface used for management (interface 0).
+This can be overridden as necessary.
+
+Creating a Layer3 Firewall:
+
+.. code-block:: python
+
+   from smc.elements.engines import Layer3Firewall
+   
+   Layer3Firewall.create('myfirewall', '1.1.1.1', '1.1.1.0/24')
+
+For Layer 2 Firewall and IPS engines, an inline interface pair will automatically be 
+created using interfaces 1-2 but can be overridden in the constructor.
+
+Creating a Layer2 Firewall with alternative management interface and DNS settings:
+
+.. code-block:: python
+
+   from smc.elements.engines import Layer2Firewall
+   
+   Layer2Firewall.create('myfirewall', '1.1.1.1', '1.1.1.0/24', mgmt_interface=5, dns=['172.18.1.20'])
+
+   									  
+Creating an IPS engine with alternative inline interface pair (mgmt on interface 0):
+ 
+ .. code-block:: python
+
+    from smc.elements.engines import IPS
+   
+    IPS.create('myfirewall', '1.1.1.1', '1.1.1.0/24', inline_interface='5-6')
+ 
+Once you have created your engine, it is possible to use any of the engine or node level commands
+to control the nodes.
+
 
 Adding interfaces
 +++++++++++++++++
 
+After your engine has been successfully created, you can add and remove interfaces as needed.
+In order to get the context of the engine, you must first load the engine configuration. It is 
+not required to know the engine type (layer3, layer2, ips) in order to load, instead you can
+use the Node class.
+
+For example, if I know I have an engine named 'myengine' (despite the engine 'role'), it can be
+loaded via:
+
+.. code-block:: python
+
+    from smc.elements.engines import Node
+    
+    engine = Node('myengine').load()
+	
+It is not possible to add certain interface types based on the node type. For example, it is not 
+possible to add inline or capture interfaces to layer 3 FW engines. However, this is handled
+automatically by the SMC API and SMCResult will indicate whether the operation/s succeeds or fails
+and why.
+
+To add a layer 3 interface once the engine has been loaded:
+
+.. code-block:: python
+
+   engine.layer3_interface_add('2.3.4.5', '2.3.4.0/30', 10) #interface id 10
+
+To add an inline interface to a layer2 FW or IPS:
+
+.. code-block:: python
+
+   engine.inline_interface_add('6-7', logical_interface_ref='default_eth')
+   
+To add a capture interface to a layer2 FW or IPS:
+
+.. code-block:: python
+
+   engine.capture_interface_add('8', logical_interface_ref='default_eth')
+
+To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation 
+
 Adding routes
 +++++++++++++
+
+Adding routes to routed interfaces is done by loading the engine and providing the next hop
+gateway and destination network as parameters. It is not necessary to specify the interface
+to place the route, the mapping will be done automatically on the SMC based on the existing
+IP addresses and networks configured on the engine. 
+
+For example, load a Layer 3 Firewall and add a route:
+
+.. code-block:: python
+
+   engine = Node('myengine').load()
+   engine.add_route('172.18.1.254', '192.168.1.0/24')
+   engine.add_route('172.18.1.254', '192.168.2.0/24')
+
 
 Policies
 --------

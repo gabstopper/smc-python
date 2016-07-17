@@ -333,7 +333,7 @@ class Engine(object):
                           json=intf.json.get('physical_interface')).create()
 
     def capture_interface_add(self, interfaceid, 
-                              logical_interface_ref, 
+                              logical_interface_ref='default_eth', 
                               nodeid=1):
         """ Add capture interface to layer2 firewall or IPS engine
         

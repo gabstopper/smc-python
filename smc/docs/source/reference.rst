@@ -128,13 +128,6 @@ CaptureInterface
    :members:
    :show-inheritance:
 
-LogicalInterface
-++++++++++++++++
-
-.. autoclass:: LogicalInterface
-   :members:
-   :show-inheritance:
-
 Policy
 --------------
 

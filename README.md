@@ -1,3 +1,4 @@
+[![Documentation Status](https://readthedocs.org/projects/smc-python/badge/?version=latest)](http://smc-python.readthedocs.io/en/latest/?badge=latest)
 #### smc-python
 
 Python based library to provide basic functions to interact with the Stonesoft Management Center API.

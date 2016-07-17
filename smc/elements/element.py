@@ -246,8 +246,6 @@ class Network(SMCElement):
     
         Network('mynetwork', '2.2.2.0/24').create()
         
-        or
-        
         Network('mynetwork', 2.2.2.0/255.255.255.0').create()
     """
     def __init__(self, name, ip4_network, comment=None):

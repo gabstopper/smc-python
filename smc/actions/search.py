@@ -371,7 +371,5 @@ def _href_from_name_href_tuple(dictentry, element_name):
 if __name__ == "__main__":
     
     import smc.api.web as web_api    
-    from pprint import pprint
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    
     web_api.session.logout()
