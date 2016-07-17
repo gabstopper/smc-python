@@ -26,37 +26,32 @@ Included is a test.py script that has several examples for manipulating data usi
 Before any commands are run, you must obtain a login session. Once commands are complete, call smc.logout() to remove the active session.
 
 ```python
-import smc
+import smc.api.web
 
-smc.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+smc.api.web.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
 ....do stuff....
-smc.logout()
+smc.api.web.logout()
 ```
 
 Once a valid session is obtained, it will be re-used for each operation performed. 
 
 ###### Creating network objects
 ```python
-smc.create.host('ami', '1.1.1.2')	#host
-smc.create.network('goodnetwork', '1.2.0.0/255.255.252.0')	#network 
-smc.create.network('networkwithcidr', '1.3.0.0/24', 'created by api tool')	#network with comment
-smc.create.router('myrouter', '7.7.7.7')			#router object
-smc.create.iprange('myrange', '1.1.1.1-1.2.3.4')	#iprange object
-```
-
-###### Create groups and add members
-```python
-smc.create.group('group_with_no_members')
-smc.create.host('ami', '1.1.1.1')
-smc.create.host('ami2', '2.2.2.2', comment='this is my comment')	#with optional comment
-smc.create.group('anewgroup', ['ami','ami2']) #group with member list
+import smc.elements.element
+smc.elements.element.IpRange(name, addr_range, comment=comment).create()
+smc.elements.element.Host(name, ipaddress, secondary_ip=secondary_ip, comment=comment).create()
+smc.elements.element.Router(name, ipaddress, secondary_ip=secondary_ip, comment=comment).create()
+smc.elements.element.Network(name, cidr, comment=comment).create()
+smc.elements.element.Group(name, members=grp_members, comment=comment).create() 
+smc.elements.element.Service(name, min_dst_port, proto=proto, comment=comment).create() 
 ```
 
 ###### Removing elements
 ```python
-smc.remove.element('ami')		#remove host named 'ami'
-smc.remove.element('agroup')	#remove group
-smc.remove.element('myfw')		#remove firewall instance
+import smc.actions
+smc.actions.remove.element('ami')					#remove host named 'ami'
+smc.actions.remove.element('agroup')				#remove group
+smc.actions.remove.element('myfw', 'single_fw')		#remove firewall with filter
 ```
 
 ###### Create / remove a single fw L3 instance

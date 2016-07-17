@@ -3,18 +3,15 @@ Created on May 13, 2016
 
 @author: davidlepage
 '''
-
+import re
 import logging
 import smc.api.web as web_api
-from smc.api.web import SMCOperationFailure, SMCConnectionError, SMCResult
-import smc.elements.element
+from smc.api.web import SMCOperationFailure, SMCConnectionError
+import smc.actions.search
+
+clean_html = re.compile('<.*?>')
 
 logger = logging.getLogger(__name__)
-
-#cache = web_api.session.cache.get_element(name)
-#if cache is not None:
-#    print "Found in cache: %s, location: %s" % (name,cache)
-#    return cache
 
 def create(element):
     """ 
@@ -24,9 +21,8 @@ def create(element):
     :param element: SMCElement
     :return: SMCResult
     """
-    assert(isinstance(element, smc.elements.element.SMCElement))
     if element:
-        connect_err = None
+        err = None
         try:
             result = web_api.session.http_post(element.href, 
                                                element.json, 
@@ -34,9 +30,11 @@ def create(element):
         except SMCOperationFailure, e:
             result = e.smcresult
         except SMCConnectionError, e:
-            connect_err = e
+            err = e
+        except TypeError, e:
+            err = e
         finally:
-            if connect_err:
+            if err:
                 raise
             logger.debug(result)
             return result
@@ -49,9 +47,8 @@ def update(element):
     :param element: SMCElement
     :return: SMCResult
     """
-    assert(isinstance(element, smc.elements.element.SMCElement))
     if element:
-        connect_err = None
+        err = None
         try: 
             result = web_api.session.http_put(element.href, 
                                               element.json, 
@@ -60,9 +57,11 @@ def update(element):
         except SMCOperationFailure, e:
             result = e.smcresult
         except SMCConnectionError, e:
-            connect_err = e
+            err = e
+        except TypeError, e:
+            err = e
         finally:
-            if connect_err:
+            if err:
                 raise
             logger.debug(result)
             return result
@@ -89,7 +88,7 @@ def delete(href):
             logger.debug(result)
             return result
 
-def fetch_entry_point(name): #TODO: Fix this to return SMCResult??
+def fetch_entry_point(name):
     """ 
     Get the entry point href based on the input name
     
@@ -110,23 +109,26 @@ def fetch_entry_point(name): #TODO: Fix this to return SMCResult??
     except SMCConnectionError, e:
         raise
 
-def fetch_content_as_file(element):
+def fetch_content_as_file(element, stream=True):
     logger.debug("Fetching content as file download to file: %s" % element.filename)
     try:
-        result = web_api.session.http_get(element.href, 
-                                          stream=element.stream, 
-                                          filename=element.filename)
+        print "Fetching...>"
+        result = web_api.session.http_get(element.href,  
+                                          filename=element.filename,
+                                          stream=stream)
         print "result: %s" % result #TODO: Return info for downloads
-        return result
     except IOError, ioe:
+        print "IO Error occured: %s" % ioe
         logger.error("IO Error received with msg: %s" % ioe)
     except SMCOperationFailure, e:
-        logger.error("Failure occurred fetching by filename: %s" % e)
+        print "op error: %s" % e
     except SMCConnectionError, e:
-        raise    
+        print "conn err: %s" % e
 
-
-def fetch_href_by_name(name, filter_context=None, use_name_field=True):
+def fetch_href_by_name(name, 
+                       filter_context=None, 
+                       exact_match=True,
+                       domain=None):
     """
     :method: GET
     :param name: element name
@@ -138,20 +140,10 @@ def fetch_href_by_name(name, filter_context=None, use_name_field=True):
         try:
             entry_href = web_api.session.get_entry_href('elements')
             result = web_api.session.http_get(entry_href, {'filter': name, 
-                                                           'filter_context':filter_context})
+                                                           'filter_context':filter_context,
+                                                           'exact_match': exact_match})
             if result.json:
-                found_lst = []
-                if not use_name_field: # match all
-                    result.msg = 'Returning all elements as a wildcard match'
-                    return result
-                else: # Only return objects where name matches name field
-                    for host in result.json:
-                        if host.get('name', None) == name:
-                            found_lst.append(host)
-                    if not found_lst:
-                        result.msg = "No search results found for name: %s" % name
-                result.json = found_lst
-                if len(found_lst) > 1:
+                if len(result.json) > 1:
                     result.msg = "More than one search result found. Try using a filter based on element type"
                 else:
                     result.href = result.json[0].get('href')
@@ -218,4 +210,42 @@ def fetch_json_by_href(href):
                 raise
             logger.debug(result)
             return result
-        
+
+
+def async_handler(follower_href, wait_for_finish=True, 
+                  sleep_interval=3, 
+                  display_msg=True):
+    """ Handles asynchronous operations called on engine or node levels
+    
+    :method: POST
+    :param element: The element to be sent to SMC
+    :param wait_for_finish: whether to wait for it to finish or not
+    :param display_msg: whether to return display messages or not
+    :param sleep_interval: how long to wait between async checks
+    
+    If wait_for_finish is False, the generator will yield the follower 
+    href only. If true, will return messages as they arrive and location 
+    to the result after complete.
+    To obtain messages as they arrive, call the async method in a for loop::
+        for msg in engine.export():
+            print msg
+    """
+    import time
+    if wait_for_finish:
+        last_msg = ''
+        while True:
+            status = smc.actions.search.element_by_href_as_json(follower_href) #TODO: Use fetch?
+            msg = status.get('last_message')
+            if display_msg:
+                if msg != last_msg:
+                    yield re.sub(clean_html,'', msg)
+                    #yield msg
+                    last_msg = msg
+            if status.get('success') == True:
+                for link in status.get('link'):
+                    if link.get('rel') == 'result':
+                        yield link.get('href')
+                break
+            time.sleep(sleep_interval)
+    else:
+        yield follower_href

@@ -28,7 +28,6 @@ class SMCElement(object):
     :param name: name of object, used for str printing from api.common
     :param href: REQUIRED location of the resource
     :param params: If additional URI parameters are needed for href
-    :param stream: If file download is required, set to True
     :param filename: If stream=True, this specifies name of file to save to
     """
     def __init__(self, **kwargs):
@@ -37,7 +36,6 @@ class SMCElement(object):
         self.type = None
         self.href = None
         self.params = None
-        self.stream = False
         self.filename = None
     
         for key, value in kwargs.items():
@@ -46,17 +44,19 @@ class SMCElement(object):
     def create(self):
         return smc.api.common.create(self)
     
+    def update(self):
+        return smc.api.common.update(self)
+    
     @classmethod
     def factory(cls, name=None, href=None, etag=None, 
-                _type=None, json=None, params=None,
-                stream=False, filename=None):
+                _type=None, json=None, 
+                params=None, filename=None):
         return SMCElement(name=name,
                           href=href,
                           etag=etag,
                           type=_type,
                           json=json,
                           params=params,
-                          stream=stream,
                           filename=filename)
     
     def _fetch_href(self):
@@ -81,8 +81,7 @@ class Host(SMCElement):
     
     Create a host element::
     
-        host = Host('myhost', '1.1.1.1', '1.1.1.2', 'some comment for my host')
-        host.create()
+        Host('myhost', '1.1.1.1', '1.1.1.2', 'some comment for my host').create()
     """
     def __init__(self, name, ip, 
                  secondary_ip=None, comment=None):
@@ -104,7 +103,7 @@ class Host(SMCElement):
             for addr in self.secondary_ip:
                 self.json['secondary'].append(addr)
         self._fetch_href()        
-        return self
+        return super(Host, self).create()
 
 class Service(SMCElement):
     """ Class representing a Service object used in access rules
@@ -117,10 +116,9 @@ class Service(SMCElement):
     
     Create a service element::
     
-        service = Service('myservice', 6000, 'tcp', 'some comment')
-        service.create()
+        Service('myservice', 6000, 'tcp', 'some comment').create()
     """
-    def __init__(self, name, min_dst_port, href,
+    def __init__(self, name, min_dst_port,
                  proto=None, comment=None):
         SMCElement.__init__(self)
         self.name = name
@@ -137,7 +135,7 @@ class Service(SMCElement):
         self.json['min_dst_port'] = self.min_dst_port
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()      
-        return self
+        return super(Service, self).create()
         
 class Group(SMCElement):
     """ Class representing a Group object used in access rules
@@ -149,13 +147,11 @@ class Group(SMCElement):
     
     Create a group element::
     
-        group = Group('mygroup') #no members
-        group.create()
+        Group('mygroup').create() #no members
         
     Group with members::
     
-        group = Group('mygroup', ['member1','member2'], 'and a comment')
-        group.create()
+        Group('mygroup', ['member1','member2'], 'and a comment').create()
     """
     def __init__(self, name, members=None, comment=None):
         SMCElement.__init__(self)       
@@ -173,7 +169,7 @@ class Group(SMCElement):
         self.json['element'] = self.members if self.members else []
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()    
-        return self
+        return super(Group, self).create()
     
 class IpRange(SMCElement):
     """ Class representing a IpRange object used in access rules
@@ -185,8 +181,7 @@ class IpRange(SMCElement):
     
     Create an address range element::
     
-        iprange = IpRange('myrange', '1.1.1.1-1.1.1.5')
-        iprange.create()
+        IpRange('myrange', '1.1.1.1-1.1.1.5').create()
     """
     def __init__(self, name, iprange, comment=None):
         SMCElement.__init__(self)        
@@ -201,7 +196,7 @@ class IpRange(SMCElement):
         self.json['ip_range'] = self.iprange
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()        
-        return self
+        return super(IpRange, self).create()
     
 class Router(SMCElement):
     """ Class representing a Router object used in access rules
@@ -214,8 +209,7 @@ class Router(SMCElement):
     
     Create a router element::
     
-        router = Router('myrouter', '1.2.3.4', comment='my router comment')
-        router.create()
+        Router('myrouter', '1.2.3.4', comment='my router comment').create()
     """
     def __init__(self, name, address, 
                  secondary_ip=None, comment=None):
@@ -237,7 +231,7 @@ class Router(SMCElement):
             for addr in self.secondary_ip:
                 self.json['secondary'].append(addr)
         self._fetch_href()           
-        return self   
+        return super(Router, self).create()   
 
 class Network(SMCElement):
     """ Class representing a Network object used in access rules   
@@ -250,13 +244,11 @@ class Network(SMCElement):
     
     Create a network element::
     
-        networkwithcidr = Network('mynetwork', '2.2.2.0/24')
-        networkwithcidr.create()
+        Network('mynetwork', '2.2.2.0/24').create()
         
         or
         
-        networkwithmask = Network('mynetwork', 2.2.2.0/255.255.255.0')
-        networkwithmask.create()
+        Network('mynetwork', 2.2.2.0/255.255.255.0').create()
     """
     def __init__(self, name, ip4_network, comment=None):
         SMCElement.__init__(self)        
@@ -271,22 +263,7 @@ class Network(SMCElement):
         self.json['ipv4_network'] = self.ip4_network
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()
-        return self
-
-class LogicalInterface(SMCElement):
-    def __init__(self, name, comment=None):
-        SMCElement.__init__(self)        
-        self.type = 'logical_interface'
-        self.name = name
-        self.comment = comment if comment is not None else ""
-    
-    def create(self):
-        self.json = {
-                    "comment": self.comment,
-                    "name": self.name
-        }
-        self._fetch_href()
-        return super(LogicalInterface, self).create()
+        return super(Network, self).create()
         
 class Protocol(SMCElement):
     def __init__(self):
@@ -347,4 +324,29 @@ class DomainName(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
         pass
+
+class LogicalInterface(SMCElement):
+    """
+    Logical interface is used on either inline or capture interfaces. If an
+    engine has both inline and capture interfaces (L2 Firewall or IPS role),
+    then you must use a unique Logical Interface on the interface type.
     
+    :param name: name of logical interface
+    
+    Create a logical interface::
+    
+        LogicalInterface('mylogical_interface').create()    
+    """
+    def __init__(self, name, comment=None):
+        SMCElement.__init__(self)        
+        self.type = 'logical_interface'
+        self.name = name
+        self.comment = comment if comment is not None else ""
+    
+    def create(self):
+        self.json = {
+                    "comment": self.comment,
+                    "name": self.name
+        }
+        self._fetch_href()
+        return super(LogicalInterface, self).create()    

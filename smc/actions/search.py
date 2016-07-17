@@ -88,7 +88,7 @@ def element_href_use_wildcard(name):
     :return: list of matched elements, else None
     """
     if name:
-        element = fetch_href_by_name(name, use_name_field=False)
+        element = fetch_href_by_name(name, exact_match=False)
         if element.json:
             return element.json  #list
   
@@ -104,7 +104,6 @@ def element_href_use_filter(name, _filter):
     if name and _filter:
         #element = fetch_by_name_and_filter(name, _filter)
         element = fetch_href_by_name(name, filter_context=_filter)
-        print "Return from using filter: %s" % element
         if element.json:
             return element.json.pop().get('href')
 
@@ -174,6 +173,9 @@ def all_elements_by_type(name):
             return result
         else:
             logger.error("Entry point specified was not found: %s" % name)
+
+def all_entry_points(): #get from session cache
+    return web_api.session.get_all_entry_points()
 
 def element_entry_point(name):
     """ Get specified element from cache based on the entry point verb from SMC api
@@ -371,16 +373,5 @@ if __name__ == "__main__":
     import smc.api.web as web_api    
     from pprint import pprint
     web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    
-    pprint(element_by_href_as_json(element_entry_point('appliance_information')))
-    pprint(element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/appliance_information/541'))
-    #pprint(web_api.session.get_all_entry_points())
-    #pprint(element_as_json('henry'))
-    #batched = element_href_by_batch(['ami21245','kiley-2test'])
-    #one_values = [key for key,value in batched.iteritems() if value is None]
-    #if none_values:
-    #    print "Cannot find values for: %s" % ','.join(none_values
-    
-    #print file_filtering_policies(policy='No Scanning')
     
     web_api.session.logout()

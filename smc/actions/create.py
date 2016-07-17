@@ -21,16 +21,15 @@ In order to view error messages, do the following in your calling script::
 
 import logging
 import smc.elements.element
-import smc.api.web as web_api
-import smc.api.common as common_api
+import smc.api.web
 import smc.elements.license
-import smc.elements.system as systeminfo
-from smc.elements.element import SMCElement, LogicalInterface
+from smc.elements.element import LogicalInterface
 from smc.actions.search import get_logical_interface
 from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS
 from smc.actions import helpers
 
 from smc.api.web import SMCException
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +43,9 @@ def host(name, ipaddress, secondary_ip=[], comment=None):
     :return: href upon success otherwise None
     """   
     if helpers.is_valid_ipv4(ipaddress):         
-        host = smc.elements.element.Host(name, ipaddress, 
+        return smc.elements.element.Host(name, ipaddress, 
                                          secondary_ip=secondary_ip, 
-                                         comment=comment)
-               
-        return common_api.create(host.create())
+                                         comment=comment).create()
     else:
         logger.error("Failed: Invalid IPv4 address specified: %s, "
                      "create object: %s failed" % (ipaddress, name)) 
@@ -71,9 +68,8 @@ def iprange(name, addr_range, comment=None):
         logger.error("Invalid ip address range provided: %s" % addr_range)
         return None
     
-    iprange = smc.elements.element.IpRange(name, addr_range,
-                                           comment=comment)   
-    return common_api.create(iprange.create())
+    return smc.elements.element.IpRange(name, addr_range,
+                                           comment=comment).create()   
     
     
 def router(name, ipaddress, secondary_ip=None, comment=None):
@@ -85,10 +81,9 @@ def router(name, ipaddress, secondary_ip=None, comment=None):
     :return: href upon success otherwise None
     """     
     if helpers.is_valid_ipv4(ipaddress):
-        router = smc.elements.element.Router(name, ipaddress,
+        return smc.elements.element.Router(name, ipaddress,
                                              secondary_ip=secondary_ip,
-                                             comment=comment)
-        return common_api.create(router.create())  
+                                             comment=comment).create()
     else:
         logger.error("Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
 
@@ -103,9 +98,8 @@ def network(name, ip_network, comment=None):
     """
     cidr = helpers.ipaddr_as_network(ip_network)
     if cidr: 
-        network = smc.elements.element.Network(name, cidr,
-                                               comment=comment)
-        return common_api.create(network.create()) 
+        return smc.elements.element.Network(name, cidr,
+                                               comment=comment).create()
     else:
         logger.error("Invalid address specified for network: %s; make sure address specified is in network: %s" % (name, ip_network))
 
@@ -132,11 +126,9 @@ def group(name, members=[], comment=None):
             else:
                 logger.info("Element: %s could not be found, not adding to group" % m)    
     
-    group = smc.elements.element.Group(name,
+    return smc.elements.element.Group(name,
                                        members=grp_members,
-                                       comment=comment)
-    return common_api.create(group.create())
-
+                                       comment=comment).create()
     
 def service(name, min_dst_port, proto, comment=None):
     """ Create a service element in SMC 
@@ -155,12 +147,10 @@ def service(name, min_dst_port, proto, comment=None):
             logger.error("Min Dst Port was not integer: %s" % min_dst_port)
             return        
         
-        service = smc.elements.element.Service(name, min_dst_port,
-                                               entry_href,
-                                               proto=proto, 
-                                               comment=comment)
-        return common_api.create(service.create())
-         
+        return smc.elements.element.Service(name, min_dst_port,
+                                            proto=proto, 
+                                            comment=comment).create()
+ 
 def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_license=False):
     """ Create single firewall with a single management interface
     
@@ -179,17 +169,10 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
   
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
     
-    engine = Layer3Firewall.create(name, mgmt_ip, mgmt_network, 
+    result = Layer3Firewall.create(name, mgmt_ip, mgmt_network, 
                                    log_server=None,
                                    mgmt_interface=mgmt_interface,
                                    dns=dns)
-   
-    element = SMCElement.factory(href=engine.href, 
-                                 json=engine.engine_json) 
-    result = common_api.create(element)
-    
-    #if result and fw_license:
-    #    bind_license(name)  
     return result  
     
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
@@ -218,21 +201,13 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
                         if get_logical_interface(logical_interface) is not None \
                         else _logical_interface(logical_interface)
                         
-    engine = Layer2Firewall.create(name, mgmt_ip, mgmt_network, 
+    result = Layer2Firewall.create(name, mgmt_ip, mgmt_network, 
                                    log_server=None,
                                    mgmt_interface=mgmt_interface,
                                    inline_interface=inline_interface,
                                    logical_interface=logical,
                                    dns=dns)
-    
-    element = SMCElement.factory(href=engine.href, 
-                                json=engine.engine_json)   
-    result = common_api.create(element)
-    
-    #if result and fw_license:
-    #    bind_license(name)   
-    return result
-
+    return result 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
                logical_interface='default_eth', dns=None, fw_license=False):
@@ -253,27 +228,17 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
    
-    logical = get_logical_interface(logical_interface) \
-                        if get_logical_interface(logical_interface) is not None \
-                        else _logical_interface(logical_interface)
+    logical = smc.search.get_logical_interface(logical_interface)
         
-    engine = IPS.create(name, mgmt_ip, mgmt_network, 
+    result = IPS.create(name, mgmt_ip, mgmt_network, 
                         log_server=None,
                         mgmt_interface=mgmt_interface,
                         inline_interface=inline_interface,
                         logical_interface=logical,
                         dns=dns)
-    
-    element = SMCElement.factory(href=engine.href, 
-                                 json=engine.engine_json) 
-    result = common_api.create(element)
-    
-    #if result and fw_license:
-    #    bind_license(name)
-        
-    return result     
-    
-def l3interface(name, ipaddress, ip_network, interface_id):
+    return result
+   
+def l3interface(name, ipaddress, ip_network, interfaceid):
     """ Add L3 interface for single FW
        
     :param l3fw: name of firewall to add interface to
@@ -291,11 +256,9 @@ def l3interface(name, ipaddress, ip_network, interface_id):
     
     try:
         engine = Node(name).load()
-        engine.add_l3_interface(ipaddress, ip_network, interface_id=interface_id)
-        element = SMCElement.factory(href=engine.href, 
-                                    json=engine.engine_json,
-                                    etag=engine.etag)
-        return common_api.update(element)
+        result = engine.layer3_interface_add(ipaddress, ip_network, interfaceid=interfaceid)
+        return result
+    
     except SMCException, e:
         print "Error occurred during modification of %s, message: %s" % (name, e) #tmp  
     
@@ -317,15 +280,13 @@ def l2interface(name, interface_id='1-2', logical_interface='default_eth'):
     """  
     try:
         engine = Node(name).load()
-        engine.add_inline_interface(logical_interface=logical_interface, 
-                                    interface_id=interface_id)
-        element = SMCElement.factory(href=engine.href, 
-                                    json=engine.engine_json,
-                                    etag=engine.etag)
-        return common_api.update(element)
+        logical = smc.search.get_logical_interface(logical_interface)
+        result = engine.inline_interface_add(interfaceid=interface_id,
+                                             logical_interface_ref=logical)
+        return result
+       
     except SMCException, e:
-        print "Error occurred during modification of %s, message: %s" % (name, e) #tmp  
-        
+        print "Error occurred during modification of %s, message: %s" % (name, e) #tmp          
     else:
         logger.error("Cannot find node specified to add layer 2 inline interface: %s" % name)
 
@@ -339,13 +300,8 @@ def _logical_interface(name, comment=None):
     :param name: name of logical interface
     :param comment: optional
     :return: href upon success otherwise None
-    """
-    
-    entry_href = smc.search.element_entry_point('logical_interface')   
-    logical_int = LogicalInterface(name, entry_href,
-                                   comment=comment)
-      
-    return common_api.create(logical_int.create()) 
+    """ 
+    return LogicalInterface(name, comment=comment).create()
 
 def l3route(name, gateway, ip_network): 
     """ Add route to l3fw 
@@ -415,7 +371,7 @@ def virtual_fw(data):
     pass
 
 if __name__ == '__main__':
-    web_api.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
     
     logging.getLogger()
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
@@ -424,34 +380,48 @@ if __name__ == '__main__':
     import time
     start_time = time.time()
     
-    #smc.remove.element('erika')
-    #host = host('erika', '1.2.3.4')
-    ##########
-    #interface 5, 6.6.6.6
-    #smc.remove.element('myapi-testrun')
-    
-    #now load
-    #engine = Node('myapi-testrun').load()    
-    #smc.remove.element('kiley-test')    
-    #smc.remove.element('regergserhatehtsrhs')
-    
-    #host = host('henrydavid', '1.1.1.1')
-    #if not host.href:
-    #    print "Creating henry failed: %s" % host.msg
-    print LogicalInterface('mytest-api').create()
-    #print log.create()
-    #element = SMCElement.factory(name='test')
+    smc.remove.element('henbo')
+    """@type fw: Layer3Firewall"""
+    fw = Layer3Firewall.create('henbo', '2.2.2.2', '2.2.2.2/16', mgmt_interface=5, dns=['172.18.1.20'])
+    if fw:
+        print "Fw returned of type: %s" % type(fw)
+        pprint(fw)
+        print fw.initial_contact()
+        
     
     """@type engine: Node"""
-    #engine = Node('testips').load()
-    #engine.inline_interface_add('9-10', 'http://172.18.1.150:8082/6.0/elements/logical_interface/1')
-    #engine.capture_interface_add('10', 'http://172.18.1.150:8082/6.0/elements/logical_interface/1')
-    #engine.physical_interface_add('124.124.124.124', '124.124.124.0/24', '124')
-    #engine.blacklist_add('1.1.1.1/32', '0.0.0.0/0', 3600)
+    
+    #engine = Node('sg_vm').load()
+    #print engine.reboot(node='ngf-1035')
+    #Engine level
+    
+    #engine.node()
     #pprint(engine.interface())
+    #print engine.refresh(wait_for_finish=False).next()
+    #engine.upload()
+    #engine.generate_snapshot(filename="/Users/davidlepage/snapshot.xml")
+    #engine.add_route('172.18.1.200', '192.168.7.0/24')
+    #engine.blacklist_add('1.1.1.1/32', '0.0.0.0/0', 3600)
+    #engine.alias_resolving()
+    #engine.routing_monitoring()
+    #engine.export(filename="/Users/davidlepage/export.xml")
+    #engine.internal_gateway()
+    #engine.routing()
+    #engine.antispoofing()
+    #engine.snapshot()
+    #pprint(engine.physical_interface())
     #pprint(engine.physical_interface_del('Interface 54'))
-    #pprint(engine.blacklist_show())
-    #pprint(engine.engine_links)
+    #engine.layer3_interface_add()
+    #engine.inline_interface_add()
+    #engine.capture_interface_add()
+    #engine.tunnel_interface()
+    #engine.modem_interface()
+    #engine.adsl_interface()
+    #pprint(engine.wireless_interface())
+    #engine.switch_physical_interface()
+    
+    #Node level
+    #engine.initial_contact(filename="/Users/davidlepage/engine.cfg")
     #pprint(engine.appliance_status(node='ngf-1035'))
     #pprint(engine.status('ngf-1035'))
     #pprint(engine.go_online('ngf-1035'))
@@ -473,101 +443,8 @@ if __name__ == '__main__':
     #engine.export()
     #engine.initial_contact('ngf-1035')
     #pprint(engine.engine_links)
-    int = {u'aggregate_mode': u'none',
- u'arp_entry': [],
- u'cvi_mode': u'none',
- u'dhcp_server_on_interface': {u'default_lease_time': 7200,
-                               u'dhcp_range_per_node': []},
- u'interface_id': u'66',
- u'interfaces': [{u'single_node_interface': {u'address': u'66.66.66.66',
-                                             u'auth_request': False,
-                                             u'auth_request_source': False,
-                                             u'automatic_default_route': False,
-                                             u'backup_for_web_access': False,
-                                             u'backup_heartbeat': False,
-                                             u'backup_mgt': False,
-                                             u'dynamic': False,
-                                             u'igmp_mode': u'none',
-                                             u'network_value': u'66.66.66.0/24',
-                                             u'nicid': u'66',
-                                             u'nodeid': 1,
-                                             u'outgoing': False,
-                                             u'pppoa': False,
-                                             u'pppoe': False,
-                                             u'pppoe_password': u'*****',
-                                             u'primary_for_web_access': False,
-                                             u'primary_heartbeat': False,
-                                             u'primary_mgt': False,
-                                             u'relayed_by_dhcp': False,
-                                             u'reverse_connection': False,
-                                             u'vrrp': False,
-                                             u'vrrp_id': -1,
-                                             u'vrrp_priority': -1}}],
- u'log_moderation': [{u'burst': 1000, u'log_event': u'1', u'rate': 100},
-                     {u'log_event': u'2'}],
- u'managed_address_flag': False,
- u'mtu': -1,
- u'other_configuration_flag': False,
- u'qos_limit': -1,
- u'qos_mode': u'no_qos',
- u'router_advertisement': False,
- u'syn_mode': u'default',
- u'sync_parameter': {u'full_sync_interval': 5000,
-                     u'heartbeat_group_ip': u'224.0.0.221',
-                     u'incr_sync_interval': 50,
-                     u'statesync_group_ip': u'224.0.0.222',
-                     u'sync_mode': u'sync_all',
-                     u'sync_security': u'sign'},
- u'virtual_engine_vlan_ok': False,
- u'vlanInterfaces': []}
-    
-    #pprint(smc.elements.interfaces.l3_interface('1.2.3.4', '1.2.3.0/24', '15').json)
-    
-    #interface = smc.elements.interfaces.l3_interface('1.2.3.4', '1.2.3.0/24', '15').json
-    
-    #element = SMCElement.factory(href='http://172.18.1.150:8082/6.0/elements/single_fw/3922/physical_interface', 
-    #                            json=interface.get('physical_interface'))
-    #print common_api.create(element)
-    #print engine.initial_contact()
-    #print "Engine export: %s" %  engine.export()
-    
-    #pprint(engine.snapshot())
-    #engine.generate_snapshot('/Users/davidlepage/snapshot.xml')
-
-    #print engine.generate_snapshot()
-    
-    
-    #engine = IPS.create('myips', '1.2.2.2', '1.2.2.0/24')
-    #element = SMCElement.factory(href=engine.href, json=engine.engine_json)
-    #common_api.create(element)
-
-    #engine.add_capture_interface(interface_id='6')
-    #engine.update()
-    #print "type: %s" % engine.node_type
-    #pprint(engine.appliance_status('ngf-1035'))
-    
-    #print engine.go_online()
-   #print engine.lock_offline(node='ngf-1065')
-    #print engine.reboot(node='ngf-1065')
-    #pprint(vars(engine))
-    #pprint(engine.status())
-    #print engine.cluster_mode
-    #pprint(engine.appliance_status(node='ngf-1065'))
-    #pprint(engine.status())
-    #pprint(engine.node())
-    #pprint(engine.appliance_status())
-    #for msg in engine.refresh():
-    #    print msg
-        
-    #pprint(engine.status())    
-    #pprint(engine.appliance_status())
-    #pprint(engine.antispoofing())
-    #pprint(engine.alias_resolving())
-    #pprint(engine.snapshot())
-    #pprint(engine.node())
-    #pprint(engine.routing_monitoring())
-    
-    
+   
+      
     #web_api.session.http_get('http://172.18.1.150:8082/6.0/progress/YWE1ZGY5YWE1YzQxYzg1MTo0MjM4YWY4ZToxNTVjMjRjOWNlYTotYzlj/result', 
     #                         stream=True)
     #"""@type engine: Node"""
@@ -577,24 +454,6 @@ if __name__ == '__main__':
     
     
    
-    
-
-    
-    #print "type: %s" % type(engine)
-    #engine.add_inline_interface(interface_id='1-2')
-    #print engine.update()
-    
-    #element = smc.elements.element.SMCElement.factory(href=engine.href, json=engine.engine_json, etag=engine.etag)
-    #print "Firewall created at: %s" % common_api.update(element)
-    
-    
-    #engine = Node('henry').load()
-    #engine.add_inline_interface(interface_id='50-51')
-    #element = smc.elements.element.SMCElement.factory(href=engine.href, json=engine.engine_json, etag=engine.etag)
-    #print "IPS created at: %s" % common_api.update(element)
-    
-   
-    
     
     
     #engine.l2interface(interface_id='9-10')
@@ -764,4 +623,4 @@ if __name__ == '__main__':
     
     
     print("--- %s seconds ---" % (time.time() - start_time))   
-    web_api.session.logout()
+    smc.api.web.session.logout()

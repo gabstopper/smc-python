@@ -1,8 +1,6 @@
 import logging
 import smc.actions
-import smc.api.web as web_api
 import smc.api.common as common_api
-from smc.elements.element import SMCElement
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +15,6 @@ def element(name, objtype=None):
   
     removable = smc.actions.search.element_info_as_json(name)
     if removable:
-        print "Removing, and removable is: %s" % removable
         return common_api.delete(removable.get('href'))
         
     else:

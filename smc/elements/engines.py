@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from smc.elements.element import SMCElement
-from smc.elements.interfaces import inline_intf, l2_mgmt_interface, \
-    l3_mgmt_interface, l3_interface, inline_interface, capture_interface
+from smc.elements.interfaces import \
+   InlineInterface, CaptureInterface, SingleNodeInterface, NodeInterface
 import smc.actions.search as search
 import smc.api.common as common_api
 from smc.api.web import SMCException
@@ -86,8 +86,7 @@ class Engine(object):
         return cls
     
     def refresh(self, wait_for_finish=True, sleep_interval=3):
-        """ 
-        Refresh existing policy on specified device. This is an asynchronous 
+        """ Refresh existing policy on specified device. This is an asynchronous 
         call that will return a 'follower' link that can be queried to determine 
         the status of the task. 
         
@@ -98,8 +97,9 @@ class Engine(object):
         :param sleep_interval: length of time to sleep between progress checks (secs)
         :return: follower href if wait_for_finish=False, else result href on last yield
         """
-        element = self._element('refresh')
-        return async_handler(element, wait_for_finish, sleep_interval)
+        element = SMCElement(href=self.__load_href('refresh')).create()
+        return common_api.async_handler(element.json.get('follower'), 
+                                        wait_for_finish, sleep_interval)
     
     def upload(self, policy=None, wait_for_finish=True, sleep_interval=3):
         """ Upload policy to existing engine. If no policy is specified, and the engine
@@ -113,11 +113,13 @@ class Engine(object):
         :param sleep_interval: how long to wait between async responses
         """
         if not policy: #if policy not specified SMC seems to apply some random policy: bug?
-            policy = self.status().get('installed_policy')
-            
-        element = self._element('upload')
-        element.params = {'filter': policy}
-        return async_handler(element, wait_for_finish, sleep_interval)
+            node = self.node_names()[0] if self.node_names else []
+            policy = self.status(node=node)[0].get('installed_policy')
+    
+        element = SMCElement(href=self.__load_href('upload'),
+                             params={'filter': policy}).create()
+        return common_api.async_handler(element.json.get('follower'), 
+                                        wait_for_finish, sleep_interval)
     
     def node(self):
         """ Return node/s references for this engine. For a cluster this will
@@ -145,9 +147,8 @@ class Engine(object):
         :param filename: name of file to save file to, including directory path
         :return: None
         """
-        element = self._element('generate_snapshot')
-        element.stream = True
-        element.filename = filename
+        element = SMCElement(href=self.__load_href('generate_snapshot'),
+                             filename=filename)
         return common_api.fetch_content_as_file(element)
 
     def add_route(self, gateway, network):
@@ -162,10 +163,9 @@ class Engine(object):
         :param gateway: gateway of an existing interface
         :param network: network address in cidr format
         """
-        element = self._element('add_route')
-        element.params = {'gateway': gateway, 'network': network}
-        return common_api.create(element)
-
+        return SMCElement(href=self.__load_href('add_route'),
+                          params={'gateway': gateway, 'network': network}).create()
+        
     def blacklist_add(self, src, dst, duration=3600):
         """ Add blacklist entry to engine node by name
     
@@ -174,7 +174,7 @@ class Engine(object):
         :param src: source to blacklist, can be /32 or network cidr
         :param dst: dest to deny to, 0.0.0.0/32 indicates all destinations
         :param duration: how long to blacklist in seconds
-        :return: href, or None
+        :return: href for success, or None
         """
         bl = { "name": "",
               "duration": duration,
@@ -190,10 +190,9 @@ class Engine(object):
                              "address", 
                              "ip_network": dst }
               }
-        element = self._element('blacklist')
-        element.json = bl
-        return common_api.create(element)       
-    
+        return SMCElement(href=self.__load_href('blacklist'),
+                          json=bl).create()
+
     def blacklist_flush(self):
         """ Flush entire blacklist for node name
     
@@ -201,9 +200,8 @@ class Engine(object):
         :param name: name of node or cluster to remove blacklist
         :return: None, or message if failure
         """
-        element = self._element('flush_blacklist')
-        return common_api.delete(element) 
-    
+        return common_api.delete(self.__load_href('routing'))
+
     def alias_resolving(self):
         """ Alias definitions defined for this engine 
         Aliases can be used in rules to simplify multiple object creation
@@ -222,24 +220,23 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('routing_monitoring'))
     
-    def export(self, wait_for_finish=True, sleep_interval=3,
-               filename='export.xml'): 
+    def export(self, filename='export.xml'): 
         """ Generate export on engine. Once the export is complete, 
-        a result href is returned.  
+        a result href is returned. If wait_for_finish is True, this
+        will block until the export is complete and then will auto
+        fetch the filename and save to value specified in filename
         
         :mathod: POST
-        :param wait_for_finish: whether to wait for task to finish
-        :param sleep_interval: length of time between async messages
         :param filename: if set, the export will download the file. 
         :return: href of export
         """
-        element = self._element('export')
-        element.params = {'filter': self.name}
+        element = SMCElement(href=self.__load_href('export'),
+                             params={'filter': self.name}).create()
         #wait for the export to be complete, fetch result export by href
-        for msg in async_handler(element, display_msg=False):
+        for msg in common_api.async_handler(element.json.get('follower'), 
+                                            display_msg=False):
             element.href = msg
         if element.href:
-            element.stream = True
             element.filename = filename
         return common_api.fetch_content_as_file(element)
     
@@ -278,26 +275,13 @@ class Engine(object):
         return search.element_by_href_as_json(self.__load_href('snapshots'))
                
     def physical_interface(self):
-        """ Get only physical interfaces for this engine node. This will not include
-        tunnel interfaces or capture interfaces.
+        """ Get only physical interfaces for this engine node. Physical interface
+        types are Layer3, Layer2 Inline, and Capture interfaces.
        
         :method: GET
         :return: list of dict entries with href,name,type, or None
         """
         return search.element_by_href_as_json(self.__load_href('physical_interface')) 
-    
-    def physical_interface_add(self, ip, ip_network, int_id):
-        """ Add physical interface
-        
-        :param ip: ipaddress of interface
-        :param ip_network: network address in cidr
-        :param int_id: id of interface
-        :return: href of interface, or None
-        """
-        interface = l3_interface(ip, ip_network, int_id)
-        element = self._element('physical_interface')
-        element.json = interface.get('physical_interface')
-        return common_api.create(element)
     
     def physical_interface_del(self, name):
         """ Delete physical interface by name
@@ -311,24 +295,59 @@ class Engine(object):
                 for interface in self.interface()
                 if interface.get('name') == name]
         if href:
-            element = SMCElement.factory(href=href.pop())
-            return common_api.delete(element)
+            return common_api.delete(href.pop())
     
-    def inline_interface_add(self, int_id, 
-                             logical_int='default_eth'):
-        inline = inline_interface(interface_id=int_id,
-                                  logical_interface_ref=logical_int)
-        element = self._element('physical_interface')
-        element.json = inline.get('physical_interface')
-        return common_api.create(element)
-    
-    def capture_interface_add(self, int_id, logical_int):
-        capture = capture_interface(interface_id=int_id,
-                                    logical_interface_ref=logical_int)
-        element = self._element('physical_interface')
-        element.json = capture.get('physical_interface')
-        return common_api.create(element)
-          
+    def layer3_interface_add(self, address, network, interfaceid,
+                             nodeid=1, is_mgmt=False):
+        """ Add layer 3 physical interface
+        
+        :param ip: ipaddress of interface
+        :param ip_network: network address in cidr
+        :param interfaceid: id of interface
+        :param nodeid: id of node, only used in clusters
+        :type nodeid: int
+        :param is_mgmt: Whether to make this a management enabled int
+        :type is_mgmt: boolean
+        :return: SMCResult
+        """
+        intf = SingleNodeInterface(address, network, interfaceid, 
+                                   nodeid=nodeid, 
+                                   is_mgmt=is_mgmt).build()
+        return SMCElement(href=self.__load_href('physical_interface'), 
+                          json=intf.json.get('physical_interface')).create()
+        
+    def inline_interface_add(self, interfaceid,
+                             logical_interface_ref='default_eth',
+                             nodeid=1):
+        """ Add layer 2 inline interface 
+        
+        :param interfaceid: interface ID of the inline pair, i.e. '1-2', '5-6', etc
+        :param logical_interface_ref: reference to logical interface
+        :param nodeid: node id of interface, only used in clusters
+        :type nodeid: int
+        """
+        intf = InlineInterface(interfaceid,
+                               logical_interface_ref,
+                               nodeid).build()
+        return SMCElement(href=self.__load_href('physical_interface'), 
+                          json=intf.json.get('physical_interface')).create()
+
+    def capture_interface_add(self, interfaceid, 
+                              logical_interface_ref, 
+                              nodeid=1):
+        """ Add capture interface to layer2 firewall or IPS engine
+        
+        :param interfaceid: interface id for capture int
+        :param logical_interface_ref: reference to logical interface
+        :param nodeid: node id of interface, only used in clusters
+        :type nodeid: int
+        """
+        intf = CaptureInterface(interfaceid,
+                                logical_interface_ref,
+                                nodeid).build()
+        return SMCElement(href=self.__load_href('physical_interface'),
+                          json=intf.json.get('physical_interface')).create()
+  
     def tunnel_interface(self):
         """ Get only tunnel interfaces for this engine node.
         
@@ -376,17 +395,6 @@ class Engine(object):
         if href:
             return href.pop()
     
-    def _element(self, link):
-        """ 
-        Simple factory to return SMCElement for policy 
-        based events such as 'save', 'open', 'export' and 'force_unlock'       
-        :param link: entry point based on the link name
-        :return: SMCElement
-        """
-        link_href = self.__load_href(link)    
-        return SMCElement.factory(name=link, 
-                                  href=link_href)
-       
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
 
@@ -453,9 +461,10 @@ class Node(Engine):
         
     def initial_contact(self, node=None, enable_ssh=True,
                         time_zone=None, keyboard=None, 
-                        install_on_server=None):
+                        install_on_server=None, filename=None):
         """ Allows to save the initial contact for for the specified node
         
+        :method: POST
         :param node: node to run initial contact command against
         :param enable_ssh: flag to know if we allow the ssh daemon on the specified node
         :param time_zone: optional time zone to set on the specified node 
@@ -463,14 +472,19 @@ class Node(Engine):
         :param install_on_server: optional flag to know if the generated configuration 
         needs to be installed on SMC Install server (POS is needed)
         """
-        print "POST initial contact: %s" % self._load_href('initial_contact')
-        element = SMCElement.factory()
-        element.href = self._load_href('initial_contact').pop()
-        element.params = {'enable_ssh': True}
-        print "Element type for initial contact: %s" % type(element)
-        print "Element by just print: %s" % element
-        print common_api.create(element)
-        #print "POST initial contact: %s" % self.__load_href('initial_contact')
+        element = SMCElement(href=self._load_href('initial_contact').pop(),
+                             params = {'enable_ssh': True}).create()
+        if element.content:
+            if filename:
+                import os.path
+                path = os.path.abspath(filename)
+                try:
+                    with open(path, "w") as text_file:
+                        text_file.write("{}".format(element.content))
+                except IOError, io:
+                    print "Error occurred saving initial contact info: %s" % io
+            else:
+                return element.content
         
     def appliance_status(self, node=None):
         """ Gets the appliance status for the specified node 
@@ -581,8 +595,12 @@ class Node(Engine):
         print "POST send diagnostic: %s" % self._load_href('send_diagnostic')
         
     def reboot(self, node=None, comment=None):
-        """ Reboots the specified node """
-        params = {'comment': comment} if comment else None
+        """ Reboots the specified node 
+        
+        :param node: name of node, or omit if single device
+        :return: result.msg is None for success
+        """
+        params = {'comment': comment}
         return self._commit_update('reboot', node, params=params)
         
     def sginfo(self, node=None, include_core_files=False,
@@ -593,6 +611,8 @@ class Node(Engine):
         :param include_core_files: flag to include or not core files
         :param include_slapcat_output: flag to include or not slapcat output
         """
+        params = {'include_core_files': include_core_files,
+                  'include_slapcat_output': include_slapcat_output}
         print "GET sginfo: %s" % self._load_href('sginfo')
         
     def ssh(self, node=None, enable=True, comment=None):
@@ -602,8 +622,6 @@ class Node(Engine):
         :param enable: enable or disable SSH daemon
         :type enable: boolean
         :param comment: optional comment for audit
-        ?enable=
-        ?comment=
         """
         params = {'enable': enable, 'comment': comment}
         return self._commit_update('ssh', node, params=params)
@@ -635,18 +653,16 @@ class Node(Engine):
     def _commit_create(self, action, node, params=None):
         href = self._load_href(action, node)
         if href:
-            element = SMCElement.factory(href=href.pop(),
-                                         params=params)
-            return common_api.create(element)
+            return SMCElement(href=href.pop(),
+                              params=params).create()
                                                     
     def _commit_update(self, action, node, json=None, params=None):
         href = self._load_href(action, node)
         if href:
-            element = SMCElement.factory(href=href.pop(),
-                                         json=json,
-                                         params=params,
-                                         etag=self.etag)
-            return common_api.update(element)
+            return SMCElement(href=href.pop(),
+                              json=json,
+                              params=params,
+                              etag=self.etag).update()
                    
     def _load_href(self, action, node=None):
         """ Get href from self.node_links cache based on the node name. 
@@ -711,12 +727,16 @@ class Layer3Firewall(Node):
                 cls.domain_server_address.append(entry)
         
         super(Layer3Firewall, cls).create()
-        mgmt = l3_mgmt_interface(mgmt_ip, mgmt_network, 
-                                 interface_id=mgmt_interface)
+        mgmt = SingleNodeInterface(mgmt_ip, mgmt_network,
+                                   interfaceid=mgmt_interface,
+                                   is_mgmt=True).build()
         cls.engine_json.get('physicalInterfaces').append(mgmt.json)
         cls.href = search.element_entry_point('single_fw')
-        return cls #json    
-    
+        result = SMCElement(href=cls.href, json=cls.engine_json).create()
+        if result.href:
+            #got referring object location, load and return
+            return Layer3Firewall(cls.name).load()
+
 
 class Layer2Firewall(Node):
     """
@@ -763,17 +783,16 @@ class Layer2Firewall(Node):
                 cls.domain_server_address.append(entry)
         
         super(Layer2Firewall, cls).create()
-        mgmt = l2_mgmt_interface(mgmt_ip, mgmt_network, 
-                                 interface_id=mgmt_interface)
-        
+        mgmt = NodeInterface(mgmt_ip, mgmt_network, 
+                             interfaceid=mgmt_interface,
+                             is_mgmt=True).build()  
         intf_href = search.get_logical_interface(logical_interface)
-        inline = inline_intf(intf_href, interface_id=inline_interface)
+        inline = InlineInterface(inline_interface, intf_href).build()
     
         cls.engine_json.get('physicalInterfaces').append(mgmt.json)
         cls.engine_json.get('physicalInterfaces').append(inline.json)
         cls.href = search.element_entry_point('single_layer2')
-        return cls
-        
+        return SMCElement(href=cls.href, json=cls.engine_json).create()
 
 class IPS(Node):
     """
@@ -819,23 +838,26 @@ class IPS(Node):
             for entry in dns:
                 cls.domain_server_address.append(entry)
                        
-        super(IPS, cls).create()
-        mgmt = l2_mgmt_interface(mgmt_ip, mgmt_network, 
-                                interface_id=mgmt_interface)
+        super(IPS, cls).create()      
+        mgmt = NodeInterface(mgmt_ip, mgmt_network, 
+                             interfaceid=mgmt_interface,
+                             is_mgmt=True).build()
             
         intf_href = search.get_logical_interface(logical_interface)
-        inline = inline_intf(intf_href, interface_id=inline_interface)
+        inline = InlineInterface(inline_interface, intf_href).build()
         
         cls.engine_json.get('physicalInterfaces').append(mgmt.json)
         cls.engine_json.get('physicalInterfaces').append(inline.json)
         cls.href = search.element_entry_point('single_ips')
-        return cls
+        return SMCElement(href=cls.href, json=cls.engine_json).create()
 
+'''
 def async_handler(element, wait_for_finish=True, 
                   sleep_interval=3, 
                   display_msg=True):
     """ Handles asynchronous operations called on engine or node levels
     
+    :method: POST
     :param element: The element to be sent to SMC
     :param wait_for_finish: whether to wait for it to finish or not
     :param display_msg: whether to return display messages or not
@@ -851,6 +873,7 @@ def async_handler(element, wait_for_finish=True,
     import time
     upload = common_api.create(element)
     if upload.json:
+        print "upload href: %s" % upload.json
         if wait_for_finish:
             last_msg = ''
             while True:
@@ -869,3 +892,4 @@ def async_handler(element, wait_for_finish=True,
                 time.sleep(sleep_interval)
         else:
             yield upload.json.get('follower')
+'''

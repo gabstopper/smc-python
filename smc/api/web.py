@@ -3,6 +3,7 @@ Created on May 9, 2016
 
 @author: davidlepage
 '''
+import os.path
 import shutil
 import requests
 import json
@@ -170,11 +171,13 @@ class SMCAPIConnection(SMCEntryCache):
                                          stream=True)
                     if r.status_code == 200:
                         try:
-                            with open(filename, 'wb') as f:
+                            path = os.path.abspath(filename)
+                            logger.debug("Operation: %s, saving to file: %s", href, path)
+                            with open(path, 'wb') as f:
                                 r.raw.decode_content = True
                                 shutil.copyfileobj(r.raw, f)
-                                return href
-                        except IOError: #TODO: handle
+                                return href #TODO: Need this?
+                        except IOError:
                             raise
                     return SMCResult(r)
                 r = self.session.get(href, params=params, timeout=50)               
@@ -182,8 +185,7 @@ class SMCAPIConnection(SMCEntryCache):
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
                 elif r.status_code == 401:
-                    #unauthorized, session timed out
-                    self.refresh() 
+                    self.refresh() #session timed out
                     return self.http_get(href)
                 else:
                     logger.error("HTTP get returned non-http 200 code [%s] "
@@ -205,7 +207,7 @@ class SMCAPIConnection(SMCEntryCache):
         :param href: entry point to add specific object type
         :param data: json document with object def
         :param uri (optional): not implemented
-        :return href of the resource pulled from returned location header
+        :return SMCResult
         :raise SMCOperationFailure in case of non-http 201 return
         """
         try:
@@ -217,10 +219,9 @@ class SMCAPIConnection(SMCEntryCache):
                             )
                 if r.status_code == 200 or r.status_code == 201:
                     print "POST content: %s from href: %s, data: %s" % (r.content,href,data)
-                    return SMCResult(r)
                     logger.debug("Success, returning link for new element: %s", \
                                  r.headers.get('location'))
-                    return r.headers.get('location')
+                    return SMCResult(r)
                 elif r.status_code == 202:
                     #in progress
                     logger.debug("Asynchronous response received, monitor progress at link: %s", r.content)
@@ -244,7 +245,7 @@ class SMCAPIConnection(SMCEntryCache):
         :param href: href of resource location
         :param data: json encoded document
         :param etag: required by SMC, retrieve first via http get
-        :return href of the resource pulled from returned location header
+        :return SMCResult
         :raise SMCOperationFailure in case of non-http 200 return
         """
         try:
@@ -255,9 +256,9 @@ class SMCAPIConnection(SMCEntryCache):
                     headers={'content-type': 'application/json', 'Etag': etag}
                     )
                 if r.status_code == 200:
-                    logger.debug("Successful modification, new host href: %s", \
-                                  r.headers['location'])
-                    return r.headers.get('location') #TODO: Return these as an SMCResult
+                    logger.debug("Successful modification, headers returned: %s", \
+                                  r.headers)
+                    return SMCResult(r)
                 elif r.status_code == 401:
                     self.refresh()
                     return self.http_put(href, data, etag)
@@ -275,14 +276,13 @@ class SMCAPIConnection(SMCEntryCache):
         """
         Delete element by fully qualified href
         :param href: fully qualified reference to object in SMC
-        :return None
-        :raise SMCOperationFailure for non-http 204 code
+        :return SMCResult: All result SMCResult fields will be None
+        :raise SMCOperationFailure for non-http 204 code, msg attribute will have error
         """
         try:
             if self.session:
                 r = self.session.delete(href)
                 if r.status_code == 204:
-                    #pass
                     return SMCResult(r)
                 elif r.status_code == 401:
                     self.refresh()
@@ -335,8 +335,7 @@ class SMCResult(object):
                 return self.json
             elif response.headers.get('content-type') == 'application/octet-stream':
                 self.content = response.text
-        #else:
-        #    print "No response recevied!"
+
     def __str__(self):
         sb = []
         for key in self.__dict__:
@@ -380,7 +379,6 @@ class SMCOperationFailure(SMCException):
             self.status = data.get('status', None)
             self.message = data.get('message', None)
             details = data.get('details', None)
-            print "details: %s" % details
             if isinstance(details, list):
                 self.details = ' '.join(details)
             else:
