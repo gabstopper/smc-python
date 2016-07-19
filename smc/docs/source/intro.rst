@@ -7,7 +7,8 @@ to integrate automated functionality.
 
 A good place to start is the Installation and Getting Started section of the help docs.
 
-Tested with Stonesoft Mangaement Center 5.10, 6.0.1
+Tested with Stonesoft Mangaement Center 5.10, 6.x
+
 Python 2.7
 
 

@@ -380,19 +380,23 @@ if __name__ == '__main__':
     import time
     start_time = time.time()
     
-    smc.remove.element('henbo')
-    """@type fw: Layer3Firewall"""
-    fw = Layer3Firewall.create('henbo', '2.2.2.2', '2.2.2.2/16', mgmt_interface=5, dns=['172.18.1.20'])
-    if fw:
-        print "Fw returned of type: %s" % type(fw)
-        pprint(fw)
-        print fw.initial_contact()
-        
+    import smc.elements.policy
+    """@type policy: FirewallPolicy"""
+    policy = smc.elements.policy.FirewallPolicy('api-test-policy').load()
+    print policy.ipv4_rule.create('erika5 rule', ['172.18.1.93', 'test'], ['172.18.1.92'], ['icmp', 'tcp'], 'allow')
+    
+    #smc.remove.element('henbo')
+    #engine = Node('testlayer2').load()
+    #result = engine.initial_contact(filename='/Users/davidlepage/engine.cfg')
+    #if result.msg:
+    #    print "Failed saving to file: %s" % result.msg
+    #print "Content: %s" % result.content
     
     """@type engine: Node"""
-    
-    #engine = Node('sg_vm').load()
-    #print engine.reboot(node='ngf-1035')
+    #engine = Node('tooter').load()
+    #print "Here: %s" % engine.export(filename='myfile')
+    #engine.initial_contact(filename='engine.cfg')
+    #engine.sginfo()
     #Engine level
     
     #engine.node()

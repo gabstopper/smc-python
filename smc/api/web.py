@@ -170,17 +170,17 @@ class SMCAPIConnection(SMCEntryCache):
                     r = self.session.get(href, params=params, 
                                          stream=True)
                     if r.status_code == 200:
+                        print "Content length: %s"  % (len(r.content))
                         try:
                             path = os.path.abspath(filename)
                             logger.debug("Operation: %s, saving to file: %s", href, path)
-                            with open(path, 'wb') as f:
-                                r.raw.decode_content = True
-                                shutil.copyfileobj(r.raw, f)
-                                return href #TODO: Need this?
+                            with open(path, "wb") as handle:
+                                for data in r.iter_content():
+                                    handle.write(data)
                         except IOError:
                             raise
                     return SMCResult(r)
-                r = self.session.get(href, params=params, timeout=50)               
+                r = self.session.get(href, params=params, timeout=15)               
                 if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
@@ -218,7 +218,6 @@ class SMCAPIConnection(SMCEntryCache):
                             params=params
                             )
                 if r.status_code == 200 or r.status_code == 201:
-                    print "POST content: %s from href: %s, data: %s" % (r.content,href,data)
                     logger.debug("Success, returning link for new element: %s", \
                                  r.headers.get('location'))
                     return SMCResult(r)

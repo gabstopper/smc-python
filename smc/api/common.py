@@ -18,7 +18,11 @@ def create(element):
     Create element on SMC
     
     :method: POST
-    :param element: SMCElement
+    Element must have the following attributes:
+    
+    :param href: href of resource location
+    :param json: json of profile to upload
+    :param params: optional uri params
     :return: SMCResult
     """
     if element:
@@ -44,7 +48,12 @@ def update(element):
     Update element on SMC
     
     :method: PUT
-    :param element: SMCElement
+    Element must have the following attributes:
+    
+    :param href: href of location of resource
+    :param json: modified json data to update
+    :param etag: etag for resource
+    :param params: additional URI parameters, optional
     :return: SMCResult
     """
     if element:
@@ -88,6 +97,27 @@ def delete(href):
             logger.debug(result)
             return result
 
+def fetch_content_as_file(element, stream=True):
+    """ Used for fetching data from the SMC. 
+    Element must have the following attributes:
+    
+    :method: GET
+    :param href: href of SMC link to retrieve the file content
+    :param filename: name of filename to save locally
+    :return: None, downloaded file to specified location
+    """
+    try:
+        result = web_api.session.http_get(element.href,  
+                                          filename=element.filename,
+                                          stream=stream)
+        print "result: %s" % result #TODO: Return info for downloads
+    except IOError, ioe:
+        logger.error("IO Error received with msg: %s" % ioe)
+    except SMCOperationFailure, e:
+        logger.error(e)
+    except SMCConnectionError, e:
+        raise
+
 def fetch_entry_point(name):
     """ 
     Get the entry point href based on the input name
@@ -109,22 +139,6 @@ def fetch_entry_point(name):
     except SMCConnectionError, e:
         raise
 
-def fetch_content_as_file(element, stream=True):
-    logger.debug("Fetching content as file download to file: %s" % element.filename)
-    try:
-        print "Fetching...>"
-        result = web_api.session.http_get(element.href,  
-                                          filename=element.filename,
-                                          stream=stream)
-        print "result: %s" % result #TODO: Return info for downloads
-    except IOError, ioe:
-        print "IO Error occured: %s" % ioe
-        logger.error("IO Error received with msg: %s" % ioe)
-    except SMCOperationFailure, e:
-        print "op error: %s" % e
-    except SMCConnectionError, e:
-        print "conn err: %s" % e
-
 def fetch_href_by_name(name, 
                        filter_context=None, 
                        exact_match=True,
@@ -132,7 +146,9 @@ def fetch_href_by_name(name,
     """
     :method: GET
     :param name: element name
-    :param use_name_field: match on element name field in SMC
+    :param filter_context: further filter request, i.e. 'host', 'group', 'single_fw'
+    :param exact_match: Do an exact match by name, note this still can return multiple entries
+    :param domain: specify domain in which to query
     :return SMCResult
     """
     if name:
@@ -212,16 +228,14 @@ def fetch_json_by_href(href):
             return result
 
 
-def async_handler(follower_href, wait_for_finish=True, 
-                  sleep_interval=3, 
+def async_handler(follower_href, wait_for_finish=True,  
                   display_msg=True):
     """ Handles asynchronous operations called on engine or node levels
     
     :method: POST
-    :param element: The element to be sent to SMC
+    :param follower_href: The follower href to monitor for this task
     :param wait_for_finish: whether to wait for it to finish or not
     :param display_msg: whether to return display messages or not
-    :param sleep_interval: how long to wait between async checks
     
     If wait_for_finish is False, the generator will yield the follower 
     href only. If true, will return messages as they arrive and location 
@@ -230,7 +244,6 @@ def async_handler(follower_href, wait_for_finish=True,
         for msg in engine.export():
             print msg
     """
-    import time
     if wait_for_finish:
         last_msg = ''
         while True:
@@ -239,13 +252,11 @@ def async_handler(follower_href, wait_for_finish=True,
             if display_msg:
                 if msg != last_msg:
                     yield re.sub(clean_html,'', msg)
-                    #yield msg
                     last_msg = msg
             if status.get('success') == True:
                 for link in status.get('link'):
                     if link.get('rel') == 'result':
                         yield link.get('href')
                 break
-            time.sleep(sleep_interval)
     else:
         yield follower_href

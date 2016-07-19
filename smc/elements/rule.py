@@ -65,24 +65,36 @@ class IPv4Rule(Rule):
      
     :attributes:
     
-    :ip4_rules: list of existing rules, this holds a list of references for each
+        :ip4_rules: list of existing rules, this holds a list of references for each
         rule, content looks like:
-        [{u'href': u'http://172.18.1.150:8082/6.0/elements/fw_policy/226/fw_ipv4_access_rule/2098650', 
-        u'type': u'fw_ipv4_access_rule', 
-        u'name': u'api rule'}] 
+        [{'href': u'http://172.18.1.150:8082/6.0/elements/fw_policy/226/fw_ipv4_access_rule/2098650', 
+          'type': u'fw_ipv4_access_rule', 
+          'name': u'api rule'}] 
         
         Use refresh() to re-retrieve a current list of rules, especially if
         operations need to be performed after adding or removing rules
         
-    :actions: action options for ipv4 rules    
+        :actions: action options for ipv4 rules    
     """
     def __init__(self):
         Rule.__init__(self)
         self.ipv4_rules = [] #: List reference of existing rules
         self.actions = ['allow', 'continue', 'discard', 'refuse', 'use_vpn'] 
       
-    def create(self, name, source, destination, service, action, 
+    def create(self, name, sources, destinations, services, action, 
                is_disabled=False):
+        """ Create a new rule
+        
+        :param name: name of rule
+        :param source: source/s for rule, names will be looked up to find href
+        :type source: list
+        :param destination: destinations, names will be looked up to find href
+        :type destination: list
+        :param service: service/s, names will be looked up to find href
+        :type service: list
+        :param action: actions, see self.actions
+        :return: SMCResult, if success, href attr will include new href to rule
+        """
         rule_values = { 
                 'name': name,
                 'action': { "action": '', "connection_tracking_options":{}},
@@ -90,46 +102,37 @@ class IPv4Rule(Rule):
                 'destinations': {'dst': []},
                 'services': {'service': []},
                 'is_disabled': is_disabled }
+        
         rule_values['action']['action'] = action if action in self.actions else '' #continue action
-       
-        if destination == 'any':
-            rule_values['destinations'] = self.any
-        else:
-            dst = self.rule_element(destination)
-            if dst:
-                rule_values['destinations']['dst'].append(dst)
+        
+        for source in sources:
+            if source.lower() == 'any':
+                rule_values['sources'] = self.any
             else:
-                rule_values['destinations'] = self.none
-            
-        if source == 'any':
-            rule_values['sources'] = self.any
-        else:
-            src = self.rule_element(source)
-            if src:
-                rule_values['sources']['src'].append(src)
+                href = self.rule_element(source)
+                if href:
+                    rule_values['sources']['src'].append(href)
+        
+        for destination in destinations:
+            if destination.lower() == 'any':
+                rule_values['destinations'] = self.any
             else:
-                rule_values['sources'] = self.none
-                
-        if service == 'any':
-            rule_values['services'] = self.any
-        else:
-            svc = self.rule_element(service)
-            if svc:
-                rule_values['services']['service'].append(svc)
+                href = self.rule_element(destination)
+                if href:
+                    rule_values['destinations']['dst'].append(href)
+        
+        for service in services:
+            if service.lower() == 'any':
+                rule_values['services'] = self.any
             else:
-                rule_values['services'] = self.none
-      
-        element = SMCElement.factory(json=rule_values, 
-                                     href=self.href)
+                href = self.rule_element(service)
+                if href:
+                    rule_values['services']['service'].append(href)
+                    
+        element = SMCElement(json=rule_values, 
+                             href=self.href)
        
         return super(IPv4Rule, self).create(element)
-     
-    def modify(self, existing_rule):
-        """ Modify existing rule
-        
-        :param existing_rule: full json of existing rule 
-        """
-        pass
         
     def delete(self, name):
         """ Delete ipv4 rule based on the name of the rule
@@ -144,7 +147,7 @@ class IPv4Rule(Rule):
         self.refresh()
         for rule in self.ipv4_rules:
             if rule.get('name') == name:
-                element = SMCElement.factory(href=rule.get('href'))
+                element = SMCElement(href=rule.get('href'))
                 self.ipv4_rules.remove(rule)
                 return super(IPv4Rule, self).delete(element)
 

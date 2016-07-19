@@ -85,7 +85,7 @@ class Engine(object):
         cls.engine_json = engine
         return cls
     
-    def refresh(self, wait_for_finish=True, sleep_interval=3):
+    def refresh(self, wait_for_finish=True):
         """ Refresh existing policy on specified device. This is an asynchronous 
         call that will return a 'follower' link that can be queried to determine 
         the status of the task. 
@@ -94,14 +94,14 @@ class Engine(object):
         
         :method: POST
         :param wait_for_finish: whether to wait in a loop until the upload completes
-        :param sleep_interval: length of time to sleep between progress checks (secs)
-        :return: follower href if wait_for_finish=False, else result href on last yield
+        :return: generator yielding updates on progress. Last yield is result href;
+        if wait_for_finish=False, the only yield is the follower href
         """
         element = SMCElement(href=self.__load_href('refresh')).create()
         return common_api.async_handler(element.json.get('follower'), 
-                                        wait_for_finish, sleep_interval)
+                                        wait_for_finish)
     
-    def upload(self, policy=None, wait_for_finish=True, sleep_interval=3):
+    def upload(self, policy=None, wait_for_finish=True):
         """ Upload policy to existing engine. If no policy is specified, and the engine
         has already had a policy installed, this policy will be re-uploaded. 
         
@@ -110,7 +110,7 @@ class Engine(object):
         
         :param policy: name of policy to upload to engine
         :param wait_for_finish: whether to wait for async responses
-        :param sleep_interval: how long to wait between async responses
+        :return: generator yielding updates on progress
         """
         if not policy: #if policy not specified SMC seems to apply some random policy: bug?
             node = self.node_names()[0] if self.node_names else []
@@ -119,7 +119,7 @@ class Engine(object):
         element = SMCElement(href=self.__load_href('upload'),
                              params={'filter': policy}).create()
         return common_api.async_handler(element.json.get('follower'), 
-                                        wait_for_finish, sleep_interval)
+                                        wait_for_finish)
     
     def node(self):
         """ Return node/s references for this engine. For a cluster this will
@@ -236,8 +236,7 @@ class Engine(object):
         for msg in common_api.async_handler(element.json.get('follower'), 
                                             display_msg=False):
             element.href = msg
-        if element.href:
-            element.filename = filename
+        element.filename = filename
         return common_api.fetch_content_as_file(element)
     
     def internal_gateway(self):
@@ -471,20 +470,22 @@ class Node(Engine):
         :param keyboard: optional keyboard to set on the specified node
         :param install_on_server: optional flag to know if the generated configuration 
         needs to be installed on SMC Install server (POS is needed)
+        :param filename: filename to save initial_contact to. If this fails due to IOError,
+        SMCResult.content will still have the contact data
+        :return: SMCResult, with content attribute set to initial contact info
         """
-        element = SMCElement(href=self._load_href('initial_contact').pop(),
+        result = SMCElement(href=self._load_href('initial_contact').pop(),
                              params = {'enable_ssh': True}).create()
-        if element.content:
+        if result.content:
             if filename:
                 import os.path
                 path = os.path.abspath(filename)
                 try:
                     with open(path, "w") as text_file:
-                        text_file.write("{}".format(element.content))
+                        text_file.write("{}".format(result.content))
                 except IOError, io:
-                    print "Error occurred saving initial contact info: %s" % io
-            else:
-                return element.content
+                    result.msg = "Error occurred saving initial contact info: %s" % io    
+        return result
         
     def appliance_status(self, node=None):
         """ Gets the appliance status for the specified node 
@@ -527,7 +528,7 @@ class Node(Engine):
         :method: PUT
         :param node: if a cluster, provide the specific node name
         :param comment: optional comment to audit
-        :return: href, or None
+        :return: SMCResult for success, or None
         """
         params = {'comment': comment}
         return self._commit_update('go_offline', node, params=params)
@@ -539,7 +540,7 @@ class Node(Engine):
         :method: PUT
         :param node: if a cluster, provide the specific node name
         :param comment: optional comment to audit
-        :return: href, or None
+        :return: SMCResult for success, or None
         """
         params = {'comment': comment}
         return self._commit_update('go_standby', node, params=params)
@@ -549,7 +550,7 @@ class Node(Engine):
         
         :method: PUT
         :param node: if a cluster, provide the specific node name
-        :return: href, or None
+        :return: SMCResult for success, or None
         """
         params = {'comment': comment}
         return self._commit_update('lock_online', node, params=params)
@@ -560,7 +561,7 @@ class Node(Engine):
         
         :method: PUT
         :param node: if a cluster, provide the specific node name
-        :return: href or None if failure
+        :return: SMCResult for success, or None
         """
         params = {'comment': comment}
         return self._commit_update('lock_offline', node, params=params)
@@ -573,6 +574,7 @@ class Node(Engine):
         :method: PUT
         :param node: if a cluster, provide the specific node name
         :param comment: optional comment to audit
+        :return: SMCResult for success, or None
         """
         params = {'comment': comment}
         return self._commit_update('reset_user_db', node, params=params)
@@ -598,7 +600,7 @@ class Node(Engine):
         """ Reboots the specified node 
         
         :param node: name of node, or omit if single device
-        :return: result.msg is None for success
+        :return: SMCResult, result.msg is None for success
         """
         params = {'comment': comment}
         return self._commit_update('reboot', node, params=params)
@@ -613,8 +615,13 @@ class Node(Engine):
         """
         params = {'include_core_files': include_core_files,
                   'include_slapcat_output': include_slapcat_output}
-        print "GET sginfo: %s" % self._load_href('sginfo')
+        print "GET sginfo: %s" % self._load_href('sginfo', node)
         
+        element = SMCElement(href=self._load_href('sginfo', node).pop(),
+                          params=params, filename='sginfo-ngf-1035')
+        
+        print common_api.fetch_content_as_file(element)
+
     def ssh(self, node=None, enable=True, comment=None):
         """ Enable or disable SSH
         
@@ -640,6 +647,10 @@ class Node(Engine):
                                    params=params)
         
     def time_sync(self, node=None):
+        """ Time synchronize node
+
+        :return: SMCResult, json attribute set to {value:[]}
+        """
         return self._commit_update('time_sync', node)
       
     def certificate_info(self, node=None):
@@ -736,6 +747,8 @@ class Layer3Firewall(Node):
         if result.href:
             #got referring object location, load and return
             return Layer3Firewall(cls.name).load()
+        #else:
+        #    return result
 
 
 class Layer2Firewall(Node):
@@ -792,7 +805,10 @@ class Layer2Firewall(Node):
         cls.engine_json.get('physicalInterfaces').append(mgmt.json)
         cls.engine_json.get('physicalInterfaces').append(inline.json)
         cls.href = search.element_entry_point('single_layer2')
-        return SMCElement(href=cls.href, json=cls.engine_json).create()
+        result = SMCElement(href=cls.href, json=cls.engine_json).create()
+        if result.href:
+            #got referring object location, load and return
+            return Layer2Firewall(cls.name).load()
 
 class IPS(Node):
     """
@@ -849,47 +865,7 @@ class IPS(Node):
         cls.engine_json.get('physicalInterfaces').append(mgmt.json)
         cls.engine_json.get('physicalInterfaces').append(inline.json)
         cls.href = search.element_entry_point('single_ips')
-        return SMCElement(href=cls.href, json=cls.engine_json).create()
-
-'''
-def async_handler(element, wait_for_finish=True, 
-                  sleep_interval=3, 
-                  display_msg=True):
-    """ Handles asynchronous operations called on engine or node levels
-    
-    :method: POST
-    :param element: The element to be sent to SMC
-    :param wait_for_finish: whether to wait for it to finish or not
-    :param display_msg: whether to return display messages or not
-    :param sleep_interval: how long to wait between async checks
-    
-    If wait_for_finish is False, the generator will yield the follower 
-    href only. If true, will return messages as they arrive and location 
-    to the result after complete.
-    To obtain messages as they arrive, call the async method in a for loop::
-        for msg in engine.export():
-            print msg
-    """
-    import time
-    upload = common_api.create(element)
-    if upload.json:
-        print "upload href: %s" % upload.json
-        if wait_for_finish:
-            last_msg = ''
-            while True:
-                status = search.element_by_href_as_json(upload.json.get('follower'))
-                msg = status.get('last_message')
-                if display_msg:
-                    if msg != last_msg:
-                        #yield re.sub(cleanr,'', msg)
-                        yield msg
-                        last_msg = msg
-                if status.get('success') == True:
-                    for link in status.get('link'):
-                        if link.get('rel') == 'result':
-                            yield link.get('href')
-                    break
-                time.sleep(sleep_interval)
-        else:
-            yield upload.json.get('follower')
-'''
+        result = SMCElement(href=cls.href, json=cls.engine_json).create()
+        if result.href:
+            #got referring object location, load and return
+            return IPS(cls.name).load()

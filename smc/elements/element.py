@@ -17,7 +17,7 @@ import smc.api.common
 class SMCElement(object):
     """ 
     SMCElement represents the data structure for sending data to
-    the SMC API. When calling :mod:`smc.api.common` mwthods for 
+    the SMC API. When calling :mod:`smc.api.common` methods for 
     create, update or delete, this is the required object type.
     
     Common parameters that are needed are stored in this base class

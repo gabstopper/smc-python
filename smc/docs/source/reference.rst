@@ -190,7 +190,7 @@ Session
 -------
 
 .. automodule:: smc.api.web
-    :members: SMCConnectionError, SMCException
+    :members: SMCConnectionError, SMCException, SMCResult
     :undoc-members:
     :show-inheritance:
 

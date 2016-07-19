@@ -79,9 +79,12 @@ class Policy(object):
             policy_cfg = search.element_by_href_as_json(base_policy.get('href'))
             if policy_cfg:
                 self.policy_type = base_policy.get('type')
-                self.file_filtering_policy = policy_cfg.get('file_filtering_policy')
-                self.inspection_policy = policy_cfg.get('inspection_policy')
-                self.policy_template = policy_cfg.get('template')
+                self.file_filtering_policy = \
+                    search.element_by_href_as_json(policy_cfg.get('file_filtering_policy'))
+                self.inspection_policy = \
+                    search.element_by_href_as_json(policy_cfg.get('inspection_policy'))
+                self.policy_template = \
+                    search.element_by_href_as_json(policy_cfg.get('template'))
                 self.links.extend(policy_cfg.get('link'))
         else:
             raise SMCException("Policy does not exist: %s" % self.name)
@@ -108,7 +111,7 @@ class Policy(object):
         pass
                              
     def upload(self, device, 
-               wait_for_finish=True, sleep_interval=3):
+               wait_for_finish=True):
         """ 
         Upload policy to specific device. This is an asynchronous call
         that will return a 'follower' link that can be queried to determine 
@@ -122,27 +125,15 @@ class Policy(object):
         :method: POST
         :param device: name of device to upload policy to
         :param wait_for_finish: whether to wait in a loop until the upload completes
-        :param sleep_interval: length of time to sleep between progress checks (secs)
-        :return: follower href is wait_for_finish=False
+        :return: follower href is wait_for_finish=False, else yields update messages
         """
-        import time
-        element = self._element('upload')
-        element.params = {'filter': device}
-        upload = self._commit_create(element)
-        if upload.json:
-            if wait_for_finish:
-                last_msg = ''
-                while True:
-                    status = search.element_by_href_as_json(upload.json.get('follower'))
-                    msg = status.get('last_message')
-                    if msg != last_msg:
-                        yield re.sub(cleanr,'', msg)
-                        last_msg = msg
-                    if status.get('success') == True:
-                        break
-                    time.sleep(sleep_interval)
-            else:
-                yield upload.json.get('follower')
+        element = SMCElement(href=self._load_href('upload'),
+                             params={'filter': device}).create()
+        if not element.msg:
+            return smc.api.common.async_handler(element.json.get('follower'), 
+                                                wait_for_finish=wait_for_finish)
+        else: 
+            return [element]
 
     def open(self):
         """ 
@@ -151,32 +142,51 @@ class Policy(object):
         generally can be done without locking via open.
         
         :method: GET
+        :return: SMCResult, href set to location if success, msg attr set if fail
         """
-        self._commit_create(self._element('open'))
+        return SMCElement(href=self._load_href('open')).create()
     
     def save(self):
         """ Save policy that was modified 
         
         :method: POST
+        :return: SMCResult, href set to location if success, msg attr set if fail
         """
-        self._commit_create(self._element('save'))
+        return SMCElement(href=self._load_href('save')).create()
         
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
         
         :method: POST
+        :return: SMCResult, success unless msg attr set
         """
-        self._commit_create(self._element('force_unlock'))
+        return SMCElement(href=self._load_href('force_unlock')).create()
 
-    def export(self):
-        self._commit_create(self._element('export'))
+    def export(self, wait_for_finish=True, filename=None):
+        """ Export the policy
+        
+        :method: POST
+        :param wait_for_finish: wait for the async process to finish or not
+        :param filename: specifying the filename indicates export should be downloaded
+        :return: None if success and file downloaded indicated. SMCResult with msg attr
+        set upon failure
+        """
+        element = SMCElement(href=self._load_href('export')).create()
+        if not element.msg:
+            if filename: #download the file too
+                for msg in smc.api.common.async_handler(element.json.get('follower'), 
+                                                        display_msg=False):
+                    element.href = msg
+                element.filename=filename
+                return smc.api.common.fetch_content_as_file(element)
+            else: #just return the result
+                return smc.api.common.async_handler(element.json.get('follower'), 
+                                                    wait_for_finish=wait_for_finish)
+        else: 
+            return [element]
                 
     def search_rule(self, parameter):
         pass
-    
-    def _commit_create(self, element):
-        """ Submit command to SMC, i.e. open, save, export, etc """
-        return smc.api.common.create(element)
     
     def _load_href(self, rule_type):
         """ 
@@ -192,21 +202,16 @@ class Policy(object):
                 if entry.get('rel') == rule_type]      
         if rule:
             return rule.pop()
-    
-    def _element(self, link):
-        """ 
-        Simple iterator factory to return SMCElement for policy 
-        based events such as 'save', 'open', 'export' and 'force_unlock'
-        
-        :param link: entry point based on the link name. i.e. save, open
-        :return: SMCElement
-        """
-        link_href = self._load_href(link)
-        #[entry.get('href') for entry in self.links \
-        #               if entry.get('rel') == link]       
-        return SMCElement.factory(name=link, 
-                                  href=link_href)
-       
+
+    def __str__(self):
+        return 'Policy Name: {}\nPolicy Type: {}\nPolicy Template: {}\n' \
+               'Inspection Policy: {}\nFile Filtering Policy: {}' \
+               .format(self.name,
+                       self.policy_type,
+                       self.policy_template.get('name'),
+                       self.inspection_policy.get('name'),
+                       self.file_filtering_policy.get('name'))
+
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
 
@@ -269,9 +274,7 @@ class FirewallPolicy(Policy):
                   'template': template_href}
         policy_href = smc.search.element_entry_point('fw_policy')
         
-        element = SMCElement.factory(name=name, href=policy_href,
-                                  json=policy)
-        return smc.api.common.create(element)
+        return SMCElement(href=policy_href, json=policy).create()
         
     def ipv4_rules_href(self):
         """ Get href to fw_ipv4_access_rules
@@ -299,10 +302,7 @@ class FirewallPolicy(Policy):
         
         :return: href
         """
-        return self._load_href('fw_ipv6_nat_rules')
-    
-    def __str__(self):
-        return "Name: %s, policy_type: %s; %s" % (self.name, self.policy_type, self.__dict__)
+        return self._load_href('fw_ipv6_nat_rules')                                                                         
           
 class InspectionPolicy(Policy):
     """

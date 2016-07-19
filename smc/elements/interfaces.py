@@ -4,7 +4,8 @@ class PhysicalInterface(object):
     """ Physical Interface definition
     Represents the top level physical interface definition. This is the basis for 
     interface types: Inline, Capture, SingleNode and Node.
-    This builds the top level json for the required interface.
+    This builds the top level json for the required interface when calling child
+    classes such as SingleNodeInterface, CaptureInterface, etc.
     """
     def __init__(self, interfaceid, nodeid=1):
         self.interfaceid = interfaceid
@@ -19,7 +20,16 @@ class PhysicalInterface(object):
 
 class SingleNodeInterface(PhysicalInterface):
     """ SingleNodeInterface interface definition
-    Represents a layer3 interface, either standard interface or mgmt interface 
+    Represents a layer3 interface, either standard interface or mgmt interface
+    
+    :param address: IP address of interface
+    :param network: Network address cidr, should include IP address in network
+    :param interfaceid: id of the interface
+    :param nodeid: nodeid for interface, used with clusters
+    :param is_mgmt: enable management on this interface
+    :type is_mgmt: boolean
+    :return: self, with .json set to interface json
+    :rtype: SingleNodeInterface
     """
     def __init__(self, address, network, interfaceid, 
                  nodeid=1, 
@@ -45,6 +55,15 @@ class NodeInterface(PhysicalInterface):
     """ NodeInterface definition
     Represents a physical interface for a layer 2 or IPS device. Typically
     used as the management interface
+    
+    :param address: IP address of interface
+    :param network: Network address cidr, should include IP address in network
+    :param interfaceid: id of the interface
+    :param nodeid: nodeid for interface, used with clusters
+    :param is_mgmt: enable management on this interface
+    :type is_mgmt: boolean
+    :return: self, with .json set to interface json
+    :rtype: NodeInterface
     """
     def __init__(self, address, network, interfaceid, 
                  nodeid=1, 
@@ -68,6 +87,12 @@ class NodeInterface(PhysicalInterface):
 class CaptureInterface(PhysicalInterface):
     """ CaptureInterface defintion
     Represents a capture/span interface for a layer2 or IPS
+    
+    :param interfaceid: id of the interface
+    :param logical_ref: logical interface reference, used on capture and inline interfaces
+    :param nodeid: nodeid for interface, used with clusters
+    :return: self, with .json set to interface json
+    :rtype: CaptureInterface
     """
     def __init__(self, interfaceid, logical_ref, nodeid=1):
         PhysicalInterface.__init__(self, interfaceid, nodeid)       
@@ -82,7 +107,13 @@ class CaptureInterface(PhysicalInterface):
 
 class InlineInterface(PhysicalInterface):
     """ InlineInterface defintion
-    Represents an inline interface for a layer2 or IPS 
+    Represents an inline interface for a layer2 or IPS
+    
+    :param interfaceid: id's of the inline interface; i.e. '1-2', '5-6', etc
+    :param logical_ref: logical interface reference, used on capture and inline interfaces
+    :param nodeid: nodeid for interface, used with clusters
+    :return: self, with .json set to interface json
+    :rtype: InlineInterface
     """
     def __init__(self, interfaceid, logical_ref, nodeid=1):
         PhysicalInterface.__init__(self, interfaceid, nodeid)      
