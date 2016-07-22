@@ -37,12 +37,12 @@ constructor. Otherwise the latest API version available will be used:
 
    smc.api.web.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001', api_version='5.10')
 
-Once the session has been successfully obtained, all commands will re-use the same session therefore
-there is no reason to re-authenticate a new session. 
+Once the session has been successfully obtained, there is no reason to re-authenticate a new session
+unless `logout` has been called.
 
 .. note:: If you have a longer running application where the session may time out due to long delays 
-between calls, the smc-python API will re-authenticate the session automatically as long as a previous 
-session was already obtained and stored in the session cache.
+		  between calls, the smc-python API will re-authenticate the session automatically as long as a previous 
+		  session was already obtained and stored in the session cache.
 
 Creating elements
 -----------------
@@ -200,7 +200,7 @@ the SMC API. Once an engine has been created, in order to execute specific comma
 engine or a node within an engine configuration, you must first 'load' the engine configuration to
 get a handle on that device. 
 
-.. note:: commanding single engines does not require a specific node is specified for node level commands
+.. note:: Commanding a single engine does not require a specific node is specified for node level commands
 
 There are two levels to which you can control and engine. This is represented by the class
 hierarchy:
@@ -237,7 +237,7 @@ For all available commands for node, see :py:class:`smc.elements.engines.Node`
    engine.reboot(node='ngf-1035') #cluster, reboot only node 'ngf-1035'
    engine.initial_contact(filename='/Users/davidlepage/engine.cfg')	#gen initial contact and save to engine.cfg
    engine.bind_license()	#bind license on single node
-   engine.go_standby(node='ngf-1035') #command node 'ngf-1035' online
+   engine.go_standby(node='ngf-1035') #command node 'ngf-1035' to standby
    ....
 
 
@@ -248,10 +248,40 @@ Adding Rules
 ++++++++++++
 
 
-Searching
----------
+Search
+------
 
-Searching is typically done by leveraging convenience methods found in smc.actions.search. 
+Searching is typically done by leveraging convenience methods found in :py:mod:`smc.actions.search`. 
+
+Search provides many front end search functions that enable you to retrieve abbreviated versions of the
+data you requested. All GET requests to the SMC API will return an :class:`SMCResult` with attributes set, however
+there may be cases where you only want a subset of this information. The search module provides these helper
+functions to return the data you need.
+
+Below are some common examples of retrieving data from the SMC:
+
+.. code-block:: python
+
+   #Just return the href of a particular SMC Element:
+   smc.actions.search.element_href(name)
+   
+   #To obtain full json for an SMC Element:
+   smc.actions.search.element_as_json(name)
+   
+   #To obtain full json data and etag information for SMC Element (etag used for modifying an element):
+   smc.actions.search.element_as_json_with_etag(name)
+   
+   #To find all elements by type:
+   smc.actions.search.elements_by_type('host')
+   
+   #To find all available log servers:
+   smc.actions.search.log_servers()
+   
+   #To find all L3 FW policies:
+   smc.actions.search.fw_policies()
+   
+See :py:mod:`smc.actions.search` for more shortcut search options
+
 
 Shortcuts
 ---------
@@ -273,5 +303,5 @@ longer term logging, add the following to your main class:
    logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s: %(message)s')
    
 .. note:: This is a recommended setting initially as it enables detailed logging of each call as it is
-processed through the API. It also includes the backend web based calls initiated by the http requests
-module.
+		  processed through the API. It also includes the backend web based calls initiated by the http 
+		  requests module.

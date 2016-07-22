@@ -1,10 +1,10 @@
-'''
-Created on May 9, 2016
+"""
+Session management for SMC client connections
+When a session is first set up using login(), this persists for the duration 
+of the python run. Run logout() after to remove the session from the SMC server.
+"""
 
-@author: davidlepage
-'''
 import os.path
-import shutil
 import requests
 import json
 import logging
@@ -304,12 +304,12 @@ class SMCResult(object):
     element json and the current etag. The modified json should be POST to the
     SMC with json as payload and etag header to verify the element has not been
     modified since previous GET.
-    :attributes
-        self.etag: etag from HTTP GET, representing unique value from server
-        self.href: href of location header if it exists
-        self.content: content if return was application/octet
-        self.msg: error message, if set
-        self.json: element full json
+    
+    :ivar etag: etag from HTTP GET, representing unique value from server
+    :ivar href: href of location header if it exists
+    :ivar content: content if return was application/octet
+    :ivar msg: error message, if set
+    :ivar json: element full json
     """
     def __init__(self, respobj=None):
         self.etag = None

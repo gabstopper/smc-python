@@ -161,7 +161,7 @@ Rule
 ----
 
 .. automodule:: smc.elements.rule
-    :undoc-members:
+    :members: Rule
     :show-inheritance:
 
 IPv4Rule

@@ -24,20 +24,20 @@ class Engine(object):
     the engine.
     
     :class:`smc.elements.engines.Node` class will store information specific to the individual
-    node itself such as rebooting, going online/offline, change user pwd, ssh pwd reset, etc. 
+    node itself such as rebooting, going online/offline, change user pwd, ssh pwd reset, etc.
     """
     
     __metaclass__ = ABCMeta
     
     def __init__(self, name):
-        self.name = name
-        self.href = None #pulled from self
+        self.name = name #: Name of engine
+        self.href = None #: Href location for this engine in SMC
         self.etag = None #saved in case of modifications
-        self.engine_version = None
-        self.log_server_ref = None
-        self.cluster_mode = None
-        self.domain_server_address = []
-        self.engine_json = None
+        self.engine_version = None #: Engine version
+        self.log_server_ref = None #: Reference to log server
+        self.cluster_mode = None #: Whether engine node is cluster or single
+        self.domain_server_address = [] #: List of domain server addresses
+        self.engine_json = None #engine full json
         self.engine_links = [] #links specific to engine level
     
     @abstractmethod    
@@ -272,7 +272,69 @@ class Engine(object):
         :return: dict list with {href,name,type}
         """
         return search.element_by_href_as_json(self.__load_href('snapshots'))
-               
+    
+    def virtual_resource(self):
+        """ Master Engine only 
+        Return a list of dict {href,name,type} of virtual resources assigned to
+        this master engine 
+        """
+        return search.element_by_href_as_json(self.__load_href('virtual_resources'))
+    
+    def virtual_resource_add(self, name, vfw_id, domain='Shared Domain'):
+        """ Master Engine only
+        Add a virtual resource to this master engine
+        
+        :param name: name for virtual resource
+        :param vfw_id: virtual fw ID, must be unique, indicates the virtual engine instance
+        :param domain: Domain to place this virtual resource, default Shared
+        :return: SMCResult with href set if success, or msg set if failure
+        """
+        domain = search.element_href_use_filter(domain, 'admin_domain')
+        return SMCElement(href=self.__load_href('virtual_resources'), 
+                          json={'allocated_domain_ref': domain,
+                                'name': name, 
+                                'vfw_id': vfw_id}).create()
+    
+    def virtual_physical_interface(self):
+        """ Master Engine virtual instance only
+        A virtual physical interface is for a master engine virtual.
+        
+        :method: GET
+        :return list of dict entries with href,name,type or None
+        """
+        return search.element_by_href_as_json(self.__load_href('virtual_physical_interface'))
+    
+    def physical_interface_vlan_add(self, interface_id, vlan_id,
+                                    virtual_mapping=None, virtual_resource_name=None):
+        """ Add VLAN interface to physical interface
+        If virtual mapping is set, this is for a Master Engine and virtual_resource_name
+        is then required. 
+        
+        :param interface_id: physical interface ID for adding this VLAN
+        :param vlan_id: number of vlan_id
+        :type vlan_id: int
+        :param virtual_mapping: The interface ID for the virtual engine. This is
+               typically the interface_id-1
+        :type virtual_mapping: int
+        :param virtual_resource_name: Name of virtual resource for this VLAN if a VE
+        :type virtual_resource_name: string
+        """
+        intf = 'Interface '+str(interface_id)
+        for interface in self.physical_interface():
+            if interface.get('name') == intf:
+                intf = interface.get('href')
+                break
+
+        interface = search.element_by_href_as_json(intf)
+        vlan = {
+                "interface_id": str(interface_id)+'.'+str(vlan_id), #interface_id.vlan_id
+                "virtual_mapping": virtual_mapping, #virtual engines interface id mapping
+                "virtual_resource_name": virtual_resource_name
+        }
+        interface.get('vlanInterfaces').append(vlan)
+        return SMCElement(href=self.__load_href('physical_interface'),
+                             json=interface).create()                           
+    
     def physical_interface(self):
         """ Get only physical interfaces for this engine node. Physical interface
         types are Layer3, Layer2 Inline, and Capture interfaces.
@@ -305,7 +367,7 @@ class Engine(object):
         :param interfaceid: id of interface
         :param nodeid: id of node, only used in clusters
         :type nodeid: int
-        :param is_mgmt: Whether to make this a management enabled int
+        :param is_mgmt: Whether to make this a management enabled interface
         :type is_mgmt: boolean
         :return: SMCResult
         """
@@ -324,6 +386,7 @@ class Engine(object):
         :param logical_interface_ref: reference to logical interface
         :param nodeid: node id of interface, only used in clusters
         :type nodeid: int
+        :return: SMCResult
         """
         intf = InlineInterface(interfaceid,
                                logical_interface_ref,
@@ -340,6 +403,7 @@ class Engine(object):
         :param logical_interface_ref: reference to logical interface
         :param nodeid: node id of interface, only used in clusters
         :type nodeid: int
+        :return: SMCResult
         """
         intf = CaptureInterface(interfaceid,
                                 logical_interface_ref,
@@ -410,8 +474,8 @@ class Node(Engine):
     """
     def __init__(self, name):
         Engine.__init__(self, name)
-        self.name = name        #name of engine
-        self.node_type = None   #engine node type
+        self.name = name        #: Name of engine
+        self.node_type = None   #: Engine node type from SMC
         self.node_links = {}    #node level links
  
     def load(self):
@@ -451,7 +515,7 @@ class Node(Engine):
         """
         return self._commit_create('unbind', node)
         
-    def cancel_unbind_license(self, node):
+    def cancel_unbind_license(self, node=None):
         """ Allows to cancel the possible unbind license for the specified 
         node. If no license has been found, nothing is done and NO_CONTENT 
         is returned otherwise OK is returned.
@@ -869,3 +933,73 @@ class IPS(Node):
         if result.href:
             #got referring object location, load and return
             return IPS(cls.name).load()
+        
+class Layer3VirtualEngine(Node):
+    def __init__(self, name):
+        Node.__init__(self, name)
+        self.node_type = 'virtual_fw_node'
+    
+    @classmethod
+    def create(cls, name, master_engine, virtual_resource, dns=None, **kwargs):
+        """ Create a layer3 virtual engine and map to specified Master Engine
+        Each layer 3 virtual firewall will use the same virtual resource that 
+        should be pre-created. 
+        
+        To create the virtual resource::
+        
+            engine.virtual_resource_add(virtual_engine_name='ve-1', vfw_id=1)
+            
+        See :func:`engine.virtual_resource_add` for more information.
+        
+        .. note:: Virtual engine interface id's are staggered based on a master
+                  engine having some pre-configured. For example, if the master
+                  engine is using physical interface 0 for management, the virtual
+                  engine will start with interface index 1. However, the interface
+                  naming within the virtual engine configuration will start numbering
+                  at interface 0!
+        
+        :param name: Name of this layer 3 virtual engine
+        :param master_engine: Name of existing master engine. This assumes the
+               interfaces are already created
+        :param virtual_resource: name of pre-created virtual resource
+        :param kwargs: If additional interfaces are required, provide a list of 
+               dictionary items in the format of:
+               [{'ipaddress':'1.1.1.1', 'mask':'1.1.1.1/30', 'interface_id': 3}]
+        """
+        cls.name = name
+        cls.node_type = 'virtual_fw_node'
+        cls.domain_server_address = []
+        cls.log_server_ref = None
+        if dns:
+            for entry in dns:
+                cls.domain_server_address.append(entry)
+                       
+        super(Layer3VirtualEngine, cls).create()
+        
+        #Get reference to virtual resource
+        master_engine = Node(master_engine).load()
+        for virt_resource in master_engine.virtual_resource():
+            if virt_resource.get('name') == virtual_resource:
+                virt_resource_href = virt_resource.get('href')
+                break
+        cls.engine_json['virtual_resource'] = virt_resource_href
+            
+        if kwargs:
+            for interface in kwargs.get('kwargs'): #get interface info
+                iface = SingleNodeInterface(interface.get('ipaddress'),
+                                            interface.get('mask'),
+                                            interface.get('interface_id'),
+                                            zone=interface.get('zone')).build()
+                iface.json['virtual_physical_interface'] = iface.json.pop('physical_interface')
+                new_iface = iface.json.get('virtual_physical_interface')
+                new_iface.pop('cvi_mode')
+                new_iface.pop('virtual_engine_vlan_ok')
+                new_iface.pop('sync_parameter')
+                if interface.get('interface_id') == 0:
+                    auth = new_iface.get('interfaces')[0].get('single_node_interface')
+                    auth['auth_request'] = True #required for virtual engine
+                cls.engine_json.get('physicalInterfaces').append(iface.json) 
+        
+            cls.href = search.element_entry_point('virtual_fw')
+        
+            return SMCElement(href=cls.href, json=cls.engine_json).create()  

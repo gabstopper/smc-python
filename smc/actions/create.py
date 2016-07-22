@@ -23,9 +23,9 @@ import logging
 import smc.elements.element
 import smc.api.web
 import smc.elements.license
-from smc.elements.element import LogicalInterface
+from smc.elements.element import LogicalInterface, SMCElement
 from smc.actions.search import get_logical_interface
-from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS
+from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine
 from smc.actions import helpers
 
 from smc.api.web import SMCException
@@ -382,8 +382,137 @@ if __name__ == '__main__':
     
     import smc.elements.policy
     """@type policy: FirewallPolicy"""
-    policy = smc.elements.policy.FirewallPolicy('api-test-policy').load()
-    print policy.ipv4_rule.create('erika5 rule', ['172.18.1.93', 'test'], ['172.18.1.92'], ['icmp', 'tcp'], 'allow')
+    #policy = smc.elements.policy.FirewallPolicy('api-test-policy').load()
+    #print policy.ipv4_rule.create('erika6 rule', ['any'], ['any'], ['any'], 'allow')
+    #for rule in policy.ipv4_rule.ipv4_rules:
+    #    print "rule: %s" % rule
+    
+    import csv
+    import re
+    
+    #Engine has 4 interfaces, 0 is MGMT
+    #Interface 1: Zone: 'App'
+    #Interface 2: Zone: 'Data'
+    #Interface 3: Zone: 'Web'
+    # Physical Int    VLAN     NAME                 ADDRESS         MASK               CIDR
+    # 1               3280     U_PROD_APP_APP94     10.29.252.96    255.255.255.252    30
+    
+    zone_map = {0: smc.elements.element.Zone('App').create().href,
+                1: smc.elements.element.Zone('Data').create().href,
+                2: smc.elements.element.Zone('Web').create().href}
+    
+    print "Zone map: %s" % zone_map
+    
+    #Load Master Engine
+    engine = Node('dod-test').load()
+    
+    engine_info = {}
+
+    with open('/Users/davidlepage/dod.csv', 'rU') as csvfile:
+      
+        reader = csv.DictReader(csvfile, dialect="excel", 
+                                fieldnames=['interface_id', 'vlan_id', 'name',
+                                            'ipaddress', 'netmask', 'cidr'])
+        previous_engine = 0
+        for row in reader:
+    
+            current_engine = next(re.finditer(r'\d+$', row.get('name'))).group(0)
+
+            #Create VLAN on Master Engine first
+            if current_engine != previous_engine:
+                previous_engine = current_engine
+                virtual_engine_name = 've-'+str(current_engine)
+                
+                #First create virtual resource on the Master Engine
+                engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine)
+                
+                #Save the interface information to dictionary to be added later. Note that the 
+                #interface_id of the virtual engine will start numbering from 0
+                virtual_interface = int(row.get('interface_id'))-1
+
+                engine_info[virtual_engine_name] = [{'interface_id': virtual_interface,
+                                                     'ipaddress': row.get('ipaddress'),
+                                                     'mask': row.get('ipaddress')+'/'+row.get('cidr'),
+                                                     'zone': zone_map.get(virtual_interface)}]
+                
+                #Add VLANs to Master Engine and assign the virtual engine name
+                engine.physical_interface_vlan_add(interface_id=row.get('interface_id'), 
+                                                   vlan_id=row.get('vlan_id'),
+                                                   virtual_mapping=virtual_interface,
+                                                   virtual_resource_name=virtual_engine_name)
+
+            else: #Still working on same VE
+                virtual_interface = int(row.get('interface_id'))-1
+                
+                engine.physical_interface_vlan_add(interface_id=row.get('interface_id'), 
+                                                   vlan_id=row.get('vlan_id'),
+                                                   virtual_mapping=virtual_interface,
+                                                   virtual_resource_name=virtual_engine_name)
+                
+                engine_info[virtual_engine_name].append({'interface_id': virtual_interface,
+                                                         'ipaddress': row.get('ipaddress'),
+                                                         'mask': row.get('ipaddress')+'/'+row.get('cidr'),
+                                                         'zone': zone_map.get(virtual_interface)}) 
+        
+        pprint(engine_info)        
+        for name,interfaces in engine_info.iteritems():
+            Layer3VirtualEngine.create(name, 'dod-test', name, kwargs=interfaces)
+   
+    #zone = smc.search.element_href_use_filter('Internal', 'interface_zone')
+    #pprint(smc.search.element_by_href_as_json(zone))
+    
+    #engine = Node('withzone').load()
+    #pprint(vars(engine))
+    
+    #Layer3VirtualEngine.create('red', 'dod-test', 've-1', kwargs=[{'ipaddress': '5.5.5.5', 'mask':'5.5.5.5/30', 'interface_id':0}])
+    #engine = Node('blue').load()
+    #pprint(vars(engine))    
+    #pprint(smc.search.element_as_json('dod-test'))
+    
+    """@type engine: Node"""
+    #engine = Node('testfw-1').load()
+    #pprint(vars(engine))
+    #print smc.search.element_entry_point('virtual_fw')
+    
+    #Layer3VirtualEngine.create('ve-3', 'dod-test', 've-3',
+    #                           kwargs=[{'ipaddress':'5.5.5.5', 'mask': '5.5.5.0/24', 'interface_id': 2, 'href':'gegewgw'},
+    #                                   {'ipaddress':'3.3.3.3', 'mask': '3.3.3.0/24', 'interface_id': 0, 'href':'gegewgw'}])
+    
+    #engine = Node('dod-test').load()
+    #Engine has 4 interfaces, 0 is MGMT
+    #Interface 1: App
+    #Interface 2: Data
+    #Interface 3: Web
+    #VLAN_ID_100
+    '''
+    vlan_id = 100 #start at vlan 100
+    for vfw in range (1,10):
+        print "VFW: %s" % vfw
+        ve_resource = 've-'+str(vfw)
+        engine.virtual_resource_add(ve_resource, vfw_id=vfw) #create virtual resource and vfw_id map
+        engine.physical_interface_vlan_add(interface_id=1, vlan_id=vlan_id, 
+                                           virtual_mapping=0, 
+                                           virtual_resource_name=ve_resource)
+        engine.physical_interface_vlan_add(interface_id=2, vlan_id=vlan_id, 
+                                           virtual_mapping=1, 
+                                           virtual_resource_name=ve_resource)
+        engine.physical_interface_vlan_add(interface_id=3, vlan_id=vlan_id, 
+                                           virtual_mapping=2, 
+                                           virtual_resource_name=ve_resource)
+        vlan_id += 1
+    '''
+    
+    
+    #pprint(vars(engine))
+    #print engine.virtual_resource_add('tests3', 36)
+    #pprint(engine.physical_interface())
+   
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/master_engine/6491/virtual_resource'))
+    #policy.ipv4_rule.delete('Rule @2098617.0')
+    #print policy.ipv4_rule.refresh()
+    #policy.ipv4_rule.delete('api2')
+    
+    
     
     #smc.remove.element('henbo')
     #engine = Node('testlayer2').load()

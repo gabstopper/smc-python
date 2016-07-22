@@ -7,15 +7,17 @@ class PhysicalInterface(object):
     This builds the top level json for the required interface when calling child
     classes such as SingleNodeInterface, CaptureInterface, etc.
     """
-    def __init__(self, interfaceid, nodeid=1):
+    def __init__(self, interfaceid, nodeid=1, zone=None):
         self.interfaceid = interfaceid
         self.nicid = self.interfaceid
         self.nodeid = nodeid
+        self.zone = zone
         self.cfg = util.get_json_template('interface.json')
 
     def build(self):
         self.json = self.cfg.get('physical_interface')
         self.json['physical_interface']['interface_id'] = self.interfaceid
+        self.json['physical_interface']['zone_ref'] = self.zone
         self.json['physical_interface']['interfaces'].append(self.interface)
 
 class SingleNodeInterface(PhysicalInterface):
@@ -28,13 +30,13 @@ class SingleNodeInterface(PhysicalInterface):
     :param nodeid: nodeid for interface, used with clusters
     :param is_mgmt: enable management on this interface
     :type is_mgmt: boolean
-    :return: self, with .json set to interface json
+    :return: self, with json attribute set to interface json
     :rtype: SingleNodeInterface
     """
     def __init__(self, address, network, interfaceid, 
-                 nodeid=1, 
+                 nodeid=1, zone=None,
                  is_mgmt=False):
-        PhysicalInterface.__init__(self, interfaceid, nodeid)
+        PhysicalInterface.__init__(self, interfaceid, nodeid, zone=zone)
         self.address = address
         self.network = network
         self.is_mgmt = is_mgmt
@@ -62,7 +64,7 @@ class NodeInterface(PhysicalInterface):
     :param nodeid: nodeid for interface, used with clusters
     :param is_mgmt: enable management on this interface
     :type is_mgmt: boolean
-    :return: self, with .json set to interface json
+    :return: self, with json attribute set to interface json
     :rtype: NodeInterface
     """
     def __init__(self, address, network, interfaceid, 
@@ -91,7 +93,7 @@ class CaptureInterface(PhysicalInterface):
     :param interfaceid: id of the interface
     :param logical_ref: logical interface reference, used on capture and inline interfaces
     :param nodeid: nodeid for interface, used with clusters
-    :return: self, with .json set to interface json
+    :return: self, with json attribute set to interface json
     :rtype: CaptureInterface
     """
     def __init__(self, interfaceid, logical_ref, nodeid=1):
@@ -112,7 +114,7 @@ class InlineInterface(PhysicalInterface):
     :param interfaceid: id's of the inline interface; i.e. '1-2', '5-6', etc
     :param logical_ref: logical interface reference, used on capture and inline interfaces
     :param nodeid: nodeid for interface, used with clusters
-    :return: self, with .json set to interface json
+    :return: self, with json attribute set to interface json
     :rtype: InlineInterface
     """
     def __init__(self, interfaceid, logical_ref, nodeid=1):
@@ -126,4 +128,3 @@ class InlineInterface(PhysicalInterface):
         super(InlineInterface, self).build()
         self.json['physical_interface']['interface_id'] = self.interfaceid.split('-')[0]
         return self
-        

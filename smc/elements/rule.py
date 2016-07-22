@@ -1,3 +1,17 @@
+"""
+Module that represents rules within the SMC.
+These classes are linked by composition references from the subclasses of Policy 
+:class:`FirewallPolicy`, :class:`InspectionPolicy`, :class:`FileFilteringPolicy`, etc)
+
+This is called indirectly from Policy subclass for manipulation of rules for 
+specific engine types. 
+
+For example, modifying rules for a FirewallPolicy::
+
+    policy = FirewallPolicy('mypolicy').load()
+    policy.ipv4_rule.create('newrule', ['mysource1', 'mysource2'], ['mydest1', 'mydest2'], ['myservice'], action)
+    
+"""
 import smc.api.common
 import smc.actions.search as search
 from smc.elements.element import SMCElement
@@ -14,10 +28,11 @@ class Rule(object):
     this is required to be an SMCElement.href attribute
     """ 
     def __init__(self):
-        self.rank = 0
-        self.is_disabled = False
-        self.href = None #base href for policies rule location
-        self.any = {'any': True}
+        self.rank = 0 
+        self.is_disabled = False #: Is rule disabled (boolean)
+        self.href = None #: Base href for rule list location, can be called to retrieve all rules
+        self.rules = [] #: Placeholder container for rule list, call self.href to fill list
+        self.any = {'any': True} 
         self.none = {'none': True}
                
     @classmethod    
@@ -34,21 +49,24 @@ class Rule(object):
         pass
     
     def create(self, element):
+        """ Create element convenience method """
         return smc.api.common.create(element)
     
     def modify(self):
         pass
        
-    def delete(self, element):
-        smc.api.common.delete(element)
-    
-    def refresh(self):
-        rules = search.element_by_href_as_json(self.href)
-        for rule in rules:
-            yield rule    
-    
-    def rule_element(self, element):
-        src_href = smc.search.element_href(element)
+    def delete(self, name):
+        """ Delete rule by name. This requires that the rule name matches.
+        
+        :param name: Name of rule to delete
+        """
+        for rule in search.element_by_href_as_json(self.href):
+            if rule.get('name') == name:
+                smc.api.common.delete(name)
+                  
+    def fetch_element(self, name):
+        """ Fetch element by name """
+        src_href = smc.search.element_href(name)
         if src_href:
             return src_href
             
@@ -62,24 +80,13 @@ class IPv4Rule(Rule):
     Each rule type may have different requirements, although some fields are
     common across all policies such as source and destination. This class is used
     when the policy to create or delete is an ipv4 rule.
-     
-    :attributes:
     
-        :ip4_rules: list of existing rules, this holds a list of references for each
-        rule, content looks like:
-        [{'href': u'http://172.18.1.150:8082/6.0/elements/fw_policy/226/fw_ipv4_access_rule/2098650', 
-          'type': u'fw_ipv4_access_rule', 
-          'name': u'api rule'}] 
-        
-        Use refresh() to re-retrieve a current list of rules, especially if
-        operations need to be performed after adding or removing rules
-        
-        :actions: action options for ipv4 rules    
+    Use refresh() to re-retrieve a current list of rules, especially if
+    operations need to be performed after adding or removing rules  
     """
     def __init__(self):
         Rule.__init__(self)
-        self.ipv4_rules = [] #: List reference of existing rules
-        self.actions = ['allow', 'continue', 'discard', 'refuse', 'use_vpn'] 
+        self.actions = ['allow', 'continue', 'discard', 'refuse', 'use_vpn'] #: Allowed rule actions
       
     def create(self, name, sources, destinations, services, action, 
                is_disabled=False):
@@ -109,7 +116,7 @@ class IPv4Rule(Rule):
             if source.lower() == 'any':
                 rule_values['sources'] = self.any
             else:
-                href = self.rule_element(source)
+                href = self.fetch_element(source)
                 if href:
                     rule_values['sources']['src'].append(href)
         
@@ -117,7 +124,7 @@ class IPv4Rule(Rule):
             if destination.lower() == 'any':
                 rule_values['destinations'] = self.any
             else:
-                href = self.rule_element(destination)
+                href = self.fetch_element(destination)
                 if href:
                     rule_values['destinations']['dst'].append(href)
         
@@ -125,7 +132,7 @@ class IPv4Rule(Rule):
             if service.lower() == 'any':
                 rule_values['services'] = self.any
             else:
-                href = self.rule_element(service)
+                href = self.fetch_element(service)
                 if href:
                     rule_values['services']['service'].append(href)
                     
@@ -133,30 +140,20 @@ class IPv4Rule(Rule):
                              href=self.href)
        
         return super(IPv4Rule, self).create(element)
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, self.__dict__)
         
-    def delete(self, name):
-        """ Delete ipv4 rule based on the name of the rule
         
-        If a policy has been 'open' for edit, a previous snapshot in time was made so
-        queries will result in showing the policy before it was opened. You should save 
-        policy before deleting or just delete without opening (which locks policy), modifying,
-        then deleting. 
-        
-        :param name: name of rule
-        """
-        self.refresh()
-        for rule in self.ipv4_rules:
-            if rule.get('name') == name:
-                element = SMCElement(href=rule.get('href'))
-                self.ipv4_rules.remove(rule)
-                return super(IPv4Rule, self).delete(element)
-
-    def refresh(self):
-        self.ipv4_rules[:] = []
-        for rule in super(IPv4Rule, self).refresh():
-            self.ipv4_rules.append(rule)
-            
 class IPv4NATRule(Rule):
     def __init__(self):
         Rule.__init__(self)
-        self.ipv4_nat_rules = []
+        
+class IPv6Rule(Rule):
+    def __init__(self):
+        Rule.__init__(self)
+        
+class IPv6NATRule(Rule):
+    def __init__(self):
+        Rule.__init__(self)
+        

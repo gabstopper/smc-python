@@ -1,8 +1,10 @@
-'''
-Created on May 13, 2016
+"""
+Proxy helper module to wrap CRUD operations and catch exceptions
 
-@author: davidlepage
-'''
+Although the native http_get, http_post, etc can be called, this provides a 
+more common interface to the responses received
+"""
+
 import re
 import logging
 import smc.api.web as web_api

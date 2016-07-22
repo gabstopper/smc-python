@@ -47,17 +47,17 @@ class SMCElement(object):
     def update(self):
         return smc.api.common.update(self)
     
-    @classmethod
-    def factory(cls, name=None, href=None, etag=None, 
-                _type=None, json=None, 
-                params=None, filename=None):
-        return SMCElement(name=name,
-                          href=href,
-                          etag=etag,
-                          type=_type,
-                          json=json,
-                          params=params,
-                          filename=filename)
+    #@classmethod
+    #def factory(cls, name=None, href=None, etag=None, 
+    #            _type=None, json=None, 
+    #            params=None, filename=None):
+    #    return SMCElement(name=name,
+    #                      href=href,
+    #                      etag=etag,
+    #                      type=_type,
+    #                      json=json,
+    #                      params=params,
+    #                      filename=filename)
     
     def _fetch_href(self):
         self.href = search.element_entry_point(self.type)
@@ -262,7 +262,19 @@ class Network(SMCElement):
         self.json['comment'] = self.comment if self.comment is not None else ""
         self._fetch_href()
         return super(Network, self).create()
-        
+
+class Zone(SMCElement):
+    def __init__(self, zone):
+        SMCElement.__init__(self)
+        self.type = 'interface_zone'
+        self.zone = zone
+    
+    def create(self):
+        self.json = {'name': self.zone}
+        self._fetch_href()
+        return super(Zone, self).create()
+    
+       
 class Protocol(SMCElement):
     def __init__(self):
         SMCElement.__init__(self)
