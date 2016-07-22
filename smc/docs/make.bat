@@ -1,5 +1,4 @@
 @ECHO OFF
-rm -rf build
 
 REM Command file for Sphinx documentation
 
