@@ -386,85 +386,15 @@ if __name__ == '__main__':
     #print policy.ipv4_rule.create('erika6 rule', ['any'], ['any'], ['any'], 'allow')
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
-    
-    import csv
-    import re
-    
-    #Engine has 4 interfaces, 0 is MGMT
-    #Interface 1: Zone: 'App'
-    #Interface 2: Zone: 'Data'
-    #Interface 3: Zone: 'Web'
-    # Physical Int    VLAN     NAME                 ADDRESS         MASK               CIDR
-    # 1               3280     U_PROD_APP_APP94     10.29.252.96    255.255.255.252    30
-    
-    zone_map = {0: smc.elements.element.Zone('App').create().href,
-                1: smc.elements.element.Zone('Data').create().href,
-                2: smc.elements.element.Zone('Web').create().href}
-    
-    print "Zone map: %s" % zone_map
-    
-    #Load Master Engine
-    engine = Node('dod-test').load()
-    
-    engine_info = {}
 
-    with open('/Users/davidlepage/dod.csv', 'rU') as csvfile:
-      
-        reader = csv.DictReader(csvfile, dialect="excel", 
-                                fieldnames=['interface_id', 'vlan_id', 'name',
-                                            'ipaddress', 'netmask', 'cidr'])
-        previous_engine = 0
-        for row in reader:
     
-            current_engine = next(re.finditer(r'\d+$', row.get('name'))).group(0)
-
-            #Create VLAN on Master Engine first
-            if current_engine != previous_engine:
-                previous_engine = current_engine
-                virtual_engine_name = 've-'+str(current_engine)
-                
-                #First create virtual resource on the Master Engine
-                engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine)
-                
-                #Save the interface information to dictionary to be added later. Note that the 
-                #interface_id of the virtual engine will start numbering from 0
-                virtual_interface = int(row.get('interface_id'))-1
-
-                engine_info[virtual_engine_name] = [{'interface_id': virtual_interface,
-                                                     'ipaddress': row.get('ipaddress'),
-                                                     'mask': row.get('ipaddress')+'/'+row.get('cidr'),
-                                                     'zone': zone_map.get(virtual_interface)}]
-                
-                #Add VLANs to Master Engine and assign the virtual engine name
-                engine.physical_interface_vlan_add(interface_id=row.get('interface_id'), 
-                                                   vlan_id=row.get('vlan_id'),
-                                                   virtual_mapping=virtual_interface,
-                                                   virtual_resource_name=virtual_engine_name)
-
-            else: #Still working on same VE
-                virtual_interface = int(row.get('interface_id'))-1
-                
-                engine.physical_interface_vlan_add(interface_id=row.get('interface_id'), 
-                                                   vlan_id=row.get('vlan_id'),
-                                                   virtual_mapping=virtual_interface,
-                                                   virtual_resource_name=virtual_engine_name)
-                
-                engine_info[virtual_engine_name].append({'interface_id': virtual_interface,
-                                                         'ipaddress': row.get('ipaddress'),
-                                                         'mask': row.get('ipaddress')+'/'+row.get('cidr'),
-                                                         'zone': zone_map.get(virtual_interface)}) 
-        
-        pprint(engine_info)        
-        for name,interfaces in engine_info.iteritems():
-            Layer3VirtualEngine.create(name, 'dod-test', name, kwargs=interfaces)
-   
     #zone = smc.search.element_href_use_filter('Internal', 'interface_zone')
     #pprint(smc.search.element_by_href_as_json(zone))
     
     #engine = Node('withzone').load()
     #pprint(vars(engine))
     
-    #Layer3VirtualEngine.create('red', 'dod-test', 've-1', kwargs=[{'ipaddress': '5.5.5.5', 'mask':'5.5.5.5/30', 'interface_id':0}])
+    print Layer3VirtualEngine.create('red', 'dod-test', 've-1', interfaces=[{'ipaddress': '5.5.5.5', 'mask':'5.5.5.5/30', 'interface_id':0}])
     #engine = Node('blue').load()
     #pprint(vars(engine))    
     #pprint(smc.search.element_as_json('dod-test'))

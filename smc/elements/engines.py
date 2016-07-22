@@ -4,7 +4,7 @@ from smc.elements.interfaces import \
    InlineInterface, CaptureInterface, SingleNodeInterface, NodeInterface
 import smc.actions.search as search
 import smc.api.common as common_api
-from smc.api.web import SMCException
+from smc.api.web import SMCException, SMCResult
 from smc.elements.system import SystemInfo
 
 class Engine(object):
@@ -313,8 +313,9 @@ class Engine(object):
         :param interface_id: physical interface ID for adding this VLAN
         :param vlan_id: number of vlan_id
         :type vlan_id: int
-        :param virtual_mapping: The interface ID for the virtual engine. This is
-               typically the interface_id-1
+        :param virtual_mapping: The interface ID for the virtual engine. Virtual engine
+               interface mapping starts numbering at 0, but you must account for interfaces
+               used by master engine
         :type virtual_mapping: int
         :param virtual_resource_name: Name of virtual resource for this VLAN if a VE
         :type virtual_resource_name: string
@@ -958,13 +959,20 @@ class Layer3VirtualEngine(Node):
                   naming within the virtual engine configuration will start numbering
                   at interface 0!
         
+        Calling this class would look like::
+        
+            Layer3VirtualEngine.create('red', 
+                                       'my_master_engine', 've-1',
+                                        interfaces=[
+                                            {'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0},
+                                            {'ipaddress': '6.6.6.6', 'mask': '6.6.6.0/24', 'interface_id':1},
+                                            {'ipaddress': '7.7.7.7', 'mask': '7.7.7.0/24', 'interface_id':2}]
+
         :param name: Name of this layer 3 virtual engine
         :param master_engine: Name of existing master engine. This assumes the
                interfaces are already created
         :param virtual_resource: name of pre-created virtual resource
-        :param kwargs: If additional interfaces are required, provide a list of 
-               dictionary items in the format of:
-               [{'ipaddress':'1.1.1.1', 'mask':'1.1.1.1/30', 'interface_id': 3}]
+        :param kwargs: Interfaces mappings passed in
         """
         cls.name = name
         cls.node_type = 'virtual_fw_node'
@@ -975,26 +983,24 @@ class Layer3VirtualEngine(Node):
                 cls.domain_server_address.append(entry)
                        
         super(Layer3VirtualEngine, cls).create()
-        
+
         #Get reference to virtual resource
         master_engine = Node(master_engine).load()
         for virt_resource in master_engine.virtual_resource():
             if virt_resource.get('name') == virtual_resource:
                 virt_resource_href = virt_resource.get('href')
                 break
+
         cls.engine_json['virtual_resource'] = virt_resource_href
             
         if kwargs:
-            for interface in kwargs.get('kwargs'): #get interface info
+            for interface in kwargs.get('interfaces'): #get interface info
                 iface = SingleNodeInterface(interface.get('ipaddress'),
                                             interface.get('mask'),
                                             interface.get('interface_id'),
                                             zone=interface.get('zone')).build()
                 iface.json['virtual_physical_interface'] = iface.json.pop('physical_interface')
                 new_iface = iface.json.get('virtual_physical_interface')
-                new_iface.pop('cvi_mode')
-                new_iface.pop('virtual_engine_vlan_ok')
-                new_iface.pop('sync_parameter')
                 if interface.get('interface_id') == 0:
                     auth = new_iface.get('interfaces')[0].get('single_node_interface')
                     auth['auth_request'] = True #required for virtual engine

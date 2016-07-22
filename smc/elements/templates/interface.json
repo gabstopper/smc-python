@@ -72,7 +72,6 @@
 		"physical_interface": {
 			"aggregate_mode": "none",
 			"arp_entry": [],
-			"cvi_mode": "none",
 			"dhcp_server_on_interface": {
 				"default_lease_time": 7200,
 				"dhcp_range_per_node": []
@@ -93,51 +92,8 @@
 			"qos_mode": "no_qos",
 			"router_advertisement": false,
 			"syn_mode": "default",
-			"sync_parameter": {
-				"full_sync_interval": 5000,
-				"heartbeat_group_ip": "224.0.0.221",
-				"incr_sync_interval": 50,
-				"statesync_group_ip": "224.0.0.222",
-				"sync_mode": "sync_all",
-				"sync_security": "sign"
-			},
-			"virtual_engine_vlan_ok": false,
 			"vlanInterfaces": [],
 			"zone_ref": "none"
 		}
-	},
-	"vlanInterfaces": {
-		"aggregate_mode": "none",
-		"arp_entry": [],
-		"dhcp_server_on_interface": {
-			"default_lease_time": 7200,
-			"dhcp_range_per_node": []
-		},
-		"interface_id": "2.401",
-		"log_moderation": [{
-			"burst": 1000,
-			"log_event": "1",
-			"rate": 100
-		}, {
-			"log_event": "2"
-		}],
-		"managed_address_flag": false,
-		"mtu": -1,
-		"other_configuration_flag": false,
-		"qos_limit": -1,
-		"qos_mode": "full_qos",
-		"router_advertisement": false,
-		"syn_mode": "default",
-		"sync_parameter": {
-			"full_sync_interval": 5000,
-			"heartbeat_group_ip": "224.0.0.221",
-			"incr_sync_interval": 50,
-			"statesync_group_ip": "224.0.0.222",
-			"sync_mode": "sync_all",
-			"sync_security": "sign"
-		},
-		"virtual_mapping": "1",
-		"virtual_resource_name": "virt2"
 	}
-
 }

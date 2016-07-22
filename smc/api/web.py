@@ -311,7 +311,7 @@ class SMCResult(object):
     :ivar msg: error message, if set
     :ivar json: element full json
     """
-    def __init__(self, respobj=None):
+    def __init__(self, respobj=None, msg=None):
         self.etag = None
         self.href = None
         self.content = None

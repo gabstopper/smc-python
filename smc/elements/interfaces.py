@@ -68,9 +68,10 @@ class NodeInterface(PhysicalInterface):
     :rtype: NodeInterface
     """
     def __init__(self, address, network, interfaceid, 
-                 nodeid=1, 
+                 nodeid=1,
+                 zone=None, 
                  is_mgmt=False):
-        PhysicalInterface.__init__(self, interfaceid, nodeid)      
+        PhysicalInterface.__init__(self, interfaceid, nodeid, zone=zone)      
         self.address = address
         self.network = network
         self.is_mgmt = is_mgmt
