@@ -11,7 +11,7 @@ import smc.api.web as web_api
 from smc.api.web import SMCOperationFailure, SMCConnectionError
 import smc.actions.search
 
-clean_html = re.compile('<.*?>')
+clean_html = re.compile(r'<.*?>')
 
 logger = logging.getLogger(__name__)
 
@@ -250,15 +250,16 @@ def async_handler(follower_href, wait_for_finish=True,
         last_msg = ''
         while True:
             status = smc.actions.search.element_by_href_as_json(follower_href) #TODO: Use fetch?
-            msg = status.get('last_message')
-            if display_msg:
-                if msg != last_msg:
-                    yield re.sub(clean_html,'', msg)
-                    last_msg = msg
-            if status.get('success') == True:
-                for link in status.get('link'):
-                    if link.get('rel') == 'result':
-                        yield link.get('href')
-                break
+            if status:
+                msg = status.get('last_message')
+                if display_msg:
+                    if msg != last_msg:
+                        yield re.sub(clean_html,'', msg)
+                        last_msg = msg
+                if status.get('success') == True:
+                    for link in status.get('link'):
+                        if link.get('rel') == 'result':
+                            yield link.get('href')
+                    break
     else:
         yield follower_href

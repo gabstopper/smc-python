@@ -387,23 +387,36 @@ if __name__ == '__main__':
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
 
-    
     #zone = smc.search.element_href_use_filter('Internal', 'interface_zone')
     #pprint(smc.search.element_by_href_as_json(zone))
     
     #engine = Node('withzone').load()
     #pprint(vars(engine))
-    
-    print Layer3VirtualEngine.create('red', 'dod-test', 've-1', interfaces=[{'ipaddress': '5.5.5.5', 'mask':'5.5.5.5/30', 'interface_id':0}])
+    #engine = Node('testlayer2').load()
+    #pprint(vars(engine))
     #engine = Node('blue').load()
     #pprint(vars(engine))    
     #pprint(smc.search.element_as_json('dod-test'))
     
-    """@type engine: Node"""
-    #engine = Node('testfw-1').load()
-    #pprint(vars(engine))
-    #print smc.search.element_entry_point('virtual_fw')
     
+    #engine = Node('ve-1').load()
+    #pprint(vars(engine))
+    
+    #engine = Layer3VirtualEngine.create('blah', 'master-eng', 've-3', zone='myzone', interfaces=[{'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0}])
+    
+    engine = Node('sg_vm').load()
+    pprint(vars(engine))
+    #physical = PhysicalInterface2(sub.nicid, sub.__dict__, zone='blahblahblah')
+    #pprint(physical.__repr__())
+    #engine = Node('tooter').load()
+    #pprint(vars(engine))
+    #pprint(vars(engine))
+    
+    #"""@type engine: Node"""
+    #engine = Node('master-eng').load()
+    #pprint(vars(engine))
+    
+        
     #Layer3VirtualEngine.create('ve-3', 'dod-test', 've-3',
     #                           kwargs=[{'ipaddress':'5.5.5.5', 'mask': '5.5.5.0/24', 'interface_id': 2, 'href':'gegewgw'},
     #                                   {'ipaddress':'3.3.3.3', 'mask': '3.3.3.0/24', 'interface_id': 0, 'href':'gegewgw'}])

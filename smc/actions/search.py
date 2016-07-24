@@ -63,7 +63,8 @@ def element_as_json_with_etag(name):
     """ Convenience method to return SMCElement that
     holds href, etag and json in result object
     
-    :return: SMCResult
+    :param name of element
+    :return: SMCResult, else None
     """
     return element_as_smcresult(name)
        
@@ -160,6 +161,7 @@ def all_elements_by_type(name):
     match.
     
     For example::
+    
         smc.get_element_by_entry_point('log_server')
         
     :param name: top level entry point name
@@ -175,6 +177,7 @@ def all_elements_by_type(name):
             logger.error("Entry point specified was not found: %s" % name)
 
 def all_entry_points(): #get from session cache
+    """ Get all SMC API entry points """
     return web_api.session.get_all_entry_points()
 
 def element_entry_point(name):

@@ -1,131 +1,122 @@
 import util
 
+class NodeInterface(object):
+    """ Node Dedicated Interface
+    Node dedicated interface is used on specific engine types and represents an interface
+    used for management (ips and layer 2 engines), or non-traffic type interfaces
+    
+    :param address: ip address of the interface
+    :param network_value: network/netmask, i.e. x.x.x.x/24
+    :param interfaceid: interface id 
+    :param nodeid: for clusters, used to identify the node number
+    :type interfaceid: int
+    """
+    def __init__(self, address, network_value, interfaceid,
+                 nodeid=1):
+        self.address = address
+        self.network_value = network_value
+        self.nicid = interfaceid
+        self.auth_request = False
+        self.backup_heartbeat = False
+        self.nodeid = nodeid
+        self.outgoing = False
+        self.primary_mgt = False
+        
+    def __repr__(self):
+        p = PhysicalInterface(self.nicid, {'node_interface': self.__dict__})
+        return p.__dict__
+
+class InlineInterface(object):
+    """ InlineInterface (layer 2)
+    This interface is used by layer 2 or ips engines for a layer 2 configuration and 
+    consists of 2 interfaces.
+    
+    :param interfaceid: should be the two interfaces, seperated by -; i.e. 1-2
+    :oaram logical_ref: logical interface reference
+    
+    The logical interface reference needs to be unique on the same engine that uses both
+    inline and capture interfaces
+    """
+    def __init__(self, interfaceid, logical_ref):
+        self.failure_mode = 'normal'
+        self.inspect_unspecified_vlans = True
+        self.nicid = interfaceid
+        self.logical_interface_ref = logical_ref
+        
+    def __repr__(self):
+        p = PhysicalInterface(self.nicid.split('-')[0], {'inline_interface': self.__dict__})
+        return p.__dict__
+          
+class SingleNodeInterface(object):
+    """ SingleNodeInterface
+    This interface is used by specific engine types like Layer 3 Engines. This type of interface
+    can be a management interface as well as a non-management routed interface
+    
+    :param address: address of this interface
+    :param network_value: network of this interface in cidr x.x.x.x/24
+    :param nicid: nic id, will match the interface id, numbering starts at 0
+    :param nodeid: if a cluster, identifies which node this is for
+    """
+    def __init__(self, address, network_value, nicid,
+                 nodeid=1):
+        self.address = address
+        self.auth_request = False
+        self.auth_request_source = False
+        self.primary_heartbeat = False
+        self.backup_heartbeat = False
+        self.backup_mgt = False
+        self.dynamic = False
+        self.network_value = network_value
+        self.nicid = nicid
+        self.nodeid = nodeid
+        self.outgoing = False
+        self.primary_mgt = False
+
+    def __repr__(self):
+        """ Use if adding interfaces after engine exists. This json doesn't need the
+        top level physical_interface definition, just the node level info """
+        p = PhysicalInterface(self.nicid, {'single_node_interface': self.__dict__})
+        return p.__dict__
+
+class CaptureInterface(object):
+    """ Capture Inteface (span)
+    This interface type can be used on layer 2 or ips engine types
+    
+    :param interfaceid: the interface id
+    :type interfaceid: int
+    :oaram logical_ref: logical interface reference
+    
+    The logical interface reference needs to be unique on the same engine that uses both
+    inline and capture interfaces
+    """
+    def __init__(self, interfaceid, logical_ref):
+        self.inspect_unspecified_vlans = True
+        self.logical_interface_ref = logical_ref
+        self.nicid = interfaceid
+    
+    def __repr__(self):
+        p = PhysicalInterface(self.nicid, {'capture_interface': self.__dict__})
+        return p.__dict__
+    
 class PhysicalInterface(object):
     """ Physical Interface definition
     Represents the top level physical interface definition. This is the basis for 
     interface types: Inline, Capture, SingleNode and Node.
     This builds the top level json for the required interface when calling child
-    classes such as SingleNodeInterface, CaptureInterface, etc.
-    """
-    def __init__(self, interfaceid, nodeid=1, zone=None):
-        self.interfaceid = interfaceid
-        self.nicid = self.interfaceid
-        self.nodeid = nodeid
-        self.zone = zone
-        self.cfg = util.get_json_template('interface.json')
-
-    def build(self):
-        self.json = self.cfg.get('physical_interface')
-        self.json['physical_interface']['interface_id'] = self.interfaceid
-        self.json['physical_interface']['zone_ref'] = self.zone
-        self.json['physical_interface']['interfaces'].append(self.interface)
-
-class SingleNodeInterface(PhysicalInterface):
-    """ SingleNodeInterface interface definition
-    Represents a layer3 interface, either standard interface or mgmt interface
+    classes such as SingleNodeInterface, CaptureInterface, etc. 
     
-    :param address: IP address of interface
-    :param network: Network address cidr, should include IP address in network
-    :param interfaceid: id of the interface
-    :param nodeid: nodeid for interface, used with clusters
-    :param is_mgmt: enable management on this interface
-    :type is_mgmt: boolean
-    :return: self, with json attribute set to interface json
-    :rtype: SingleNodeInterface
-    """
-    def __init__(self, address, network, interfaceid, 
-                 nodeid=1, zone=None,
-                 is_mgmt=False):
-        PhysicalInterface.__init__(self, interfaceid, nodeid, zone=zone)
-        self.address = address
-        self.network = network
-        self.is_mgmt = is_mgmt
-    
-    def build(self):
-        self.interface = self.cfg.get('single_node_interface')
-        self.interface['single_node_interface']['address'] = self.address
-        self.interface['single_node_interface']['network_value'] = self.network
-        self.interface['single_node_interface']['nodeid'] = self.nodeid
-        self.interface['single_node_interface']['nicid'] = self.nicid
-        self.interface['single_node_interface']['auth_request'] = True if self.is_mgmt else False
-        self.interface['single_node_interface']['primary_mgt'] = True if self.is_mgmt else False
-        self.interface['single_node_interface']['outgoing'] = True if self.is_mgmt else False
-        super(SingleNodeInterface, self).build()
-        return self
+    :param interfaceid: id of this physical interface
+    :param interfaces: interfaces to be added
+    :type interface: list
+    :param zone: define zone if any
+    """   
+    def __init__(self, interfaceid, interfaces,
+                 zone=None):
+        self.interface_id = interfaceid
+        self.interfaces = []
+        self.vlanInterfaces = []
+        self.zone_ref = zone
+        self.interfaces.append(interfaces)
 
-class NodeInterface(PhysicalInterface):
-    """ NodeInterface definition
-    Represents a physical interface for a layer 2 or IPS device. Typically
-    used as the management interface
-    
-    :param address: IP address of interface
-    :param network: Network address cidr, should include IP address in network
-    :param interfaceid: id of the interface
-    :param nodeid: nodeid for interface, used with clusters
-    :param is_mgmt: enable management on this interface
-    :type is_mgmt: boolean
-    :return: self, with json attribute set to interface json
-    :rtype: NodeInterface
-    """
-    def __init__(self, address, network, interfaceid, 
-                 nodeid=1,
-                 zone=None, 
-                 is_mgmt=False):
-        PhysicalInterface.__init__(self, interfaceid, nodeid, zone=zone)      
-        self.address = address
-        self.network = network
-        self.is_mgmt = is_mgmt
-        
-    def build(self):
-        self.interface = self.cfg['node_interface']
-        self.interface['node_interface']['address'] = self.address
-        self.interface['node_interface']['network_value'] = self.network
-        self.interface['node_interface']['nodeid'] = self.nodeid
-        self.interface['node_interface']['nicid'] = self.nicid
-        self.interface['node_interface']['primary_mgt'] = True if self.is_mgmt else False
-        self.interface['node_interface']['outgoing'] = True if self.is_mgmt else False
-        super(NodeInterface, self).build()
-        return self
-
-class CaptureInterface(PhysicalInterface):
-    """ CaptureInterface defintion
-    Represents a capture/span interface for a layer2 or IPS
-    
-    :param interfaceid: id of the interface
-    :param logical_ref: logical interface reference, used on capture and inline interfaces
-    :param nodeid: nodeid for interface, used with clusters
-    :return: self, with json attribute set to interface json
-    :rtype: CaptureInterface
-    """
-    def __init__(self, interfaceid, logical_ref, nodeid=1):
-        PhysicalInterface.__init__(self, interfaceid, nodeid)       
-        self.logical_interface_ref = logical_ref
-        
-    def build(self):
-        self.interface = self.cfg.get('capture_interface')
-        self.interface['capture_interface']['logical_interface_ref'] = self.logical_interface_ref
-        self.interface['capture_interface']['nicid'] = self.nicid
-        super(CaptureInterface, self).build()
-        return self
-
-class InlineInterface(PhysicalInterface):
-    """ InlineInterface defintion
-    Represents an inline interface for a layer2 or IPS
-    
-    :param interfaceid: id's of the inline interface; i.e. '1-2', '5-6', etc
-    :param logical_ref: logical interface reference, used on capture and inline interfaces
-    :param nodeid: nodeid for interface, used with clusters
-    :return: self, with json attribute set to interface json
-    :rtype: InlineInterface
-    """
-    def __init__(self, interfaceid, logical_ref, nodeid=1):
-        PhysicalInterface.__init__(self, interfaceid, nodeid)      
-        self.logical_interface_ref = logical_ref
-        
-    def build(self):
-        self.interface = self.cfg.get('inline_interface')
-        self.interface['inline_interface']['logical_interface_ref'] = self.logical_interface_ref
-        self.interface['inline_interface']['nicid'] = self.nicid
-        super(InlineInterface, self).build()
-        self.json['physical_interface']['interface_id'] = self.interfaceid.split('-')[0]
-        return self
+    def __repr__(self):
+        return {'physical_interface': self.__dict__}

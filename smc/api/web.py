@@ -315,7 +315,7 @@ class SMCResult(object):
         self.etag = None
         self.href = None
         self.content = None
-        self.msg = None
+        self.msg = msg
         self.code = None
         self.json = self.extract(respobj)
 

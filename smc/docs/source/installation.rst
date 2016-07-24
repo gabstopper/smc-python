@@ -34,6 +34,10 @@ main packages into a python script:
    import smc.elements.policy
    import smc.elements.system
    
-   
+To remove the package, simply run:
+
+`pip uninstall smc-python`
+
+For more information on next steps, please see Getting Started.   
 
 

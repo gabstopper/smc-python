@@ -46,19 +46,7 @@ class SMCElement(object):
     
     def update(self):
         return smc.api.common.update(self)
-    
-    #@classmethod
-    #def factory(cls, name=None, href=None, etag=None, 
-    #            _type=None, json=None, 
-    #            params=None, filename=None):
-    #    return SMCElement(name=name,
-    #                      href=href,
-    #                      etag=etag,
-    #                      type=_type,
-    #                      json=json,
-    #                      params=params,
-    #                      filename=filename)
-    
+
     def _fetch_href(self):
         self.href = search.element_entry_point(self.type)
         

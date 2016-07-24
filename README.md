@@ -20,7 +20,7 @@ download the latest tarball: [smc-python](https://github.com/gabstopper/smc-pyth
 
 ##### Testing
 
-Included is a test.py script that has several examples for manipulating data using the SMC api.
+Included are a variety of test example scripts that leverage the API to do various tasks in /examples
 
 ##### Basics
 
@@ -38,17 +38,4 @@ Once a valid session is obtained, it will be re-used for each operation performe
 
 Please see the read-the-docs documentation above for a full explanation and technical reference on available API classes.
 
-
-###### Policy creation, loading and add/remove rules
-```python
-policy = FirewallPolicy.create('pythonapi', 
-                                   smc.search.fw_template_policies(
-                                                    policy='Firewall Inspection Template'))
-policy = FirewallPolicy('pythonapi').load()   
-policy.open()
-policy.ipv4_rule.create('api1', 'kiley-test', 'smi', 'any', 'allow')
-policy.ipv4_rule.create('api2', 'kiley-test', 'kiley-test', 'any', 'discard')
-policy.ipv4_rule.create('api3', 'ami', 'any', 'any', 'refuse')
-policy.save()
-policy.ipv4_rule.delete('api3')
-```
+[View Documentation on Read The Docs](http://smc-python.readthedocs.io/en/latest/?badge=latest)

@@ -185,6 +185,12 @@ IPv4NATRule
    :members:
    :show-inheritance:
 
+Search
+------
+
+.. automodule:: smc.actions.search
+   :members:
+
 License
 -------
 

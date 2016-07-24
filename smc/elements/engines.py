@@ -280,19 +280,23 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('virtual_resources'))
     
-    def virtual_resource_add(self, name, vfw_id, domain='Shared Domain'):
+    def virtual_resource_add(self, name, vfw_id, domain='Shared Domain',
+                             show_master_nic=False):
         """ Master Engine only
         Add a virtual resource to this master engine
         
         :param name: name for virtual resource
         :param vfw_id: virtual fw ID, must be unique, indicates the virtual engine instance
         :param domain: Domain to place this virtual resource, default Shared
+        :param show_master_nic: Show master NIC mapping in virtual engine interface view
         :return: SMCResult with href set if success, or msg set if failure
         """
         domain = search.element_href_use_filter(domain, 'admin_domain')
         return SMCElement(href=self.__load_href('virtual_resources'), 
                           json={'allocated_domain_ref': domain,
-                                'name': name, 
+                                'name': name,
+                                'connection_limit': 0,
+                                'show_master_nic': show_master_nic, 
                                 'vfw_id': vfw_id}).create()
     
     def virtual_physical_interface(self):
@@ -314,8 +318,8 @@ class Engine(object):
         :param vlan_id: number of vlan_id
         :type vlan_id: int
         :param virtual_mapping: The interface ID for the virtual engine. Virtual engine
-               interface mapping starts numbering at 0, but you must account for interfaces
-               used by master engine
+               interface mapping starts numbering at 0 by default, which means you must
+               account for interfaces used by master engine
         :type virtual_mapping: int
         :param virtual_resource_name: Name of virtual resource for this VLAN if a VE
         :type virtual_resource_name: string
@@ -325,7 +329,7 @@ class Engine(object):
             if interface.get('name') == intf:
                 intf = interface.get('href')
                 break
-
+        
         interface = search.element_by_href_as_json(intf)
         vlan = {
                 "interface_id": str(interface_id)+'.'+str(vlan_id), #interface_id.vlan_id
@@ -358,26 +362,30 @@ class Engine(object):
                 if interface.get('name') == name]
         if href:
             return common_api.delete(href.pop())
-    
-    def layer3_interface_add(self, address, network, interfaceid,
+
+    def layer3_interface_add(self, address, network_value, interfaceid,
                              nodeid=1, is_mgmt=False):
-        """ Add layer 3 physical interface
+        """ Add layer 3 physical interface, this is a SingleNodeInterface
         
         :param ip: ipaddress of interface
-        :param ip_network: network address in cidr
-        :param interfaceid: id of interface
+        :param network_value: network address in cidr
+        :param interface_id: id of interface
         :param nodeid: id of node, only used in clusters
         :type nodeid: int
         :param is_mgmt: Whether to make this a management enabled interface
         :type is_mgmt: boolean
         :return: SMCResult
         """
-        intf = SingleNodeInterface(address, network, interfaceid, 
-                                   nodeid=nodeid, 
-                                   is_mgmt=is_mgmt).build()
+        sub = SingleNodeInterface(address, network_value, interfaceid,
+                                   nodeid=nodeid)
+        if is_mgmt:
+            sub.auth_request = True
+            sub.outgoing = True
+            sub.primary_mgt = True
+       
         return SMCElement(href=self.__load_href('physical_interface'), 
-                          json=intf.json.get('physical_interface')).create()
-        
+                          json=sub.__repr__()).create()
+ 
     def inline_interface_add(self, interfaceid,
                              logical_interface_ref='default_eth',
                              nodeid=1):
@@ -389,11 +397,10 @@ class Engine(object):
         :type nodeid: int
         :return: SMCResult
         """
-        intf = InlineInterface(interfaceid,
-                               logical_interface_ref,
-                               nodeid).build()
+        sub = InlineInterface(interfaceid, logical_interface_ref)
+        
         return SMCElement(href=self.__load_href('physical_interface'), 
-                          json=intf.json.get('physical_interface')).create()
+                          json=sub.__repr__()).create()
 
     def capture_interface_add(self, interfaceid, 
                               logical_interface_ref='default_eth', 
@@ -406,11 +413,9 @@ class Engine(object):
         :type nodeid: int
         :return: SMCResult
         """
-        intf = CaptureInterface(interfaceid,
-                                logical_interface_ref,
-                                nodeid).build()
+        sub = CaptureInterface(interfaceid, logical_interface_ref)
         return SMCElement(href=self.__load_href('physical_interface'),
-                          json=intf.json.get('physical_interface')).create()
+                          json=sub.__repr__()).create()
   
     def tunnel_interface(self):
         """ Get only tunnel interfaces for this engine node.
@@ -779,7 +784,7 @@ class Layer3Firewall(Node):
 
     @classmethod   
     def create(cls, name, mgmt_ip, mgmt_network, log_server=None,
-                 mgmt_interface='0', dns=None):
+                 mgmt_interface=0, dns=None, default_nat=False):
         """ 
         Create a single layer 3 firewall with management interface and DNS
         
@@ -788,9 +793,11 @@ class Layer3Firewall(Node):
         :param mgmt_network: management network in cidr format
         :param log_server: href to log_server instance for fw
         :param mgmt_interface: interface for management from SMC to fw
-        :type mgmt_interface: string or None
+        :type mgmt_interface: int
         :param dns: DNS server addresses
-        :type dns: list or None
+        :type dns: list
+        :param default_nat: Whether to enable default NAT for outbound
+        :type default_nat: boolean #TODO: FIX, not working
         :return: Layer3Firewall class with href and engine_json set
         """
         cls.name = name
@@ -803,10 +810,14 @@ class Layer3Firewall(Node):
                 cls.domain_server_address.append(entry)
         
         super(Layer3Firewall, cls).create()
+
         mgmt = SingleNodeInterface(mgmt_ip, mgmt_network,
-                                   interfaceid=mgmt_interface,
-                                   is_mgmt=True).build()
-        cls.engine_json.get('physicalInterfaces').append(mgmt.json)
+                                   mgmt_interface)
+        mgmt.auth_request = True
+        mgmt.outgoing = True
+        mgmt.primary_mgt = True
+        cls.engine_json.get('physicalInterfaces').append({'physical_interface': mgmt.__repr__()})
+                                                         
         cls.href = search.element_entry_point('single_fw')
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
         if result.href:
@@ -830,7 +841,7 @@ class Layer2Firewall(Node):
     
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network, 
-               log_server=None, mgmt_interface='0', 
+               log_server=None, mgmt_interface=0, 
                inline_interface='1-2', logical_interface='default_eth', 
                dns=None):
         """ 
@@ -842,13 +853,13 @@ class Layer2Firewall(Node):
         :param mgmt_network: management network in cidr format
         :param log_server: href to log_server instance for fw
         :param mgmt_interface: interface for management from SMC to fw
-        :type mgmt_interface: string or None
+        :type mgmt_interface: int
         :param inline_interface: interface ID's to use for default inline interfaces
         :type inline_interface: string or None (i.e. '1-2')
         :param logical_interface: logical interface to assign to inline interface
-        :type logical_interface: string or None
+        :type logical_interface: string
         :param dns: DNS server addresses
-        :type dns: list or None
+        :type dns: list
         :return: Layer2Firewall class with href and engine_json set
         """
         cls.name = name
@@ -862,14 +873,17 @@ class Layer2Firewall(Node):
         
         super(Layer2Firewall, cls).create()
         mgmt = NodeInterface(mgmt_ip, mgmt_network, 
-                             interfaceid=mgmt_interface,
-                             is_mgmt=True).build()  
+                              interfaceid=mgmt_interface)
+        mgmt.primary_mgt = True
+        mgmt.outgoing = True
+ 
         intf_href = search.get_logical_interface(logical_interface)
-        inline = InlineInterface(inline_interface, intf_href).build()
-    
-        cls.engine_json.get('physicalInterfaces').append(mgmt.json)
-        cls.engine_json.get('physicalInterfaces').append(inline.json)
+        inline = InlineInterface(inline_interface, intf_href)
+
+        cls.engine_json.get('physicalInterfaces').append({'physical_interface': mgmt.__repr__()})
+        cls.engine_json.get('physicalInterfaces').append({'physical_interface': inline.__repr__()})
         cls.href = search.element_entry_point('single_layer2')
+        
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
         if result.href:
             #got referring object location, load and return
@@ -921,14 +935,16 @@ class IPS(Node):
                        
         super(IPS, cls).create()      
         mgmt = NodeInterface(mgmt_ip, mgmt_network, 
-                             interfaceid=mgmt_interface,
-                             is_mgmt=True).build()
+                              interfaceid=mgmt_interface)
+        mgmt.primary_mgt = True
+        mgmt.outgoing = True
             
         intf_href = search.get_logical_interface(logical_interface)
-        inline = InlineInterface(inline_interface, intf_href).build()
+        inline = InlineInterface(inline_interface, intf_href)
         
-        cls.engine_json.get('physicalInterfaces').append(mgmt.json)
-        cls.engine_json.get('physicalInterfaces').append(inline.json)
+        cls.engine_json.get('physicalInterfaces').append({'physical_interface': mgmt.__repr__()})
+        cls.engine_json.get('physicalInterfaces').append({'physical_interface': inline.__repr__()})        
+      
         cls.href = search.element_entry_point('single_ips')
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
         if result.href:
@@ -936,46 +952,52 @@ class IPS(Node):
             return IPS(cls.name).load()
         
 class Layer3VirtualEngine(Node):
+    """ Create a layer3 virtual engine and map to specified Master Engine
+        Each layer 3 virtual firewall will use the same virtual resource that 
+        should be pre-created. 
+    """
     def __init__(self, name):
         Node.__init__(self, name)
         self.node_type = 'virtual_fw_node'
     
     @classmethod
-    def create(cls, name, master_engine, virtual_resource, dns=None, **kwargs):
-        """ Create a layer3 virtual engine and map to specified Master Engine
-        Each layer 3 virtual firewall will use the same virtual resource that 
-        should be pre-created. 
-        
-        To create the virtual resource::
-        
-            engine.virtual_resource_add(virtual_engine_name='ve-1', vfw_id=1)
-            
-        See :func:`engine.virtual_resource_add` for more information.
-        
-        .. note:: Virtual engine interface id's are staggered based on a master
-                  engine having some pre-configured. For example, if the master
-                  engine is using physical interface 0 for management, the virtual
-                  engine will start with interface index 1. However, the interface
-                  naming within the virtual engine configuration will start numbering
-                  at interface 0!
-        
-        Calling this class would look like::
-        
-            Layer3VirtualEngine.create('red', 
-                                       'my_master_engine', 've-1',
-                                        interfaces=[
-                                            {'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0},
-                                            {'ipaddress': '6.6.6.6', 'mask': '6.6.6.0/24', 'interface_id':1},
-                                            {'ipaddress': '7.7.7.7', 'mask': '7.7.7.0/24', 'interface_id':2}]
-
+    def create(cls, name, master_engine, virtual_resource, dns=None,
+               default_nat=False, **kwargs):
+        """
         :param name: Name of this layer 3 virtual engine
         :param master_engine: Name of existing master engine. This assumes the
                interfaces are already created
         :param virtual_resource: name of pre-created virtual resource
+        :param default_nat: Whether to enable default NAT for outbound
+        :type default_nat: boolean
         :param kwargs: Interfaces mappings passed in
+        
+        To create the virtual resource::
+        
+            engine.virtual_resource_add(virtual_engine_name='ve-1', vfw_id=1)
+           
+        See :func:`Engine.virtual_resource_add` for more information.
+        
+        .. note:: Virtual engine interface id's are staggered based on a master
+                  engine having some pre-configured. For example, if the master
+                  engine is using physical interface 0 for management, the virtual
+                  engine may be assigned physical interface 1 for use. For an 
+                  indexing perspective, the naming within the virtual engine 
+                  configuration will start at interface 0 as the mgmt physical
+                  interface will not be visible.
+        
+        Calling this class would look like::
+        
+            Layer3VirtualEngine.
+                    create('red', 'my_master_engine', 've-1',
+                            interfaces=[
+                                    {'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0, zone=''},
+                                    {'ipaddress': '6.6.6.6', 'mask': '6.6.6.0/24', 'interface_id':1, zone=''},
+                                    {'ipaddress': '7.7.7.7', 'mask': '7.7.7.0/24', 'interface_id':2, zone=''}]
         """
         cls.name = name
         cls.node_type = 'virtual_fw_node'
+        cls.default_nat = default_nat
         cls.domain_server_address = []
         cls.log_server_ref = None
         if dns:
@@ -985,27 +1007,29 @@ class Layer3VirtualEngine(Node):
         super(Layer3VirtualEngine, cls).create()
 
         #Get reference to virtual resource
+        virt_resource_href = None
         master_engine = Node(master_engine).load()
         for virt_resource in master_engine.virtual_resource():
             if virt_resource.get('name') == virtual_resource:
                 virt_resource_href = virt_resource.get('href')
                 break
-
+        if not virt_resource_href:
+            return SMCResult(msg='Cannot find virtual resource, cannot add VE')
+        
         cls.engine_json['virtual_resource'] = virt_resource_href
             
         if kwargs:
             for interface in kwargs.get('interfaces'): #get interface info
                 iface = SingleNodeInterface(interface.get('ipaddress'),
-                                            interface.get('mask'),
-                                            interface.get('interface_id'),
-                                            zone=interface.get('zone')).build()
-                iface.json['virtual_physical_interface'] = iface.json.pop('physical_interface')
-                new_iface = iface.json.get('virtual_physical_interface')
+                                             interface.get('mask'),
+                                             interface.get('interface_id'))
                 if interface.get('interface_id') == 0:
-                    auth = new_iface.get('interfaces')[0].get('single_node_interface')
-                    auth['auth_request'] = True #required for virtual engine
-                cls.engine_json.get('physicalInterfaces').append(iface.json) 
-        
+                    iface.auth_request = True
+                    iface.outgoing = True
+                phys = iface.__repr__()
+                phys['zone_ref'] = interface.get('zone')
+                cls.engine_json.get('physicalInterfaces').append({'virtual_physical_interface': phys})
+
             cls.href = search.element_entry_point('virtual_fw')
         
             return SMCElement(href=cls.href, json=cls.engine_json).create()  

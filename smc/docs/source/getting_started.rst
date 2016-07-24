@@ -227,7 +227,6 @@ targeting a specific node such as the case with sending the 'reboot' command for
 Node level commands allow actions such as fetch license, bind license, initial contact, appliance status, 
 go online, go offline, go standby, lock online, lock offline, reset user db, diagnostics, reboot, sginfo, 
 ssh (enable/disable/change pwd), and time sync.
-For all available commands for node, see :py:class:`smc.elements.engines.Node`
 
 .. code-block:: python
 
@@ -239,6 +238,8 @@ For all available commands for node, see :py:class:`smc.elements.engines.Node`
    engine.bind_license()	#bind license on single node
    engine.go_standby(node='ngf-1035') #command node 'ngf-1035' to standby
    ....
+
+For all available commands for node, see :py:class:`smc.elements.engines.Node`
 
 Policies
 --------
@@ -261,7 +262,7 @@ Below are some common examples of retrieving data from the SMC:
 
 .. code-block:: python
 
-   #Just return the href of a particular SMC Element:
+   #Only return the href of a particular SMC Element:
    smc.actions.search.element_href(name)
    
    #To obtain full json for an SMC Element:
@@ -302,5 +303,5 @@ longer term logging, add the following to your main class:
    logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s: %(message)s')
    
 .. note:: This is a recommended setting initially as it enables detailed logging of each call as it is
-		  processed through the API. It also includes the backend web based calls initiated by the http 
+		  processed through the API. It also includes the backend web based calls initiated by the 
 		  requests module.
