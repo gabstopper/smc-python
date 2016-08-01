@@ -1,5 +1,6 @@
 import smc.actions.search as search
 from smc.api.web import SMCException
+from smc.api import common
 
 
 class System(object):
@@ -19,31 +20,31 @@ class System(object):
             raise SMCException("Exception retrieving system settings")
         
     def smc_version(self):
-        print "GET version"
+        return search.element_by_href_as_json(self._load_href('smc_version'))
     
     def smc_time(self):
-        print "GET time"
+        return search.element_by_href_as_json(self._load_href('smc_time'))
     
     def last_activated_package(self):
-        print "GET package"
+        return search.element_by_href_as_json(self._load_href('last_activated_package'))
     
     def update_package(self):
-        "GET update package"
+        return search.element_by_href_as_json(self._load_href('update_package'))
     
     def import_package(self):
         print "POST import package"
         
     def engine_upgrade(self):
-        print "GET engine upgrade"
+        return search.element_by_href_as_json(self._load_href('engine_upgrade'))
     
     def uncommitted(self):
         pass
     
     def system_properties(self):
-        print "GET system properties"
+        return search.element_by_href_as_json(self._load_href('system_properties'))
         
     def empty_trash_bin(self):
-        print "DELETE trash bin"
+        return common.delete(self._load_href('empty_trash_bin'))
         
     def clean_invalid_filters(self):
         pass
@@ -52,7 +53,7 @@ class System(object):
         print "POST blacklist"
         
     def licenses(self):
-        print "GET licenses"
+        return search.element_by_href_as_json(self._load_href('licenses'))
         
     def license_fetch(self):
         print "GET license fetch"
@@ -61,19 +62,21 @@ class System(object):
         print "PUT license install"
         
     def license_details(self):
-        print "GET license details"
+        return search.element_by_href_as_json(self._load_href('license_details'))
         
     def license_check_for_new(self):
-        print "GET license check for new"
+        return search.element_by_href_as_json(self._load_href('license_check_for_new'))
         
     def delete_license(self):
         print "PUT delete license"
-        
+    
+    #TODO: doesnt return anything    
     def virtual_engine_mapping(self):
-        print "GET virtual engine mapping"
-        
+        return search.element_by_href_as_json(self._load_href('virtual_engine_mapping'))
+    
+    #TODO: doesnt return anything    
     def references_by_element(self):
-        print "GET references by element"
+        return search.element_by_href_as_json(self._load_href('references_by_element'))
         
     def export_elements(self):
         print "POST export elements"

@@ -342,9 +342,61 @@ class LogicalInterface(SMCElement):
         self.comment = comment if comment is not None else ""
     
     def create(self):
-        self.json = {
-                    "comment": self.comment,
-                    "name": self.name
-        }
+        self.json = { "comment": self.comment,
+                      "name": self.name }
         self._fetch_href()
-        return super(LogicalInterface, self).create()    
+        return super(LogicalInterface, self).create()
+    
+class Blacklist(object):
+    """ Add a blacklist entry by source / destination
+    
+    :param src: source address, with cidr, i.e. 10.10.10.10/32
+    :param dst: destination address with cidr
+    :param duration: length of time to blacklist
+    :type duration: int
+    """
+    def __init__(self, src, dst, name=None, duration=3600):
+        self.name = name
+        self.duration = duration
+        self.end_point1 = {'name': '', 'address_mode': 'address', 'ip_network': src}
+        self.end_point2 = {'name': '', 'address_mode': 'address', 'ip_network': dst}
+        
+class VirtualResource(object):
+    def __init__(self, name, vfw_id, domain='Shared',
+                 show_master_nic=False,
+                 connection_limit=0):
+        self.allocated_domain_ref = domain
+        self.name = name
+        self.connection_limit = connection_limit
+        self.show_master_nic = show_master_nic
+        self.vfw_id = vfw_id
+        self.resolve_domain()
+        
+    def resolve_domain(self):
+        self.allocated_domain_ref = search.element_href_use_filter(
+                                        self.allocated_domain_ref, 'admin_domain')   
+
+class Administrator(SMCElement):
+    def __init__(self, name, local_admin=False, allow_sudo=False, superuser=False,
+                 admin_domain=None, engine_target_list=None):
+        SMCElement.__init__(self)
+        self.name = name
+        self.local_admin = local_admin
+        self.allow_sudo = allow_sudo
+        self.superuser = superuser
+        self.admin_domain = admin_domain
+        self.engine_target_list = engine_target_list
+
+def zone_helper(zone):
+    zone_ref = smc.search.element_href_use_filter(zone, 'interface_zone')
+    if zone_ref:
+        return zone_ref
+    else:
+        return Zone(zone).create().href
+    
+def logical_intf_helper(interface):
+    intf_ref = smc.search.element_href_use_filter(interface, 'logical_interface')
+    if intf_ref:
+        return intf_ref
+    else:
+        return LogicalInterface(interface).create().href

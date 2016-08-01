@@ -28,11 +28,12 @@ import csv
 from collections import OrderedDict
 import smc.api.web
 import smc.elements.element
+from smc.elements.interfaces import PhysicalInterface
 from smc.elements.engines import Node, Layer3VirtualEngine
 
 import logging
 logging.getLogger()
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 master_engine_name = 'master-eng'
 csv_filename = '/Users/davidlepage/info.csv'
@@ -76,7 +77,7 @@ if __name__ == '__main__':
                 print "Creating VLANs and Virtual Resources for VE: %s" % virtual_engine_name 
                 
                 #Create virtual resource on the Master Engine
-                engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine,
+                print engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine,
                                             show_master_nic=False)
                 
                 engine_info[virtual_engine_name] = []
@@ -89,17 +90,24 @@ if __name__ == '__main__':
                                                      'ipaddress': row.get('ipaddress'),
                                                      'mask': row.get('ipaddress')+'/'+row.get('cidr'),
                                                      'zone': zone_map.get(physical_interface_id)})    
-
+            #print "engine info: %s" % engine_info
             #Create and add VLANs to Master Engine and assign the virtual engine name
-            result = engine.physical_interface_vlan_add(interface_id=physical_interface_id, 
-                                                        vlan_id=row.get('vlan_id'),
-                                                        virtual_mapping=virtual_interface_id,
-                                                        virtual_resource_name=virtual_engine_name)
+            #result = engine.physical_interface_vlan_add(interface_id=physical_interface_id, 
+            #                                            vlan_id=row.get('vlan_id'),
+            #                                            virtual_mapping=virtual_interface_id,
+            #                                            virtual_resource_name=virtual_engine_name)
+            physical = PhysicalInterface(physical_interface_id)
+            physical.add_vlan(row.get('vlan_id'), 
+                              virtual_mapping=virtual_interface_id, 
+                              virtual_resource_name=virtual_engine_name)
+
+            result = engine.add_physical_interfaces(physical.data)
+            
             if result.href:
                 print "Successfully created VLAN %s" % (row.get('vlan_id'))
             else:
                 print "Failed creating VLAN %s, reason: %s" % (row.get('vlan_id'), result.msg)
-
+            
                 
         for name, interfaces in engine_info.iteritems():
             result = Layer3VirtualEngine.create(name, master_engine_name, name, default_nat=False, 

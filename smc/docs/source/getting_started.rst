@@ -66,17 +66,17 @@ Examples of creating elements are as follows:
 
 .. code-block:: python
 
-   import smc.elements.element
+   from smc.elements.element import Host, Router, Network, IpRange, Group, Service
    
-   smc.elements.element.IpRange('myrange', '10.0.0.1-10.0.0.254').create()
-   smc.elements.element.Host('myhost', '192.168.1.1', secondary_ip='192.168.1.2').create()
-   smc.elements.element.Router('defaultgw', '172.18.1.1', comment='internet facing gw').create()
-   smc.elements.element.Network('vpn network', '10.10.1.0/24').create()
+   IpRange('myrange', '10.0.0.1-10.0.0.254').create()
+   Host('myhost', '192.168.1.1', secondary_ip='192.168.1.2').create()
+   Router('defaultgw', '172.18.1.1', comment='internet facing gw').create()
+   Network('vpn network', '10.10.1.0/24').create()
    
-   smc.elements.element.Group('group').create()  #no members
-   smc.elements.element.Group('group', members=['1.1.1.1','1.1.1.2']).create() 
+   Group('group').create()  #no members
+   Group('group', members=['1.1.1.1','1.1.1.2']).create() 
    
-   smc.elements.element.Service('tcp666', 666, proto='tcp').create()
+   Service('tcp666', 666, proto='tcp').create()
   
 See the :py:class:`smc.elements.element` reference documentation for more specific details.
    
@@ -92,7 +92,7 @@ interfaces, routes, ip addresses, networks, dns servers, etc.
 
 From a class hierarchy perspective, this relationship can be represented as:
 
-Engine ---> Node ---> Layer3 Firewall / Layer2 Firewall / IPS
+Engine ---> Node ---> Layer3 Firewall / Layer2 Firewall / IPS / Firewall Cluster / VirtualL3Engine
 
 Nodes are the individual engine instances, in the case of single device deployments, there is 
 only one node. For clusters, there will be at a minimum 2 nodes, max of 16. The :py:mod:`smc.elements.engines:node`
@@ -101,7 +101,14 @@ class represents the interface to managing and sending commands individually to 
 By default, each constructor will have default values for the interface used for management (interface 0).
 This can be overridden as necessary.
 
-Creating a Layer3 Firewall:
+Creating Layer3 Firewall
+++++++++++++++++++++++++
+
+For Layer 3 single firewall engines, the minimum requirements are to specify a name, management IP and
+management network. By default, the Layer 3 firewall will use interface 0 as the management port. This can
+be overridden in the constructor if a different interface is required. 
+
+To create a layer 3 firewall:
 
 .. code-block:: python
 
@@ -109,9 +116,14 @@ Creating a Layer3 Firewall:
    
    Layer3Firewall.create('myfirewall', '1.1.1.1', '1.1.1.0/24')
 
+See reference for more information: :py:class:`smc.elements.engines.Layer3Firewall`
+
+Creating Layer 2 Firewall
++++++++++++++++++++++++++
 
 For Layer 2 Firewall and IPS engines, an inline interface pair will automatically be 
-created using interfaces 1-2 but can be overridden in the constructor.
+created using interfaces 1-2 but can be overridden in the constructor to use different
+interface mappings.
 
 Creating a Layer2 Firewall with alternative management interface and DNS settings:
 
@@ -121,8 +133,12 @@ Creating a Layer2 Firewall with alternative management interface and DNS setting
    
    Layer2Firewall.create('myfirewall', '1.1.1.1', '1.1.1.0/24', mgmt_interface=5, dns=['172.18.1.20'])
 
+See reference for more information: :py:class:`smc.elements.engines.Layer2Firewall`
    									  
-Creating an IPS engine with alternative inline interface pair (mgmt on interface 0):
+Creating IPS engine
++++++++++++++++++++
+
+Using alternative inline interface pair (mgmt on interface 0):
  
  .. code-block:: python
 
@@ -133,14 +149,110 @@ Creating an IPS engine with alternative inline interface pair (mgmt on interface
 Once you have created your engine, it is possible to use any of the engine or node level commands
 to control the nodes.
 
+See reference for more information: :py:class:`smc.elements.engines.IPS`
 
-Adding interfaces
-+++++++++++++++++
+Creating Layer3Virtual Engine
++++++++++++++++++++++++++++++
 
-After your engine has been successfully created, you can add and remove interfaces as needed.
-In order to get the context of the engine, you must first load the engine configuration. It is 
-not required to know the engine type (layer3, layer2, ips) in order to load, instead you can
-use the Node class.
+A virtual engine is a host that resides on a Master Engine node used for multiple FW contexts. Stonesoft
+maps a 'virtual resource' to a virtual engine as a way to map the master engine interface to the individual
+instance residing within the physical device. 
+
+In order to create a virtual engine, you must first manually create the Master Engine from the SMC, then 
+create the interfaces that will be used for the virtual instances.
+
+The first step in creating the virtual engine is to create the virtual resource and map that to a physical interface
+or VLAN on the master engine. Once that has been created, add IP addresses to the virtual engine interfaces as necessary.
+
+.. code-block:: python
+
+   To create the virtual resource::
+        
+   		engine.virtual_resource_add(virtual_engine_name='ve-1', vfw_id=1)
+           
+See :py:func:`smc.elements.engine.Engine.virtual_resource_add` for more information.
+        
+.. note:: Virtual engine interface id's will be staggered based on used interfaces
+          by the master engine.
+          For example, if the master engine is using physical interface 0 for 
+          management, the virtual engine may be assigned physical interface 1 
+          for use. From an indexing perspective, the naming within the virtual engine 
+          configuration will start at interface 0 but be using physical interface 1.
+        
+.. code-block:: python
+        
+   Layer3VirtualEngine.
+           create('red', 'my_master_engine', 've-1',
+                   interfaces=[
+                            {'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0, zone=''},
+                            {'ipaddress': '6.6.6.6', 'mask': '6.6.6.0/24', 'interface_id':1, zone=''},
+                            {'ipaddress': '7.7.7.7', 'mask': '7.7.7.0/24', 'interface_id':2, zone=''}]
+
+See reference for more information: :py:class:`smc.elements.engines.Layer3VirtualEngine`
+                            
+Creating Firewall Cluster
++++++++++++++++++++++++++
+
+Creating a layer 3 firewall cluster requires additional interface related information to bootstrap the
+engine properly.
+With NGFW clusters, a "cluster virtual interface" is required (if only one interface is used) to specify 
+the cluster address as well as each engine specific node IP address. In addition, a macaddress is required 
+for packetdispatch functionality (recommended HA configuration).
+
+By default, the FirewallCluster class will allow as many nodes as needed (up to 16 per cluster) for the
+singular interface. The node specific interfaces are defined by passing in the 'nodes' argument to the
+constructor as follows:
+
+.. code-block:: python
+
+   engine = FirewallCluster.create(name='mycluster', 
+                                   cluster_virtual='1.1.1.1', 
+                                   cluster_mask='1.1.1.0/24',
+                                   cluster_nic=0,
+                                   macaddress='02:11:11:11:11:11',
+                                   nodes=[{'address': '1.1.1.2', 'netmask': '1.1.1.0/24'},
+                                          {'address': '1.1.1.3', 'netmask': '1.1.1.0/24'},
+                                          {'address': '1.1.1.4', 'netmask': '1.1.1.0/24'}],
+                                   dns=['1.1.1.1'], 
+                                   zone=zone)
+                                   
+Interfaces
+++++++++++
+
+After your engine has been successfully created with the default interfaces, you can add and remove 
+interfaces as needed.
+
+From an interface perspective, there are several different interface types that are have subtle differences.
+The supported physical interface types available are:
+
+* Single Node Dedicated Interface
+* Node Dedicated Interface
+* Inline Interface
+* Capture Interface
+* Cluster Virtual Interface
+* Virtual Physical Interface (used for Layer 3 Virtual Engines)
+
+The distinction is subtle but straightforward. A single node interface is used on a single layer 3 firewall
+instance and represents a unique interface with dedicated IP Address.
+
+A node dedicated interface is used on Layer 2 and IPS engines as management based interfaces and may also be used as
+a heartbeat (for example). 
+
+It is a unique IP address for each machine. It is not used for operative traffic in Firewall Clusters, 
+IPS engines, and Layer 2 Firewalls. 
+Firewall Clusters use a second type of interface, Cluster Virtual IP Address (CVI), for operative traffic. 
+
+IPS engines have two types of interfaces for traffic inspection: the Capture Interface and the Inline Interface. 
+Layer 2 Firewalls only have Inline Interfaces for traffic inspection.
+
+.. note:: When creating your engine instance, the correct type/s of interfaces are created automatically
+          without having to specify the type. However, this will be relavant when adding interfaces to an
+          existing device after creation.
+
+
+To access interface information on existing engines, or to add to an existing engine, you must first load the
+engine context configuration. It is not required to know the engine type (layer3, layer2, ips) as you can load 
+by the parent class :py:class:`smc.elements.engines.Node`.
 
 For example, if I know I have an engine named 'myengine' (despite the engine 'role'), it can be
 loaded via:
@@ -156,26 +268,157 @@ possible to add inline or capture interfaces to layer 3 FW engines. However, thi
 automatically by the SMC API and SMCResult will indicate whether the operation/s succeeds or fails
 and why.
 
-To add a layer 3 interface once the engine has been loaded:
+Single Node interfaces are used on single layer 3 firewalls and represents a single interface. 
+
+To add a single node interface to an existing engine:
 
 .. code-block:: python
 
-   engine.layer3_interface_add('2.3.4.5', '2.3.4.0/30', 10) #interface id 10
+   physical = PhysicalInterface(10) #interface number 10
+   physical.add_single_node_interface('33.33.33.33', '33.33.33.0/24')
+   engine.add_interfaces(physical.data)
 
-To add an inline interface to a layer2 FW or IPS:
+Node Interface's are used on IPS, Layer2 Firewall, Virtual and Cluster Engines and represent either a
+single interface or a cluster member interface used for communication.
+
+To add a node interface to an existing engine:
 
 .. code-block:: python
 
-   engine.inline_interface_add('6-7', logical_interface_ref='default_eth')
+   physical = PhysicalInterface('10') #interface number 10
+   physical.add_node_interface('32.32.32.32', '32.32.32.0/24')
+   engine.add_interfaces(physical.data)
+   
+Inline interfaces can only be added to Layer 2 Firewall or IPS engines. An inline interface consists
+of a pair of interfaces that do not necessarily have to be contiguous. Each inline interface requires
+that a 'logical interface' is defined. This is used to identify the interface pair and can be used to
+simplify policy. See :py:class:`smc.elements.element.LogicalInterface` for more details.
+
+To add an inline interface to an existing engine:
+
+.. code-block:: python
+
+   logical_intf = smc.search.element_href('default_eth') #get logical interface reference
+   physical = PhysicalInterface('5-6')	#use interfaces 5 and 6 as the inline pair
+   physical.add_inline_interface(logical_intf)
+   engine.add_interfaces(physical.data)
+   
+Capture Interfaces are used on Layer 2 Firewall or IPS engines as SPAN monitors to view traffic on the wire. 
    
 To add a capture interface to a layer2 FW or IPS:
 
 .. code-block:: python
 
-   engine.capture_interface_add('8', logical_interface_ref='default_eth')
+   logical_interface = smc.search.element_href('apitool') #get logical interface reference
+   physical = PhysicalInterface('12')	#use interface 12
+   physical.add_capture_interface(logical_interface)
+   engine.add_interfaces(physical.data)
 
+Cluster Virtual Interfaces are used on clustered engines and require a defined "CVI" (sometimes called a 'VIP'),
+as well as node dedicated interfaces for the engine initiated communications. Each clustered interface will therefore
+have 3 total address for a cluster of 2 nodes. 
+
+To add a cluster virtual interface on a layer 3 FW cluster:
+
+.. code-block:: python
+   
+   physical = PhysicalInterface('2')	#use interface 2
+   physical.add_cluster_virtual_interface(cluster_virtual='172.18.1.254', 
+   										  cluster_mask='172.18.1.0/24',
+   										  macaddress='02:02:02:02:02', 
+                                		  nodes=[{'address': '2.2.2.2', 'network_value': '2.2.2.0/24'},
+                                       			 {'address': '3.3.3.3', 'network_value': '3.3.3.0/24'}], 
+                                          is_mgmt=True)
+   engine.add_interfaces(physical.data)
+
+.. warning:: Make sure the cluster virtual netmask matches the node level networks!
+                                           
+Nodes specified are the individual node dedicated addresses for the cluster members.
+
+.. note:: Node numbering will start with the CVI defined address (node 1), then each node in nodes will be
+          mapped to incremental nodes, i.e. node 2, and node 3.
+
+VLANs can be applied to layer 3 or inline interfaces. For inline interfaces, these will not have assigned
+IP addresses, however layer 3 interfaces will require addressing as a routed device.
+
+To add a VLAN to a generic physical interface for single node (layer 3 firewall) or a node interface, 
+independent of engine type:
+
+.. code-block:: python
+
+   physical = PhysicalInterface('23') #create interface 23
+   physical.add_vlan_to_node_interface(154)
+   physical.add_vlan_to_node_interface(155)
+   physical.add_vlan_to_node_interface(156)
+   engine.add_interfaces(physical.data)
+   
+This will add 3 VLANs to physical interface 23. If this is a layer 3 routed firewall, you may still need
+to add addressing to each VLAN. 
+
+.. note:: In the case of Virtual Engines, it may be advisable to create the physical interfaces with 
+	      VLANs on the Master Engine and allocate the IP addressing scheme to the Virtual Engine.
+	      
+
+To add layer 3 interfaces with a VLAN and IP address:
+
+.. note:: The physical interface will be created if it doesn't already exist
+
+.. code-block:: python
+   
+   physical = PhysicalInterface('23')	#physical interface 23
+   physical.add_single_node_interface_to_vlan('60.60.60.60', '60.60.60.0/24', 60) #vlan 60
+   physical.add_single_node_interface_to_vlan('70.70.70.70', '70.70.70.0/24', 70)
+   physical.add_single_node_interface_to_vlan('80.80.80.80', '80.80.80.0/24', 80)
+   physical.add_single_node_interface_to_vlan('90.90.90.90', '90.90.90.0/24', 90)
+   engine.add_interfaces(physical.data)
+   
+To add VLANs to layer 2 or IPS inline interfaces:
+
+.. note:: The physical interface will be created if it doesn't already exist
+
+.. code-block:: python
+   
+   physical = PhysicalInterface('11-12') #use inline pair interface 12-13
+   physical.add_vlan_to_inline_interface(130) #vlan 130
+   physical.add_vlan_to_inline_interface(131)
+   physical.add_vlan_to_inline_interface(132)
+   engine.add_interfaces(physical.data)
+        
 To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation 
 
+Deleting interfaces
++++++++++++++++++++
+
+Deleting interfaces is done at the engine level. In order to delete an interface, you must first call
+load() on the engine to get the context of the engine.
+
+Once you have loaded the engine, you can display all available interfaces by calling `physical_interface()` and
+then deleting by calling `physical_interface_del(name)`.
+
+The name of the interface is the name the NGFW gives the interface based on interface index. For example, 
+physical interface 1 would be "Interface 1" and so on.
+
+Deleting a layer 3 physical interface:
+
+.. code-block:: python
+
+   engine = Node('myfirewall').load()
+   print engine.physical_interface()
+   result = engine.physical_interface_del('1')
+   if not result.msg:
+     print "Success!"
+
+Deleting an inline pair interface:
+
+.. code-block:: python
+
+   engine = Node('myfirewall').load()
+   result = engine.physical_interface_del('1-2')
+   if not result.msg:
+     print "Success!"
+
+To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation
+ 
 Adding routes
 +++++++++++++
 
@@ -209,7 +452,6 @@ Engine ---> Node
 
 Engine level commands allow operations like refresh policy, upload new policy, generating snapshots,
 export configuration, blacklisting, adding routes, route monitoring, and add or delete a physical interfaces.
-For all available commands for engines, see :py:class:`smc.elements.engines.Engine`
 
 .. code-block:: python
 
@@ -219,6 +461,8 @@ For all available commands for engines, see :py:class:`smc.elements.engines.Engi
    engine.refresh() #refresh policy
    engine.routing_monitoring() 	#get route table status
    ....
+
+For all available commands for engines, see :py:class:`smc.elements.engines.Engine`
    
 Node level commands are specific commands targeted at the engine nodes directly. In the case of a cluster, 
 most node level commands require sending node=<nodename> to each constructor. This is to enforce a command is

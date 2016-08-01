@@ -11,6 +11,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def counted(f):
+    def wrapped(*args, **kwargs):
+        wrapped.calls += 1
+        return f(*args, **kwargs)
+    wrapped.calls = 0
+    return wrapped
+
 class SMCEntryCache(object):
     """
     Keep track of api entry points retrieved after login to
@@ -155,6 +162,7 @@ class SMCAPIConnection(SMCEntryCache):
             logger.error("No previous SMC session found. "
                          "This may require a new login attempt")
 
+    @counted
     def http_get(self, href, params=None, stream=False, filename=None): #TODO: Implement self.visited for already seen queries
         """
         Get data object from SMC
@@ -349,18 +357,17 @@ class SMCException(Exception):
     """ Base class for exceptions """
     pass
 
-
 class SMCOperationFailure(SMCException):
     """ Exception class for storing results from calls to the SMC
     This is thrown for HTTP methods that do not return the expected HTTP
     status code. See each method above for expected success status
+    
     :param response: response object returned from HTTP method
-    :attributes
-        self.response: http request response object
-        self.code: http status code
-        self.status: status from SMC API
-        self.message: message attribute from SMC API
-        self.details: details list from SMC API (may not always exist)
+    :ivar response: http request response object
+    :ivar code: http status code
+    :ivar status: status from SMC API
+    :ivar message: message attribute from SMC API
+    :ivar details: details list from SMC API (may not always exist)
     """
     def __init__(self, response):
         self.response = response

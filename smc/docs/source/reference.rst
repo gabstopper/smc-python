@@ -92,6 +92,13 @@ Layer3VirtualEngine
    :members:
    :show-inheritance:
 
+FirewallCluster
++++++++++++++++
+
+.. autoclass:: FirewallCluster
+   :members:
+   :show-inheritance:
+
 IPS
 +++
 
@@ -106,6 +113,13 @@ Interfaces
     :members: Interface
     :undoc-members:
     :show-inheritance:
+
+Physical Interface
+++++++++++++++++++
+
+.. autoclass:: PhysicalInterface
+   :members:
+   :show-inheritance:
 
 SingleNodeInterface
 +++++++++++++++++++

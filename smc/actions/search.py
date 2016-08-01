@@ -23,7 +23,7 @@ All elements by type::
 import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
     fetch_json_by_name, fetch_entry_point
-
+import smc.api.web as web_api
 logger = logging.getLogger(__name__)
 
 

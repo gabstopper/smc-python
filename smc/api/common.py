@@ -250,16 +250,15 @@ def async_handler(follower_href, wait_for_finish=True,
         last_msg = ''
         while True:
             status = smc.actions.search.element_by_href_as_json(follower_href) #TODO: Use fetch?
-            if status:
-                msg = status.get('last_message')
-                if display_msg:
-                    if msg != last_msg:
-                        yield re.sub(clean_html,'', msg)
-                        last_msg = msg
-                if status.get('success') == True:
-                    for link in status.get('link'):
-                        if link.get('rel') == 'result':
-                            yield link.get('href')
-                    break
+            msg = status.get('last_message')
+            if display_msg:
+                if msg != last_msg:
+                    yield re.sub(clean_html,'', msg)
+                    last_msg = msg
+            if status.get('success') == True:
+                for link in status.get('link'):
+                    if link.get('rel') == 'result':
+                        yield link.get('href')
+                break
     else:
         yield follower_href
