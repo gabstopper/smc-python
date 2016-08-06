@@ -1,4 +1,11 @@
-
+"""
+Example of creating a single firewall with multiple interface types.
+Once interfaces are defined, add routes that are needed. Note that to add a default route,
+use the 0.0.0.0/0 address as the gateway address.
+Specify a policy to upload once the single FW instance has made the initial contact. This will
+be queued and kick off once the contact is complete.
+Generate the initial contact information for sg-reconfigure on the virtual or appliance.
+"""
 import smc.api.web
 from smc.elements.engines import Layer3Firewall
 from smc.elements.interfaces import PhysicalInterface

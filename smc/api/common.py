@@ -104,15 +104,14 @@ def fetch_content_as_file(element, stream=True):
     Element must have the following attributes:
     
     :method: GET
-    :param href: href of SMC link to retrieve the file content
-    :param filename: name of filename to save locally
+    :param element: SMCElement, set filename and href
     :return: None, downloaded file to specified location
     """
     try:
         result = web_api.session.http_get(element.href,  
                                           filename=element.filename,
                                           stream=stream)
-        print "result: %s" % result #TODO: Return info for downloads
+        return result #TODO: Verify for all cases
     except IOError, ioe:
         logger.error("IO Error received with msg: %s" % ioe)
     except SMCOperationFailure, e:

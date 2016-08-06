@@ -149,6 +149,24 @@ CaptureInterface
    :members:
    :show-inheritance:
 
+VlanInterface
++++++++++++++
+
+.. autoclass:: VlanInterface
+   :members:
+
+ClusterVirtualInterface
++++++++++++++++++++++++
+
+.. autoclass:: ClusterVirtualInterface
+   :members:
+
+VirtualPhysicalInterface
+++++++++++++++++++++++++
+
+.. autoclass:: VirtualPhysicalInterface
+   :members:
+
 Policy
 --------------
 

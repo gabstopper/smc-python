@@ -1,10 +1,7 @@
 import re
 from abc import ABCMeta, abstractmethod
-from smc.elements.element import SMCElement, Blacklist, VirtualResource
-from smc.elements.interfaces import \
-   InlineInterface, CaptureInterface, SingleNodeInterface, NodeInterface,\
-    VlanInterface, ClusterVirtualInterface, PhysicalInterface, PhysicalInterface,\
-    VirtualPhysicalInterface
+from smc.elements.element import SMCElement, Blacklist, VirtualResource, zone_helper
+from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface
 import smc.actions.search as search
 import smc.api.common as common_api
 from smc.api.web import SMCException, SMCResult
@@ -213,7 +210,9 @@ class Engine(object):
                                             display_msg=False):
             element.href = msg
         element.filename = filename
-        return common_api.fetch_content_as_file(element)
+        file_download = common_api.fetch_content_as_file(element)
+        if not file_download.msg:
+            print "Export successful, saved to file: {}".format(file_download.content)
     
     def internal_gateway(self):
         """ Engine level VPN gateway reference
@@ -311,6 +310,18 @@ class Engine(object):
         else:
             return SMCResult(msg='Cannot find interface: %s to delete, doing nothing.' % interface_id)
 
+    def physical_interface_get(self, interface_id):
+        """ Return the raw representation of the physical interface by interface id 
+        This is used as a callback for modifying an existing interface 
+        
+        :param interface_id: interface id to retrieve
+        :return json representing physical interface
+        """
+        intf = self._load_interface(interface_id)
+        if intf:
+            interface = search.element_by_href_as_smcresult(intf)
+            return interface.json
+
     def add_physical_interfaces(self, interfaces):
         """ Add interfaces to this specific engine
         
@@ -321,7 +332,14 @@ class Engine(object):
         intf_href = self.__load_href('physical_interface')
         
         return SMCElement(href=intf_href, json=interfaces).create()
-  
+    
+    def update_physical_interface(self, physical_interface):
+        intf = self._load_interface(physical_interface.get('interface_id'))
+        if intf:
+            interface = search.element_by_href_as_smcresult(intf)
+            print SMCElement(href=self._load_interface('0'),
+                             json=physical_interface.data, etag=interface.etag).update()
+
     def tunnel_interface(self):
         """ Get only tunnel interfaces for this engine node.
         
@@ -363,8 +381,7 @@ class Engine(object):
         return search.element_by_href_as_json(self.__load_href('switch_physical_interface'))
     
     def _load_interface(self, interface_id):
-        """ Find the interface href, differentiate between single physical interfaces and
-        inline pairs """
+        """ Find the interface href by querying the specified interface id """
         intf_href = None
         for intf in self.physical_interface():
             try: #Inline
@@ -477,7 +494,7 @@ class Node(Engine):
         :return: SMCResult, with content attribute set to initial contact info
         """
         result = SMCElement(href=self._load_href('initial_contact', node).pop(),
-                             params = {'enable_ssh': True}).create()
+                            params = {'enable_ssh': enable_ssh}).create()
         if result.content:
             if filename:
                 import os.path
@@ -716,7 +733,8 @@ class Layer3Firewall(Node):
 
     @classmethod   
     def create(cls, name, mgmt_ip, mgmt_network, log_server=None,
-                 mgmt_interface=0, dns=None, default_nat=False):
+                 mgmt_interface=0, dns=None, zone_ref=None, 
+                 default_nat=False):
         """ 
         Create a single layer 3 firewall with management interface and DNS
         
@@ -728,6 +746,7 @@ class Layer3Firewall(Node):
         :type mgmt_interface: int
         :param dns: DNS server addresses
         :type dns: list
+        :param zone_ref: zone name for management interface (created if not found)
         :param default_nat: Whether to enable default NAT for outbound
         :type default_nat: default False, specify whether to enable default NAT
         :return: self
@@ -745,14 +764,15 @@ class Layer3Firewall(Node):
         physical = PhysicalInterface(mgmt_interface)
         physical.add_single_node_interface(mgmt_ip, 
                                            mgmt_network,
-                                           is_mgmt=True)
+                                           is_mgmt=True,
+                                           zone_ref=zone_ref)
 
         super(Layer3Firewall, cls).create()
         
         if default_nat:
             cls.engine_json['default_nat'] = True
             
-        cls.engine_json.get('physicalInterfaces').append(physical())
+        cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
         
         cls.href = search.element_entry_point('single_fw')
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
@@ -778,7 +798,7 @@ class Layer2Firewall(Node):
     def create(cls, name, mgmt_ip, mgmt_network, 
                log_server=None, mgmt_interface=0, 
                inline_interface='1-2', logical_interface='default_eth', 
-               dns=None):
+               dns=None, zone_ref=None):
         """ 
         Create a single layer 2 firewall with management interface, inline interface,
         and DNS
@@ -795,6 +815,7 @@ class Layer2Firewall(Node):
         :type logical_interface: string
         :param dns: DNS server addresses
         :type dns: list
+        :param zone_ref: zone name for management interface (created if not found)
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure creating engine
         """
@@ -811,15 +832,16 @@ class Layer2Firewall(Node):
         
         physical = PhysicalInterface(mgmt_interface)
         physical.add_node_interface(mgmt_ip, mgmt_network, 
-                                    is_mgmt=True)
+                                    is_mgmt=True,
+                                    zone_ref=zone_ref)
 
         intf_href = search.get_logical_interface(logical_interface)
         
         inline = PhysicalInterface(inline_interface)
         inline.add_inline_interface(intf_href)
         
-        cls.engine_json.get('physicalInterfaces').append(physical())
-        cls.engine_json.get('physicalInterfaces').append(inline())
+        cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
+        cls.engine_json.get('physicalInterfaces').append(inline.as_dict())
                 
         cls.href = search.element_entry_point('single_layer2')
         
@@ -846,7 +868,7 @@ class IPS(Node):
     def create(cls, name, mgmt_ip, mgmt_network, 
                log_server=None, mgmt_interface='0', 
                inline_interface='1-2', logical_interface='default_eth', 
-               dns=None):
+               dns=None, zone_ref=None):
         """ 
         Create a single layer 2 firewall with management interface, inline interface
         and DNS
@@ -863,6 +885,7 @@ class IPS(Node):
         :type logical_interface: string or None
         :param dns: DNS server addresses
         :type dns: list or None
+        :param zone_ref: zone name for management interface (created if not found)
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure to create with reason
         """
@@ -876,7 +899,8 @@ class IPS(Node):
                 cls.domain_server_address.append(entry)
                        
         physical = PhysicalInterface(mgmt_interface)
-        physical.add_node_interface(mgmt_ip, mgmt_network, is_mgmt=True)
+        physical.add_node_interface(mgmt_ip, mgmt_network, is_mgmt=True,
+                                    zone_ref=zone_ref)
               
         intf_href = search.get_logical_interface(logical_interface)
       
@@ -884,8 +908,8 @@ class IPS(Node):
         inline.add_inline_interface(intf_href)
         
         super(IPS, cls).create()
-        cls.engine_json.get('physicalInterfaces').append(physical())
-        cls.engine_json.get('physicalInterfaces').append(inline())
+        cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
+        cls.engine_json.get('physicalInterfaces').append(inline.as_dict())
         
         cls.href = search.element_entry_point('single_ips')
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
@@ -964,11 +988,15 @@ class Layer3VirtualEngine(Node):
                                                    zone_ref=interface.get('zone'),
                                                    outgoing_intf=outgoing_intf)
     
-                cls.engine_json.get('physicalInterfaces').append(physical())
+                cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
             cls.href = search.element_entry_point('virtual_fw')
             
-            return SMCElement(href=cls.href, json=cls.engine_json).create()
-        
+        result = SMCElement(href=cls.href, json=cls.engine_json).create()
+        if result.href:
+            return Layer3VirtualEngine(cls.name).load()
+        else:
+            raise SMCException('Could not create the firewall, reason: %s' % result.msg)
+
 class FirewallCluster(Node):
     """ Creates a layer 3 firewall cluster engine with nodes """
     def __init__(self, name):
@@ -989,7 +1017,7 @@ class FirewallCluster(Node):
         :type nodes: list of dict [{ipaddress, netmask}]
         :param log_server: (optional) specify a log server reference
         :param dns: (optional) specify DNS servers for engine
-        :param zone_ref: (optional) specify zone name for physical interface
+        :param zone_ref: zone name for management interface (created if not found)
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure to create with reason
         """
@@ -1003,15 +1031,16 @@ class FirewallCluster(Node):
             for entry in dns:
                 cls.domain_server_address.append(entry)
 
-        physical = PhysicalInterface(cluster_nic, zone_ref=zone_ref)
+        physical = PhysicalInterface(cluster_nic)
         physical.add_cluster_virtual_interface(cluster_virtual, 
                                                cluster_mask,
                                                macaddress, 
                                                nodes, 
-                                               is_mgmt=True)
+                                               is_mgmt=True,
+                                               zone_ref=zone_ref)
         super(FirewallCluster, cls).create()
         
-        cls.engine_json.get('physicalInterfaces').append(physical())
+        cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
         cls.href = search.element_entry_point('fw_cluster')
         
         result = SMCElement(href=cls.href,

@@ -8,6 +8,7 @@ import os.path
 import requests
 import json
 import logging
+from docutils.parsers.rst.directives import path
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class SMCEntryCache(object):
         self.api_entry = None
         self.api_version = None
 
-    def get_api_entry(self, url, api_version=None):
+    def get_api_entry(self, url, api_version=None, timeout=10):
         """
         Called internally after login to get cache of SMC entry points
         :param: url for SMC api
@@ -37,7 +38,7 @@ class SMCEntryCache(object):
         """
         try:
             if api_version is None:
-                r = requests.get('%s/api' % url, timeout=10) #no session required
+                r = requests.get('%s/api' % url, timeout=timeout) #no session required
                 j = json.loads(r.text)
                 versions = []
                 for version in j['version']:
@@ -49,7 +50,7 @@ class SMCEntryCache(object):
             logger.info("Using SMC API version: %s", api_version)
             smc_url = url + '/' + str(api_version)
 
-            r = requests.get('%s/api' % (smc_url), timeout=5)
+            r = requests.get('%s/api' % (smc_url), timeout=timeout)
             if r.status_code==200:
                 j = json.loads(r.text)
                 self.api_version = api_version
@@ -97,7 +98,7 @@ class SMCAPIConnection(SMCEntryCache):
         self.cookies = None
         self.session = None
     
-    def login(self, url, smc_key, api_version=None):
+    def login(self, url, smc_key, api_version=None, timeout=10):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
@@ -118,7 +119,7 @@ class SMCAPIConnection(SMCEntryCache):
         #TODO: Implement SSL tracking
         """
 
-        self.get_api_entry(url, api_version)
+        self.get_api_entry(url, api_version, timeout=timeout)
 
         s = requests.session() #no session yet
         r = s.post(self.get_entry_href('login'),
@@ -163,7 +164,7 @@ class SMCAPIConnection(SMCEntryCache):
                          "This may require a new login attempt")
 
     @counted
-    def http_get(self, href, params=None, stream=False, filename=None): #TODO: Implement self.visited for already seen queries
+    def http_get(self, href, params=None, stream=False, filename=None):
         """
         Get data object from SMC
         If response code is success, results are returned with etag
@@ -174,11 +175,10 @@ class SMCAPIConnection(SMCEntryCache):
         try:
             if self.session:
                 if stream == True: #TODO: this is a temp hack
-                    print "Stream the badboy to file: %s" % filename
                     r = self.session.get(href, params=params, 
                                          stream=True)
                     if r.status_code == 200:
-                        print "Content length: %s"  % (len(r.content))
+                        logger.debug("Streaming to file... Content length: %s", len(r.content))
                         try:
                             path = os.path.abspath(filename)
                             logger.debug("Operation: %s, saving to file: %s", href, path)
@@ -187,7 +187,9 @@ class SMCAPIConnection(SMCEntryCache):
                                     handle.write(data)
                         except IOError:
                             raise
-                    return SMCResult(r)
+                    result = SMCResult(r)
+                    result.content = path
+                    return result
                 r = self.session.get(href, params=params, timeout=15)               
                 if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)

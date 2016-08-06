@@ -24,7 +24,7 @@ class NodeInterface(object):
         self.outgoing = False
         self.primary_mgt = False
     
-    def __call__(self):
+    def as_dict(self):
         return {'node_interface': self.__dict__}
 
 class InlineInterface(object):
@@ -53,7 +53,7 @@ class InlineInterface(object):
         except ValueError:
             pass
         
-    def __call__(self):
+    def as_dict(self):
         return {'inline_interface': self.__dict__}
 
           
@@ -84,36 +84,39 @@ class SingleNodeInterface(object):
         self.outgoing = False
         self.primary_mgt = False
 
-    def __call__(self):
+    def as_dict(self):
         return {'single_node_interface': self.__dict__}
 
 class ClusterVirtualInterface(object):
+    """ Represents a cluster virtual interface (CVI)
+    
+    :param address: address of CVI
+    :param network_value: network for CVI
+    :param nicid: nic id to use for physical interface
+    """
     def __init__(self, address, network_value, nicid):
         self.address = address
-        self.auth_request = False
         self.network_value = network_value
         self.nicid = nicid
-
-    def __call__(self):
-        return {'cluster_virtual_interface': self.__dict__}
+        self.auth_request = False
     
+    def as_dict(self):
+        return {'cluster_virtual_interface': self.__dict__}
+
 class CaptureInterface(object):
     """ Capture Inteface (span)
     This interface type can be used on layer 2 or ips engine types
     
     :param interfaceid: the interface id
     :type interfaceid: int
-    :oaram logical_ref: logical interface reference
-    
-    The logical interface reference needs to be unique on the same engine that uses both
-    inline and capture interfaces
+    :oaram logical_ref: logical interface reference, must be unique from inline intfs
     """
     def __init__(self, interfaceid, logical_ref):
         self.inspect_unspecified_vlans = True
         self.logical_interface_ref = logical_ref
         self.nicid = interfaceid
-    
-    def __call__(self):
+
+    def as_dict(self):
         return {'capture_interface': self.__dict__}
 
 class VlanInterface(object):
@@ -131,37 +134,34 @@ class VlanInterface(object):
                  virtual_mapping=None,
                  virtual_resource_name=None,
                  zone_ref=None):
-        self.interface_id = interface_id
+        self.interface_id = str(interface_id) + '.' + str(vlan_id)
         self.virtual_mapping = virtual_mapping
         self.virtual_resource_name = virtual_resource_name
         self.interfaces = []
         self.zone_ref = zone_ref
-        self.vlan_id = vlan_id
-    
-    def __call__(self):
-        self.interface_id = str(self.interface_id) + '.' + str(self.vlan_id)
-        self.__dict__.pop('vlan_id')
-        return self.__dict__
 
-        
+    def as_dict(self):
+        return self.__dict__
+    
 class PhysicalInterface(UserDict):
     """
     Represents all interfaces considered to be a physical interface type such as 
     Single Node Interface (single layer 3 firewall), Node Dedicated
     Interface (IPS, Layer 2 and Clusters), Inline Interface and Capture Interface. 
     Use this class to build the interface configuration and then add to the engine by 
-    calling :py:func:`smc.elements.engines.Engine.add_interfaces`
+    calling :py:func:`smc.elements.engines.Engine.add_physical_interfaces`
     
     Zones can be applied at different levels depending on the configuration. 
-    If using a single node firewall, the zone is set at the physical interface level (or in the 
-    :py:func:`add_single_node_interface` constructor.
     
-    If using an inline interface, setting a zone at the physical level will map the zone
-    to the first inline interface, and applying at the Inline Interface will apply the zone
-    to the second inline pair. This would be accomplished by::
+    If using an inline interface, you can set the zone on the physical interface level
+    which will apply both zones to the inline pair. Alternatively you can apply
+    individual zones to each inline interface.
+    This would be accomplished by::
         
-        PhysicalInterface('10-11', zone_ref='firstinterface_zone')
-        physical.add_inline_interface(....., zone_ref='secondinterface_zone')
+        physical = PhysicalInterface('10-11')
+        physical.add_inline_interface(self, logical_interface_ref, 
+                                            zone_ref_intf1='zone_for_first',
+                                            zone_ref_intf2='zone_for_second')
         
     If using VLANs, zones can be applied at the VLAN level or the top level physical interface
     encapsulating the VLANs. 
@@ -170,10 +170,10 @@ class PhysicalInterface(UserDict):
     :type interface_id: string
     :param zone_ref: zone to set on top level interface, superseding others 
     """
-    def __init__(self, interface_id, intfdict=None, zone_ref=None):
+    def __init__(self, interface_id, p_dict=None, zone_ref=None):
         self.data = {} #: data attribute representing interface
-        if intfdict is not None: 
-            self.update(intfdict)
+        if p_dict is not None: 
+            self.update(p_dict)
         else:
             self.interface_id = interface_id
             default = {'interface_id': self.interface_id,
@@ -182,26 +182,6 @@ class PhysicalInterface(UserDict):
                        'zone_ref': zone_ref}
             self.update(default)
     
-    def add_vlan_to_node_interface(self, vlan_id, 
-                                   virtual_mapping=None,
-                                   virtual_resource_name=None,
-                                   zone_ref=None):
-        """ Add a vlan to node physical interface. Works on any interface with
-        exception of inline interfaces.
-        
-        Zone applied here will apply to the VLAN specifically. To apply the same
-        zone to all VLANs, set on the PhysicalInterface.
-        
-        :param vlan_id: vlan identifier
-        :param virtual_mapping: virtual resource associated with this vlan
-        :param virtual_resource: virtual mapping id
-        """
-        vlan = VlanInterface(self.interface_id, vlan_id,
-                             virtual_mapping=virtual_mapping,
-                             virtual_resource_name=virtual_resource_name,
-                             zone_ref=zone_ref)
-        self.get('vlanInterfaces').append(vlan())
-  
     def add_single_node_interface(self, address, network_value, 
                                   zone_ref=None, is_mgmt=False):
         """ Add single node interface, used for layer 3 firewalls
@@ -217,14 +197,30 @@ class PhysicalInterface(UserDict):
             intf.auth_request = True
             intf.outgoing = True
             intf.primary_mgt = True
-        self.get('interfaces').append(intf())
+        self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
     
+    def add_single_node_interface_to_vlan(self, address, network_value, vlan_id, 
+                                          zone_ref=None):
+        """ Add a single node interface to a VLAN, used on single layer 3 firewalls
+        This will create the physical interface if it doesn't already exist. If it does
+        exist, this will simply add the VLAN identifier and if a zone_ref is defined,
+        it will add the zone for that particular vlan and specified network
+        
+        :param address: ip address
+        :param network_value: network, in form: x.x.x.x/y
+        :param vlan_id: ID for the vlan
+        :param zone_ref: zone name for VLAN. Set on physical intf to use zone for all vlans
+        """
+        vlan = VlanInterface(self.interface_id, vlan_id, zone_ref=zone_ref)
+        node = SingleNodeInterface(address, network_value, vlan.interface_id)
+        vlan.interfaces.append(node.as_dict())
+        self.get('vlanInterfaces').append(vlan.as_dict())
+
     def add_node_interface(self, address, network_value, zone_ref=None, 
                            nodeid=1, is_mgmt=False):
-        """ Add a Node Dedicated Interface. Used on IPS, Layer2, and Layer3 clusters
-        Zone applied here will apply to top level physical interface
-        
+        """ Add an NDI. Used on IPS, Layer2, and Layer3 clusters
+
         :param address: ip address
         :param network_value: network, in the form: x.x.x.x/y
         :param zone_ref: default None, zone for this interface
@@ -236,24 +232,77 @@ class PhysicalInterface(UserDict):
         if is_mgmt:
             intf.primary_mgt = True
             intf.outgoing = True
-        self.get('interfaces').append(intf())
+        self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
+    
+    def add_vlan_to_node_interface(self, vlan_id, 
+                                   virtual_mapping=None,
+                                   virtual_resource_name=None,
+                                   zone_ref=None):
+        """ Add a vlan to node physical interface. Works on any interface with
+        exception of inline interfaces.
+
+        Zone applied here will apply to the VLAN specifically (versus top level phys intf)
         
-    def add_inline_interface(self, logical_interface_ref, zone_ref=None):
+        :param vlan_id: vlan identifier
+        :param virtual_mapping: virtual resource associated with this vlan
+        :param virtual_resource: virtual mapping id
+        """
+        vlan = VlanInterface(self.interface_id, vlan_id,
+                             virtual_mapping=virtual_mapping,
+                             virtual_resource_name=virtual_resource_name,
+                             zone_ref=zone_ref)
+        self.get('vlanInterfaces').append(vlan.as_dict())
+    
+    def add_inline_interface(self, logical_interface_ref, 
+                             zone_ref_intf1=None,
+                             zone_ref_intf2=None):
         """ Inline interface pair for layer 2 or IPS engines
-        Zones can be assigned uniquely to each inline interface or not at all.
-        To use a separate zone for the first inline interface, set on the 
-        PhysicalInterface. The one provided in this function will be applied 
-        to the second inline pair.
+        Zones specified here can be specific to the inline interface
         
         :param logical_interface_ref: logical interface reference
-        :param zone_ref: default False, zone for this inline pair
+        :param zone_ref_intf1: set zone on first inline interface pair
+        :param zone_ref_intf2: set zone on seceond inline interface pair
         """
+        if self.get('zone_ref') is not None: #set at physical level
+            zone_ref_intf1 = zone_ref_intf2 = self.get('zone_ref')
+            
         inline_intf = InlineInterface(self.interface_id, 
                                       logical_interface_ref=logical_interface_ref,
-                                      zone_ref=zone_ref) #zone for second intf
+                                      zone_ref=zone_ref_intf2) #zone for second intf
         self.update({'interface_id': self.interface_id.split('-')[0]})
-        self.get('interfaces').append(inline_intf())
+        self.get('interfaces').append(inline_intf.as_dict())
+        self.update({'zone_ref': zone_ref_intf1}) #1st intf zone
+        
+    def add_vlan_to_inline_interface(self, vlan_id, 
+                                     logical_interface_ref=None,
+                                     zone_ref_intf1=None,
+                                     zone_ref_intf2=None):
+        """ Add VLAN to inline interface. Used on layer 2 firewall or IPS
+        When the inline interface does not exist, this will create it and the
+        specified VLANs. If it does exist, existing VLANs will be preserved and
+        new ones added.
+        Zones set here will apply to each inline interface
+        
+        :param vlan_id: vlan identifier
+        :param logical_interface_ref: logical interface reference
+        :param zone_ref_intf1: first interface in inline pair
+        :param zone_ref_intf2: second interface in inline pair
+        """
+        first_intf = self.interface_id.split('-')[0]
+        
+        vlan = VlanInterface(first_intf, vlan_id, zone_ref=zone_ref_intf1)
+        
+        inline_intf = InlineInterface(self.interface_id, 
+                                      logical_interface_ref,
+                                      zone_ref=zone_ref_intf2)
+
+        self.get('interfaces').append(deepcopy(inline_intf.as_dict()))
+        
+        inline_intf.add_vlan(vlan_id)
+        vlan.interfaces.append(inline_intf.as_dict())
+        self.get('vlanInterfaces').append(vlan.as_dict())
+        self.update({'interface_id': first_intf})
     
     def add_capture_interface(self, logical_interface_ref, zone_ref=None):
         """ Add capture interface. Used in layer 2 or IPS engines
@@ -263,7 +312,7 @@ class PhysicalInterface(UserDict):
         :param zone_ref: default None, zone for this capture interface
         """
         intf = CaptureInterface(self.interface_id, logical_interface_ref)
-        self.get('interfaces').append(intf())
+        self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
 
     def add_cluster_virtual_interface(self, cluster_virtual, cluster_mask, 
@@ -284,7 +333,7 @@ class PhysicalInterface(UserDict):
         cvi = ClusterVirtualInterface(cluster_virtual, cluster_mask, self.interface_id)
         if is_mgmt:
             cvi.auth_request = True
-        self.get('interfaces').append(cvi())
+        self.get('interfaces').append(cvi.as_dict())
         
         for node in nodes:
             intf = NodeInterface(node.get('address'), node.get('network_value'),
@@ -293,66 +342,22 @@ class PhysicalInterface(UserDict):
                 intf.primary_mgt = True
                 intf.outgoing = True
                 intf.__setattr__('primary_heartbeat', True)
-            self.get('interfaces').append(intf())
+            self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
     
-    def add_single_node_interface_to_vlan(self, address, network_value, vlan_id, 
-                                          zone_ref=None):
-        """ Add a single node interface to a VLAN, used on single layer 3 firewalls
-        This will create the physical interface if it doesn't already exist. If it does
-        exist, this will simply add the VLAN identifier and if a zone_ref is defined,
-        it will add the zone for that particular vlan and specified network
-        
-        :param address: ip address
-        :param network_value: network, in form: x.x.x.x/y
-        :param vlan_id: ID for the vlan
-        :param zone_ref: zone name for VLAN. Set on physical intf to use zone for all vlans
-        """
-        vlan_intf = str(self.interface_id) +'.'+str(vlan_id)
-        
-        vlan = VlanInterface(self.interface_id, vlan_id, zone_ref=zone_ref)
-        
-        node = SingleNodeInterface(address, network_value, vlan_intf)
-        vlan.interfaces.append(node())
-        self.get('vlanInterfaces').append(vlan())
-  
-    #TODO: resolve handling vlan on inline interfaces when set at physical interface
-    def add_vlan_to_inline_interface(self, vlan_id, 
-                                     logical_interface_ref=None,
-                                     zone_ref=None):
-        """ Add VLAN to an inline interface, used on layer 2 firewall or IPS
-        When the inline interface does not exist, this will create it and the
-        specified VLANs. If it does exist, existing VLANs will be preserved and
-        new ones added to the list.
-        Zones can be assigned uniquely to each inline interface or not at all.
-        To use a separate zone for the first inline interface, set on the 
-        PhysicalInterface. The one provided in this function will be applied to 
-        the second inline pair.
-        
-        :param vlan_id: vlan identifier
-        :param logical_interface_ref: logical interface reference
-        """
-        first_intf = self.interface_id.split('-')[0]
-        
-        vlan = VlanInterface(first_intf, vlan_id, zone_ref=self.get('zone_ref'))
-        vlan = vlan()
-        #Main reference to inline interface
-        inline_intf = InlineInterface(self.interface_id, 
-                                      logical_interface_ref,
-                                      zone_ref=zone_ref)
-
-        self.get('interfaces').append(deepcopy(inline_intf()))
-        
-        #modified inline interface with vlan mappings
-        inline_intf.add_vlan(vlan_id)
-        vlan.get('interfaces').append(inline_intf())
-        self.get('vlanInterfaces').append(vlan)
-        self.update({'interface_id': first_intf})
+    def modify_single_node_interface(self, **kwds):    
+        intf = self.get('interfaces')[0].get('single_node_interface')
+        for k, v in kwds.iteritems():
+            if k in intf:
+                intf[k] = v
     
-    def modify_single_node_interface(self, ipaddress, netmask):        
-        pass
+    def modify_physical_interface(self, **kwds):
+        """ If key=value exists in interface dict then replace 
+        For example, to change the zone: zone_ref=new_zone
+        """
+        self.update({k:v for k,v in kwds.iteritems() if k in self.data})
     
-    def __call__(self):
+    def as_dict(self):
         return {'physical_interface': self.data}
     
     def __repr__(self):
@@ -363,6 +368,10 @@ class VirtualPhysicalInterface(PhysicalInterface):
     One of the physical interfaces for a Layer 3 VE must be set as the source
     for Auth Requests and Outgoing. Unless specified during creation of the
     node interface, this will default to interface 0 on the VE.
+    
+    :param interface_id: interface id for this virtual interface
+    :param intfdict: dictionary representing interface information
+    :param zone_ref: zone for top level physical interface
     """
     def __init__(self, interface_id, intfdict=None, zone_ref=None):
         PhysicalInterface.__init__(self, interface_id, intfdict, zone_ref)
@@ -374,8 +383,8 @@ class VirtualPhysicalInterface(PhysicalInterface):
         if self.interface_id == outgoing_intf:
             intf.auth_request = True
             intf.outgoing = True
-        self.get('interfaces').append(intf())
+        self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
     
-    def __call__(self):
+    def as_dict(self):
         return {'virtual_physical_interface': self.data}   

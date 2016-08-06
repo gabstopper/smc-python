@@ -16,7 +16,7 @@ This is a Layer 3 Firewall cluster with the following configuration::
     :param macaddress: Packet Dispatch clustering requires a MAC address
     :param nodes: Node addresses to add to cluster. Each address/netmask combination is added as a singular node
     :param dns: Optional DNS settings for engine
-    :param zone: Optional zone to assign to physical interface
+    :param zone_ref: Optional zone to assign to physical interface
 
 See :class:`smc.elements.engines.FirewallCluster` for more details.
     
@@ -31,7 +31,6 @@ line below and set the logging level (recommend ERROR unless troubleshooting)::
 """
 
 import smc.api.web
-import smc.actions.search as search
 from smc.elements.engines import FirewallCluster
 from smc.elements.element import zone_helper
 
@@ -43,9 +42,6 @@ logging.getLogger()
 if __name__ == '__main__':
     
     smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    
-    #Use a search with filter to find a zone called 'Internal'
-    zone = search.element_href_use_filter('Internal', 'zone')
     
     #Create the Firewall Cluster
     engine = FirewallCluster.create(name='mycluster', 
@@ -89,8 +85,8 @@ if __name__ == '__main__':
     for node in engine.node_names():
         result = engine.initial_contact(node, enable_ssh=True, filename=node+'.cfg')
         if result:
-            print "Successfully wrote initial configuration for node: %s, to file: %s" % \
-                        (node, node+'.cfg')
+            print "Successfully wrote initial configuration for node: {}, to file: {}".format( \
+                        node, node+'.cfg')
         
         
     smc.api.web.session.logout()

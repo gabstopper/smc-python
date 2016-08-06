@@ -172,13 +172,6 @@ or VLAN on the master engine. Once that has been created, add IP addresses to th
            
 See :py:func:`smc.elements.engine.Engine.virtual_resource_add` for more information.
         
-.. note:: Virtual engine interface id's will be staggered based on used interfaces
-          by the master engine.
-          For example, if the master engine is using physical interface 0 for 
-          management, the virtual engine may be assigned physical interface 1 
-          for use. From an indexing perspective, the naming within the virtual engine 
-          configuration will start at interface 0 but be using physical interface 1.
-        
 .. code-block:: python
         
    Layer3VirtualEngine.
@@ -187,6 +180,13 @@ See :py:func:`smc.elements.engine.Engine.virtual_resource_add` for more informat
                             {'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0, zone=''},
                             {'ipaddress': '6.6.6.6', 'mask': '6.6.6.0/24', 'interface_id':1, zone=''},
                             {'ipaddress': '7.7.7.7', 'mask': '7.7.7.0/24', 'interface_id':2, zone=''}]
+
+.. note:: Virtual engine interface id's will be staggered based on used interfaces
+          by the master engine.
+          For example, if the master engine is using physical interface 0 for 
+          management, the virtual engine may be assigned physical interface 1 
+          for use. From an indexing perspective, the naming within the virtual engine 
+          configuration will start at interface 0 but be using physical interface 1.
 
 See reference for more information: :py:class:`smc.elements.engines.Layer3VirtualEngine`
                             
@@ -214,7 +214,7 @@ constructor as follows:
                                           {'address': '1.1.1.3', 'netmask': '1.1.1.0/24'},
                                           {'address': '1.1.1.4', 'netmask': '1.1.1.0/24'}],
                                    dns=['1.1.1.1'], 
-                                   zone=zone)
+                                   zone_ref=zone)
                                    
 Interfaces
 ++++++++++
@@ -300,9 +300,12 @@ To add an inline interface to an existing engine:
 
    logical_intf = smc.search.element_href('default_eth') #get logical interface reference
    physical = PhysicalInterface('5-6')	#use interfaces 5 and 6 as the inline pair
-   physical.add_inline_interface(logical_intf)
+   physical.add_inline_interface(logical_intf_helper('MyLogicalInterface'))
    engine.add_interfaces(physical.data)
-   
+
+.. note:: Use :py:func:`smc.elements.element.logical_intf_helper('name')` which will find the existing
+		  logical interface reference or create the logical interface automatically
+		     
 Capture Interfaces are used on Layer 2 Firewall or IPS engines as SPAN monitors to view traffic on the wire. 
    
 To add a capture interface to a layer2 FW or IPS:
@@ -311,7 +314,7 @@ To add a capture interface to a layer2 FW or IPS:
 
    logical_interface = smc.search.element_href('apitool') #get logical interface reference
    physical = PhysicalInterface('12')	#use interface 12
-   physical.add_capture_interface(logical_interface)
+   physical.add_capture_interface(logical_intf_helper('MyLogicalInterface'))
    engine.add_interfaces(physical.data)
 
 Cluster Virtual Interfaces are used on clustered engines and require a defined "CVI" (sometimes called a 'VIP'),
@@ -334,9 +337,6 @@ To add a cluster virtual interface on a layer 3 FW cluster:
 .. warning:: Make sure the cluster virtual netmask matches the node level networks!
                                            
 Nodes specified are the individual node dedicated addresses for the cluster members.
-
-.. note:: Node numbering will start with the CVI defined address (node 1), then each node in nodes will be
-          mapped to incremental nodes, i.e. node 2, and node 3.
 
 VLANs can be applied to layer 3 or inline interfaces. For inline interfaces, these will not have assigned
 IP addresses, however layer 3 interfaces will require addressing as a routed device.

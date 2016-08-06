@@ -21,16 +21,15 @@ In order to view error messages, do the following in your calling script::
 
 import logging
 import smc.elements.element
+from smc.elements.element import logical_intf_helper, SMCElement
 import smc.api.web
 import smc.elements.license
-from smc.elements.element import LogicalInterface, SMCElement
-from smc.actions.search import get_logical_interface
 from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster
 from smc.actions import helpers
 
 from smc.api.web import SMCException
 from smc.elements.interfaces import VlanInterface, PhysicalInterface
-from StdSuites.AppleScript_Suite import result
+from smc.elements.system import SystemInfo
 
 
 logger = logging.getLogger(__name__)
@@ -178,7 +177,7 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     return result  
     
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_interface=None, dns=None, fw_license=False):    
+               logical_interface='default_eth', dns=None, fw_license=False):    
     """ Create single layer 2 firewall 
     Layer 2 firewall will have a layer 3 management interface and initially needs atleast 
     one inline or capture interface.
@@ -198,20 +197,17 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
         return None
 
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
-    
-    if not logical_interface:
-        logical_interface = smc.search.element_href('default_eth')
                          
     result = Layer2Firewall.create(name, mgmt_ip, mgmt_network, 
                                    log_server=None,
                                    mgmt_interface=mgmt_interface,
                                    inline_interface=inline_interface,
-                                   logical_interface=logical_interface,
+                                   logical_interface=logical_intf_helper(logical_interface),
                                    dns=dns)
     return result 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_interface=None, dns=None, fw_license=False):
+               logical_interface='default_eth', dns=None, fw_license=False):
     """ Create single IPS 
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
@@ -228,15 +224,12 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
         return None
     
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
-   
-    if not logical_interface:
-        logical = smc.search.element_href('default_eth')
         
     result = IPS.create(name, mgmt_ip, mgmt_network, 
                         log_server=None,
                         mgmt_interface=mgmt_interface,
                         inline_interface=inline_interface,
-                        #logical_interface=logical, #TODO: tmp
+                        logical_interface=logical_intf_helper(logical_interface),
                         dns=dns)
     return result
    
@@ -268,7 +261,7 @@ def l3interface(name, ipaddress, ip_network, interfaceid):
         print "Error occurred during modification of %s, message: %s" % (name, e) #tmp  
     
  
-def l2interface(name, interface_id, logical_interface_ref=None, zone=None):
+def l2interface(name, interface_id, logical_interface_ref='default_eth', zone=None):
     """ Add layer 2 inline interface   
     Inline interfaces require two physical interfaces for the bridge and a logical 
     interface to be assigned. By default, interface 1,2 will be used if interface_id is 
@@ -286,13 +279,8 @@ def l2interface(name, interface_id, logical_interface_ref=None, zone=None):
     try:
         engine = Node(name).load()
         
-        if not logical_interface_ref:
-            logical_interface_ref = smc.search.element_href('default_eth')
-        #else assume we already have the reference
-            
-        
         physical = PhysicalInterface(interface_id)
-        physical.add_inline_interface(logical_interface_ref, zone_ref=zone)
+        physical.add_inline_interface(logical_intf_helper(logical_interface_ref))
      
         result = engine.add_physical_interfaces(physical.data)
         
@@ -303,15 +291,13 @@ def l2interface(name, interface_id, logical_interface_ref=None, zone=None):
     else:
         logger.error("Cannot find node specified to add layer 2 inline interface: %s" % name)
 
-def capture_interface(name, interface_id, logical_interface_ref=None, zone=None):
+def capture_interface(name, interface_id, logical_interface_ref='default_eth', zone=None):
     try:
         engine = Node(name).load()
-        
-        if not logical_interface_ref:
-            logical_interface_ref = smc.search.element_href('default_eth')
               
         physical = PhysicalInterface(interface_id)
-        physical.add_capture_interface(logical_interface_ref, zone_ref=zone)
+        physical.add_capture_interface(logical_intf_helper(logical_interface_ref), 
+                                       zone_ref=zone)
         result = engine.add_physical_interfaces(physical.data)
         
         return result
@@ -389,7 +375,7 @@ def virtual_fw(data):
     pass
 
 if __name__ == '__main__':
-    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001', timeout=60)
     
     logging.getLogger()
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
@@ -407,37 +393,40 @@ if __name__ == '__main__':
 
     from smc.elements.interfaces import PhysicalInterface, VirtualPhysicalInterface
     from smc.elements.element import Blacklist
+    from smc.elements.element import logical_intf_helper, zone_helper
     
     """@type engine: Node"""
-    engine = Node('sg_vm').load()
+    engine = Node('bo').load()
     #pprint(vars(engine))
     
+    physical = PhysicalInterface(0, engine.physical_interface_get('0'))
+    physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
+    engine.update_physical_interface(physical)
+    #pprint(physical.as_dict())
+    
+    
+    #physical = PhysicalInterface(5)
+    #physical.add_capture_interface(logical_interface_ref=logical_intf_helper('apitool'))
+    #pprint(physical)
+    #engine.add_physical_interfaces(physical)
+   
+    #pprint(smc.search.element_href_use_filter('ve-1 admins', 'access_control_list'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/access_control_list/31'))
+    
+    #system = SystemInfo()
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/access_control_list/31'))
+    
+    
     '''
-    zone = smc.search.element_href_use_filter('Internal', 'zone')
-    zone2= smc.search.element_href_use_filter('External', 'zone')
-    logical_interface_ref = smc.search.element_href('default_eth')
-    
-    physical = PhysicalInterface('38-39', zone_ref=zone)
-    #physical.add_single_node_interface('2.3.4.4', '2.3.4.0/16', zone=zone)
-    #physical.add_vlan_to_node_interface(122)
-    physical.add_inline_interface(logical_interface_ref)
-    '''
-    from smc.elements.element import logical_intf_helper
-    
-    from smc.elements.system import SystemInfo
-    
-    system = SystemInfo()
-    #system.empty_trash_bin()
-    pprint(system.references_by_element())
+    <access_control_list db_key="31" name="ve-1 admins">
+    <list>
+      <list_entry ref_key="5" type="access_control_list" value="ALL Elements"/>
+      <list_entry type="network_element" value="ve-1"/>
+    </list>
+  </access_control_list>
+  '''
     #system.last_activated_package()
    
-    
-    #zone = smc.search.element_href_use_filter('Internal', 'zone')
-    #pprint(vars(engine))
-    #physical = PhysicalInterface(25)
-    #physical.add_single_node_interface('12.12.12.12', '12.12.12.0/8', zone=zone)
-    #engine.add_physical_interfaces(physical.data)
-    
     #blacklist_ref = smc.search.element_entry_point('blacklist')
     #bl = Blacklist('1.1.1.1/32', '2.2.2.2/32')
     #pprint(vars(bl))

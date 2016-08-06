@@ -1,6 +1,7 @@
 import smc.actions.search as search
+from smc.elements.element import SMCElement
+import smc.api.common as common_api
 from smc.api.web import SMCException
-from smc.api import common
 
 
 class System(object):
@@ -44,7 +45,7 @@ class System(object):
         return search.element_by_href_as_json(self._load_href('system_properties'))
         
     def empty_trash_bin(self):
-        return common.delete(self._load_href('empty_trash_bin'))
+        return common_api.delete(self._load_href('empty_trash_bin'))
         
     def clean_invalid_filters(self):
         pass
@@ -78,8 +79,29 @@ class System(object):
     def references_by_element(self):
         return search.element_by_href_as_json(self._load_href('references_by_element'))
         
-    def export_elements(self):
-        print "POST export elements"
+    def export_elements(self, type_of=None, filename='export_elements.zip'):
+        """
+        Export elements from SMC.
+        
+        Valid types are: 
+        all (All Elements)|nw (Network Elements)|ips (IPS Elements)|sv (Services)|
+        rb (Security Policies)|al (Alerts)|vpn (VPN Elements)
+        
+        :param type: type of element
+        :param filename: Name of file for export
+        """
+        params = {'recursive': True,
+                  'type': type_of}
+        element = SMCElement(href=self._load_href('export_elements'),
+                             params=params).create()
+        
+        for msg in common_api.async_handler(element.json.get('follower'), 
+                                            display_msg=False):
+            element.href = msg
+        element.filename = filename
+        file_download = common_api.fetch_content_as_file(element)
+        if not file_download.msg:
+            print "Export successful, saved to file: {}".format(file_download.content)
         
     def import_elements(self):
         print "POST import elements"
@@ -102,13 +124,23 @@ class SystemInfo(System):
         return search.get_first_log_server()
     
     def engines(self):
-        pass
+        engines = []
+        for func in ['single_fw', 'fw_cluster']:
+            result = getattr(self, func)
+            engines.extend(result())
+        return engines 
     
-    def layer3_firewalls(self):
-        pass
+    def single_fw(self):
+        return search.all_elements_by_type('single_fw')
     
-    def layer2_firewalls(self):
-        pass
+    def fw_cluster(self):
+        return search.all_elements_by_type('fw_cluster')
+        
+    def single_layer2(self):
+        return search.all_elements_by_type('single_layer2')
+    
+    def layer2_cluster(self):
+        return search.all_elements_by_type('layer2_cluster')
     
     def ips_engines(self):
         pass
