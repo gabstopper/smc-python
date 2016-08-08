@@ -79,7 +79,8 @@ Examples of creating elements are as follows:
    Group('group').create()  #no members
    Group('group', members=['1.1.1.1','1.1.1.2']).create() 
    
-   Service('tcp666', 666, proto='tcp').create()
+   TCPService('tcp666', 666).create()
+   UDPService('udp5000-5001', 5000, 5001).create()
   
 See the :py:class:`smc.elements.element` reference documentation for more specific details.
 
