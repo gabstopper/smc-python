@@ -163,14 +163,14 @@ Node
    :show-inheritance:
 
 Layer3Firewall
-++++++++++++
+++++++++++++++
 
 .. autoclass:: Layer3Firewall
    :members:
    :show-inheritance:
 
 Layer2Firewall
-++++++++++++
+++++++++++++++
 
 .. autoclass:: Layer2Firewall
    :members:
