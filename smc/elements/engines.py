@@ -1,6 +1,6 @@
 import re
 from abc import ABCMeta, abstractmethod
-from smc.elements.element import SMCElement, Blacklist, VirtualResource, zone_helper
+from smc.elements.element import SMCElement, Blacklist, VirtualResource
 from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface
 import smc.actions.search as search
 import smc.api.common as common_api
@@ -166,7 +166,7 @@ class Engine(object):
         :return: href for success, or None
         """
         return SMCElement(href=self.__load_href('blacklist'),
-                          json=Blacklist(src, dst, duration).__dict__).create()
+                          json=Blacklist(src, dst, duration).as_dict()).create()
 
     def blacklist_flush(self):
         """ Flush entire blacklist for node name
@@ -271,7 +271,7 @@ class Engine(object):
         return SMCElement(href=self.__load_href('virtual_resources'),
                           json=VirtualResource(name, vfw_id, 
                                                domain=domain,
-                                               show_master_nic=show_master_nic).__dict__).create()
+                                               show_master_nic=show_master_nic).as_dict()).create()
     
     def virtual_physical_interface(self):
         """ Master Engine virtual instance only
@@ -443,22 +443,32 @@ class Node(Engine):
                         "disabled": False,
                         "loopback_node_dedicated_interface": [],
                         "name": cls.name + " node " + str(nodeid),
-                        "nodeid": nodeid }}
+                        "nodeid": nodeid }
+                     }
             cls.engine_json.get('nodes').append(node)
         return cls.engine_json   
     
     def node_names(self):
+        """ Return a list of all nodes by name
+        
+        :return: list of node names
+        """
         return self.node_links.keys()
         
     def fetch_license(self, node=None):
-        """ Allows to fetch the license for the specified node """
+        """ Allows to fetch the license for the specified node
+        
+        :return: SMCResult. If fail, msg will be set with reason
+        """
         return self._commit_create('fetch', node)
 
     def bind_license(self, node=None, license_item_id=None):
         """ Allows to bind the optional specified license for the specified 
-        node. If no license is specified, an auto bind will be tried.
+        node. If no license is specified, an auto bind will be tried which will
+        include available dynamic licenses
         
         :param license_item_id: license id, otherwise auto bind will be tried
+        :return: SMCResult, if fail, msg will be set with reason
         """
         params = {'license_item_id': license_item_id}
         return self._commit_create('bind', node, params=params)
@@ -835,7 +845,7 @@ class Layer2Firewall(Node):
                                     is_mgmt=True,
                                     zone_ref=zone_ref)
 
-        intf_href = search.get_logical_interface(logical_interface)
+        intf_href = search.element_href_use_filter(logical_interface, 'logical_interface')
         
         inline = PhysicalInterface(inline_interface)
         inline.add_inline_interface(intf_href)
@@ -902,7 +912,7 @@ class IPS(Node):
         physical.add_node_interface(mgmt_ip, mgmt_network, is_mgmt=True,
                                     zone_ref=zone_ref)
               
-        intf_href = search.get_logical_interface(logical_interface)
+        intf_href = search.element_href_use_filter(logical_interface, 'logical_interface')
       
         inline = PhysicalInterface(inline_interface)
         inline.add_inline_interface(intf_href)

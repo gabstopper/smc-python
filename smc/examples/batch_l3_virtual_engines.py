@@ -37,7 +37,7 @@ logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 
 master_engine_name = 'master-eng'
-csv_filename = '/Users/davidlepage/info2.csv'
+csv_filename = '/Users/davidlepage/info.csv'
 virtual_intf_offset = 1 #Virtual interface offset based on used MasterEngine interfaces
 #Master engine physical interface to zone map
 zone_map = {1: 'Web', 
@@ -109,7 +109,7 @@ if __name__ == '__main__':
                 
         for name, interfaces in engine_info.iteritems():
             try:
-                result = Layer3VirtualEngine.create(name, master_engine_name, name, default_nat=True, 
+                result = Layer3VirtualEngine.create(name, master_engine_name, name, default_nat=False, 
                                                 interfaces=interfaces, dns=dns)        
                 print "Success creating virtual engine: %s" % name
     

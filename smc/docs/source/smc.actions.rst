@@ -20,14 +20,6 @@ smc.actions.helpers module
     :undoc-members:
     :show-inheritance:
 
-smc.actions.modify module
--------------------------
-
-.. automodule:: smc.actions.modify
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 smc.actions.remove module
 -------------------------
 

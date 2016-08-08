@@ -1,7 +1,0 @@
-{
-	"ip_range": "@RAN-GE@",
-	"name": "@NAME@",
-	"comment": "",
-	"read_only": false,
-	"system": false
-}

@@ -10,7 +10,6 @@ See SMCElement for more details:
 :class:`smc.elements.element.SMCElement` for more details.
 
 """
-import util
 import smc.actions.search as search
 import smc.api.common
 
@@ -24,7 +23,6 @@ class SMCElement(object):
     
     :param json: json data to be sent to SMC
     :param etag: returned during http get and used for modifying elements 
-    :param type: type of object, used only for str printing from api.common
     :param name: name of object, used for str printing from api.common
     :param href: REQUIRED location of the resource
     :param params: If additional URI parameters are needed for href
@@ -33,7 +31,6 @@ class SMCElement(object):
     def __init__(self, **kwargs):
         self.json = None
         self.etag = None
-        self.type = None
         self.href = None
         self.params = None
         self.filename = None
@@ -47,8 +44,22 @@ class SMCElement(object):
     def update(self):
         return smc.api.common.update(self)
 
-    def _fetch_href(self):
-        self.href = search.element_entry_point(self.type)
+    @classmethod
+    def modify(cls, name, **kwargs):
+        obj = cls(name, kwargs)
+        obj.href = obj.href.rsplit('/', 1)[-1]
+        result = search.element_as_smcresult_use_filter(obj.json.get('name'), 
+                                                        obj.href)
+        if result:
+            obj.json = result.json
+            obj.etag = result.etag
+            obj.href = result.href
+        else:
+            obj.json = None
+        return obj
+        
+    def _fetch_href(self, element_type):
+        self.href = search.element_entry_point(element_type)
         
     def __str__(self):
         sb = []
@@ -58,7 +69,7 @@ class SMCElement(object):
   
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)  
-        
+
 class Host(SMCElement):
     """ Class representing a Host object used in access rules
     
@@ -74,57 +85,17 @@ class Host(SMCElement):
     def __init__(self, name, ip, 
                  secondary_ip=None, comment=None):
         SMCElement.__init__(self)
-        self.type = 'host'
-        self.name = name
-        self.ip = ip
-        self.secondary_ip = []
-        self.comment = comment
+        secondary = []
         if secondary_ip:
-            self.secondary_ip.append(secondary_ip)
-        
-    def create(self):
-        self.json = util.get_json_template('host.json')
-        self.json['name'] = self.name
-        self.json['address'] = self.ip
-        self.json['comment'] = self.comment if self.comment is not None else ""
-        if self.secondary_ip:
-            for addr in self.secondary_ip:
-                self.json['secondary'].append(addr)
-        self._fetch_href()        
-        return super(Host, self).create()
+            secondary.append(secondary_ip)
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'address': ip,
+                     'secondary': secondary,
+                     'comment': comment }
+        self._fetch_href('host') 
 
-class Service(SMCElement):
-    """ Class representing a Service object used in access rules
-    
-    :param name: Name of element
-    :param min_dst_port: port used for service
-    :type min_dst_port: int
-    :param proto: protocol for service (tcp,udp,icmp,ip,protocol)
-    :param comment: optional comment
-    
-    Create a service element::
-    
-        Service('myservice', 6000, 'tcp', 'some comment').create()
-    """
-    def __init__(self, name, min_dst_port,
-                 proto=None, comment=None):
-        SMCElement.__init__(self)
-        self.name = name
-        self.type = proto if proto is not None else 'service'
-        self.min_dst_port = min_dst_port
-        self.proto = proto
-        self.comment = comment
-        self.services = ['tcp_service', 'icmp_service', 'icmp_ipv6_service', 'ip_service', 'protocol' \
-                         'ethernet_service', 'udp_service']
-        
-    def create(self):
-        self.json = util.get_json_template('service.json')
-        self.json['name'] = self.name
-        self.json['min_dst_port'] = self.min_dst_port
-        self.json['comment'] = self.comment if self.comment is not None else ""
-        self._fetch_href()      
-        return super(Service, self).create()
-        
 class Group(SMCElement):
     """ Class representing a Group object used in access rules
     
@@ -139,25 +110,19 @@ class Group(SMCElement):
         
     Group with members::
     
-        Group('mygroup', ['member1','member2'], 'and a comment').create()
+        Group('mygroup', ['member1','member2']).create()
     """
     def __init__(self, name, members=None, comment=None):
-        SMCElement.__init__(self)       
-        self.type = 'group'
-        self.name = name
-        self.members = []
-        self.comment = comment
+        SMCElement.__init__(self)
+        member_lst = []
         if members:
-            for member in members:
-                self.members.append(member)
-     
-    def create(self):
-        self.json = util.get_json_template('group.json')
-        self.json['name'] = self.name
-        self.json['element'] = self.members if self.members else []
-        self.json['comment'] = self.comment if self.comment is not None else ""
-        self._fetch_href()    
-        return super(Group, self).create()
+            member_lst.extend(members)
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'element': member_lst,
+                     'comment': comment }       
+        self._fetch_href('group')
     
 class IpRange(SMCElement):
     """ Class representing a IpRange object used in access rules
@@ -173,19 +138,13 @@ class IpRange(SMCElement):
     """
     def __init__(self, name, iprange, comment=None):
         SMCElement.__init__(self)        
-        self.type = 'address_range'
-        self.name = name
-        self.iprange = iprange
-        self.comment = comment
-        
-    def create(self):
-        self.json = util.get_json_template('iprange.json')
-        self.json['name'] = self.name
-        self.json['ip_range'] = self.iprange
-        self.json['comment'] = self.comment if self.comment is not None else ""
-        self._fetch_href()        
-        return super(IpRange, self).create()
-    
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'ip_range': iprange,
+                     'comment': comment }
+        self._fetch_href('address_range')
+
 class Router(SMCElement):
     """ Class representing a Router object used in access rules
     
@@ -201,25 +160,16 @@ class Router(SMCElement):
     """
     def __init__(self, name, address, 
                  secondary_ip=None, comment=None):
-        SMCElement.__init__(self)       
-        self.type = 'router'
-        self.name = name
-        self.address = address
-        self.secondary_ip = []
-        self.comment = comment
+        SMCElement.__init__(self)
+        secondary = []
         if secondary_ip:
-            self.secondary_ip.append(secondary_ip) 
-    
-    def create(self):       
-        self.json = util.get_json_template('router.json')
-        self.json['name'] = self.name
-        self.json['address'] = self.address
-        self.json['comment'] = self.comment if self.comment is not None else ""
-        if self.secondary_ip:
-            for addr in self.secondary_ip:
-                self.json['secondary'].append(addr)
-        self._fetch_href()           
-        return super(Router, self).create()   
+            secondary.append(secondary_ip)       
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'address': address,
+                     'secondary': secondary }
+        self._fetch_href('router')  
 
 class Network(SMCElement):
     """ Class representing a Network object used in access rules   
@@ -228,101 +178,306 @@ class Network(SMCElement):
     :param ip4_network: network cidr
     :param comment: optional comment   
     
-    .. note:: ip4_network can be cidr or full mask, /24 or /255.255.255.0
+    .. note:: ip4_network must be in CIDR format
     
     Create a network element::
     
         Network('mynetwork', '2.2.2.0/24').create()
-        
-        Network('mynetwork', 2.2.2.0/255.255.255.0').create()
     """
     def __init__(self, name, ip4_network, comment=None):
         SMCElement.__init__(self)        
-        self.type  = 'network'
-        self.name = name
-        self.ip4_network = ip4_network
-        self.comment = comment
-    
-    def create(self):        
-        self.json = util.get_json_template('network.json')
-        self.json['name'] = self.name
-        self.json['ipv4_network'] = self.ip4_network
-        self.json['comment'] = self.comment if self.comment is not None else ""
-        self._fetch_href()
-        return super(Network, self).create()
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'ipv4_network': ip4_network,
+                     'comment': comment }
+        self._fetch_href('network')
 
-class Zone(SMCElement):
-    def __init__(self, zone):
-        SMCElement.__init__(self)
-        self.type = 'interface_zone'
-        self.zone = zone
+class DomainName(SMCElement):
+    """ Represents a domain name used as FQDN in policy
+    Use this object to reference a DNS resolvable FQDN or
+    partial domain name to be used in policy.
     
-    def create(self):
-        self.json = {'name': self.zone}
-        self._fetch_href()
-        return super(Zone, self).create()
+    :param name: name of domain, i.e. lepages.net, www.lepages.net
     
-       
-class Protocol(SMCElement):
-    def __init__(self):
-        SMCElement.__init__(self)
-        pass
+    Create a domain based network element::
     
-class IPService(SMCElement):
-    def __init__(self):
+        DomainName('mydomain.net').create()
+    """
+    def __init__(self, name, comment=None):
         SMCElement.__init__(self)
-        pass
+        comment = comment if comment is not None else ''
+        self.json = {
+                     'name': name,
+                     'comment': comment}
+        self._fetch_href('domain_name')
 
-class EthernetService(SMCElement):
-    def __init__(self):
+class TCPService(SMCElement):
+    """ Represents a TCP based service in SMC
+    TCP Service can use a range of ports or single port. If using
+    single port, set only min_dst_port. If using range, set both
+    min_dst_port and max_dst_port. 
+    
+    :param name: name of tcp service
+    :param min_dst_port: minimum destination port value
+    :type min_dst_port: int
+    :param max_dst_port: maximum destination port value
+    :type max_dst_port: int
+    
+    Create a TCP Service for port 5000::
+    
+        TCPService('tcpservice', 5000, comment='my service').create()
+    """
+    def __init__(self, name, min_dst_port, max_dst_port=None,
+                 comment=None):
         SMCElement.__init__(self)
-        pass
+        comment = comment if comment is not None else ''
+        max_dst_port = max_dst_port if max_dst_port is not None else ''
+        self.json = {
+                     'name': name,
+                     'min_dst_port': min_dst_port,
+                     'max_dst_port': max_dst_port,
+                     'comment': comment }
+        self._fetch_href('tcp_service')
 
 class UDPService(SMCElement):
+    """ Represents a UDP based service in SMC
+    TCP Service can use a range of ports or single port. If using
+    single port, set only min_dst_port. If using range, set both
+    min_dst_port and max_dst_port. 
+    
+    :param name: name of udp service
+    :param min_dst_port: minimum destination port value
+    :type min_dst_port: int
+    :param max_dst_port: maximum destination port value
+    :type max_dst_port: int
+    
+    Create a UDP Service for port range 5000-5005::
+    
+        UDPService('udpservice', 5000, 5005).create()
+    """
+    def __init__(self, name, min_dst_port, max_dst_port=None,
+                 comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment is not None else ''
+        max_dst_port = max_dst_port if max_dst_port is not None else ''
+        self.json = {
+                     'name': name,
+                     'min_dst_port': min_dst_port,
+                     'max_dst_port': max_dst_port,
+                     'comment': comment }
+        self._fetch_href('udp_service')
+    
+class IPService(SMCElement):
+    """ Represents an IP-Proto service in SMC
+    IP Service is represented by a protocol number. This will display
+    in the SMC under Services -> IP-Proto. It may also show up in 
+    Services -> With Protocol if the protocol is tied to a Protocol Agent.
+    
+    :param name: name of ip-service
+    :param protocol_number: ip proto number for this service
+    :type protocol_number: int
+    
+    Create an IP Service for protocol 93 (AX.25)::
+    
+        IPService('ipservice', 93).create()
+    """
+    def __init__(self, name, protocol_number, comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'protocol_number': protocol_number,
+                     'comment': comment }
+        self._fetch_href('ip_service')
+
+class EthernetService(SMCElement): #TODO: Error 500 Database problem
+    """ Represents an ethernet based service in SMC
+    Ethernet service only supports adding 'eth'2 frame type. 
+    Ethertype should be the ethernet2 ethertype code in decimal 
+    (hex to decimal) format 
+    """
+    def __init__(self, name, frame_type='eth2', ethertype=None, comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment else ''
+        self.json = {
+                     'frame_type': frame_type,
+                     'name': name,
+                     'value1': ethertype,
+                     'comment': comment }
+        self._fetch_href('ethernet_service')
+
+class Protocol(SMCElement):
+    """ Represents a protocol module in SMC 
+    Add is not possible 
+    """
     def __init__(self):
         SMCElement.__init__(self)
         pass
 
 class ICMPService(SMCElement):
-    def __init__(self):
+    """ Represents an ICMP Service in SMC
+    Use the RFC icmp type and code fields to set values. ICMP
+    type is required, icmp code is optional but will make the service
+    more specific if type codes exist.
+    
+    :param name: name of service
+    :param icmp_type: icmp type field
+    :type icmp_type: int
+    :param icmp_code: icmp type code
+    :type icmp_code: int
+    
+    Create an ICMP service using type 3, code 7 (Dest. Unreachable)::
+    
+        ICMPService('api-icmp', 3, 7).create()
+    """
+    def __init__(self, name, icmp_type, icmp_code=None, comment=None):
         SMCElement.__init__(self)
-        pass
+        comment = comment if comment is not None else ''
+        icmp_code = icmp_code if icmp_code else ''
+        self.json = {
+                     'name': name,
+                     'icmp_type': icmp_type,
+                     'icmp_code': icmp_code,
+                     'comment': comment }
+        self._fetch_href('icmp_service')
+
+class ICMPIPv6Service(SMCElement):
+    """ Represents an ICMPv6 Service type in SMC
+    Set the icmp type field at minimum. At time of writing the
+    icmp code fields were all 0.
+    
+    :param name: name of service
+    :param icmp_type: ipv6 icmp type field
+    :type icmp_type: int
+    
+    Create an ICMPv6 service for Neighbor Advertisement Message::
+    
+        ICMPIPv6Service('api-Neighbor Advertisement Message', 139).create()
+    """
+    def __init__(self, name, icmp_type, comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment else ''
+        self.json = {
+                     'name': name,
+                     'icmp_type': icmp_type,
+                     'comment': comment }
+        self._fetch_href('icmp_ipv6_service')
+
+class ServiceGroup(SMCElement):
+    """ Represents a service group in SMC. Used for grouping
+    objects by service. Services can be "mixed" TCP/UDP/ICMP/
+    IPService, Protocol or other Service Groups.
+    Element is an href to the location of the resource.
+    
+    :param name: name of service group
+    :param element: list of elements to add to service group
+    :type element: list
+    
+    Create a TCP and UDP Service and add to ServiceGroup::
+    
+        tcp1 = TCPService('api-tcp1', 5000).create()
+        udp1 = UDPService('api-udp1', 5001).create()
+        ServiceGroup('servicegroup', element=[tcp1.href, udp1.href]).create()
+    """
+    def __init__(self, name, element=None, comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment else ''
+        elements = []
+        if element:
+            elements.extend(element)
+        self.json = {
+                     'name': name,
+                     'element': elements,
+                     'comment': comment }
+        self._fetch_href('service_group')
+    
+class TCPServiceGroup(SMCElement):
+    """ Represents a TCP Service group
+    
+    :param name: name of tcp service group
+    :param element: tcp services by href
+    :type element: list
+    
+    Create TCP Services and add to TCPServiceGroup::
+    
+        tcp1 = TCPService('api-tcp1', 5000).create()
+        tcp2 = TCPService('api-tcp2', 5001).create()
+        ServiceGroup('servicegroup', element=[tcp1.href, tcp2.href]).create()
+    """    
+    def __init__(self, name, element=None, comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment else ''
+        elements = []
+        if element:
+            elements.extend(element)
+        self.json = {
+                     'name': name,
+                     'element': elements,
+                     'comment': comment }
+        self._fetch_href('tcp_service_group')
+
+class UDPServiceGroup(SMCElement):
+    """ UDP Service Group 
+    Used for storing UDP Services or UDP Service Groups.
+    
+    :param name: name of service group
+    :param element: UDP services or service group by reference
+    :type element: list
+    
+    Create two UDP Services and add to UDP service group::
+    
+        udp1 = UDPService('udp-svc1', 5000).create()
+        udp2 = UDPService('udp-svc2', 5001).create()
+        UDPServiceGroup('udpsvcgroup', element=[udp1.href, udp2.href]).create()
+    """
+    def __init__(self, name, element=None, comment=None):
+        SMCElement.__init__(self)
+        comment = comment if comment else ''
+        elements = []
+        if element:
+            elements.extend(element)
+        self.json = {
+                     'name': name,
+                     'element': elements,
+                     'comment': comment }
+        self._fetch_href('udp_service_group')
     
 class IPServiceGroup(SMCElement):
-    def __init__(self):
+    """ IP Service Group
+    Used for storing IP Services or IP Service Groups
+    
+    :param name: name of service group
+    :param element: IP services or IP service groups by ref
+    :type element: list
+    """
+    def __init__(self, name, element=None, comment=None):
         SMCElement.__init__(self)
-        pass
+        comment = comment if comment else ''
+        elements = []
+        if element:
+            elements.extend(element)
+        self.json = {
+                     'name': name,
+                     'element': elements,
+                     'comment': comment }
+        self._fetch_href('ip_service_group')
 
-class TCPService(SMCElement):
-    def __init__(self):
-        SMCElement.__init__(self)
-        pass
+class Zone(SMCElement):
+    """ Class representing a zone used on physical interfaces and
+    used in access control policy rules
     
-class UDPServiceGroup(SMCElement):
-    def __init__(self):
-        SMCElement.__init__(self)
-        pass
-
-class TCPServiceGroup(SMCElement):
-    def __init__(self):
-        SMCElement.__init__(self)
-        pass
+    :param zone: name of zone
     
-class ServiceGroup(SMCElement):
-    def __init__(self):
+    Create a zone::
+        
+        Zone('myzone').create()
+    """
+    def __init__(self, zone):
         SMCElement.__init__(self)
-        pass
-    
-class ICMPIPv6Service(SMCElement):
-    def __init__(self):
-        SMCElement.__init__(self)
-        pass
-    
-class DomainName(SMCElement):
-    def __init__(self):
-        SMCElement.__init__(self)
-        pass
-
+        self.json = {'name': zone}
+        self._fetch_href('interface_zone') 
+       
 class LogicalInterface(SMCElement):
     """
     Logical interface is used on either inline or capture interfaces. If an
@@ -337,15 +492,11 @@ class LogicalInterface(SMCElement):
     """
     def __init__(self, name, comment=None):
         SMCElement.__init__(self)        
-        self.type = 'logical_interface'
-        self.name = name
-        self.comment = comment if comment is not None else ""
-    
-    def create(self):
-        self.json = { "comment": self.comment,
-                      "name": self.name }
-        self._fetch_href()
-        return super(LogicalInterface, self).create()
+        comment = comment if comment is not None else ''
+        self.json = { 
+                     'name': name,
+                     'comment': comment }
+        self._fetch_href('logical_interface')
     
 class Blacklist(object):
     """ Add a blacklist entry by source / destination
@@ -361,6 +512,9 @@ class Blacklist(object):
         self.end_point1 = {'name': '', 'address_mode': 'address', 'ip_network': src}
         self.end_point2 = {'name': '', 'address_mode': 'address', 'ip_network': dst}
         
+    def as_dict(self):
+        return self.__dict__
+        
 class VirtualResource(object):
     def __init__(self, name, vfw_id, domain='Shared',
                  show_master_nic=False,
@@ -375,6 +529,8 @@ class VirtualResource(object):
     def resolve_domain(self):
         self.allocated_domain_ref = search.element_href_use_filter(
                                         self.allocated_domain_ref, 'admin_domain')   
+    def as_dict(self):
+        return self.__dict__
 
 class Administrator(SMCElement):
     def __init__(self, name, local_admin=False, allow_sudo=False, superuser=False,

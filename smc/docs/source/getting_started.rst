@@ -61,6 +61,9 @@ Creating elements with smc-python can be done for all of the common element type
 
 Oftentimes these objects are cross referenced within the configuration, like when creating rule or
 NAT policy.
+All calls to create() will return an :py:class:`smc.api.web.SMCResult` which will hold the attributes
+necessary to determine if the creation was successful, and if not, the reason. The href attribute will
+have the new HREF for the created object and msg attribute will hold an error message, if any.
 
 Examples of creating elements are as follows:
 
@@ -79,7 +82,55 @@ Examples of creating elements are as follows:
    Service('tcp666', 666, proto='tcp').create()
   
 See the :py:class:`smc.elements.element` reference documentation for more specific details.
+
+Modifying elements
+------------------   
+
+It is possible to modify elements after creation by calling the classmethod modify of each
+element.
+Once called, the json attribute will have the existing settings for the object type and can
+be modified. After making modifications to the object attributes, call update() to update the
+element on the SMC.
+
+Example of modifying a TCPServiceGroup by changing the name and adding an additional service:
+
+.. code-block:: python
    
+   service = TCPServiceGroup.modify('api-tcpgrp2') #Get raw group json
+   tcp = TCPService('newservice', 6000).create()
+   service.json['name'] = 'api-tcpgrp2' #change service name
+   service.json.get('element').append(tcp.href) #add new service
+   service.update() #call update to refresh element
+ 
+Example of adding TCP and UDP Services to an existing Service Group:
+
+.. code-block:: python
+   
+   grp = ServiceGroup.modify('api-servicegrp')
+   udp = UDPService('api-udp-svc', 6000).create()
+   tcp = TCPService('api-tcp-svc', 6000).create()
+   grp.json.get('element').extend([udp.href, tcp.href])
+   grp.update()
+
+Example of changing an existing Host and IP address:
+
+.. code-block:: python
+
+   host = Host.modify('ami')
+   host.json['address'] = '2.2.2.2'
+   host.json['name'] = 'ami-changed'
+   host.update()
+
+Empty out all members of a specific network element group:
+
+.. code-block:: python
+   
+   group = Group.modify('mygroup')
+   group.json['element'] = []
+   group.update()
+            
+If modification was successful, SMCResult will have the href attribute set with the location of
+the element, or the msg attribute set with reason if modification fails.
    
 Creating engines
 ----------------
@@ -164,13 +215,15 @@ create the interfaces that will be used for the virtual instances.
 The first step in creating the virtual engine is to create the virtual resource and map that to a physical interface
 or VLAN on the master engine. Once that has been created, add IP addresses to the virtual engine interfaces as necessary.
 
-.. code-block:: python
+To create the virtual resource:
 
-   To create the virtual resource::
+.. code-block:: python
         
    		engine.virtual_resource_add(virtual_engine_name='ve-1', vfw_id=1)
            
 See :py:func:`smc.elements.engine.Engine.virtual_resource_add` for more information.
+
+Creating a layer 3 virtual engine with 3 physical interfaces:
         
 .. code-block:: python
         
@@ -326,11 +379,11 @@ To add a cluster virtual interface on a layer 3 FW cluster:
 .. code-block:: python
    
    physical = PhysicalInterface('2')	#use interface 2
-   physical.add_cluster_virtual_interface(cluster_virtual='172.18.1.254', 
-   										  cluster_mask='172.18.1.0/24',
-   										  macaddress='02:02:02:02:02', 
-                                		  nodes=[{'address': '2.2.2.2', 'network_value': '2.2.2.0/24'},
-                                       			 {'address': '3.3.3.3', 'network_value': '3.3.3.0/24'}], 
+   physical.add_cluster_virtual_interface(cluster_virtual='172.18.1.254',
+                                          cluster_mask='172.18.1.0/24',
+                                          macaddress='02:02:02:02:02',
+                                          nodes=[{'address': '2.2.2.2', 'network_value': '2.2.2.0/24'},
+                                                 {'address': '3.3.3.3', 'network_value': '3.3.3.0/24'}], 
                                           is_mgmt=True)
    engine.add_interfaces(physical.data)
 
@@ -392,8 +445,9 @@ Deleting interfaces
 Deleting interfaces is done at the engine level. In order to delete an interface, you must first call
 load() on the engine to get the context of the engine.
 
-Once you have loaded the engine, you can display all available interfaces by calling `physical_interface()` and
-then deleting by calling `physical_interface_del(name)`.
+Once you have loaded the engine, you can display all available interfaces by calling 
+:py:func:`smc.elements.engine.Engine.physical_interface()` and
+then deleting by calling :py:func:`smc.elements.engine.Engine.physical_interface_del`.
 
 The name of the interface is the name the NGFW gives the interface based on interface index. For example, 
 physical interface 1 would be "Interface 1" and so on.
@@ -418,7 +472,29 @@ Deleting an inline pair interface:
      print "Success!"
 
 To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation
- 
+
+Modifying Interfaces
+++++++++++++++++++++
+
+To modify an existing interface, you can specify key/value pairs to change specific settings. This should be
+used with care as changing existing settings may affect other settings. For example, when an interface is 
+configured with an IP address, the SMC will automatically create a route entry mapping that physical interface
+to the directly connected network. Changing the IP will leave the old network definition from the previously
+assigned interface and would need to be removed. 
+
+Example of changing the IP address of an existing single node interface (for layer 3 firewalls):
+
+.. code-block:: python
+
+   engine = Node('myfirewall').load()
+   physical = PhysicalInterface(0, engine.physical_interface_get('0'))
+   physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
+   engine.update_physical_interface(physical) 
+   
+..note:: Key/value pairs can be viewed by retrieving the raw interface data using
+	     smc.elements.engine.Engine.physical_interface_get(interface_id) function.
+
+
 Adding routes
 +++++++++++++
 
@@ -434,6 +510,25 @@ For example, load a Layer 3 Firewall and add a route:
    engine = Node('myengine').load()
    engine.add_route('172.18.1.254', '192.168.1.0/24')
    engine.add_route('172.18.1.254', '192.168.2.0/24')
+
+Licensing Engines
++++++++++++++++++
+
+Stonesoft engine licensing for physical appliances is done by having the SMC 'fetch' the license
+POS from the appliance and auto-assign the license. If the engine is running on a platform that doesn't
+have a POS (Proof-of-Serial) such as a virtual platform, then the fetch will fail. In this case, it is 
+possible to do an auto bind which will look for unassigned dynamic licenses available in the SMC.
+
+Example of attempting an auto-fetch and falling back to auto binding a dynamic license:
+
+.. code-block:: python
+   
+   engine = Node('myvirtualfw').load()
+   result = engine.fetch_license() #try to find POS
+   if result.msg:
+       print result.msg 	#print fail message
+       if not engine.bind_license().msg:
+           print "Success with auto binding of license"
 
 Controlling engines
 -------------------

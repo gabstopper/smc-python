@@ -223,14 +223,6 @@ Search
 .. automodule:: smc.actions.search
    :members:
 
-License
--------
-
-.. automodule:: smc.elements.license
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 Session
 -------
 

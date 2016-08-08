@@ -1,8 +1,0 @@
-{
-	"comment": "",
-	"read_only": false,
-	"name": "@NAME@",
-	"system": false,
-	"broadcast": true,
-	"ipv4_network": "@NETWORK@"
-}
