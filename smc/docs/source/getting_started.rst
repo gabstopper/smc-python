@@ -491,9 +491,8 @@ Example of changing the IP address of an existing single node interface (for lay
    physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
    engine.update_physical_interface(physical) 
    
-..note:: Key/value pairs can be viewed by retrieving the raw interface data using
-	     smc.elements.engine.Engine.physical_interface_get(interface_id) function.
-
+.. note:: Key/value pairs can be viewed by retrieving the raw interface data using
+	      smc.elements.engine.Engine.physical_interface_get(interface_id) function.
 
 Adding routes
 +++++++++++++
