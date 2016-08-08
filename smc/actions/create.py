@@ -21,15 +21,18 @@ In order to view error messages, do the following in your calling script::
 
 import logging
 import smc.elements.element
-from smc.elements.element import logical_intf_helper, SMCElement
+from smc.elements.element import logical_intf_helper, SMCElement, DomainName,\
+    TCPService, EthernetService, ICMPService, ICMPIPv6Service, ServiceGroup,\
+    TCPServiceGroup, UDPServiceGroup, UDPService, IPServiceGroup, IPService, Host, \
+    AdminUser
 import smc.api.web
-import smc.elements.license
 from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster
 from smc.actions import helpers
 
 from smc.api.web import SMCException
 from smc.elements.interfaces import VlanInterface, PhysicalInterface
 from smc.elements.system import SystemInfo
+from __builtin__ import True
 
 
 logger = logging.getLogger(__name__)
@@ -130,7 +133,8 @@ def group(name, members=[], comment=None):
     return smc.elements.element.Group(name,
                                        members=grp_members,
                                        comment=comment).create()
-    
+
+'''    
 def service(name, min_dst_port, proto, comment=None):
     """ Create a service element in SMC 
     
@@ -151,7 +155,7 @@ def service(name, min_dst_port, proto, comment=None):
         return smc.elements.element.Service(name, min_dst_port,
                                             proto=proto, 
                                             comment=comment).create()
- 
+''' 
 def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_license=False):
     """ Create single firewall with a single management interface
     
@@ -354,10 +358,12 @@ def blacklist_flush(name):
         logger.error("Exception during blacklist: %s" % e)
             
 def bind_license(name):
-    smc.elements.license.License(name).bind()
+    engine = Node(name).load()
+    return engine.bind_license()
     
 def unbind_license(name):
-    smc.elements.license.License(name).unbind()
+    engine = Node(name).load()
+    return engine.unbind_license()
          
 def cluster_fw(data):
     pass
@@ -396,26 +402,48 @@ if __name__ == '__main__':
     from smc.elements.element import logical_intf_helper, zone_helper
     
     """@type engine: Node"""
-    engine = Node('bo').load()
-    #pprint(vars(engine))
+    #engine = Node('bo').load()
     
-    physical = PhysicalInterface(0, engine.physical_interface_get('0'))
-    physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
-    engine.update_physical_interface(physical)
-    #pprint(physical.as_dict())
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/protocol'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/protocol/56'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/tcp_service/403'))
     
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/vpn_profile'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/vpn_profile/16'))
+    #vpn_profile
     
-    #physical = PhysicalInterface(5)
-    #physical.add_capture_interface(logical_interface_ref=logical_intf_helper('apitool'))
-    #pprint(physical)
-    #engine.add_physical_interfaces(physical)
+    #pprint(smc.search.all_elements_by_type('admin_user'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/admin_user/13'))
    
+         
+    #admin = AdminUser('dlepage-test').create()
+    admin = AdminUser.modify('dlepage-test')
+    pprint(admin.json)
+    #admin.json['superuser'] = True
+    #admin.update()
+    #pprint(admin.link)
+    print admin.change_password('1970keegan')
+    #print admin.change_password('1970keegan')
+    #print admin.enable_disable()
+    #print admin.export()
+    
+    #print engine.blacklist_add('1.1.1.1/32', '0.0.0.0/32', 3600)
+    #pprint(vars(engine))
+    #physical = PhysicalInterface(0, engine.physical_interface_get('0'))
+    #physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
+    #engine.update_physical_interface(physical)
+    
+    
     #pprint(smc.search.element_href_use_filter('ve-1 admins', 'access_control_list'))
     #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/access_control_list/31'))
     
-    #system = SystemInfo()
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/access_control_list/31'))
+   
+    #pprint(system.engines())
+    #print(system.visible_virtual_engine_mapping())
     
+    #import smc.elements.license
+    #licensekey = smc.elements.license.License('bo')
+    #pprint(licensekey.links)
     
     '''
     <access_control_list db_key="31" name="ve-1 admins">

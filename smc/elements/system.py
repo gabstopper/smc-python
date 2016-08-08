@@ -176,8 +176,7 @@ class SystemInfo(System):
         engines = []
         for func in ['single_fw', 'fw_cluster', 'single_layer2', 
                      'layer2_cluster', 'single_ips', 'ips_cluster',
-                     'master_engine', 'virtual_fw', 'virtual_ips',
-                     'virtual_layer2']:
+                     'master_engine', 'virtual_fw', 'virtual_ips']:
             result = getattr(self, func)
             engines.extend(result())
         return engines 
@@ -208,6 +207,3 @@ class SystemInfo(System):
     
     def virtual_ips(self):
         return search.all_elements_by_type('virtual_ips')
-    
-    def virtual_layer2(self):
-        return search.all_elements_by_type('virtual_layer2')

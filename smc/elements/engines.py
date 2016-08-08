@@ -81,10 +81,12 @@ class Engine(object):
         
         See :func:`async_handler` for more information on how to obtain results
         
+        Last yield is result href; if wait_for_finish=False, the only yield is 
+        the follower href
+        
         :method: POST
         :param wait_for_finish: whether to wait in a loop until the upload completes
-        :return: generator yielding updates on progress. Last yield is result href;
-        if wait_for_finish=False, the only yield is the follower href
+        :return: generator yielding updates on progress
         """
         element = SMCElement(href=self.__load_href('refresh')).create()
         return common_api.async_handler(element.json.get('follower'), 
@@ -146,7 +148,7 @@ class Engine(object):
         0.0.0.0/0.
         
         .. note: This will fail if the gateway provided does not have a 
-        corresponding interface on the network.
+                 corresponding interface on the network.
         
         :method: POST
         :param gateway: gateway of an existing interface

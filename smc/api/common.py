@@ -82,7 +82,7 @@ def delete(href):
     Delete element on SMC
     
     :method: DELETE
-    :param: href: item reference to delete
+    :param href: item reference to delete
     :return: SMCResult
     """
     if href:
@@ -150,7 +150,7 @@ def fetch_href_by_name(name,
     :param filter_context: further filter request, i.e. 'host', 'group', 'single_fw'
     :param exact_match: Do an exact match by name, note this still can return multiple entries
     :param domain: specify domain in which to query
-    :return SMCResult
+    :return: SMCResult
     """
     if name:
         connect_err = None
@@ -248,7 +248,7 @@ def async_handler(follower_href, wait_for_finish=True,
     if wait_for_finish:
         last_msg = ''
         while True:
-            status = smc.actions.search.element_by_href_as_json(follower_href) #TODO: Use fetch?
+            status = smc.actions.search.element_by_href_as_json(follower_href)
             msg = status.get('last_message')
             if display_msg:
                 if msg != last_msg:
@@ -259,5 +259,8 @@ def async_handler(follower_href, wait_for_finish=True,
                     if link.get('rel') == 'result':
                         yield link.get('href')
                 break
+            #elif status.get('in_progress') == False: #TODO: If fails
+            #    yield status.get('last_message')
+            #    break
     else:
         yield follower_href

@@ -141,6 +141,12 @@ LogicalInterface
    :members:
    :show-inheritance:
 
+AdminUser
++++++++++
+
+.. autoclass:: AdminUser
+   :members:
+
 Engines
 -------
 

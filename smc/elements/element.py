@@ -177,12 +177,12 @@ class Network(SMCElement):
     :param name: Name of element
     :param ip4_network: network cidr
     :param comment: optional comment   
-    
-    .. note:: ip4_network must be in CIDR format
-    
+
     Create a network element::
     
         Network('mynetwork', '2.2.2.0/24').create()
+        
+    .. note:: ip4_network must be in CIDR format
     """
     def __init__(self, name, ip4_network, comment=None):
         SMCElement.__init__(self)        
@@ -532,16 +532,79 @@ class VirtualResource(object):
     def as_dict(self):
         return self.__dict__
 
-class Administrator(SMCElement):
-    def __init__(self, name, local_admin=False, allow_sudo=False, superuser=False,
-                 admin_domain=None, engine_target_list=None):
+class AdminUser(SMCElement):
+    def __init__(self, name, 
+                 local_admin=False, 
+                 allow_sudo=False, 
+                 superuser=False, 
+                 admin_domain=None, 
+                 engine_target=None):
         SMCElement.__init__(self)
-        self.name = name
-        self.local_admin = local_admin
-        self.allow_sudo = allow_sudo
-        self.superuser = superuser
-        self.admin_domain = admin_domain
-        self.engine_target_list = engine_target_list
+        engines = []
+        if engine_target:
+            engines.extend(engine_target)
+        self.json = {
+                    'allow_sudo': allow_sudo,
+                    'enabled': True,
+                    'engine_target': engines,
+                    'local_admin': True,
+                    'name': name,
+                    'superuser': superuser }
+        self._fetch_href('admin_user') 
+            
+    def change_password(self, password):
+        """ Change admin password 
+        
+        :method: PUT
+        :param password: new password
+        :return: SMCResult
+        """
+        self._reset_href('change_password')
+        self.params = {'password': password}
+        return self.update()
+           
+    def change_engine_password(self, password):
+        """ Change Engine password for engines on allowed
+        list.
+        
+        :method: PUT
+        :param password: password for engine level
+        :return: SMCResult
+        """
+        self._reset_href('change_engine_password')
+        self.params = {'password': password}
+        pass
+    
+    def enable_disable(self):
+        """ Toggle enable and disable of administrator account
+        
+        :method: PUT
+        :return: SMCResult
+        """
+        self._reset_href('enable_disable')
+        return self.update()
+    
+    '''
+    def export(self, filename='admin.zip'):
+        """ POST """
+        import smc.api.common as common_api
+        self._reset_href('export')
+        self.params = {}
+        element = super(AdminUser, self).create()
+        for msg in common_api.async_handler(element.json.get('follower'), 
+                                            display_msg=False):
+            element.href = msg      
+        element.filename = filename
+        file_download = common_api.fetch_content_as_file(element)
+        if not file_download.msg:
+            print "Export successful, saved to file: {}".format(file_download.content)
+    '''
+    def _reset_href(self, action):
+        links = self.json.get('link')
+        for entry in links:
+            if entry.get('rel') == action:
+                self.href = entry.get('href')
+                break
 
 def zone_helper(zone):
     zone_ref = smc.search.element_href_use_filter(zone, 'interface_zone')
