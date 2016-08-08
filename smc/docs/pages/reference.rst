@@ -201,7 +201,7 @@ Interfaces
 ----------
 
 .. automodule:: smc.elements.interfaces
-    :members: Interface
+    :members:
     :undoc-members:
     :show-inheritance:
 
