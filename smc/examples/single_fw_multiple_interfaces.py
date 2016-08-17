@@ -6,19 +6,19 @@ Specify a policy to upload once the single FW instance has made the initial cont
 be queued and kick off once the contact is complete.
 Generate the initial contact information for sg-reconfigure on the virtual or appliance.
 """
-import smc.api.web
+from smc.api.session import session
 from smc.elements.engines import Layer3Firewall
 from smc.elements.interfaces import PhysicalInterface
 
 if __name__ == '__main__':
-    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
     
     #Create base engine specifying management IP info and management interface number
     engine = Layer3Firewall.create('myfirewall',
                                    mgmt_ip='172.18.1.160',
                                    mgmt_network='172.18.1.0/24',
                                    mgmt_interface=0,
-                                   dns=['8.8.8.8'])
+                                   domain_server_address=['8.8.8.8'])
     
     if engine:
         print "Successfully created Layer 3 firewall, adding interfaces.."
@@ -47,4 +47,4 @@ if __name__ == '__main__':
     #Get initial contact information for sg-reconfigure
     print engine.initial_contact('myfirewall', enable_ssh=True)
     
-    smc.api.web.session.logout()
+    session.logout()

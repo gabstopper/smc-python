@@ -26,7 +26,8 @@ and assumes that all names with same digit/s are interface of the same virtual e
 import re
 import csv
 from collections import OrderedDict
-import smc.api.web
+from smc.api.session import session
+import smc.actions.search
 import smc.elements.element
 from smc.elements.interfaces import PhysicalInterface
 from smc.elements.engines import Node, Layer3VirtualEngine
@@ -36,8 +37,8 @@ from smc.api.web import SMCException
 logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 
-master_engine_name = 'master-eng'
-csv_filename = '/Users/davidlepage/info.csv'
+master_engine_name = 'master-eng2'
+csv_filename = '/Users/davidlepage/info2.csv'
 virtual_intf_offset = 1 #Virtual interface offset based on used MasterEngine interfaces
 #Master engine physical interface to zone map
 zone_map = {1: 'Web', 
@@ -48,11 +49,11 @@ dns=['8.8.8.8','8.8.8.9']
 
 if __name__ == '__main__':
 
-    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
 
     #Get zone references
     for idx, zone in zone_map.iteritems():
-        result = smc.search.element_href_use_filter(zone, 'interface_zone')
+        result = smc.actions.search.element_href_use_filter(zone, 'interface_zone')
         if result:
             zone_map[idx] = result
         else:
@@ -68,7 +69,7 @@ if __name__ == '__main__':
       
         reader = csv.DictReader(csvfile, dialect="excel", 
                                 fieldnames=['interface_id', 'vlan_id', 'name',
-                                            'ipaddress', 'netmask', 'cidr', 'default_gw'])
+                                            'address', 'network_value', 'cidr', 'default_gw'])
         previous_engine = 0
         for row in reader:
 
@@ -76,11 +77,11 @@ if __name__ == '__main__':
 
             if current_engine != previous_engine:
                 previous_engine = current_engine
-                virtual_engine_name = 've-'+str(current_engine)
+                virtual_engine_name = 'be-'+str(current_engine)
                 print "Creating VLANs and Virtual Resources for VE: {}".format(virtual_engine_name) 
                 
                 #Create virtual resource on the Master Engine
-                engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine,
+                print engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine,
                                             show_master_nic=False)
                 
                 engine_info[virtual_engine_name] = []
@@ -90,9 +91,9 @@ if __name__ == '__main__':
             
             #Virtual Engine interface information
             engine_info[virtual_engine_name].append({'interface_id': virtual_interface_id,
-                                                     'ipaddress': row.get('ipaddress'),
-                                                     'mask': row.get('ipaddress')+'/'+row.get('cidr'),
-                                                     'zone': zone_map.get(physical_interface_id)})    
+                                                     'address': row.get('address'),
+                                                     'network_value': row.get('address')+'/'+row.get('cidr'),
+                                                     'zone_ref': zone_map.get(physical_interface_id)})    
 
             physical = PhysicalInterface(physical_interface_id)
             physical.add_vlan_to_node_interface(row.get('vlan_id'), 
@@ -104,7 +105,7 @@ if __name__ == '__main__':
             if result.href:
                 print "Successfully created VLAN {}".format(row.get('vlan_id'))
             else:
-                print "Failed creating VLAN %s, reason: {}".format(row.get('vlan_id'), result.msg)
+                print "Failed creating VLAN {}, reason: {}".format(row.get('vlan_id'), result.msg)
             
                 
         for name, interfaces in engine_info.iteritems():
@@ -120,4 +121,4 @@ if __name__ == '__main__':
         for msg in engine.refresh():
             print msg
         
-    smc.api.web.session.logout()
+    session.logout()

@@ -23,40 +23,11 @@ class NodeInterface(object):
         self.nodeid = nodeid
         self.outgoing = False
         self.primary_mgt = False
+        self.primary_heartbeat = False 
     
     def as_dict(self):
         return {'node_interface': self.__dict__}
 
-class InlineInterface(object):
-    """ InlineInterface
-    This interface is used by layer 2 or ips engines for a layer 2 configuration and 
-    consists of 2 interfaces.
-    
-    :param nicid: should be the two interfaces, seperated by -; i.e. 1-2
-    :type nicid: string
-    :oaram logical_ref: logical interface reference
-    
-    The logical interface reference needs to be unique on the same engine that uses both
-    inline and capture interfaces
-    """
-    def __init__(self, nicid, logical_interface_ref, zone_ref=None):
-        self.failure_mode = 'normal'
-        self.inspect_unspecified_vlans = True
-        self.nicid = nicid
-        self.logical_interface_ref = logical_interface_ref
-        self.zone_ref = zone_ref
-    
-    def add_vlan(self, vlan_id):
-        try:
-            first, last = self.nicid.split('-')
-            self.nicid = first + '.' + str(vlan_id) + '-' + last + '.' + str(vlan_id)
-        except ValueError:
-            pass
-        
-    def as_dict(self):
-        return {'inline_interface': self.__dict__}
-
-          
 class SingleNodeInterface(object):
     """ SingleNodeInterface
     This interface is used by specific engine types like Layer 3 Engines. This type of interface
@@ -103,6 +74,35 @@ class ClusterVirtualInterface(object):
     def as_dict(self):
         return {'cluster_virtual_interface': self.__dict__}
 
+class InlineInterface(object):
+    """ InlineInterface
+    This interface is used by layer 2 or ips engines for a layer 2 configuration and 
+    consists of 2 interfaces.
+    
+    :param nicid: should be the two interfaces, seperated by -; i.e. 1-2
+    :type nicid: string
+    :param logical_ref: logical interface reference
+    
+    The logical interface reference needs to be unique on the same engine that uses both
+    inline and capture interfaces
+    """
+    def __init__(self, nicid, logical_interface_ref, zone_ref=None):
+        self.failure_mode = 'normal'
+        self.inspect_unspecified_vlans = True
+        self.nicid = nicid
+        self.logical_interface_ref = logical_interface_ref
+        self.zone_ref = zone_ref
+    
+    def add_vlan(self, vlan_id):
+        try:
+            first, last = self.nicid.split('-')
+            self.nicid = first + '.' + str(vlan_id) + '-' + last + '.' + str(vlan_id)
+        except ValueError:
+            pass
+        
+    def as_dict(self):
+        return {'inline_interface': self.__dict__}
+
 class CaptureInterface(object):
     """ Capture Inteface (span)
     This interface type can be used on layer 2 or ips engine types
@@ -119,6 +119,21 @@ class CaptureInterface(object):
     def as_dict(self):
         return {'capture_interface': self.__dict__}
 
+class DHCPInterface(object):
+    def __init__(self, nicid, dynamic_index, nodeid=1):
+        self.auth_request = False
+        self.outgoing = False
+        self.dynamic = True
+        self.dynamic_index = dynamic_index
+        self.nicid = nicid
+        self.nodeid = nodeid
+        self.primary_mgt = False
+        self.automatic_default_route = False
+        self.reverse_connection = False
+    
+    def as_dict(self):    
+        return {'single_node_interface': self.__dict__}
+        
 class VlanInterface(object):
     """ VLAN Interface assigned to a SingleNode or Node Interface
     
@@ -147,7 +162,8 @@ class PhysicalInterface(UserDict):
     """
     Represents all interfaces considered to be a physical interface type such as 
     Single Node Interface (single layer 3 firewall), Node Dedicated
-    Interface (IPS, Layer 2 and Clusters), Inline Interface and Capture Interface. 
+    Interface (IPS, Layer 2 and Clusters), Cluster Virtual Interface,
+    Inline Interface and Capture Interface. 
     Use this class to build the interface configuration and then add to the engine by 
     calling :py:func:`smc.elements.engines.Engine.add_physical_interfaces`
     
@@ -183,7 +199,8 @@ class PhysicalInterface(UserDict):
             self.update(default)
     
     def add_single_node_interface(self, address, network_value, 
-                                  zone_ref=None, is_mgmt=False):
+                                  zone_ref=None, 
+                                  is_mgmt=False):
         """ Add single node interface, used for layer 3 firewalls
         Zone applied here will apply to top level physical interface
         
@@ -217,8 +234,10 @@ class PhysicalInterface(UserDict):
         vlan.interfaces.append(node.as_dict())
         self.get('vlanInterfaces').append(vlan.as_dict())
 
-    def add_node_interface(self, address, network_value, zone_ref=None, 
-                           nodeid=1, is_mgmt=False):
+    def add_node_interface(self, address, network_value,
+                           zone_ref=None, 
+                           nodeid=1,
+                           is_mgmt=False):
         """ Add an NDI. Used on IPS, Layer2, and Layer3 clusters
 
         :param address: ip address
@@ -304,7 +323,8 @@ class PhysicalInterface(UserDict):
         self.get('vlanInterfaces').append(vlan.as_dict())
         self.update({'interface_id': first_intf})
     
-    def add_capture_interface(self, logical_interface_ref, zone_ref=None):
+    def add_capture_interface(self, logical_interface_ref, 
+                              zone_ref=None):
         """ Add capture interface. Used in layer 2 or IPS engines
         Zone applied here will apply to the top level physical interface.
         
@@ -315,8 +335,22 @@ class PhysicalInterface(UserDict):
         self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
 
+    def add_dhcp_interface(self, dynamic_index, 
+                           primary_mgt=False, 
+                           nodeid=1):
+        """ Add a DHCP interface to physical interface """
+        dhcp = DHCPInterface(nicid=self.interface_id,
+                             dynamic_index=dynamic_index,
+                             nodeid=nodeid)
+        if primary_mgt:
+            dhcp.primary_mgt = True
+            dhcp.reverse_connection = True
+            dhcp.automatic_default_route = True
+        self.get('interfaces').append(dhcp.as_dict())
+    
     def add_cluster_virtual_interface(self, cluster_virtual, cluster_mask, 
-                                      macaddress, nodes, zone_ref=None, is_mgmt=False):
+                                      macaddress, nodes, 
+                                      zone_ref=None, is_mgmt=False):
         """ Cluster virtual interface, used in cluster configurations
         
         :param cluster_virtual: CVI address (VIP) for this interface
@@ -341,12 +375,19 @@ class PhysicalInterface(UserDict):
             if is_mgmt:
                 intf.primary_mgt = True
                 intf.outgoing = True
-                intf.__setattr__('primary_heartbeat', True)
+                intf.primary_heartbeat = True
             self.get('interfaces').append(intf.as_dict())
         if zone_ref is not None: self.update({'zone_ref': zone_ref})
     
-    def modify_single_node_interface(self, **kwds):    
-        intf = self.get('interfaces')[0].get('single_node_interface')
+    def modify_interface(self, interface_type, **kwds):
+        """ Modify single node interface
+        See py:class:`SingleNodeInterface` attributes to see which 
+        common attributes might be modified. 
+        
+        :param dict: dict of key value, i.e. {'backup_heartbeat': True}
+        :param interface_type: single_node_interface, node_interface, etc
+        """    
+        intf = self.get('interfaces')[0].get(interface_type)
         for k, v in kwds.iteritems():
             if k in intf:
                 intf[k] = v

@@ -1,2 +1,1 @@
-__all__ = ["create", "remove", "search", "show"]
-
+__all__ = ['create', 'remove', 'search', 'show']

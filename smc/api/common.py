@@ -7,7 +7,7 @@ more common interface to the responses received
 
 import re
 import logging
-import smc.api.web as web_api
+from smc.api.session import session
 from smc.api.web import SMCOperationFailure, SMCConnectionError
 import smc.actions.search
 
@@ -30,9 +30,9 @@ def create(element):
     if element:
         err = None
         try:
-            result = web_api.session.http_post(element.href, 
-                                               element.json, 
-                                               element.params)
+            result = session.connection.http_post(element.href,
+                                                  element.json, 
+                                                  element.params)
         except SMCOperationFailure, e:
             result = e.smcresult
         except SMCConnectionError, e:
@@ -61,10 +61,10 @@ def update(element):
     if element:
         err = None
         try: 
-            result = web_api.session.http_put(element.href, 
-                                              element.json, 
-                                              element.etag, 
-                                              element.params)
+            result = session.connection.http_put(element.href,
+                                                 element.json, 
+                                                 element.etag, 
+                                                 element.params)
         except SMCOperationFailure, e:
             result = e.smcresult
         except SMCConnectionError, e:
@@ -88,7 +88,7 @@ def delete(href):
     if href:
         connect_err = None
         try:
-            result = web_api.session.http_delete(href) #delete to href           
+            result = session.connection.http_delete(href)
         except SMCOperationFailure, e:
             result = e.smcresult
         except SMCConnectionError, e:
@@ -99,25 +99,24 @@ def delete(href):
             logger.debug(result)
             return result
 
-def fetch_content_as_file(element, stream=True):
+def fetch_content_as_file(href, filename, stream=True):
     """ Used for fetching data from the SMC. 
     Element must have the following attributes:
     
     :method: GET
-    :param element: SMCElement, set filename and href
-    :return: None, downloaded file to specified location
+    :param href: href location for task file download
+    :param filename: name or path of file to save locally
+    :return: SMCResult with content attr holding file location or msg on fail
+    :raises: SMCException, IOError
     """
     try:
-        result = web_api.session.http_get(element.href,  
-                                          filename=element.filename,
-                                          stream=stream)
-        return result #TODO: Verify for all cases
+        result = session.connection.http_get(href,
+                                             filename=filename,
+                                             stream=stream)
     except IOError, ioe:
         logger.error("IO Error received with msg: %s" % ioe)
-    except SMCOperationFailure, e:
-        logger.error(e)
-    except SMCConnectionError, e:
-        raise
+    else:
+        return result
 
 def fetch_entry_point(name):
     """ 
@@ -129,7 +128,7 @@ def fetch_entry_point(name):
     :return: SMCResult
     """
     try:
-        entry_href = web_api.session.get_entry_href(name) #from entry point cache
+        entry_href = session.cache.get_entry_href(name) #from entry point cache
         if not entry_href:
             logger.error("Entry point specified was not found: %s" % name)
             return None
@@ -155,10 +154,10 @@ def fetch_href_by_name(name,
     if name:
         connect_err = None
         try:
-            entry_href = web_api.session.get_entry_href('elements')
-            result = web_api.session.http_get(entry_href, {'filter': name, 
-                                                           'filter_context':filter_context,
-                                                           'exact_match': exact_match})
+            entry_href = session.cache.get_entry_href('elements')
+            result = session.connection.http_get(entry_href, {'filter': name,
+                                                              'filter_context':filter_context,
+                                                              'exact_match': exact_match})
             if result.json:
                 if len(result.json) > 1:
                     result.msg = "More than one search result found. Try using a filter based on element type"
@@ -215,7 +214,7 @@ def fetch_json_by_href(href):
     if href:
         connect_err = None
         try:
-            result = web_api.session.http_get(href)
+            result = session.connection.http_get(href)
             if result:
                 result.href = href
         except SMCOperationFailure, e:
@@ -237,11 +236,13 @@ def async_handler(follower_href, wait_for_finish=True,
     :param follower_href: The follower href to monitor for this task
     :param wait_for_finish: whether to wait for it to finish or not
     :param display_msg: whether to return display messages or not
+    :raises: SMCOperationFailure, if failure reported from SMC
     
     If wait_for_finish is False, the generator will yield the follower 
     href only. If true, will return messages as they arrive and location 
     to the result after complete.
     To obtain messages as they arrive, call the async method in a for loop::
+    
         for msg in engine.export():
             print msg
     """
@@ -259,8 +260,8 @@ def async_handler(follower_href, wait_for_finish=True,
                     if link.get('rel') == 'result':
                         yield link.get('href')
                 break
-            #elif status.get('in_progress') == False: #TODO: If fails
-            #    yield status.get('last_message')
-            #    break
+            elif status.get('in_progress') == False and \
+                    status.get('success') == False: #fails with SMC msg
+                raise SMCOperationFailure(msg=status.get('last_message'))
     else:
         yield follower_href

@@ -30,7 +30,7 @@ line below and set the logging level (recommend ERROR unless troubleshooting)::
     logging.basicConfig(level=logging.ERROR)
 """
 
-import smc.api.web
+from smc.api.session import session
 from smc.elements.engines import FirewallCluster
 from smc.elements.element import zone_helper
 
@@ -41,7 +41,7 @@ logging.getLogger()
 
 if __name__ == '__main__':
     
-    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
     
     #Create the Firewall Cluster
     engine = FirewallCluster.create(name='mycluster', 
@@ -52,7 +52,7 @@ if __name__ == '__main__':
                                     nodes=[{'address': '1.1.1.2', 'network_value': '1.1.1.0/24', 'nodeid':1},
                                            {'address': '1.1.1.3', 'network_value': '1.1.1.0/24', 'nodeid':2},
                                            {'address': '1.1.1.4', 'network_value': '1.1.1.0/24', 'nodeid':3}],
-                                    dns=['1.1.1.1'], 
+                                    domain_server_address=['1.1.1.1'], 
                                     zone_ref=zone_helper('Internal'))
     
     physical = PhysicalInterface(1)
@@ -89,4 +89,4 @@ if __name__ == '__main__':
                         node, node+'.cfg')
         
         
-    smc.api.web.session.logout()
+    session.logout()

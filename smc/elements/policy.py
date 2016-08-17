@@ -123,7 +123,7 @@ class Policy(object):
         :method: POST
         :param device: name of device to upload policy to
         :param wait_for_finish: whether to wait in a loop until the upload completes
-        :return: follower href if wait_for_finish=False, else yields update messages
+        :return: generator with updates, or follower href if wait_for_finish=False
         """
         element = SMCElement(href=self._load_href('upload'),
                              params={'filter': device}).create()
@@ -160,7 +160,7 @@ class Policy(object):
         """
         return SMCElement(href=self._load_href('force_unlock')).create()
 
-    def export(self, wait_for_finish=True, filename=None):
+    def export(self, wait_for_finish=True, filename='policy_export.zip'):
         """ Export the policy
         
         :method: POST
@@ -171,15 +171,10 @@ class Policy(object):
         """
         element = SMCElement(href=self._load_href('export')).create()
         if not element.msg: #no error
-            if filename: #download the file too
-                for msg in smc.api.common.async_handler(element.json.get('follower'), 
-                                                        display_msg=False):
-                    element.href = msg
-                element.filename=filename
-                return smc.api.common.fetch_content_as_file(element)
-            else: #just return the result
-                return smc.api.common.async_handler(element.json.get('follower'), 
-                                                    wait_for_finish=wait_for_finish)
+            href = next(smc.api.common.async_handler(element.json.get('follower'), 
+                                                         display_msg=False))
+                    
+            return smc.api.common.fetch_content_as_file(href, filename)
         else: 
             return [element]
                 

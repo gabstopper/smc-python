@@ -267,7 +267,7 @@ def policy_by_type(policy=None, policy_type=None):
                     'layer2_policy', 'file_filtering_policy','sub_ipv6_fw_policy',
                     'sub_ipv4_fw_policy','sub_ipv4_layer2_policy', 'sub_ipv4_ips_policy']
     if policy_type in policy_types:
-        policies = all_elements_by_type('fw_template_policy')
+        policies = all_elements_by_type(policy_type)
         if policies:
             if policy:
                 return _href_from_name_href_tuple(policies, policy)

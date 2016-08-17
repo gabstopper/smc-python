@@ -20,23 +20,38 @@ Steps to enable API Communication on the Stonesoft Management Center:
 #. Create an API Client and obtain the 'authentication key'
 
 Once you have enabled this and have access to the authentication key (keep this safe), 
-you can establish a session to the SMC by doing the following:
+you can establish a session to the SMC by either providing the url and apikey in the 
+constructor, or storing this in a file located ~/.smcrc.
+
+Storing the credential information in the user profile file is preferred.
+
+For example, providing the connect information through the constructor:
 
 .. code-block:: python
 
-   import smc.api.web
+   from smc.api.session import session
 
-   smc.api.web.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+   session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
    ....do stuff....
-   smc.api.web.logout()
+   session.logout()
 
 If a specific API version is requested, you can add the following argument to the login
 constructor. Otherwise the latest API version available will be used:
 
 .. code-block:: python
 
-   smc.api.web.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001', api_version='5.10')
+   smc.api.web.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
+   api_version='5.10')
 
+If storing in a user profile configuration file, the syntax for that is:
+
+.. code-block:: python
+
+   [smc]
+   smc_address=172.18.1.150
+   smc_apikey=EiGpKD4QxlLJ25dbBEp20001
+   smc_port=8082 (optional; default:8082)
+   
 Once the session has been successfully obtained, there is no reason to re-authenticate a new session
 unless `logout` has been called.
 
@@ -489,7 +504,8 @@ Example of changing the IP address of an existing single node interface (for lay
 
    engine = Node('myfirewall').load()
    physical = PhysicalInterface(0, engine.physical_interface_get('0'))
-   physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
+   physical.modify_interface('single_node_interface',
+                              address='110.110.110.1', network_value='110.110.110.0/24')
    engine.update_physical_interface(physical) 
    
 .. note:: Key/value pairs can be viewed by retrieving the raw interface data using
@@ -587,6 +603,33 @@ Adding Rules
 ++++++++++++
 
 
+Creating Administrators
+-----------------------
+
+Creating administrators and modifying settings can be done using the 
+:py:class:`smc.elements.element.AdminUser` class.
+
+For example, to create a user called 'administrator' and modify after creation, do:
+
+Create admin:
+
+.. code-block:: python
+
+   admin = AdminUser('administrator').create()
+   if admin.href:
+     print "Successfully created admin"
+     
+To modify after creation by setting a password and making a superuser:
+
+.. code-block:: python
+
+   admin = AdminUser.modify('administrator')
+   admin.change_password('mynewpassword')
+   admin.json['superuser'] = True
+   admin.update()
+   admin.enable_disable() #enable or disable account
+    
+
 Search
 ------
 
@@ -621,7 +664,30 @@ Below are some common examples of retrieving data from the SMC:
    
 See :py:mod:`smc.actions.search` for more shortcut search options
 
+System
+------
 
+System level tasks include operations such as checking for and downloading a new
+dynamic update, engine upgrades, last activated package, SMC version, SMC time, 
+emptying the trash bin, viewing all license details, importing, exporting 
+elements and submitting global blacklist entries.
+
+To view any available update packages:
+
+.. code-block:: python
+   
+   system = System()
+   system.update_package() #check all dynamic update packages
+   system.update_package_download() #download latest available
+   
+Empty the trash bin:
+
+.. code-block:: python
+
+   system = System()
+   system.empty_trash_bin()
+   
+    
 Shortcuts
 ---------
 

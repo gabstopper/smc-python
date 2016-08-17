@@ -1,10 +1,11 @@
 import re
+import functools 
 from abc import ABCMeta, abstractmethod
 from smc.elements.element import SMCElement, Blacklist, VirtualResource
 from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface
 import smc.actions.search as search
 import smc.api.common as common_api
-from smc.api.web import SMCException, SMCResult
+from smc.api.web import SMCException, SMCResult, EngineCreateFailed
 from smc.elements.system import SystemInfo
 
 class Engine(object):
@@ -60,20 +61,39 @@ class Engine(object):
     @classmethod
     @abstractmethod
     def create(cls):
+        if not hasattr(cls, 'log_server_ref'):
+            cls.log_server_ref = SystemInfo().first_log_server()
         engine = {
                 "name": cls.name,
                 "nodes": [],
                 "domain_server_address": [],
                 "log_server_ref": cls.log_server_ref,
                 "physicalInterfaces": [] }
-        if cls.domain_server_address:
+        try:
             rank_i = 0
             for entry in cls.domain_server_address:
                 engine.get('domain_server_address').append(
-                                            {"rank": rank_i, "value": entry})
+                                    {"rank": rank_i, "value": entry})
+        except (AttributeError, TypeError):
+            pass
         cls.engine_json = engine
         return cls.engine_json
-    
+    '''
+    def change_name(self, new_name):
+        """ Change engine name
+        
+        :param new_name: New name for engine, will change all nodes
+        :return: SMCElement
+        """
+        self.engine_json['name'] = new_name
+        for node in self.engine_json.get('nodes'):
+            for _name, values in node.iteritems():
+                if 'name' in values:
+                    n = values.get('name')
+                    values['name'] = re.sub(r".+( node.+)", new_name + r'\1', n)
+        return SMCElement(href=self.href, json=self.engine_json,
+                          etag=self.etag).update()
+    '''                
     def refresh(self, wait_for_finish=True):
         """ Refresh existing policy on specified device. This is an asynchronous 
         call that will return a 'follower' link that can be queried to determine 
@@ -130,7 +150,7 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('interfaces')) 
     
-    def generate_snapshot(self, filename='snapshot.xml'):
+    def generate_snapshot(self, filename='snapshot.zip'):
         """ Generate and retrieve a policy snapshot from the engine
         This is blocking as file is downloaded
         
@@ -138,9 +158,8 @@ class Engine(object):
         :param filename: name of file to save file to, including directory path
         :return: None
         """
-        element = SMCElement(href=self.__load_href('generate_snapshot'),
-                             filename=filename)
-        return common_api.fetch_content_as_file(element)
+        href = self.__load_href('generate_snapshot')
+        return common_api.fetch_content_as_file(href, filename=filename)
 
     def add_route(self, gateway, network):
         """ Add a route to engine. Specify gateway and network. 
@@ -155,7 +174,8 @@ class Engine(object):
         :param network: network address in cidr format
         """
         return SMCElement(href=self.__load_href('add_route'),
-                          params={'gateway': gateway, 'network': network}).create()
+                          params={'gateway': gateway, 
+                                  'network': network}).create()
         
     def blacklist_add(self, src, dst, duration=3600):
         """ Add blacklist entry to engine node by name
@@ -167,8 +187,9 @@ class Engine(object):
         :param duration: how long to blacklist in seconds
         :return: href for success, or None
         """
-        return SMCElement(href=self.__load_href('blacklist'),
-                          json=Blacklist(src, dst, duration).as_dict()).create()
+        element = Blacklist(src, dst, duration)
+        element.href = self.__load_href('blacklist')
+        return element.create()
 
     def blacklist_flush(self):
         """ Flush entire blacklist for node name
@@ -197,7 +218,7 @@ class Engine(object):
         """
         return search.element_by_href_as_json(self.__load_href('routing_monitoring'))
     
-    def export(self, filename='export.xml'): 
+    def export(self, filename='export.zip'): 
         """ Generate export of configuration. Export is downloaded to
         file specified in filename parameter.
         
@@ -208,14 +229,11 @@ class Engine(object):
         element = SMCElement(href=self.__load_href('export'),
                              params={'filter': self.name}).create()
         
-        for msg in common_api.async_handler(element.json.get('follower'), 
-                                            display_msg=False):
-            element.href = msg
-        element.filename = filename
-        file_download = common_api.fetch_content_as_file(element)
-        if not file_download.msg:
-            print "Export successful, saved to file: {}".format(file_download.content)
-    
+        href = next(common_api.async_handler(element.json.get('follower'), 
+                                             display_msg=False))
+
+        return common_api.fetch_content_as_file(href, filename)
+      
     def internal_gateway(self):
         """ Engine level VPN gateway reference
         
@@ -304,7 +322,7 @@ class Engine(object):
         
         :param interface_id: number of interface to remove
         :type  interface_id: string
-        :return SMCResult
+        :return: SMCResult
         """
         intf_href = self._load_interface(interface_id)
         if intf_href:
@@ -317,7 +335,7 @@ class Engine(object):
         This is used as a callback for modifying an existing interface 
         
         :param interface_id: interface id to retrieve
-        :return json representing physical interface
+        :return: json representing physical interface
         """
         intf = self._load_interface(interface_id)
         if intf:
@@ -651,7 +669,8 @@ class Node(Engine):
         element = SMCElement(href=self._load_href('sginfo', node).pop(),
                           params=params, filename='sginfo-ngf-1035')
         
-        print common_api.fetch_content_as_file(element)
+        print "Not Yet Implemented"
+        #print common_api.fetch_content_as_file(element)
 
     def ssh(self, node=None, enable=True, comment=None):
         """ Enable or disable SSH
@@ -730,33 +749,52 @@ class Node(Engine):
                 return []
         return href
 
+def init_wrapper(wrapped):
+    @functools.wraps(wrapped)
+    def decorator(*args, **kwargs):
+        _cls = args[0]
+        for k, v in kwargs.iteritems():
+            setattr(_cls, k, v)
+        
+        _arg_names = wrapped.func_code.co_varnames[1:wrapped.func_code.co_argcount]
+        _arg_values = args[1:]
+        _names = [n for n in _arg_names if not n in kwargs]
+        #map arg to values
+        for k, v in zip(_names, _arg_values):
+            setattr(_cls, k, v)
+       
+        return wrapped(*args, **kwargs)
+    return decorator 
         
 class Layer3Firewall(Node):
     """
     Represents a Layer 3 Firewall configuration.
     To instantiate and create, call 'create' classmethod as follows::
     
-        engine = Layer3Firewall.create('mylayer3', '1.1.1.1', '1.1.1.0/24')
-        
+        engine = Layer3Firewall.create('mylayer3', '1.1.1.1', '1.1.1.0/24')       
     """ 
+    node_type = 'firewall_node'
     def __init__(self, name):
         Node.__init__(self, name)
-        self.node_type = 'firewall_node'
+        pass
 
-    @classmethod   
-    def create(cls, name, mgmt_ip, mgmt_network, log_server=None,
-                 mgmt_interface=0, dns=None, zone_ref=None, 
-                 default_nat=False):
+    @classmethod
+    @init_wrapper   
+    def create(cls, name, mgmt_ip, mgmt_network, 
+               log_server_ref=None,
+               mgmt_interface=0, 
+               default_nat=False,
+               domain_server_address=None, zone_ref=None):
         """ 
         Create a single layer 3 firewall with management interface and DNS
         
         :param name: name of firewall
         :param name: management network ip
         :param mgmt_network: management network in cidr format
-        :param log_server: href to log_server instance for fw
+        :param log_server_ref: href to log_server instance for fw
         :param mgmt_interface: interface for management from SMC to fw
         :type mgmt_interface: int
-        :param dns: DNS server addresses
+        :param domain_server_address: DNS server addresses
         :type dns: list
         :param zone_ref: zone name for management interface (created if not found)
         :param default_nat: Whether to enable default NAT for outbound
@@ -764,23 +802,13 @@ class Layer3Firewall(Node):
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure to create with reason
         """
-        cls.name = name
-        cls.node_type = 'firewall_node'
-        cls.log_server_ref = log_server if log_server \
-            else SystemInfo().first_log_server()  
-        cls.domain_server_address = []
-        if dns:
-            for entry in dns:
-                cls.domain_server_address.append(entry)
-        
+        super(Layer3Firewall, cls).create()
+     
         physical = PhysicalInterface(mgmt_interface)
         physical.add_single_node_interface(mgmt_ip, 
                                            mgmt_network,
                                            is_mgmt=True,
-                                           zone_ref=zone_ref)
-
-        super(Layer3Firewall, cls).create()
-        
+                                           zone_ref=zone_ref)   
         if default_nat:
             cls.engine_json['default_nat'] = True
             
@@ -789,28 +817,30 @@ class Layer3Firewall(Node):
         cls.href = search.element_entry_point('single_fw')
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
         if result.href:
-            #got referring object location, load and return
             return Layer3Firewall(cls.name).load()
         else:
-            raise SMCException('Could not create the engine, reason: %s' % result.msg)
+            raise EngineCreateFailed('Could not create the engine, reason: %s' % result.msg)
         
 class Layer2Firewall(Node):
     """
     Represents a Layer2 Firewall configuration.
     To instantiate and create, call 'create' classmethod as follows::
     
-        engine = Layer2Firewall.create('mylayer2', '1.1.1.1', '1.1.1.0/24')
-        
+        engine = Layer2Firewall.create('mylayer2', '1.1.1.1', '1.1.1.0/24')       
     """ 
+    node_type = 'fwlayer2_node'
     def __init__(self, name):
         Node.__init__(self, name)
-        self.node_type = 'fwlayer2_node'
+        pass
     
     @classmethod
+    @init_wrapper
     def create(cls, name, mgmt_ip, mgmt_network, 
-               log_server=None, mgmt_interface=0, 
-               inline_interface='1-2', logical_interface='default_eth', 
-               dns=None, zone_ref=None):
+               mgmt_interface=0, 
+               inline_interface='1-2', 
+               logical_interface='default_eth',
+               log_server_ref=None, 
+               domain_server_address=None, zone_ref=None):
         """ 
         Create a single layer 2 firewall with management interface, inline interface,
         and DNS
@@ -818,28 +848,19 @@ class Layer2Firewall(Node):
         :param name: name of firewall
         :param name: management network ip
         :param mgmt_network: management network in cidr format
-        :param log_server: href to log_server instance for fw
+        :param log_server_ref: href to log_server instance for fw
         :param mgmt_interface: interface for management from SMC to fw
         :type mgmt_interface: int
         :param inline_interface: interface ID's to use for default inline interfaces
         :type inline_interface: string or None (i.e. '1-2')
         :param logical_interface: logical interface to assign to inline interface
         :type logical_interface: string
-        :param dns: DNS server addresses
+        :param domain_server_address: DNS server addresses
         :type dns: list
         :param zone_ref: zone name for management interface (created if not found)
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure creating engine
         """
-        cls.name = name
-        cls.node_type = 'fwlayer2_node'
-        cls.log_server_ref = log_server if log_server \
-            else SystemInfo().first_log_server()
-        cls.domain_server_address = []
-        if dns:
-            for entry in dns:
-                cls.domain_server_address.append(entry)
-        
         super(Layer2Firewall, cls).create()
         
         physical = PhysicalInterface(mgmt_interface)
@@ -859,28 +880,30 @@ class Layer2Firewall(Node):
         
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
         if result.href:
-            #got referring object location, load and return
             return Layer2Firewall(cls.name).load()
         else:
-            raise SMCException('Could not create the engine, reason: %s' % result.msg)
+            raise EngineCreateFailed('Could not create the engine, reason: %s' % result.msg)
 
 class IPS(Node):
     """
     Represents an IPS engine configuration.
     To instantiate and create, call 'create' classmethod as follows::
     
-        engine = IPS.create('myips', '1.1.1.1', '1.1.1.0/24')
-        
+        engine = IPS.create('myips', '1.1.1.1', '1.1.1.0/24')       
     """ 
+    node_type = 'ips_node'
     def __init__(self, name):
         Node.__init__(self, name)
-        self.node_type = 'ips_node'
+        pass
 
     @classmethod
+    @init_wrapper
     def create(cls, name, mgmt_ip, mgmt_network, 
-               log_server=None, mgmt_interface='0', 
-               inline_interface='1-2', logical_interface='default_eth', 
-               dns=None, zone_ref=None):
+               mgmt_interface='0',
+               inline_interface='1-2',
+               logical_interface='default_eth',
+               log_server_ref=None,
+               domain_server_address=None, zone_ref=None):
         """ 
         Create a single layer 2 firewall with management interface, inline interface
         and DNS
@@ -888,28 +911,21 @@ class IPS(Node):
         :param name: name of ips engine
         :param name: management network ip
         :param mgmt_network: management network in cidr format
-        :param log_server: href to log_server instance for fw
+        :param log_server_ref: href to log_server instance for fw
         :param mgmt_interface: interface for management from SMC to fw
         :type mgmt_interface: string or None
         :param inline_interface: interface ID's to use for default inline interfaces
         :type inline_interface: string or None (i.e. '1-2')
         :param logical_interface: logical interface to assign to inline interface
         :type logical_interface: string or None
-        :param dns: DNS server addresses
+        :param domain_server_address: DNS server addresses
         :type dns: list or None
         :param zone_ref: zone name for management interface (created if not found)
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure to create with reason
         """
-        cls.name = name
-        cls.node_type = 'ips_node'
-        cls.log_server_ref = log_server if log_server \
-            else SystemInfo().first_log_server()
-        cls.domain_server_address = []
-        if dns:
-            for entry in dns:
-                cls.domain_server_address.append(entry)
-                       
+        super(IPS, cls).create()
+        
         physical = PhysicalInterface(mgmt_interface)
         physical.add_node_interface(mgmt_ip, mgmt_network, is_mgmt=True,
                                     zone_ref=zone_ref)
@@ -919,17 +935,15 @@ class IPS(Node):
         inline = PhysicalInterface(inline_interface)
         inline.add_inline_interface(intf_href)
         
-        super(IPS, cls).create()
         cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
         cls.engine_json.get('physicalInterfaces').append(inline.as_dict())
         
         cls.href = search.element_entry_point('single_ips')
         result = SMCElement(href=cls.href, json=cls.engine_json).create()
         if result.href:
-            #got referring object location, load and return
             return IPS(cls.name).load()
         else:
-            raise SMCException('Could not create the engine, reason: %s' % result.msg)
+            raise EngineCreateFailed('Could not create the engine, reason: %s' % result.msg)
         
 class Layer3VirtualEngine(Node):
     """ Create a layer3 virtual engine and map to specified Master Engine
@@ -942,18 +956,21 @@ class Layer3VirtualEngine(Node):
         engine = Layer3VirtualEngine.create('myips', 
                                             'mymaster_engine, 
                                             virtual_engine='ve-3',
-                                            kwargs=[{'ipaddress': '5.5.5.5', 
-                                                     'mask': '5.5.5.5/30', 
+                                            kwargs=[{'address': '5.5.5.5', 
+                                                     'network_value': '5.5.5.5/30', 
                                                      'interface_id': 0, 
-                                                     'zone': ''}]
+                                                     'zone_ref': ''}]
     """
+    node_type = 'virtual_fw_node'
     def __init__(self, name):
         Node.__init__(self, name)
-        self.node_type = 'virtual_fw_node'
-    
+        pass
+
     @classmethod
-    def create(cls, name, master_engine, virtual_resource, dns=None,
-               default_nat=False, outgoing_intf=0, **kwargs):
+    @init_wrapper
+    def create(cls, name, master_engine, virtual_resource, 
+               default_nat=False, outgoing_intf=0,
+               domain_server_address=None, **kwargs):
         """
         :param name: Name of this layer 3 virtual engine
         :param master_engine: Name of existing master engine. This assumes the
@@ -966,14 +983,6 @@ class Layer3VirtualEngine(Node):
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure to create with reason
         """
-        cls.name = name
-        cls.node_type = 'virtual_fw_node'
-        cls.domain_server_address = []
-        cls.log_server_ref = None
-        if dns:
-            for entry in dns:
-                cls.domain_server_address.append(entry)
-                       
         super(Layer3VirtualEngine, cls).create()
 
         if default_nat:
@@ -995,9 +1004,9 @@ class Layer3VirtualEngine(Node):
             for interface in kwargs.get('interfaces'): #get interface info
                
                 physical = VirtualPhysicalInterface(interface.get('interface_id'))
-                physical.add_single_node_interface(interface.get('ipaddress'),
-                                                   interface.get('mask'),
-                                                   zone_ref=interface.get('zone'),
+                physical.add_single_node_interface(interface.get('address'),
+                                                   interface.get('network_value'),
+                                                   zone_ref=interface.get('zone_ref'),
                                                    outgoing_intf=outgoing_intf)
     
                 cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
@@ -1007,42 +1016,51 @@ class Layer3VirtualEngine(Node):
         if result.href:
             return Layer3VirtualEngine(cls.name).load()
         else:
-            raise SMCException('Could not create the firewall, reason: %s' % result.msg)
+            raise EngineCreateFailed('Could not create the firewall, reason: %s' % result.msg)
 
 class FirewallCluster(Node):
-    """ Creates a layer 3 firewall cluster engine with nodes """
+    """ Creates a layer 3 firewall cluster engine with nodes 
+    """
+    node_type = 'firewall_node'  
     def __init__(self, name):
         Node.__init__(self, name)
-        self.node_type = 'firewall_node'
+        pass
     
     @classmethod
+    @init_wrapper
     def create(cls, name, cluster_virtual, cluster_mask, 
                macaddress, cluster_nic, nodes, 
-               log_server=None, dns=None, zone_ref=None):
+               log_server_ref=None, 
+               domain_server_address=None, 
+               zone_ref=None):
         """
         :param name: name of cluster engine
         :param cluster_virtual: ip of cluster CVI
         :param cluster_mask: ip netmask of cluster CVI
         :param macaddress: macaddress for packet dispatch clustering
         :param cluster_nic: nic id to use for primary interface
-        :param nodes: ipaddress/netmask/nodeid combination for cluster nodes
-        :type nodes: list of dict [{ipaddress, netmask}]
-        :param log_server: (optional) specify a log server reference
-        :param dns: (optional) specify DNS servers for engine
+        :param nodes: address/network_value/nodeid combination for cluster nodes
+        :type nodes: list of dict
+        :param log_server_ref: (optional) specify a log server reference
+        :param domain_server_address: (optional) specify DNS servers for engine
         :param zone_ref: zone name for management interface (created if not found)
         :return: self
         :raises: :py:class:`smc.api.web.SMCException`: Failure to create with reason
+        
+        Example nodes::
+            
+            [{ 'address': '1.1.1.1', 
+              'network_value': '1.1.1.0/24', 
+              'nodeid': 1
+             },
+             { 'address': '2.2.2.2',
+               'network_value': '2.2.2.0/24',
+               'nodeid': 2
+            }]          
         """
-        cls.name = name
-        cls.node_type = 'firewall_node'
-        cls.log_server_ref = log_server if log_server \
-            else SystemInfo().first_log_server()
         cls.nodes = len(nodes) #identify how many nodes to process
-        cls.domain_server_address = []
-        if dns:
-            for entry in dns:
-                cls.domain_server_address.append(entry)
-
+        super(FirewallCluster, cls).create()
+        
         physical = PhysicalInterface(cluster_nic)
         physical.add_cluster_virtual_interface(cluster_virtual, 
                                                cluster_mask,
@@ -1050,7 +1068,6 @@ class FirewallCluster(Node):
                                                nodes, 
                                                is_mgmt=True,
                                                zone_ref=zone_ref)
-        super(FirewallCluster, cls).create()
         
         cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
         cls.href = search.element_entry_point('fw_cluster')
@@ -1060,4 +1077,102 @@ class FirewallCluster(Node):
         if result.href:
             return FirewallCluster(cls.name).load()
         else:
-            raise SMCException('Could not create the firewall, reason: %s' % result.msg)
+            raise EngineCreateFailed('Could not create the firewall, reason: %s' % result.msg)
+        
+class MasterEngine(Node):
+    node_type = 'master_node'
+    def __init__(self, name):
+        Node.__init__(self, name)
+        pass
+    
+    @classmethod
+    @init_wrapper
+    def create(cls, name, master_type, log_server_ref=None, 
+               domain_server_address=None):
+                       
+        super(MasterEngine, cls).create()
+        cls.engine_json['master_type'] = master_type
+        cls.engine_json['cluster_mode'] = 'balancing'
+        
+        physical = PhysicalInterface(0)
+        physical.add_node_interface('2.2.2.2', '2.2.2.0/24')
+        physical.modify_interface('node_interface',
+                                  primary_mgt=True,
+                                  primary_heartbeat=True,
+                                  outgoing=True)
+                
+        cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
+        cls.href = search.element_entry_point('master_engine')
+
+        result = SMCElement(href=cls.href, json=cls.engine_json).create()
+        if result.href:
+            return MasterEngine(cls.name).load()
+        else:
+            raise EngineCreateFailed('Could not create the engine, reason: %s' % result.msg)
+        
+class AWSLayer3Firewall(Node):
+    node_type = 'firewall_node'
+    def __init__(self, name):
+        Node.__init__(self, name)
+        pass
+        
+    @classmethod
+    @init_wrapper
+    def create(cls, name, interfaces,
+               dynamic_interface=0,
+               dynamic_index=1, 
+               log_server_ref=None, 
+               domain_server_address=None,
+               default_nat = True, 
+               zone_ref=None):
+        """ 
+        Create AWS Layer 3 Firewall. This will implement a DHCP
+        interface for dynamic connection back to SMC. The initial_contact
+        information will be used as user-data to initialize the EC2 instance. 
+        Primary mgmt will be interface 0 on the DHCP interface. The secondary
+        interface is required to act as the interface for "auth requests" when
+        the first interface is designated as dynamic.
+        
+        :param name: name of fw in SMC
+        :param interfaces: list of dict specifying interfaces to create
+        :param dynamic_index: dhcp interface index (First DHCP Interface, etc)
+        :param dynamic_interface: interface ID to use for dhcp
+        
+        interfaces structure::
+            
+            [{ 'address': '1.1.1.1', 
+               'network_value': '1.1.1.0/24', 
+               'interface_id': 1
+             },
+             { 'address': '2.2.2.2',
+               'network_value': '2.2.2.0/24',
+               'interface_id': 2
+            }]   
+        """
+        super(AWSLayer3Firewall, cls).create()
+        dhcp_physical = PhysicalInterface(dynamic_interface)
+        dhcp_physical.add_dhcp_interface(dynamic_index, primary_mgt=True)
+        cls.engine_json.get('physicalInterfaces').append(dhcp_physical.as_dict())
+        
+        auth_request = 0
+        for interface in interfaces:
+            if interface.get('interface_id') == dynamic_interface:
+                continue #In case this is defined, skip dhcp_interface id
+            physical = PhysicalInterface(interface.get('interface_id'))
+            physical.add_single_node_interface(interface.get('address'), 
+                                               interface.get('network_value'))
+            if not auth_request: #set this on first interface that is not the dhcp_interface
+                physical.modify_interface('single_node_interface', auth_request=True)
+                auth_request = 1
+            cls.engine_json.get('physicalInterfaces').append(physical.as_dict())
+        
+        if default_nat:
+            cls.engine_json['default_nat'] = True
+                
+        cls.href = search.element_entry_point('single_fw')
+        
+        result = SMCElement(href=cls.href, json=cls.engine_json).create()
+        if result.href:
+            return AWSLayer3Firewall(cls.name).load()
+        else:
+            raise EngineCreateFailed('Could not create the engine, reason: %s' % result.msg)

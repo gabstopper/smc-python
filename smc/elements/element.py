@@ -10,8 +10,9 @@ See SMCElement for more details:
 :class:`smc.elements.element.SMCElement` for more details.
 
 """
-import smc.actions.search as search
+import smc.actions.search
 import smc.api.common
+from smc.api.web import SMCOperationFailure
 
 class SMCElement(object):
     """ 
@@ -26,14 +27,12 @@ class SMCElement(object):
     :param name: name of object, used for str printing from api.common
     :param href: REQUIRED location of the resource
     :param params: If additional URI parameters are needed for href
-    :param filename: If stream=True, this specifies name of file to save to
     """
     def __init__(self, **kwargs):
         self.json = None
         self.etag = None
         self.href = None
         self.params = None
-        self.filename = None
     
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -48,8 +47,8 @@ class SMCElement(object):
     def modify(cls, name, **kwargs):
         obj = cls(name, kwargs)
         obj.href = obj.href.rsplit('/', 1)[-1]
-        result = search.element_as_smcresult_use_filter(obj.json.get('name'), 
-                                                        obj.href)
+        result = smc.actions.search.element_as_smcresult_use_filter(\
+                                    obj.json.get('name'), obj.href)
         if result:
             obj.json = result.json
             obj.etag = result.etag
@@ -59,7 +58,7 @@ class SMCElement(object):
         return obj
         
     def _fetch_href(self, element_type):
-        self.href = search.element_entry_point(element_type)
+        self.href = smc.actions.search.element_entry_point(element_type)
         
     def __str__(self):
         sb = []
@@ -206,7 +205,7 @@ class DomainName(SMCElement):
     """
     def __init__(self, name, comment=None):
         SMCElement.__init__(self)
-        comment = comment if comment is not None else ''
+        comment = comment if comment else ''
         self.json = {
                      'name': name,
                      'comment': comment}
@@ -231,7 +230,7 @@ class TCPService(SMCElement):
     def __init__(self, name, min_dst_port, max_dst_port=None,
                  comment=None):
         SMCElement.__init__(self)
-        comment = comment if comment is not None else ''
+        comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
         self.json = {
                      'name': name,
@@ -259,7 +258,7 @@ class UDPService(SMCElement):
     def __init__(self, name, min_dst_port, max_dst_port=None,
                  comment=None):
         SMCElement.__init__(self)
-        comment = comment if comment is not None else ''
+        comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
         self.json = {
                      'name': name,
@@ -333,7 +332,7 @@ class ICMPService(SMCElement):
     """
     def __init__(self, name, icmp_type, icmp_code=None, comment=None):
         SMCElement.__init__(self)
-        comment = comment if comment is not None else ''
+        comment = comment if comment else ''
         icmp_code = icmp_code if icmp_code else ''
         self.json = {
                      'name': name,
@@ -492,52 +491,36 @@ class LogicalInterface(SMCElement):
     """
     def __init__(self, name, comment=None):
         SMCElement.__init__(self)        
-        comment = comment if comment is not None else ''
+        comment = comment if comment else ''
         self.json = { 
                      'name': name,
                      'comment': comment }
-        self._fetch_href('logical_interface')
-    
-class Blacklist(object):
-    """ Add a blacklist entry by source / destination
-    
-    :param src: source address, with cidr, i.e. 10.10.10.10/32
-    :param dst: destination address with cidr
-    :param duration: length of time to blacklist
-    :type duration: int
-    """
-    def __init__(self, src, dst, name=None, duration=3600):
-        self.name = name
-        self.duration = duration
-        self.end_point1 = {'name': '', 'address_mode': 'address', 'ip_network': src}
-        self.end_point2 = {'name': '', 'address_mode': 'address', 'ip_network': dst}
-        
-    def as_dict(self):
-        return self.__dict__
-        
-class VirtualResource(object):
-    def __init__(self, name, vfw_id, domain='Shared',
-                 show_master_nic=False,
-                 connection_limit=0):
-        self.allocated_domain_ref = domain
-        self.name = name
-        self.connection_limit = connection_limit
-        self.show_master_nic = show_master_nic
-        self.vfw_id = vfw_id
-        self.resolve_domain()
-        
-    def resolve_domain(self):
-        self.allocated_domain_ref = search.element_href_use_filter(
-                                        self.allocated_domain_ref, 'admin_domain')   
-    def as_dict(self):
-        return self.__dict__
+        self._fetch_href('logical_interface')    
 
 class AdminUser(SMCElement):
-    def __init__(self, name, 
-                 local_admin=False, 
-                 allow_sudo=False, 
-                 superuser=False, 
-                 admin_domain=None, 
+    """ Represents an Adminitrator account on the SMC
+    Use the constructor to create the user. 
+    
+    :param name: name of admin
+    :param local_admin: should be local admin on specified engines
+    :type local_admin: boolean
+    :param allow_sudo: allow sudo on specified engines
+    :type allow_sudo: boolean
+    :param superuser: is a super user (no restrictions) in SMC
+    :type superuser: boolean
+    :param admin_domain: reference to admin domain, shared by default
+    :param engine_target: ref to engines for local admin access
+    :type engine_target: list
+    
+    If modifications are required after, call 
+    :py:func:`smc.elements.element.SMCElement.modify` then update::
+    
+        admin = AdminUser.modify('myadmin')
+        admin.change_password('new password')
+        admin.update()
+    """
+    def __init__(self, name, local_admin=False, allow_sudo=False, 
+                 superuser=False, admin_domain=None, 
                  engine_target=None):
         SMCElement.__init__(self)
         engines = []
@@ -583,22 +566,25 @@ class AdminUser(SMCElement):
         """
         self._reset_href('enable_disable')
         return self.update()
-    
-    '''
-    def export(self, filename='admin.zip'):
-        """ POST """
-        import smc.api.common as common_api
+        
+    def export(self, filename='admin.zip'): #TODO: This fails, SMC error
+        """ Export the contents of this admin
+        
+        :param filename: Name of file to export to
+        :return: SMCResult, href filled for success, msg for fail
+        """
         self._reset_href('export')
         self.params = {}
-        element = super(AdminUser, self).create()
-        for msg in common_api.async_handler(element.json.get('follower'), 
-                                            display_msg=False):
-            element.href = msg      
-        element.filename = filename
-        file_download = common_api.fetch_content_as_file(element)
-        if not file_download.msg:
-            print "Export successful, saved to file: {}".format(file_download.content)
-    '''
+        element = self.create()
+        try:
+            href = next(smc.api.common.async_handler(
+                                            element.json.get('follower'), 
+                                            display_msg=False))    
+        except SMCOperationFailure, e:
+            return e.smcresult
+        else:
+            return smc.api.common.fetch_content_as_file(href, filename)
+            
     def _reset_href(self, action):
         links = self.json.get('link')
         for entry in links:
@@ -606,15 +592,53 @@ class AdminUser(SMCElement):
                 self.href = entry.get('href')
                 break
 
+class Blacklist(SMCElement):
+    """ Add a blacklist entry by source / destination
+    Since blacklist can be applied at the engine level as well
+    as system level, href will need to be set before calling create.
+    
+    :param src: source address, with cidr, i.e. 10.10.10.10/32
+    :param dst: destination address with cidr
+    :param duration: length of time to blacklist
+    :type duration: int
+    """
+    def __init__(self, src, dst, name=None, duration=3600):
+        SMCElement.__init__(self)
+        self.json = {
+                     'name': name,
+                     'duration': duration,
+                     'end_point1': {'name': '', 'address_mode': 'address',
+                                    'ip_network': src},
+                     'end_point2': {'name': '', 'address_mode': 'address',
+                                    'ip_network': dst}
+                     }
+
+class VirtualResource(object):
+    def __init__(self, name, vfw_id, domain='Shared',
+                 show_master_nic=False,
+                 connection_limit=0):
+        self.allocated_domain_ref = domain
+        self.name = name
+        self.connection_limit = connection_limit
+        self.show_master_nic = show_master_nic
+        self.vfw_id = vfw_id
+        self.resolve_domain()
+        
+    def resolve_domain(self):
+        self.allocated_domain_ref = smc.actions.search.element_href_use_filter(
+                                        self.allocated_domain_ref, 'admin_domain')   
+    def as_dict(self):
+        return self.__dict__
+
 def zone_helper(zone):
-    zone_ref = smc.search.element_href_use_filter(zone, 'interface_zone')
+    zone_ref = smc.actions.search.element_href_use_filter(zone, 'interface_zone')
     if zone_ref:
         return zone_ref
     else:
         return Zone(zone).create().href
     
 def logical_intf_helper(interface):
-    intf_ref = smc.search.element_href_use_filter(interface, 'logical_interface')
+    intf_ref = smc.actions.search.element_href_use_filter(interface, 'logical_interface')
     if intf_ref:
         return intf_ref
     else:
