@@ -123,7 +123,7 @@ class Group(SMCElement):
                      'comment': comment }       
         self._fetch_href('group')
     
-class IpRange(SMCElement):
+class AddressRange(SMCElement):
     """ Class representing a IpRange object used in access rules
     
     :param name: Name of element

@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
             if current_engine != previous_engine:
                 previous_engine = current_engine
-                virtual_engine_name = 'be-'+str(current_engine)
+                virtual_engine_name = 've-'+str(current_engine)
                 print "Creating VLANs and Virtual Resources for VE: {}".format(virtual_engine_name) 
                 
                 #Create virtual resource on the Master Engine

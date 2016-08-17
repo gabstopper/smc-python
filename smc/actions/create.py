@@ -21,18 +21,19 @@ In order to view error messages, do the following in your calling script::
 
 import logging
 import smc.elements.element
+import smc.actions.search
 from smc.elements.element import logical_intf_helper, SMCElement, DomainName,\
     TCPService, EthernetService, ICMPService, ICMPIPv6Service, ServiceGroup,\
     TCPServiceGroup, UDPServiceGroup, UDPService, IPServiceGroup, IPService, Host, \
     AdminUser
 import smc.api.web
-from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster
+from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster,\
+    MasterEngine, AWSLayer3Firewall
 from smc.actions import helpers
 
-from smc.api.web import SMCException
+from smc.api.web import SMCException, SMCResult
 from smc.elements.interfaces import VlanInterface, PhysicalInterface
 from smc.elements.system import SystemInfo
-from __builtin__ import True
 
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ def iprange(name, addr_range, comment=None):
         logger.error("Invalid ip address range provided: %s" % addr_range)
         return None
     
-    return smc.elements.element.IpRange(name, addr_range,
+    return smc.elements.element.AddressRange(name, addr_range,
                                            comment=comment).create()   
     
     
@@ -122,7 +123,7 @@ def group(name, members=[], comment=None):
     grp_members = []
     if members:
         for m in members: #add each member
-            found_member = smc.search.element_href(m)
+            found_member = smc.actions.search.element_href(m)
             if found_member:
                 logger.debug("Found member: %s, adding to group" % m)
                 grp_members.append(found_member)
@@ -175,9 +176,8 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
     
     result = Layer3Firewall.create(name, mgmt_ip, mgmt_network, 
-                                   log_server=None,
                                    mgmt_interface=mgmt_interface,
-                                   dns=dns)
+                                   domain_server_address=dns)
     return result  
     
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
@@ -203,11 +203,10 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
                          
     result = Layer2Firewall.create(name, mgmt_ip, mgmt_network, 
-                                   log_server=None,
                                    mgmt_interface=mgmt_interface,
                                    inline_interface=inline_interface,
                                    logical_interface=logical_intf_helper(logical_interface),
-                                   dns=dns)
+                                   domain_server_address=dns)
     return result 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
@@ -230,11 +229,10 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
         
     result = IPS.create(name, mgmt_ip, mgmt_network, 
-                        log_server=None,
                         mgmt_interface=mgmt_interface,
                         inline_interface=inline_interface,
                         logical_interface=logical_intf_helper(logical_interface),
-                        dns=dns)
+                        domain_server_address=dns)
     return result
    
 def l3interface(name, ipaddress, ip_network, interfaceid):
@@ -380,11 +378,27 @@ def virtual_ips(data):
 def virtual_fw(data):
     pass
 
+import collections
+def update(d, u):
+    for k, v in u.iteritems():
+        if isinstance(d, collections.Mapping):
+            if isinstance(v, collections.Mapping):
+                r = update(d.get(k, {}), v)
+                d[k] = r
+            else:
+                d[k] = u[k]
+        else:
+            d = {k: u[k]}
+    return d
+
 if __name__ == '__main__':
-    smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001', timeout=60)
+    #smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001', timeout=60)
     
     logging.getLogger()
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
+    
+    from smc.api.session import session
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=60)
     
     from pprint import pprint
     import time
@@ -397,120 +411,51 @@ if __name__ == '__main__':
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
 
-    from smc.elements.interfaces import PhysicalInterface, VirtualPhysicalInterface
-    from smc.elements.element import Blacklist
-    from smc.elements.element import logical_intf_helper, zone_helper
     
     """@type engine: Node"""
-    #engine = Node('bo').load()
+    engine = Node('bo').load()
+    pprint(engine.engine_json)
     
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/protocol'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/protocol/56'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/tcp_service/403'))
-    
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/vpn_profile'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/vpn_profile/16'))
-    #vpn_profile
-    
-    #pprint(smc.search.all_elements_by_type('admin_user'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/admin_user/13'))
-   
-         
-    #admin = AdminUser('dlepage-test').create()
-    admin = AdminUser.modify('dlepage-test')
-    pprint(admin.json)
-    #admin.json['superuser'] = True
-    #admin.update()
-    #pprint(admin.link)
-    print admin.change_password('1970keegan')
-    #print admin.change_password('1970keegan')
-    #print admin.enable_disable()
-    #print admin.export()
-    
-    #print engine.blacklist_add('1.1.1.1/32', '0.0.0.0/32', 3600)
-    #pprint(vars(engine))
-    #physical = PhysicalInterface(0, engine.physical_interface_get('0'))
-    #physical.modify_single_node_interface(address='110.110.110.1', network_value='110.110.110.0/24')
-    #engine.update_physical_interface(physical)
-    
-    
-    #pprint(smc.search.element_href_use_filter('ve-1 admins', 'access_control_list'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/access_control_list/31'))
-    
-   
-    #pprint(system.engines())
-    #print(system.visible_virtual_engine_mapping())
-    
-    #import smc.elements.license
-    #licensekey = smc.elements.license.License('bo')
-    #pprint(licensekey.links)
-    
+    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/7664/routing/10152'))
+    pprint(smc.actions.search.fw_policies())
+    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_policy/195'))
+    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_policy/195/fw_ipv4_nat_rule'))
+    #template
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_template_policy/5'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_template_policy/5/fw_ipv4_nat_rule'))
+    #engine.bind_license()
+    #content = engine.initial_contact(enable_ssh=True)
+    #engine.change_name('a new pooper name')
+    #
+    #'http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'
+    #'http://172.18.1.150:8082/6.0/elements/gateway_settings/1'
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'))
+    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'))
     '''
-    <access_control_list db_key="31" name="ve-1 admins">
-    <list>
-      <list_entry ref_key="5" type="access_control_list" value="ALL Elements"/>
-      <list_entry type="network_element" value="ve-1"/>
-    </list>
-  </access_control_list>
-  '''
-    #system.last_activated_package()
-   
-    #blacklist_ref = smc.search.element_entry_point('blacklist')
-    #bl = Blacklist('1.1.1.1/32', '2.2.2.2/32')
-    #pprint(vars(bl))
+    name = 'my new name'
+    j = {'name': name,
+         'nodes': [
+                   {'firewall_node': 
+                        {'name': name + ' dooood'}}]}
+    #update(engine.engine_json, j)
+    #pprint(engine.engine_json)
     
-    #print SMCElement(href=blacklist_ref, json=bl).create()
-    #v = VirtualPhysicalInterface(10, zone_ref='Web3')
-    #v.add_single_node_interface('1.1.1.1', '1.1.1.1')
-    #pprint(vars(v))
-    '''
-    smc.remove.element('myfirewall')
-    
-    """@type engine: Node"""
-    engine = Layer3Firewall.create('myfirewall',
-                                   mgmt_ip='172.18.1.250',
-                                   mgmt_network='172.18.1.0/24',
-                                   mgmt_interface=0,
-                                   dns=['8.8.8.8'],
-                                   default_nat=True)
-    physical = PhysicalInterface(1)
-    physical.add_single_node_interface('1.1.1.1', '1.1.1.0/24')
-    engine.add_physical_interfaces(physical.data)
-    
-    physical = PhysicalInterface(2)
-    physical.add_single_node_interface_to_vlan('2.2.2.2', '2.2.2.0/24', 2)
-    physical.add_single_node_interface_to_vlan('3.3.3.3', '3.3.3.0/24', 3)
-    physical.add_single_node_interface_to_vlan('4.4.4.4', '4.4.4.0/24', 4)
-    physical.add_single_node_interface_to_vlan('5.5.5.5', '5.5.5.0/24', 5)
-    engine.add_physical_interfaces(physical.data)
-    
-    #physical.interface_id = 3
-    #physical.add_single_node_interface('6.6.6.6', '6.6.6.0/24')
-    
-    #pprint(vars(physical))
-    engine.upload(policy='Layer 3 Router Policy')
-    print engine.initial_contact('myfirewall', enable_ssh=True)
-    '''
-  
-    '''
-    zone = smc.search.element_href_use_filter('Internal', 'zone')
-    engine = FirewallCluster.create(name='mycluster', 
-                                cluster_virtual='1.1.1.1', 
-                                cluster_mask='1.1.1.0/24',
-                                cluster_nic=0,
-                                macaddress='02:11:11:11:11:11',
-                                nodes=[{'address': '1.1.1.2', 'netmask': '1.1.1.0/24'},
-                                       {'address': '1.1.1.3', 'netmask': '1.1.1.0/24'},
-                                       {'address': '1.1.1.4', 'netmask': '1.1.1.0/24'}],
-                                dns=['1.1.1.1'], 
-                                zone=smc.search.element_href_use_filter('Internal', 'zone'))
-    
-    '''
-  
-    
-  
+    #I like this idea for modifying key/values
+    context = {}
+    context.update(j)
+    context.update(engine.engine_json)
+    pprint(context)
     '''
     
+    #engine.engine_json['name'] = name
+    #engine.engine_json.get('nodes')[0].get('firewall_node')['name'] = name + ' node 1'
+    #pprint(engine.engine_json)
+    #print SMCElement(href=engine.href,
+    #                json=context,
+    #                etag=engine.etag).update()
+    
+    '''
     """@type engine: Node"""
     #engine = Node('tooter').load()
     #print "Here: %s" % engine.export(filename='myfile')
@@ -568,5 +513,7 @@ if __name__ == '__main__':
     
     print("--- %s seconds ---" % (time.time() - start_time))
     
-    print "Number of GET calls: %s" % smc.api.web.session.http_get.calls   
-    smc.api.web.session.logout()
+    #print "Number of GET calls: %s" % smc.api.web.session.http_get.calls
+    #print "Number of GET calls: %s" % smc.api.session.session.logout()  
+    #smc.api.web.session.logout()
+    session.logout()

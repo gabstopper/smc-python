@@ -75,7 +75,6 @@ class VpcConfiguration(object):
         self.vpcid = vpcid
         self.vpc = None #: Reference to VPC
         self.alt_route_table = None
-        self.private_subnets = []
         self.network_interface = [] #: interface idx, network ref
         self.availability_zone = set()
   
@@ -131,8 +130,10 @@ class VpcConfiguration(object):
         * Disable SourceDestCheck on the network interface
         * Create elastic IP and bind (only to interface eth0)
         
-        NGFW will act as the NAT gateway as it will have default NAT enabled
-        and be attached on eth0 to the IGW for inbound / outbound routing.
+        NGFW will act as a gateway to the private networks and will have 
+        default NAT enabled.
+        Interface 0 will be attached to the AWS interface eth0 which will
+        be bound to the AWS Internet GW for inbound / outbound routing.
         
         :param interface_id: id to assign interface
         :type interface_id: int
@@ -167,9 +168,8 @@ class VpcConfiguration(object):
         Create a subnet
         :return: Subnet
         """
-        subnet = ec2.create_subnet(
-                            VpcId=self.vpc.vpc_id,
-                            CidrBlock=cidr_block)
+        subnet = ec2.create_subnet(VpcId=self.vpc.vpc_id,
+                                   CidrBlock=cidr_block)
         print "Created subnet: {}, in availablity zone: {}".\
                     format(subnet.subnet_id, subnet.availability_zone)
         return subnet
@@ -264,10 +264,6 @@ class VpcConfiguration(object):
                 if idx != 0: #0 is considered public
                     self.alt_route_table.associate_with_subnet(
                                         SubnetId=ntwk.subnet_id)
-        #for private in self.private_subnets:
-        #    self.alt_route_table.associate_with_subnet(
-        #                                SubnetId=private.subnet_id)
-        #create the route  
         self.alt_route_to_ngfw()        
         
     def authorize_security_group_ingress(self, from_cidr_block, 
@@ -275,6 +271,9 @@ class VpcConfiguration(object):
         """ 
         Creates an inbound rule to allow access from public that will
         be redirected to the virtual FW
+        For protocols, AWS references:
+        http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+        
         #TODO: Could more than 1 security group be applied? 
         :param cidr_block: network (src 0.0.0.0/0 from internet)
         :param protocol: protocol to allow (-1 for all)
@@ -379,6 +378,7 @@ def create_ngfw_in_smc(name, interfaces,
     :param interfaces: list of interfaces from VpcConfiguration
     :param domain_server_address: (optional) dns address for engine
     :type domain_server_address: list
+    :param default_nat: (optional: default True) whether to enable default NAT
     
     See :py:class:`smc.elements.engines.AWSLayer3Firewall` for more info
     """
@@ -461,7 +461,7 @@ if __name__ == '__main__':
     * A route table exists for the VPC (default is ok) and allows outbound traffic 
       to the internet gateway.
     
-    When associating the network interface, interface 0 should be the network
+    When associating the network interface, interface eth0 should be the network
     interface associated with the elastic (public) facing interface id.
     After creating the instance, manually add a new route table, and 
     route table entry that directs destination 0.0.0.0/0 to the NGFW 

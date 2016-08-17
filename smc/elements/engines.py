@@ -401,7 +401,9 @@ class Engine(object):
         return search.element_by_href_as_json(self.__load_href('switch_physical_interface'))
     
     def _load_interface(self, interface_id):
-        """ Find the interface href by querying the specified interface id """
+        """ 
+        Find the interface href by querying the specified interface id 
+        """
         intf_href = None
         for intf in self.physical_interface():
             try: #Inline
@@ -418,7 +420,13 @@ class Engine(object):
         return intf_href
 
     def __load_href(self, action):
-        """ Pull the direct href from engine link list cache """
+        """ 
+        Pull the direct href from engine link list cache 
+        When the engine is loaded the SMC will return a list of different link
+        entry points. When calling this interface function, action is the
+        link entry point provided by SMC. You can check what links are available
+        (most are functions of this class) by self.engine_links.
+        """
         href = [entry.get('href') for entry in self.engine_links \
                 if entry.get('rel') == action]      
         if href:
@@ -437,6 +445,11 @@ class Node(Engine):
     All inheriting classes will have access to node level commands available in this
     class.
     It is possible to have more than one node in an engine, specifically with clustering.
+    
+    Each function will specify a node= parameter. For single node engines, this can be
+    ignored. If the engine is a cluster, you must specify node=<nodename> in order to 
+    operate on a single node. This is to allow singular control over operations like 
+    reboot, go online/offline, etc.
     """
     def __init__(self, name):
         Engine.__init__(self, name)

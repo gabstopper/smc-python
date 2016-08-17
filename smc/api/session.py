@@ -28,10 +28,10 @@ class Session(object):
         
         An example login and logout session::
         
-            import smc.api.web as web_api    
-            web_api.session.login('http://1.1.1.1:8082', 'SomeSMCG3ener@t3dPwd')
+            from smc.qpi.session import session   
+            session.login(url='http://1.1.1.1:8082', api_key='SomeSMCG3ener@t3dPwd')
             .....do stuff.....
-            web_api.session.logout()
+            session.logout()
             
         :param url: ip of SMC management server
         :param api_key: API key created for api client in SMC
@@ -159,17 +159,3 @@ class SessionCache(object):
         return self.api_entry
 
 session = Session()
-
-
-if __name__ == '__main__':
-    logging.getLogger()
-    logging.basicConfig(level=logging.DEBUG)
-    session.login()
-    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=60)
-    #session.connection.http_get('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway')
-
-    from pprint import pprint
-    pprint(vars(session))
-    #pprint(session.cache.get_all_entry_points())
-
-    session.logout()

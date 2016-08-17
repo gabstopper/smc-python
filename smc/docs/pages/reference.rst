@@ -22,10 +22,10 @@ Network
    :members:
    :show-inheritance:
 
-IpRange
-+++++++
+AddressRange
+++++++++++++
 
-.. autoclass:: IpRange
+.. autoclass:: AddressRange
    :members:
    :show-inheritance:
 
