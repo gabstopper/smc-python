@@ -106,7 +106,7 @@ class SMCAPIConnection(object):
                     raise SMCOperationFailure(r)
             else:
                 raise SMCConnectionError("No session found. Please login to continue")
-
+            
         except requests.exceptions.RequestException as e:
             raise SMCConnectionError("Connection problem to SMC, ensure the "
                                      "API service is running and host is "
@@ -291,9 +291,15 @@ class SMCOperationFailure(SMCException):
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
 
-class EngineCreateFailed(SMCException):
+class CreateEngineFailed(SMCException):
     """ 
     Thrown when a POST operation returns with a failed response.
     API based response will be returned as the exception message
+    """
+    pass
+
+class LoadEngineFailed(SMCException):
+    """ Thrown when attempting to load an engine that does not
+    exist
     """
     pass

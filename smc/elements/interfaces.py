@@ -1,47 +1,57 @@
-from UserDict import UserDict
 from copy import deepcopy
 
 class NodeInterface(object):
-    """ Node Dedicated Interface
-    Node dedicated interface is used on specific engine types and represents an interface
-    used for management (ips and layer 2 engines), or non-traffic type interfaces
-    
-    :param address: ip address of the interface
-    :param network_value: network/netmask, i.e. x.x.x.x/24
-    :param interfaceid: interface id
-    :type interfaceid: int 
-    :param nodeid: for clusters, used to identify the node number
-    :type nodeid: int
     """
-    def __init__(self, address, network_value, interfaceid,
-                 nodeid=1):
+    Node Interface
+    Node dedicated interface (NDI) is used on specific engine types and represents an interface
+    used for management (ips and layer 2 engines), or non-traffic type interfaces. For 
+    Layer 2 Firewall/IPS these are used as individual interfaces. On clusters, these are
+    used to define the node specific address for each node member (wrapped in a cluster
+    virtual interface).
+    
+    :param int interfaceid: interface id
+    :param str address: ip address of the interface
+    :param str network_value: network/netmask, i.e. x.x.x.x/24
+    :param int nodeid: for clusters, used to identify the node number
+    """
+    name = 'node_interface'
+    
+    def __init__(self, interface_id=None, address=None, network_value=None,
+                 nodeid=1, **kwargs):
         self.address = address
         self.network_value = network_value
-        self.nicid = interfaceid
+        self.nicid = interface_id
         self.auth_request = False
         self.backup_heartbeat = False
         self.nodeid = nodeid
         self.outgoing = False
         self.primary_mgt = False
-        self.primary_heartbeat = False 
+        self.primary_heartbeat = False
+        for key, value in kwargs.items():
+            setattr(self, key, value) 
     
-    def as_dict(self):
-        return {'node_interface': self.__dict__}
-
+    def modify_attribute(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
 class SingleNodeInterface(object):
-    """ SingleNodeInterface
-    This interface is used by specific engine types like Layer 3 Engines. This type of interface
-    can be a management interface as well as a non-management routed interface
-    
-    :param address: address of this interface
-    :param network_value: network of this interface in cidr x.x.x.x/24
-    :param nicid: nic id, will match the interface id, numbering starts at 0
-    :type nicid: int
-    :param nodeid: if a cluster, identifies which node this is for
-    :type nodeid: int
     """
-    def __init__(self, address, network_value, nicid,
-                 nodeid=1):
+    SingleNodeInterface
+    This interface is used by single node Layer 3 Firewalls. This type of interface
+    can be a management interface as well as a non-management routed interface.
+    
+    :param int interface_id: interface id
+    :param str address: address of this interface
+    :param str network_value: network of this interface in cidr x.x.x.x/24
+    :param int nodeid: if a cluster, identifies which node this is for
+    """
+    name = 'single_node_interface'
+
+    def __init__(self, interface_id=None, address=None, network_value=None,
+                 nodeid=1, **kwargs):
         self.address = address
         self.auth_request = False
         self.auth_request_source = False
@@ -50,382 +60,551 @@ class SingleNodeInterface(object):
         self.backup_mgt = False
         self.dynamic = False
         self.network_value = network_value
-        self.nicid = nicid
+        self.nicid = interface_id
         self.nodeid = nodeid
         self.outgoing = False
         self.primary_mgt = False
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    def as_dict(self):
-        return {'single_node_interface': self.__dict__}
-
+    def modify_attribute(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
 class ClusterVirtualInterface(object):
-    """ Represents a cluster virtual interface (CVI)
+    """
+    ClusterVirtualInterface
+    These interfaces (CVI) are used on cluster devices and applied to layer 3
+    interfaces. They specify a 'VIP' (or shared IP) to be used for traffic load
+    balancing or high availability. Each engine will still also have a 'node' 
+    interface for communication to/from the engine itself.
     
     :param address: address of CVI
     :param network_value: network for CVI
     :param nicid: nic id to use for physical interface
     """
-    def __init__(self, address, network_value, nicid):
+    name = 'cluster_virtual_interface'
+    
+    def __init__(self, interface_id=None, address=None, 
+                 network_value=None, **kwargs):
         self.address = address
         self.network_value = network_value
-        self.nicid = nicid
+        self.nicid = interface_id
         self.auth_request = False
+        for key, value in kwargs.items():
+            setattr(self, key, value)
     
-    def as_dict(self):
-        return {'cluster_virtual_interface': self.__dict__}
-
+    def modify_attribute(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
 class InlineInterface(object):
-    """ InlineInterface
-    This interface is used by layer 2 or ips engines for a layer 2 configuration and 
-    consists of 2 interfaces.
-    
-    :param nicid: should be the two interfaces, seperated by -; i.e. 1-2
-    :type nicid: string
-    :param logical_ref: logical interface reference
-    
-    The logical interface reference needs to be unique on the same engine that uses both
-    inline and capture interfaces
     """
-    def __init__(self, nicid, logical_interface_ref, zone_ref=None):
+    InlineInterface
+    This interface type is used on layer 2 or IPS related engines. It requires
+    that you specify two interfaces to be part of the inline pair. These interfaces
+    do not need to be sequential. It is also possible to add VLANs and zones to the
+    inline interfaces.
+    
+    See :py:class:`PhysicalInterface` for methods related to adding VLANs
+    
+    :param str interface_id: two interfaces, i.e. '1-2', '4-5', '7-10', etc
+    :param str logical_ref: logical interface reference
+    :param str zone_ref: reference to zone, set on second inline pair
+    
+    The logical interface reference needs to be unique for inline and capture interfaces
+    when they are applied on the same engine.
+    """
+    name = 'inline_interface'
+    
+    def __init__(self, interface_id=None, logical_interface_ref=None, zone_ref=None,
+                 **kwargs):
         self.failure_mode = 'normal'
         self.inspect_unspecified_vlans = True
-        self.nicid = nicid
+        self.nicid = interface_id
         self.logical_interface_ref = logical_interface_ref
         self.zone_ref = zone_ref
-    
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+            
     def add_vlan(self, vlan_id):
         try:
             first, last = self.nicid.split('-')
             self.nicid = first + '.' + str(vlan_id) + '-' + last + '.' + str(vlan_id)
         except ValueError:
             pass
-        
-    def as_dict(self):
-        return {'inline_interface': self.__dict__}
-
+    
+    def modify_attribute(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
 class CaptureInterface(object):
-    """ Capture Inteface (span)
-    This interface type can be used on layer 2 or ips engine types
+    """ 
+    Capture Interface (SPAN)
+    This is a single physical interface type that can be installed on either
+    layer 2 or IPS engine roles. It enables the NGFW to capture traffic on
+    the wire without actually blocking it (although blocking is possible).
     
     :param interfaceid: the interface id
     :type interfaceid: int
     :oaram logical_ref: logical interface reference, must be unique from inline intfs
     """
-    def __init__(self, interfaceid, logical_ref):
+    name = 'capture_interface'
+    
+    def __init__(self, interface_id=None, logical_interface_ref=None, **kwargs):
         self.inspect_unspecified_vlans = True
-        self.logical_interface_ref = logical_ref
-        self.nicid = interfaceid
-
-    def as_dict(self):
-        return {'capture_interface': self.__dict__}
-
+        self.logical_interface_ref = logical_interface_ref
+        self.nicid = interface_id
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+    
+    def modify_attribute(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
 class DHCPInterface(object):
-    def __init__(self, nicid, dynamic_index, nodeid=1):
+    """
+    DHCP Interface
+    This interface is typically applied on remote devices that require
+    a dynamic IP address. The dynamic index specifies which interface
+    index is used for the DHCP interface. This would be important if you had
+    multiple DHCP interfaces on a single engine.
+    The interface ID identifies which physical interface DHCP will be associated
+    with. 
+    """
+    name = 'single_node_interface'
+    
+    def __init__(self, interface_id=None, dynamic_index=None, nodeid=1,
+                 **kwargs):
         self.auth_request = False
         self.outgoing = False
         self.dynamic = True
         self.dynamic_index = dynamic_index
-        self.nicid = nicid
+        self.nicid = interface_id
         self.nodeid = nodeid
         self.primary_mgt = False
         self.automatic_default_route = False
         self.reverse_connection = False
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def modify_attribute(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
     
-    def as_dict(self):    
-        return {'single_node_interface': self.__dict__}
-        
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
+            
 class VlanInterface(object):
-    """ VLAN Interface assigned to a SingleNode or Node Interface
+    """ 
+    VLAN Interface 
+    These interfaces can be applied on all engine types but will be bound to
+    being on a physical interface. VLAN's can be applied to layer 3 routed
+    interfaces as well as inline interfaces.
     
     :param interface_id: id of interface to assign VLAN to
-    :param vlan_id: ID of vlan
-    :type vlan_id: int
+    :param int vlan_id: ID of vlan
     :param virtual_mapping: The interface ID for the virtual engine. Virtual engine
-               interface mapping starts numbering at 0 by default, which means you must
-               account for interfaces used by master engine
+           interface mapping starts numbering at 0 by default, which means you must
+           account for interfaces used by master engine
     :param virtual_resource_name: Name of virtual resource for this VLAN if a VE
     """
-    def __init__(self, interface_id, vlan_id,
+    def __init__(self, interface_id=None, vlan_id=None,
                  virtual_mapping=None,
                  virtual_resource_name=None,
-                 zone_ref=None):
+                 zone_ref=None, **kwargs):
         self.interface_id = str(interface_id) + '.' + str(vlan_id)
         self.virtual_mapping = virtual_mapping
         self.virtual_resource_name = virtual_resource_name
         self.interfaces = []
         self.zone_ref = zone_ref
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    def as_dict(self):
-        return self.__dict__
+class TunnelInterface(object):
+    def __init__(self, interface_id=None, **kwargs):
+        self.interface_id = None
+        self.interfaces = []
+        for key, value in kwargs.items():
+            setattr(self, key, value)
     
-class PhysicalInterface(UserDict):
+    def add(self, address, network_value, nicid):
+        pass
+            
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.interface_id))
+        
+class PhysicalInterface(object):
     """
-    Represents all interfaces considered to be a physical interface type such as 
-    Single Node Interface (single layer 3 firewall), Node Dedicated
-    Interface (IPS, Layer 2 and Clusters), Cluster Virtual Interface,
-    Inline Interface and Capture Interface. 
-    Use this class to build the interface configuration and then add to the engine by 
-    calling :py:func:`smc.elements.engines.Engine.add_physical_interfaces`
-    
-    Zones can be applied at different levels depending on the configuration. 
-    
-    If using an inline interface, you can set the zone on the physical interface level
-    which will apply both zones to the inline pair. Alternatively you can apply
-    individual zones to each inline interface.
-    This would be accomplished by::
+    Physical Interfaces on NGFW. This represents the following base configuration for
+    the following interface types:
+        * Single Node Interface
+        * Node Interface
+        * Capture Interface
+        * Inline Interface
+        * Cluster Virtual Interface
+        * Virtual Physical Interface (used on Virtual Engines)
+        * DHCP Interface
         
-        physical = PhysicalInterface('10-11')
-        physical.add_inline_interface(self, logical_interface_ref, 
-                                            zone_ref_intf1='zone_for_first',
-                                            zone_ref_intf2='zone_for_second')
+    This should be used to add interfaces to an engine after it has been created.
+    First get the engine context by loading the engine then get the engine property for 
+    physical interface::
         
-    If using VLANs, zones can be applied at the VLAN level or the top level physical interface
-    encapsulating the VLANs. 
-    
-    :param interface_id: interface id for this physical interface
-    :type interface_id: string
-    :param zone_ref: zone to set on top level interface, superseding others 
+        engine = Engine('myfw').load()
+        engine.physical_interface.add_single_node_interface(.....)
+        engine.physical_interface.add(5) #single unconfigured physical interface
+        engine.physical_interface.add_node_interface(....)
+        engine.physical_interface.add_inline_interface('5-6', ....)
     """
-    def __init__(self, interface_id, p_dict=None, zone_ref=None):
-        self.data = {} #: data attribute representing interface
-        if p_dict is not None: 
-            self.update(p_dict)
-        else:
-            self.interface_id = interface_id
-            default = {'interface_id': self.interface_id,
-                       'interfaces': [],
-                       'vlanInterfaces': [],
-                       'zone_ref': zone_ref}
-            self.update(default)
+    name = 'physical_interface'
     
-    def add_single_node_interface(self, address, network_value, 
-                                  zone_ref=None, 
-                                  is_mgmt=False):
-        """ Add single node interface, used for layer 3 firewalls
-        Zone applied here will apply to top level physical interface
+    def __init__(self, interface_id=None, **kwargs):
+        self.data = {
+                'interface_id': interface_id,
+                'interfaces': [],
+                'vlanInterfaces': [],
+                'zone_ref': None }
+                     
+        for key, value in kwargs.items():
+            if key == 'callback':
+                self.callback = value
+            else:
+                self.data.update({key: value})
+    
+    def add(self, interface_id):
+        """ 
+        Add single physical interface with interface_id. Use other methods
+        to fully add an interface configuration based on engine type
         
-        :param address: ip address
-        :param network_value: network, in form: x.x.x.x/y
-        :param zone_ref: default None, zone for this interface
-        :param is_mgmt: default False, should this be a management enabled interface
+        :param interface_id: interface id
+        :return: SMCResult
         """
-        intf = SingleNodeInterface(address, network_value, self.interface_id)
+        self.data.update(interface_id=interface_id)
+        return self._make()
+          
+    def add_single_node_interface(self, interface_id, address, network_value, 
+                                  zone_ref=None, is_mgmt=False):
+        """
+        Adds a single node interface to engine in context
+        
+        :param int interface_id: interface id
+        :param str address: ip address
+        :param str network_value: network cidr
+        :param str zone_ref: zone reference
+        :param boolean is_mgmt: should management be enabled
+        :return: SMCResult
+        
+        See :py:class:`SingleNodeInterface` for more information 
+        """
+        intf = SingleNodeInterface(interface_id, address, network_value)
         if is_mgmt:
-            intf.auth_request = True
-            intf.outgoing = True
-            intf.primary_mgt = True
-        self.get('interfaces').append(intf.as_dict())
-        if zone_ref is not None: self.update({'zone_ref': zone_ref})
-    
-    def add_single_node_interface_to_vlan(self, address, network_value, vlan_id, 
-                                          zone_ref=None):
-        """ Add a single node interface to a VLAN, used on single layer 3 firewalls
-        This will create the physical interface if it doesn't already exist. If it does
-        exist, this will simply add the VLAN identifier and if a zone_ref is defined,
-        it will add the zone for that particular vlan and specified network
+            intf.modify_attribute(auth_request=True, outgoing=True,
+                                  primary_mgt=True)
+        self.data.update(interface_id=interface_id,
+                         interfaces=[{SingleNodeInterface.name: vars(intf)}],
+                         zone_ref=zone_ref)
+        return self._make()
+ 
+    def add_node_interface(self, interface_id, address, network_value,
+                           zone_ref=None, nodeid=1, is_mgmt=False):
+        """
+        :param int interface_id: interface identifier
+        :param str address: ip address
+        :param str network_value: network cidr
+        :param str zone_ref: zone reference
+        :param int nodeid: node identifier, used for cluster nodes
+        :param boolean is_mgmt: enable management
+        :return: SMCResult
         
-        :param address: ip address
-        :param network_value: network, in form: x.x.x.x/y
-        :param vlan_id: ID for the vlan
-        :param zone_ref: zone name for VLAN. Set on physical intf to use zone for all vlans
+        See :py:class:`NodeInterface` for more information 
         """
-        vlan = VlanInterface(self.interface_id, vlan_id, zone_ref=zone_ref)
-        node = SingleNodeInterface(address, network_value, vlan.interface_id)
-        vlan.interfaces.append(node.as_dict())
-        self.get('vlanInterfaces').append(vlan.as_dict())
-
-    def add_node_interface(self, address, network_value,
-                           zone_ref=None, 
-                           nodeid=1,
-                           is_mgmt=False):
-        """ Add an NDI. Used on IPS, Layer2, and Layer3 clusters
-
-        :param address: ip address
-        :param network_value: network, in the form: x.x.x.x/y
-        :param zone_ref: default None, zone for this interface
-        :param nodeid: nodeid identifying this node. Used in clusters.
-        :type nodeid: int
-        :param is_mgmt: default False, should this be a management enabled interface
-        """
-        intf = NodeInterface(address, network_value, self.interface_id, nodeid=nodeid)
+        intf = NodeInterface(interface_id, address, network_value, nodeid=nodeid)
         if is_mgmt:
-            intf.primary_mgt = True
-            intf.outgoing = True
-        self.get('interfaces').append(intf.as_dict())
-        if zone_ref is not None: self.update({'zone_ref': zone_ref})
-    
-    def add_vlan_to_node_interface(self, vlan_id, 
-                                   virtual_mapping=None,
-                                   virtual_resource_name=None,
-                                   zone_ref=None):
-        """ Add a vlan to node physical interface. Works on any interface with
-        exception of inline interfaces.
-
-        Zone applied here will apply to the VLAN specifically (versus top level phys intf)
-        
-        :param vlan_id: vlan identifier
-        :param virtual_mapping: virtual resource associated with this vlan
-        :param virtual_resource: virtual mapping id
+            intf.modify_attribute(primary_mgt=True, outgoing=True)
+        self.data.update(interface_id=interface_id, 
+                         interfaces=[{NodeInterface.name: vars(intf)}],
+                         zone_ref=zone_ref)
+        return self._make()
+   
+    def add_capture_interface(self, interface_id, logical_interface_ref, 
+                              zone_ref=None):
         """
-        vlan = VlanInterface(self.interface_id, vlan_id,
-                             virtual_mapping=virtual_mapping,
-                             virtual_resource_name=virtual_resource_name,
-                             zone_ref=zone_ref)
-        self.get('vlanInterfaces').append(vlan.as_dict())
-    
-    def add_inline_interface(self, logical_interface_ref, 
+        :param int interface_id: interface identifier
+        :param str logical_interface_ref: logical interface reference
+        :param str zone_ref: zone reference
+        :return: SMCResult
+        
+        See :py:class:`CaptureInterface` for more information 
+        """
+        intf = CaptureInterface(interface_id, logical_interface_ref)
+        self.data.update(interface_id=interface_id,
+                         interfaces=[{CaptureInterface.name: vars(intf)}],
+                         zone_ref=zone_ref)
+        return self._make()
+        
+    def add_inline_interface(self, interface_id, logical_interface_ref, 
                              zone_ref_intf1=None,
                              zone_ref_intf2=None):
-        """ Inline interface pair for layer 2 or IPS engines
-        Zones specified here can be specific to the inline interface
-        
-        :param logical_interface_ref: logical interface reference
-        :param zone_ref_intf1: set zone on first inline interface pair
-        :param zone_ref_intf2: set zone on seceond inline interface pair
         """
-        if self.get('zone_ref') is not None: #set at physical level
-            zone_ref_intf1 = zone_ref_intf2 = self.get('zone_ref')
-            
-        inline_intf = InlineInterface(self.interface_id, 
-                                      logical_interface_ref=logical_interface_ref,
-                                      zone_ref=zone_ref_intf2) #zone for second intf
-        self.update({'interface_id': self.interface_id.split('-')[0]})
-        self.get('interfaces').append(inline_intf.as_dict())
-        self.update({'zone_ref': zone_ref_intf1}) #1st intf zone
+        :param int interface_id: interface identifier
+        :param str logical_interface_ref: logical interface reference
+        :param zone_ref_intf1: zone for inline interface 1
+        :param zone_ref_intf2: zone for inline interface 2
+        :return: SMCResult
         
-    def add_vlan_to_inline_interface(self, vlan_id, 
+        See :py:class:`InlineInterface` for more information  
+        """
+        inline_intf = InlineInterface(interface_id, 
+                                      logical_interface_ref=logical_interface_ref,
+                                      zone_ref=zone_ref_intf2) #second intf zone
+        self.data.update(interface_id=interface_id.split('-')[0],
+                         interfaces=[{InlineInterface.name: vars(inline_intf)}],
+                         zone_ref=zone_ref_intf1)
+        return self._make()
+    
+    def add_dhcp_interface(self, interface_id, dynamic_index, 
+                           primary_mgt=False, zone_ref=None, nodeid=1):
+        """
+        :param int interface_id: interface id
+        :param int dynamic_index: index number for dhcp interface
+        :param boolean primary_mgt: whether to make this primary mgt
+        :param str zone_ref: zone reference for interface
+        :param int nodeid: node identifier
+        :return: SMCResult
+        
+        See :py:class:`DHCPInterface` for more information 
+        """ 
+        dhcp = DHCPInterface(interface_id,
+                             dynamic_index,
+                             nodeid=nodeid)
+        if primary_mgt:
+            dhcp.modify_attribute(primary_mgt=True,
+                                  reverse_connection=True,
+                                  automatic_default_route=True)
+        self.data.update(interface_id=interface_id,
+                         interfaces=[{DHCPInterface.name: vars(dhcp)}],
+                         zone_ref=zone_ref)
+        return self._make()
+    
+    def add_cluster_virtual_interface(self, interface_id, cluster_virtual, 
+                                      cluster_mask, 
+                                      macaddress, nodes, 
+                                      zone_ref=None, is_mgmt=False):
+        """
+        :param int interface_id: physical interface identifier
+        :param int cluster_virtual: CVI address (VIP) for this interface
+        :param str cluster_mask: network cidr
+        :param str macaddress: required mac address for this CVI
+        :param list nodes: list of dictionary items identifying cluster nodes
+        :param str zone_ref: if present, is promoted to top level physical interface
+        :param boolean is_mgmt: default False, should this be management enabled
+        :return: SMCResult
+        
+        Adding a cluster virtual to an existing engine would look like::
+        
+            physical.add_cluster_virtual_interface(
+                    cluster_virtual='5.5.5.1', 
+                    cluster_mask='5.5.5.0/24', 
+                    macaddress='02:03:03:03:03:03', 
+                    nodes=[{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
+                           {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2},
+                           {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}],
+                    zone_ref=zone_helper('Heartbeat'))
+        """
+        self.data.setdefault('cvi_mode', 'packetdispatch')
+        self.data.setdefault('macaddress', macaddress)
+         
+        cvi = ClusterVirtualInterface(interface_id, cluster_virtual, cluster_mask)
+        if is_mgmt:
+            cvi.modify_attribute(auth_request=True)
+        
+        interfaces=[]
+        interfaces.append({ClusterVirtualInterface.name: vars(cvi)})
+        
+        for node in nodes:
+            intf = NodeInterface(interface_id=interface_id, 
+                                 address=node.get('address'), 
+                                 network_value=node.get('network_value'),
+                                 nodeid=node.get('nodeid'))
+            if is_mgmt:
+                intf.modify_attribute(primary_mgt=True, outgoing=True,
+                                      primary_heartbeat=True)
+            interfaces.append({NodeInterface.name: vars(intf)})
+        self.data.update(interface_id=interface_id,
+                         interfaces=interfaces,
+                         zone_ref=zone_ref)
+        return self._make()
+          
+    def add_single_node_interface_to_vlan(self, interface_id, address, 
+                                          network_value, vlan_id, 
+                                          zone_ref=None):
+        """
+        :param interface_id: interface identifier
+        :param address: ip address
+        :param network_value: network cidr
+        :param vlan_id: vlan identifier 
+        :param zone_ref: zone reference
+        :return: SMCResult
+        
+        See :py:class:`SingleNodeInterface` for more information 
+        """
+        vlan = VlanInterface(interface_id, vlan_id, zone_ref=zone_ref)
+        node = SingleNodeInterface(vlan.interface_id, address, network_value)
+        vlan.interfaces.append({SingleNodeInterface.name: vars(node)})
+        self.data.update(interface_id=interface_id,
+                         vlanInterfaces=[vars(vlan)])
+        return self._make()
+    
+    def add_vlan_to_node_interface(self, interface_id, vlan_id, 
+                                   virtual_mapping=None, virtual_resource_name=None,
+                                   zone_ref=None):
+        """
+        :param int interface_id: interface identifier
+        :param int vlan_id: vlan identifier
+        :param int virtual_mapping: virtual engine mapping id
+        :param str virtual_resource_name: name of virtual resource
+        :return: SMCResult
+        
+        See :py:class:`NodeInterface` for more information 
+        """
+        vlan = VlanInterface(interface_id, vlan_id, 
+                             virtual_mapping,
+                             virtual_resource_name,
+                             zone_ref)
+        self.data.update(interface_id=interface_id,
+                         vlanInterfaces=[vars(vlan)])
+        return self._make()
+        
+    def add_vlan_to_inline_interface(self, interface_id, vlan_id, 
                                      logical_interface_ref=None,
                                      zone_ref_intf1=None,
                                      zone_ref_intf2=None):
-        """ Add VLAN to inline interface. Used on layer 2 firewall or IPS
-        When the inline interface does not exist, this will create it and the
-        specified VLANs. If it does exist, existing VLANs will be preserved and
-        new ones added.
-        Zones set here will apply to each inline interface
-        
-        :param vlan_id: vlan identifier
-        :param logical_interface_ref: logical interface reference
-        :param zone_ref_intf1: first interface in inline pair
-        :param zone_ref_intf2: second interface in inline pair
         """
-        first_intf = self.interface_id.split('-')[0]
+        :param str interface_id: interfaces for inline pair, '1-2', '5-6'
+        :param int vlan_id: vlan identifier
+        :param logical_interface_ref: logical interface reference to use
+        :param zone_ref_intf1: zone for inline interface 1
+        :param zone_ref_intf2: zone for inline interface 2
+        :return: SMCResult
         
+        See :py:class:`InlineInterface` for more information 
+        """     
+        first_intf = interface_id.split('-')[0]
         vlan = VlanInterface(first_intf, vlan_id, zone_ref=zone_ref_intf1)
-        
-        inline_intf = InlineInterface(self.interface_id, 
+        inline_intf = InlineInterface(interface_id, 
                                       logical_interface_ref,
                                       zone_ref=zone_ref_intf2)
-
-        self.get('interfaces').append(deepcopy(inline_intf.as_dict()))
-        
+        copied_intf = deepcopy(inline_intf) #copy as ref data will change
         inline_intf.add_vlan(vlan_id)
-        vlan.interfaces.append(inline_intf.as_dict())
-        self.get('vlanInterfaces').append(vlan.as_dict())
-        self.update({'interface_id': first_intf})
-    
-    def add_capture_interface(self, logical_interface_ref, 
-                              zone_ref=None):
-        """ Add capture interface. Used in layer 2 or IPS engines
-        Zone applied here will apply to the top level physical interface.
-        
-        :param logical_interface_ref: logical interface reference
-        :param zone_ref: default None, zone for this capture interface
-        """
-        intf = CaptureInterface(self.interface_id, logical_interface_ref)
-        self.get('interfaces').append(intf.as_dict())
-        if zone_ref is not None: self.update({'zone_ref': zone_ref})
+        #add embedded inline interface to physical interface vlanInterfaces list
+        vlan.interfaces.append({InlineInterface.name: vars(inline_intf)})
 
-    def add_dhcp_interface(self, dynamic_index, 
-                           primary_mgt=False, 
-                           nodeid=1):
-        """ Add a DHCP interface to physical interface """
-        dhcp = DHCPInterface(nicid=self.interface_id,
-                             dynamic_index=dynamic_index,
-                             nodeid=nodeid)
-        if primary_mgt:
-            dhcp.primary_mgt = True
-            dhcp.reverse_connection = True
-            dhcp.automatic_default_route = True
-        self.get('interfaces').append(dhcp.as_dict())
-    
-    def add_cluster_virtual_interface(self, cluster_virtual, cluster_mask, 
-                                      macaddress, nodes, 
-                                      zone_ref=None, is_mgmt=False):
-        """ Cluster virtual interface, used in cluster configurations
-        
-        :param cluster_virtual: CVI address (VIP) for this interface
-        :param cluster_mask: network for this interface, in form: x.x.x.x/y
-        :param macaddress: required mac address for this CVI
-        :param nodes: list of dictionary items identifying cluster nodes, in 
-            the form of: [{'address': '1.1.1.2', 'netmask': '1.1.1.0/24', 'nodeid':1}]
-        :param zone_ref: if present, is promoted to top level physical interface
-        :param is_mgmt: default False, should this be management enabled
-        """    
-        self.setdefault('cvi_mode', 'packetdispatch')
-        self.setdefault('macaddress', macaddress)
-        
-        cvi = ClusterVirtualInterface(cluster_virtual, cluster_mask, self.interface_id)
-        if is_mgmt:
-            cvi.auth_request = True
-        self.get('interfaces').append(cvi.as_dict())
-        
-        for node in nodes:
-            intf = NodeInterface(node.get('address'), node.get('network_value'),
-                                 self.interface_id, node.get('nodeid'))
-            if is_mgmt:
-                intf.primary_mgt = True
-                intf.outgoing = True
-                intf.primary_heartbeat = True
-            self.get('interfaces').append(intf.as_dict())
-        if zone_ref is not None: self.update({'zone_ref': zone_ref})
+        self.data.update(interfaces=[{InlineInterface.name: vars(copied_intf)}],
+                         vlanInterfaces=[vars(vlan)],
+                         interface_id=first_intf)
+        return self._make()
     
     def modify_interface(self, interface_type, **kwds):
-        """ Modify single node interface
-        See py:class:`SingleNodeInterface` attributes to see which 
-        common attributes might be modified. 
+        """ Modify interface
         
-        :param dict: dict of key value, i.e. {'backup_heartbeat': True}
         :param interface_type: single_node_interface, node_interface, etc
-        """    
-        intf = self.get('interfaces')[0].get(interface_type)
+        :param kwargs: dict of key value, i.e. {'backup_heartbeat': True}
+        """ 
+        intf = self.data.get('interfaces')[0].get(interface_type)
         for k, v in kwds.iteritems():
             if k in intf:
                 intf[k] = v
     
-    def modify_physical_interface(self, **kwds):
-        """ If key=value exists in interface dict then replace 
-        For example, to change the zone: zone_ref=new_zone
+    def describe_interface(self):
+        return self.data
+            
+    def _make(self):
         """
-        self.update({k:v for k,v in kwds.iteritems() if k in self.data})
-    
-    def as_dict(self):
-        return {'physical_interface': self.data}
+        If callback attribute doesn't exist, this is because an Engine is 
+        being created. The callback should be an SMCElement used to 
+        reference the web api for submitting the json. For engines being 
+        created, the engine json is compiled directly. This should only 
+        execute in the try block when the engine is already in context and 
+        operator is adding more interfaces by accessing the property 
+        :py:class:`smc.elements.engines.Engine.physical_interface`
+        """
+        try:
+            self.callback.json = self.data
+            return self.callback.create()
+        except AttributeError:
+            pass
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)
-    
+        return "%s(%r)" % (self.__class__, 'interface_id={}'.format(\
+                                 self.data.get('interface_id')))
+        
 class VirtualPhysicalInterface(PhysicalInterface):
-    """ Represents a Layer 3 VirtualEngine physical interface 
-    One of the physical interfaces for a Layer 3 VE must be set as the source
-    for Auth Requests and Outgoing. Unless specified during creation of the
-    node interface, this will default to interface 0 on the VE.
+    """ 
+    VirtualPhysicalInterface
+    This interface type is used by virtual engines and has subtle differences
+    to a normal interface. For a VE in layer 3 firewall, it also specifies a 
+    Single Node Interface as the physical interface sub-type.
+    When creating the VE, one of the interfaces must be designated as the source
+    for Auth Requests and Outgoing. 
     
-    :param interface_id: interface id for this virtual interface
-    :param intfdict: dictionary representing interface information
+    :param int interface_id: interface id for this virtual interface
+    :param list intfdict: dictionary representing interface information
     :param zone_ref: zone for top level physical interface
     """
-    def __init__(self, interface_id, intfdict=None, zone_ref=None):
-        PhysicalInterface.__init__(self, interface_id, intfdict, zone_ref)
+    name = 'virtual_physical_interface'
     
-    def add_single_node_interface(self, address, network_value, 
-                                  zone_ref=None, outgoing_intf=0):
-        
-        intf = SingleNodeInterface(address, network_value, self.interface_id)
-        if self.interface_id == outgoing_intf:
-            intf.auth_request = True
-            intf.outgoing = True
-        self.get('interfaces').append(intf.as_dict())
-        if zone_ref is not None: self.update({'zone_ref': zone_ref})
+    def __init__(self, interface_id=None):
+        PhysicalInterface.__init__(self, interface_id)
+        pass
+
+import smc.api.common
+import smc.actions.search as search
+
+class Interface(object):
+    def __init__(self, **kwargs):
+        """
+        :ivar href: interface href link
+        :ivar name: interface name
+        :ivar type: interface type
+        :ivar interface: interface object representation
+        """
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+
+    def delete(self):
+        return smc.api.common.delete(self.href)
     
-    def as_dict(self):
-        return {'virtual_physical_interface': self.data}   
+    @property
+    def physical_interface(self):
+        return PhysicalInterface()
+    
+    @property
+    def tunnel_interface(self):
+        return TunnelInterface()
+    
+    #lazy loaded when called
+    def describe_interface(self):
+        if self.type == 'physical_interface':
+            return PhysicalInterface(
+                    **search.element_by_href_as_json(self.href))
+        elif self.type == 'tunnel_interface':
+            return TunnelInterface(
+                    **search.element_by_href_as_json(self.href))
+            
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'name={},type={}'.format(\
+                                 self.name, self.type))

@@ -55,38 +55,35 @@ if __name__ == '__main__':
                                     domain_server_address=['1.1.1.1'], 
                                     zone_ref=zone_helper('Internal'))
     
-    physical = PhysicalInterface(1)
-    physical.add_cluster_virtual_interface(cluster_virtual='5.5.5.1', 
-                                           cluster_mask='5.5.5.0/24', 
-                                           macaddress='02:03:03:03:03:03', 
-                                           nodes=[{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
-                                                  {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2},
-                                                  {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}],
-                                           zone_ref=zone_helper('Heartbeat'))
+    engine.physical_interface.add_cluster_virtual_interface(
+                                            interface_id=1,
+                                            cluster_virtual='5.5.5.1', 
+                                            cluster_mask='5.5.5.0/24', 
+                                            macaddress='02:03:03:03:03:03', 
+                                            nodes=[{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
+                                                   {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2},
+                                                   {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}],
+                                            zone_ref=zone_helper('Heartbeat'))
     
-    engine.add_physical_interfaces(physical.data)
-    
-    physical = PhysicalInterface(2)
-    physical.add_cluster_virtual_interface(cluster_virtual='10.10.10.1', 
-                                           cluster_mask='10.10.10.0/24', 
-                                           macaddress='02:04:04:04:04:04', 
-                                           nodes=[{'address':'10.10.10.2', 'network_value':'10.10.10.0/24', 'nodeid':1},
-                                                  {'address':'10.10.10.3', 'network_value':'10.10.10.0/24', 'nodeid':2},
-                                                  {'address':'10.10.10.4', 'network_value':'10.10.10.0/24', 'nodeid':3}],
-                                           zone_ref=zone_helper('External'))
-    
-    engine.add_physical_interfaces(physical.data)
-    
+    engine.physical_interface.add_cluster_virtual_interface(
+                                            interface_id=2,
+                                            cluster_virtual='10.10.10.1', 
+                                            cluster_mask='10.10.10.0/24', 
+                                            macaddress='02:04:04:04:04:04', 
+                                            nodes=[{'address':'10.10.10.2', 'network_value':'10.10.10.0/24', 'nodeid':1},
+                                                   {'address':'10.10.10.3', 'network_value':'10.10.10.0/24', 'nodeid':2},
+                                                   {'address':'10.10.10.4', 'network_value':'10.10.10.0/24', 'nodeid':3}],
+                                            zone_ref=zone_helper('External'))
+      
     engine.add_route('10.10.10.254', '0.0.0.0/0')
     engine.add_route('5.5.5.100', '192.168.3.0/24')
     
-    
     #Create initial configuration for each node
-    for node in engine.node_names():
-        result = engine.initial_contact(node, enable_ssh=True, filename=node+'.cfg')
+    for node in engine.nodes:
+        result = node.initial_contact(enable_ssh=True, filename=node.name+'.cfg')
         if result:
             print "Successfully wrote initial configuration for node: {}, to file: {}".format( \
-                        node, node+'.cfg')
+                        node.name, node.name+'.cfg')
         
         
     session.logout()

@@ -25,14 +25,15 @@ import smc.actions.search
 from smc.elements.element import logical_intf_helper, SMCElement, DomainName,\
     TCPService, EthernetService, ICMPService, ICMPIPv6Service, ServiceGroup,\
     TCPServiceGroup, UDPServiceGroup, UDPService, IPServiceGroup, IPService, Host, \
-    AdminUser
+    AdminUser, zone_helper
 import smc.api.web
 from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster,\
-    MasterEngine, AWSLayer3Firewall
+    MasterEngine, AWSLayer3Firewall, Engine
 from smc.actions import helpers
 
 from smc.api.web import SMCException, SMCResult
-from smc.elements.interfaces import VlanInterface, PhysicalInterface
+from smc.elements.interfaces import VlanInterface, PhysicalInterface, TunnelInterface, NodeInterface,\
+    SingleNodeInterface
 from smc.elements.system import SystemInfo
 
 
@@ -252,7 +253,7 @@ def l3interface(name, ipaddress, ip_network, interfaceid):
     ip_network = helpers.ipaddr_as_network(ip_network)    #convert to cidr in case full mask provided
     
     try:
-        engine = Node(name).load()
+        engine = Engine(name).load()
         physical = PhysicalInterface(interfaceid)
         physical.add_single_node_interface(ipaddress, ip_network)
         result = engine.add_physical_interfaces(physical.data)
@@ -279,7 +280,7 @@ def l2interface(name, interface_id, logical_interface_ref='default_eth', zone=No
     :return: href upon success otherwise None
     """  
     try:
-        engine = Node(name).load()
+        engine = Engine(name).load()
         
         physical = PhysicalInterface(interface_id)
         physical.add_inline_interface(logical_intf_helper(logical_interface_ref))
@@ -411,49 +412,22 @@ if __name__ == '__main__':
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
 
-    
+    import string
     """@type engine: Node"""
-    engine = Node('bo').load()
-    pprint(engine.engine_json)
+    engine = Engine('CRAP').load()
+   
+    #for interface in engine.interface():
+    #    print interface.name, interface.type
+    #    if interface.name.startswith('Interface 60'):
+    #        interface.delete()
+    for interface in engine.interface:
+        if interface.name == 'Interface 2':
+            intf = interface.describe_interface()
+            print intf
+            pprint(vars(intf))
+            
     
-    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/7664/routing/10152'))
-    pprint(smc.actions.search.fw_policies())
-    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_policy/195'))
-    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_policy/195/fw_ipv4_nat_rule'))
-    #template
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_template_policy/5'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_template_policy/5/fw_ipv4_nat_rule'))
-    #engine.bind_license()
-    #content = engine.initial_contact(enable_ssh=True)
-    #engine.change_name('a new pooper name')
-    #
-    #'http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'
-    #'http://172.18.1.150:8082/6.0/elements/gateway_settings/1'
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'))
-    #pprint(smc.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/single_fw/9499/internal_gateway'))
-    '''
-    name = 'my new name'
-    j = {'name': name,
-         'nodes': [
-                   {'firewall_node': 
-                        {'name': name + ' dooood'}}]}
-    #update(engine.engine_json, j)
-    #pprint(engine.engine_json)
     
-    #I like this idea for modifying key/values
-    context = {}
-    context.update(j)
-    context.update(engine.engine_json)
-    pprint(context)
-    '''
-    
-    #engine.engine_json['name'] = name
-    #engine.engine_json.get('nodes')[0].get('firewall_node')['name'] = name + ' node 1'
-    #pprint(engine.engine_json)
-    #print SMCElement(href=engine.href,
-    #                json=context,
-    #                etag=engine.etag).update()
     
     '''
     """@type engine: Node"""

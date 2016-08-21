@@ -113,6 +113,8 @@ class System(object):
         :return: SMCResult, href if success, msg if error
         """
         element = Blacklist(src, dst, duration)
+        from pprint import pprint
+        pprint(element)
         element.href = self._load_href('blacklist')
         return element.create()
         
