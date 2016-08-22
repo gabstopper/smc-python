@@ -82,9 +82,9 @@ class ClusterVirtualInterface(object):
     balancing or high availability. Each engine will still also have a 'node' 
     interface for communication to/from the engine itself.
     
-    :param address: address of CVI
-    :param network_value: network for CVI
-    :param nicid: nic id to use for physical interface
+    :param str address: address of CVI
+    :param str network_value: network for CVI
+    :param int nicid: nic id to use for physical interface
     """
     name = 'cluster_virtual_interface'
     
@@ -154,9 +154,8 @@ class CaptureInterface(object):
     layer 2 or IPS engine roles. It enables the NGFW to capture traffic on
     the wire without actually blocking it (although blocking is possible).
     
-    :param interfaceid: the interface id
-    :type interfaceid: int
-    :oaram logical_ref: logical interface reference, must be unique from inline intfs
+    :param int interfaceid: the interface id
+    :param str logical_ref: logical interface reference, must be unique from inline intfs
     """
     name = 'capture_interface'
     
@@ -182,11 +181,13 @@ class DHCPInterface(object):
     index is used for the DHCP interface. This would be important if you had
     multiple DHCP interfaces on a single engine.
     The interface ID identifies which physical interface DHCP will be associated
-    with. 
+    with.
+    :param interface_id: interface to use for DHCP
+    :param dynamic_index: DHCP index (when using multiple DHCP interfaces 
     """
     name = 'single_node_interface'
     
-    def __init__(self, interface_id=None, dynamic_index=None, nodeid=1,
+    def __init__(self, interface_id=None, dynamic_index=1, nodeid=1,
                  **kwargs):
         self.auth_request = False
         self.outgoing = False
@@ -215,12 +216,12 @@ class VlanInterface(object):
     being on a physical interface. VLAN's can be applied to layer 3 routed
     interfaces as well as inline interfaces.
     
-    :param interface_id: id of interface to assign VLAN to
+    :param int interface_id: id of interface to assign VLAN to
     :param int vlan_id: ID of vlan
-    :param virtual_mapping: The interface ID for the virtual engine. Virtual engine
+    :param int virtual_mapping: The interface ID for the virtual engine. Virtual engine
            interface mapping starts numbering at 0 by default, which means you must
            account for interfaces used by master engine
-    :param virtual_resource_name: Name of virtual resource for this VLAN if a VE
+    :param str virtual_resource_name: Name of virtual resource for this VLAN if a VE
     """
     def __init__(self, interface_id=None, vlan_id=None,
                  virtual_mapping=None,
@@ -290,7 +291,7 @@ class PhysicalInterface(object):
         Add single physical interface with interface_id. Use other methods
         to fully add an interface configuration based on engine type
         
-        :param interface_id: interface id
+        :param int interface_id: interface id
         :return: SMCResult
         """
         self.data.update(interface_id=interface_id)
@@ -322,6 +323,8 @@ class PhysicalInterface(object):
     def add_node_interface(self, interface_id, address, network_value,
                            zone_ref=None, nodeid=1, is_mgmt=False):
         """
+        Add a node interface to engine
+        
         :param int interface_id: interface identifier
         :param str address: ip address
         :param str network_value: network cidr
@@ -343,6 +346,8 @@ class PhysicalInterface(object):
     def add_capture_interface(self, interface_id, logical_interface_ref, 
                               zone_ref=None):
         """
+        Add a capture interface
+        
         :param int interface_id: interface identifier
         :param str logical_interface_ref: logical interface reference
         :param str zone_ref: zone reference
@@ -360,6 +365,8 @@ class PhysicalInterface(object):
                              zone_ref_intf1=None,
                              zone_ref_intf2=None):
         """
+        Add an inline interface pair
+        
         :param int interface_id: interface identifier
         :param str logical_interface_ref: logical interface reference
         :param zone_ref_intf1: zone for inline interface 1
@@ -379,6 +386,8 @@ class PhysicalInterface(object):
     def add_dhcp_interface(self, interface_id, dynamic_index, 
                            primary_mgt=False, zone_ref=None, nodeid=1):
         """
+        Add a DHCP interface
+        
         :param int interface_id: interface id
         :param int dynamic_index: index number for dhcp interface
         :param boolean primary_mgt: whether to make this primary mgt
@@ -405,6 +414,8 @@ class PhysicalInterface(object):
                                       macaddress, nodes, 
                                       zone_ref=None, is_mgmt=False):
         """
+        Add cluster virtual interface
+        
         :param int interface_id: physical interface identifier
         :param int cluster_virtual: CVI address (VIP) for this interface
         :param str cluster_mask: network cidr
@@ -449,15 +460,18 @@ class PhysicalInterface(object):
                          zone_ref=zone_ref)
         return self._make()
           
-    def add_single_node_interface_to_vlan(self, interface_id, address, 
+    def add_vlan_to_single_node_interface(self, interface_id, address, 
                                           network_value, vlan_id, 
                                           zone_ref=None):
         """
-        :param interface_id: interface identifier
-        :param address: ip address
-        :param network_value: network cidr
-        :param vlan_id: vlan identifier 
-        :param zone_ref: zone reference
+        Add a vlan to single node interface. Will create interface if it 
+        doesn't exist
+        
+        :param int interface_id: interface identifier
+        :param str address: ip address
+        :param str network_value: network cidr
+        :param int vlan_id: vlan identifier 
+        :param str zone_ref: zone reference
         :return: SMCResult
         
         See :py:class:`SingleNodeInterface` for more information 
@@ -473,6 +487,8 @@ class PhysicalInterface(object):
                                    virtual_mapping=None, virtual_resource_name=None,
                                    zone_ref=None):
         """
+        Add vlan to existing node interface
+        
         :param int interface_id: interface identifier
         :param int vlan_id: vlan identifier
         :param int virtual_mapping: virtual engine mapping id
@@ -494,11 +510,13 @@ class PhysicalInterface(object):
                                      zone_ref_intf1=None,
                                      zone_ref_intf2=None):
         """
+        Add a vlan to inline interface, will create inline if it doesn't exist
+        
         :param str interface_id: interfaces for inline pair, '1-2', '5-6'
         :param int vlan_id: vlan identifier
-        :param logical_interface_ref: logical interface reference to use
-        :param zone_ref_intf1: zone for inline interface 1
-        :param zone_ref_intf2: zone for inline interface 2
+        :param str logical_interface_ref: logical interface reference to use
+        :param str zone_ref_intf1: zone for inline interface 1
+        :param str zone_ref_intf2: zone for inline interface 2
         :return: SMCResult
         
         See :py:class:`InlineInterface` for more information 
@@ -518,6 +536,13 @@ class PhysicalInterface(object):
                          interface_id=first_intf)
         return self._make()
     
+    def modify_attribute(self, **kwds):
+        """ Not fully implemented """
+        for k, v in kwds.iteritems():
+            if k in self.data:
+                print "K is in self.data"
+                self.data.update({k:v})
+    
     def modify_interface(self, interface_type, **kwds):
         """ Modify interface
         
@@ -528,7 +553,7 @@ class PhysicalInterface(object):
         for k, v in kwds.iteritems():
             if k in intf:
                 intf[k] = v
-    
+
     def describe_interface(self):
         return self.data
             
@@ -563,7 +588,7 @@ class VirtualPhysicalInterface(PhysicalInterface):
     
     :param int interface_id: interface id for this virtual interface
     :param list intfdict: dictionary representing interface information
-    :param zone_ref: zone for top level physical interface
+    :param str zone_ref: zone for top level physical interface
     """
     name = 'virtual_physical_interface'
     
@@ -580,7 +605,6 @@ class Interface(object):
         :ivar href: interface href link
         :ivar name: interface name
         :ivar type: interface type
-        :ivar interface: interface object representation
         """
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
@@ -608,3 +632,4 @@ class Interface(object):
     def __repr__(self):
         return "%s(%r)" % (self.__class__, 'name={},type={}'.format(\
                                  self.name, self.type))
+        

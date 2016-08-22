@@ -23,7 +23,8 @@ All elements by type::
 import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
     fetch_json_by_name, fetch_entry_point
-import smc.api.web as web_api
+from smc.api.session import session
+
 logger = logging.getLogger(__name__)
 
 
@@ -166,16 +167,20 @@ def element_as_smcresult_use_filter(name, _filter):
         if element_href:
             return element_by_href_as_smcresult(element_href)
 
-def element_href_by_batch(list_to_find):
+def element_href_by_batch(list_to_find, _filter=None):
     """ Find batch of entries by name. Reduces number of find calls from
     calling class. 
     
-    :param list_to_find: list of names to find
-    :type: list
-    :return: dict: {name: href, name: href}, href may be None if not found
+    :param list list_to_find: list of names to find
+    :param _filter: optional filter, i.e. 'tcp_service', 'host', etc
+    :return: list: {name: href, name: href}, href may be None if not found
     """
     try:
-        return {k:element_href(k) for k in list_to_find} 
+        if _filter:
+            return [{k:element_href_use_filter(k, _filter)
+                    for k in list_to_find}]
+        else:
+            return [{k:element_href(k) for k in list_to_find}] 
     except TypeError:
         logger.error(list_to_find, 'is not iterable')
             
@@ -203,7 +208,7 @@ def all_elements_by_type(name):
 
 def all_entry_points(): #get from session cache
     """ Get all SMC API entry points """
-    return web_api.session.get_all_entry_points()
+    return session.cache.get_all_entry_points()
 
 def element_entry_point(name):
     """ Get specified element from cache based on the entry point verb from SMC api

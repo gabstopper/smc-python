@@ -2,16 +2,12 @@ from smc.elements.element import SMCElement, Blacklist, VirtualResource
 from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface, Interface
 import smc.actions.search as search
 import smc.api.common as common_api
+from smc.elements.helpers import find_link_by_name
 from smc.api.web import CreateEngineFailed, LoadEngineFailed
 from smc.elements.system import SystemInfo
 
 def get_element_etag(href):
     return search.element_by_href_as_smcresult(href)
-    
-def find_link_by_name(link_name, linklist):
-    for entry in linklist:
-        if entry.get('rel') == link_name:
-            return entry.get('href')
 
 class Engine(object):
     """
@@ -198,19 +194,17 @@ class Engine(object):
     
     @property
     def internal_gateway(self):
-        """ Engine level VPN gateway reference, lazy loaded
+        """ Engine level VPN gateway reference
     
         :method: GET
         :return: dict list of internal gateway references
         """
-        if not hasattr(self, '_internal_gateway'):
-            result = search.element_by_href_as_json(
-                        find_link_by_name('internal_gateway', self.link))
-            for gw in result:
-                igw = InternalGateway(
-                            **search.element_by_href_as_json(gw.get('href')))
-            setattr(self, '_internal_gateway', igw)
-        return getattr(self, '_internal_gateway') 
+        result = search.element_by_href_as_json(
+                    find_link_by_name('internal_gateway', self.link))
+        for gw in result:
+            igw = InternalGateway(
+                        **search.element_by_href_as_json(gw.get('href')))
+        return igw
     
     def virtual_resource(self):
         """ Master Engine only 
@@ -745,7 +739,8 @@ class Layer3Firewall(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, reason: %s' % result.msg)
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}'.format(result.msg))
 
 class Layer2Firewall(object):
     node_type = 'fwlayer2_node'
@@ -801,7 +796,8 @@ class Layer2Firewall(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, reason: %s' % result.msg)   
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}'.format(result.msg))   
 
 class IPS(object):
     node_type = 'ips_node'
@@ -857,7 +853,8 @@ class IPS(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, reason: %s' % result.msg)
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}'.format(result.msg))
         
 class Layer3VirtualEngine(Node):
     """ 
@@ -938,7 +935,8 @@ class Layer3VirtualEngine(Node):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the virtual engine, reason: %s' % result.msg)
+            raise CreateEngineFailed('Could not create the virtual engine, '
+                                     'reason: {}'.format(result.msg))
             
 class FirewallCluster(Node):
     """ 
@@ -1007,7 +1005,8 @@ class FirewallCluster(Node):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the firewall, reason: %s' % result.msg)
+            raise CreateEngineFailed('Could not create the firewall, '
+                                     'reason: {}'.format(result.msg))
         
 class MasterEngine(object):
     """
@@ -1057,7 +1056,8 @@ class MasterEngine(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, reason: %s' % result.msg)
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}'.format(result.msg))
 
 class AWSLayer3Firewall(object):
     """
@@ -1085,9 +1085,6 @@ class AWSLayer3Firewall(object):
         Create AWS Layer 3 Firewall. This will implement a DHCP
         interface for dynamic connection back to SMC. The initial_contact
         information will be used as user-data to initialize the EC2 instance. 
-        Primary mgmt will be interface 0 on the DHCP interface. The secondary
-        interface is required to act as the interface for "auth requests" when
-        the first interface is designated as dynamic.
         
         :param str name: name of fw in SMC
         :param list interfaces: dict items specifying interfaces to create
@@ -1140,7 +1137,8 @@ class AWSLayer3Firewall(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, reason: %s' % result.msg)
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}'.format(result.msg))
 '''
 def virtual_resource_add(self, name, vfw_id, domain='Shared Domain',
                              show_master_nic=False):
@@ -1155,12 +1153,21 @@ def virtual_resource_add(self, name, vfw_id, domain='Shared Domain',
         :return: SMCResult with href set if success, or msg set if failure
         """
         return SMCElement(href=self.__load_href('virtual_resources'),
-                          json=VirtualResource(name, vfw_id, 
-                                               domain=domain,
-                                               show_master_nic=show_master_nic).as_dict()).create()
+                          json=VirtualResource(
+                                name, vfw_id, 
+                                domain=domain,
+                                show_master_nic=show_master_nic).as_dict()).create()
 '''
                                                        
 class InternalGateway(object):
+    """ 
+    InternalGateway represents the engine side VPN configuration
+    This defines settings such as setting VPN sites on protected
+    networks and generating certificates.
+    
+    :ivar: href: location of this internal gateway 
+    :param kwargs: key/values retrieved from engine settings
+    """
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -1173,8 +1180,7 @@ class InternalGateway(object):
                     find_link_by_name('self', self.link))
         return SMCElement(href=result.href,
                           etag=result.etag,
-                          json=vars(self)).update()
-                          
+                          json=vars(self)).update()                         
     #TODO:
     def vpn_site(self):
         """
@@ -1213,6 +1219,10 @@ class InternalGateway(object):
         """
         return search.element_by_href_as_json(
                 find_link_by_name('generate_certificate', self.link))
-                        
+    
+    @property
+    def href(self):
+        return find_link_by_name('self', self.link)
+                    
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))   
+        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))

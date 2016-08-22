@@ -18,9 +18,11 @@ Example rule creation::
 
     policy = FirewallPolicy('newpolicy').load()
     policy.open()
-    policy.ipv4_rule.create('api1', 'host-test', 'smi', 'any', 'allow')
-    policy.ipv4_rule.create('api2', 'ami', 'home-network', 'any', 'discard')
-    policy.ipv4_rule.create('api3', 'ami', 'any', 'any', 'refuse')
+    policy.ipv4_rule.create(name='myrule', 
+                            sources=mysources,
+                            destinations=mydestinations, 
+                            services=myservices, 
+                            action='permit')
     policy.save()
 
 .. note:: It is not required to call open() if simple operations are being performed. 
@@ -30,18 +32,18 @@ Example rule creation::
 Example rule deletion::
 
     policy = FirewallPolicy('newpolicy').load()
-    policy.ipv4_rule.delete('api3')
+    for rule in policy.fw_ipv4_access_rules:
+        if rule.name == 'myrule':
+            rule.delete()
 """
 
-import re
 from abc import ABCMeta, abstractmethod
 import smc.actions.search as search
 import smc.api.common
-from smc.api.web import SMCException
+from smc.elements.helpers import find_link_by_name
+from smc.api.web import SMCException, LoadPolicyFailed
 from smc.elements.element import SMCElement
-from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule
-
-cleanr = re.compile('<.*?>')
+from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule, Rule
 
 class Policy(object):
     """ 
@@ -59,11 +61,6 @@ class Policy(object):
     
     def __init__(self, name):
         self.name = name #: Name of policy
-        self.policy_type = None #: FirewallPolicy, Layer2Firewall, IPS
-        self.policy_template = None #: Which policy template is used by this policy
-        self.file_filtering_policy = None #: Which file filtering policy is used
-        self.inspection_policy = None #: Which inspection policy is used
-        self.links = []
     
     @abstractmethod    
     def load(self):
@@ -76,14 +73,8 @@ class Policy(object):
         if base_policy:
             policy_cfg = search.element_by_href_as_json(base_policy.get('href'))
             if policy_cfg:
-                self.policy_type = base_policy.get('type')
-                self.file_filtering_policy = \
-                    search.element_by_href_as_json(policy_cfg.get('file_filtering_policy'))
-                self.inspection_policy = \
-                    search.element_by_href_as_json(policy_cfg.get('inspection_policy'))
-                self.policy_template = \
-                    search.element_by_href_as_json(policy_cfg.get('template'))
-                self.links.extend(policy_cfg.get('link'))
+                for k, v in policy_cfg.iteritems():
+                    setattr(self, k, v)
         else:
             raise SMCException("Policy does not exist: %s" % self.name)
         return self            
@@ -125,8 +116,9 @@ class Policy(object):
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
         """
-        element = SMCElement(href=self._load_href('upload'),
-                             params={'filter': device}).create()
+        element = SMCElement(
+                    href=find_link_by_name('upload', self.link),
+                    params={'filter': device}).create()
         if not element.msg:
             return smc.api.common.async_handler(element.json.get('follower'), 
                                                 wait_for_finish=wait_for_finish)
@@ -142,7 +134,8 @@ class Policy(object):
         :method: GET
         :return: SMCResult, href set to location if success, msg attr set if fail
         """
-        return SMCElement(href=self._load_href('open')).create()
+        return SMCElement(
+                href=find_link_by_name('open', self.link)).create()
     
     def save(self):
         """ Save policy that was modified 
@@ -150,7 +143,8 @@ class Policy(object):
         :method: POST
         :return: SMCResult, href set to location if success, msg attr set if fail
         """
-        return SMCElement(href=self._load_href('save')).create()
+        return SMCElement(
+                href=find_link_by_name('save', self.link)).create()
         
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
@@ -158,7 +152,8 @@ class Policy(object):
         :method: POST
         :return: SMCResult, success unless msg attr set
         """
-        return SMCElement(href=self._load_href('force_unlock')).create()
+        return SMCElement(
+                href=find_link_by_name('force_unlock', self.link)).create()
 
     def export(self, wait_for_finish=True, filename='policy_export.zip'):
         """ Export the policy
@@ -169,7 +164,8 @@ class Policy(object):
         :return: None if success and file downloaded indicated. SMCResult with msg attr
                  set upon failure
         """
-        element = SMCElement(href=self._load_href('export')).create()
+        element = SMCElement(
+                    href=find_link_by_name('export', self.link)).create()
         if not element.msg: #no error
             href = next(smc.api.common.async_handler(element.json.get('follower'), 
                                                          display_msg=False))
@@ -180,33 +176,6 @@ class Policy(object):
                 
     def search_rule(self, parameter):
         pass
-    
-    def _load_href(self, rule_type):
-        """ 
-        Used by subclasses to retrieve the entry point for 
-        the rule href's. All links for top level policy are stored
-        in self.links. An example rule_type would be: 
-        fw_ipv4_access_rules, fw_ipv6_access_rules, etc
-        
-        :param rule_type: href for given rule type
-        :return: type of rule href
-        """
-        rule = [entry.get('href') for entry in self.links \
-                if entry.get('rel') == rule_type]      
-        if rule:
-            return rule.pop()
-
-    def __str__(self):
-        return 'Policy Name: {}\nPolicy Type: {}\nPolicy Template: {}\n' \
-               'Inspection Policy: {}\nFile Filtering Policy: {}' \
-               .format(self.name,
-                       self.policy_type,
-                       self.policy_template.get('name'),
-                       self.inspection_policy.get('name'),
-                       self.file_filtering_policy.get('name'))
-
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)
 
 class FirewallPolicy(Policy):
     """ 
@@ -216,15 +185,20 @@ class FirewallPolicy(Policy):
     They also have NAT rules and reference to an Inspection and
     File Filtering Policy.
     
+    Attributes:
+    
+    :ivar template: which policy template is used
+    :ivar file_filtering_policy: mapped file filtering policy
+    :ivar inspection_policy: mapping inspection policy
+    
     :param name: name of firewall policy
     :return: self
     """
+    policy_type = 'fw_policy'
+    
     def __init__(self, name):
         Policy.__init__(self, name)
-        self.ipv4_rule = IPv4Rule() #: Reference to IPv4Rule class
-        self.ipv4_nat_rule = IPv4NATRule() #: Reference to IPv4NATRule class
-        self.ipv6_rule = IPv6Rule() #: Reference to IPv6Rule class
-        self.ipv6_nat_rule = IPv6NATRule() #: Reference to IPv6NATRule class
+        self.name = name
     
     def load(self):
         """ 
@@ -232,17 +206,13 @@ class FirewallPolicy(Policy):
         
             FirewallPolicy('mypolicy').load()
         
-        :return: self
+        :return: FirewallPolicy
         """    
         super(FirewallPolicy, self).load()
-        self.ipv4_rule.href = self._load_href('fw_ipv4_access_rules')
-        self.ipv4_nat_rule.href = self._load_href('fw_ipv4_nat_rules')
-        self.ipv6_rule.href = self._load_href('fw_ipv6_access_rules')
-        self.ipv6_nat_rule.href = self._load_href('fw_ipv6_nat_rules')
         return self
     
     @classmethod
-    def create(cls, name, template_policy):
+    def create(cls, name, template):
         """ 
         Create Firewall Policy. Template policy is required for the
         policy. The template policy parameter should be the href of the
@@ -256,20 +226,68 @@ class FirewallPolicy(Policy):
             smc.search.fw_template_policies(policy=None)
         
         :mathod: POST
-        :param name: name of policy
-        :param template_policy: href of FW template to base policy on
+        :param str name: name of policy
+        :param str template: name of the FW template to base policy on
         :return: SMCResult with href attribute set with location of new policy
         
         To use after successful creation, call::
         
             FirewallPolicy('newpolicy').load()
         """
-        template_href = smc.search.fw_template_policies(policy=template_policy)
+        template_href = search.fw_template_policies(policy=template)
         policy = {'name': name,
                   'template': template_href}
-        policy_href = smc.search.element_entry_point('fw_policy')
+        policy_href = search.element_entry_point('fw_policy')
         
-        return SMCElement(href=policy_href, json=policy).create()
+        result = SMCElement(href=policy_href, json=policy).create()
+        if result.href:
+            return FirewallPolicy(name).load()
+        else:
+            raise LoadPolicyFailed('Failed to load firewall policy: {}'.format(
+                                        result.msg))
+    
+    @property
+    def fw_ipv4_access_rules(self):
+        rule_lst = search.element_by_href_as_json(
+                        find_link_by_name('fw_ipv4_access_rules', self.link))
+        rules=[] 
+        for rule in rule_lst:
+            rules.append(Rule(**rule))
+        return rules
+    
+    @property
+    def fw_ipv4_nat_rules(self):
+        return find_link_by_name('fw_ipv4_nat_rules', self.link)
+        
+    @property
+    def fw_ipv6_access_rules(self):
+        return find_link_by_name('fw_ipv6_access_rules', self.link)
+    
+    @property
+    def fw_ipv6_nat_rules(self):
+        return find_link_by_name('fw_ipv6_nat_rules', self.link)  
+    
+    @property
+    def ipv4_rule(self):
+        """
+        Access to IPv4Rule object for creating a rule. This will pass in
+        the href for the rule location on this policy and create will be
+        called in the rule
+        """
+        return IPv4Rule(
+                href=find_link_by_name('fw_ipv4_access_rules', self.link))
+    
+    @property
+    def ipv4_nat_rule(self):
+        return IPv4NATRule()
+    
+    @property
+    def ipv6_rule(self):
+        return IPv6Rule()
+    
+    @property
+    def ipv6_nat_rule(self):
+        return IPv6NATRule()
     
 class InspectionPolicy(Policy):
     """

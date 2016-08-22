@@ -8,6 +8,7 @@ import os.path
 import requests
 import json
 import logging
+from pip._vendor.html5lib.html5parser import method_decorator_metaclass
 
 logger = logging.getLogger(__name__)
 
@@ -301,5 +302,25 @@ class CreateEngineFailed(SMCException):
 class LoadEngineFailed(SMCException):
     """ Thrown when attempting to load an engine that does not
     exist
+    """
+    pass
+
+class CreatePolicyFailed(SMCException):
+    """
+    Thrown when failures occur when creating specific
+    poliies like Firewall Policy, IPS, VPN, etc.
+    """
+    pass
+
+class LoadPolicyFailed(SMCException):
+    """
+    Failure when trying to load a specific policy type
+    """
+    pass
+
+class CreateElementFailed(SMCException):
+    """
+    Generic exception when there was a failure calling a 
+    create method
     """
     pass

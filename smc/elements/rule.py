@@ -1,16 +1,23 @@
 """
-Module that represents rules within the SMC.
-These classes are linked by composition references from the subclasses of Policy 
-:class:`FirewallPolicy`, :class:`InspectionPolicy`, :class:`FileFilteringPolicy`, etc)
+Rule module that handles rule creation and provides a class factory to dispatch
+the proper class based on the rule type required (IPv4Rule, IPS Rule, Inspection Rule,
+File Filtering Rule, etc)
 
-This is called indirectly from Policy subclass for manipulation of rules for 
-specific engine types. 
+This is not called directly, but is linked to the Policy class and loading the proper
+policy.
 
-For example, modifying rules for a FirewallPolicy::
+Here is an example of how this is referenced and used::
 
-    policy = FirewallPolicy('mypolicy').load()
-    policy.ipv4_rule.create('newrule', ['mysource1', 'mysource2'], ['mydest1', 'mydest2'], ['myservice'], action)
-    
+    policy = FirewallPolicy('smcpython').load()
+    policy.ipv4_rule.create(name='myrule', 
+                            sources=mysources,
+                            destinations=mydestinations, 
+                            services=myservices, 
+                            action='permit')
+                            
+For rule creation, refer to each 'create' method based on the rule type to understand the
+parameters required. However, each class will have a property to refer to a rule class 
+object for creation.
 """
 import smc.api.common
 import smc.actions.search as search
@@ -18,63 +25,49 @@ from smc.elements.element import SMCElement
 
 class Rule(object):
     """
-    Represents the base class for all rules, ipv4, ipv6, ethernet, inspection, 
-    and file filtering.
-    Functions provided should be called from inheriting class to perform the create, 
-    modify or delete operations.
+    Rule class encapsulating a generic container for any rule type
+    along with specific actions such as creating, modifying or
+    deleting.
+    This base class will hold a limited number of attributes after
+    initialization.
     
-    All attributes are used to calculate the rule with exception of rules_href which 
-    will hold the href to where the rule type exists. For operations like create/delete, 
-    this is required to be an SMCElement.href attribute
-    """ 
-    def __init__(self):
-        self.rank = 0 
-        self.is_disabled = False #: Is rule disabled (boolean)
-        self.href = None #: Base href for rule list location, can be called to retrieve all rules
-        self.rules = [] #: Placeholder container for rule list, call self.href to fill list
-        self.any = {'any': True} 
-        self.none = {'none': True}
-               
-    @classmethod    
-    def load(cls, rule):
-        return "reserved for loading rule to modify"
-        
-    def authentication_options(self):
+    Attributes:
+    
+    :ivar: href: href location for the actual rule
+    :ivar: name: name of rule
+    :ivar: type: type of rule
+    
+    To get the actual rule context, use :py:func:`describe_rule` which
+    will retrieve the rule using the rule href and return the correct
+    object type.
+    
+    For example, load a firewall policy and describe all rules::
+    
+        policy = FirewallPolicy('newpolicy').load()
+        for rule in policy.fw_ipv4_access_rules:
+            print rule #Is a Rule object
+            print rule.describe_rule() #Is an IPv4Rule object
+    """
+    def __init__(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def describe_rule(self):
+        if self.type == IPv4Rule.typeof:
+            return IPv4Rule(
+                    **search.element_by_href_as_json(self.href))
+    
+    def modify_attribute(self, **kwargs):
         pass
     
-    def options(self):
-        pass
+    def delete(self):
+        return smc.api.common.delete(self.href)
     
-    def rank(self):
-        pass
-    
-    def create(self, element):
-        """ Create element convenience method """
-        return smc.api.common.create(element)
-    
-    def modify(self):
-        pass
-       
-    def delete(self, name):
-        """ Delete rule by name. This requires that the rule name matches.
-        
-        :param name: Name of rule to delete
-        """
-        for rule in search.element_by_href_as_json(self.href):
-            if rule.get('name') == name:
-                smc.api.common.delete(name)
-                  
-    def fetch_element(self, name):
-        """ Fetch element by name """
-        src_href = smc.search.element_href(name)
-        if src_href:
-            return src_href
-            
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)
-
-
-class IPv4Rule(Rule):
+        return "%s(%r)" % (self.__class__, 
+                                    'name={}'.format(self.name))
+    
+class IPv4Rule(object):
     """ 
     Represents an IPv4 Rule in SMC Policy
     Each rule type may have different requirements, although some fields are
@@ -82,67 +75,90 @@ class IPv4Rule(Rule):
     when the policy to create or delete is an ipv4 rule.
     
     Use refresh() to re-retrieve a current list of rules, especially if
-    operations need to be performed after adding or removing rules  
+    operations need to be performed after adding or removing rules
+    
+    Attributes:
+    
+    :ivar: name
+    :ivar: is_disabled: True|False
+    :ivar: destinations
+    :ivar: sources
+    :ivar: services
+    :ivar: action  
     """
-    def __init__(self):
-        Rule.__init__(self)
-        self.actions = ['allow', 'continue', 'discard', 'refuse', 'use_vpn'] #: Allowed rule actions
-      
-    def create(self, name, sources, destinations, services, action, 
+    typeof = 'fw_ipv4_access_rule'
+    
+    def __init__(self, **kwargs):
+        self.name = None
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def create(self, name, sources, destinations, services, action='', 
                is_disabled=False):
         """ Create a new rule
         
+        Sources and Destinations can be one of any valid network element types defined
+        in :py:class:smc.elements.element`. The format of these fields will be:
+        
+        source=['http://1.1.1.1:8082/elements/network/myelement',
+                'http://1.1.1.1:8082/elements/host/myhost'], etc
+        
+        Services have a similar syntax, provide a list of the href's for the services:
+        
+        services=['http://1.1.1.1/8082/elements/tcp_service/mytcpservice',
+                  'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
+        
+        You can obtain the href for the network and service elements by using the 
+        :py:class:`smc.actions.search` functions such as::
+        
+            smc.actions.search.element_href(name)
+            smc.actions.search.element_href_use_filter(name, 'tcp_service')
+            smc.actions.search.element_href_by_batch(['HTTP', 'HTTPS'], 'tcp_service')
+            
+        Sources / Destinations and Services can also take the string value 'any' to
+        allow all. For example::
+        
+            sources=['any']
+            
         :param name: name of rule
-        :param source: source/s for rule, names will be looked up to find href
-        :type source: list
-        :param destination: destinations, names will be looked up to find href
-        :type destination: list
-        :param service: service/s, names will be looked up to find href
-        :type service: list
-        :param action: actions, see self.actions
-        :return: SMCResult, if success, href attr will include new href to rule
+        :param list source: source/s for rule, names will be looked up to find href
+        :param list destination: destinations, names will be looked up to find href
+        :param list service: service/s, names will be looked up to find href
+        :param str action: allow|continue|discard|refuse|use vpn
+        :return: SMCResult
         """
         rule_values = { 
                 'name': name,
-                'action': { "action": '', "connection_tracking_options":{}},
+                'action': {},
                 'sources': {'src': []},
                 'destinations': {'dst': []},
                 'services': {'service': []},
                 'is_disabled': is_disabled }
         
-        rule_values['action']['action'] = action if action in self.actions else '' #continue action
+        rule_values.update(action={'action': action,
+                                   'connection_tracking_options':{}})
+
+        if 'any' in sources:
+            rule_values.update(sources={'any': True})
+        else:
+            rule_values.update(sources={'src': sources})
         
-        for source in sources:
-            if source.lower() == 'any':
-                rule_values['sources'] = self.any
-            else:
-                href = self.fetch_element(source)
-                if href:
-                    rule_values['sources']['src'].append(href)
-        
-        for destination in destinations:
-            if destination.lower() == 'any':
-                rule_values['destinations'] = self.any
-            else:
-                href = self.fetch_element(destination)
-                if href:
-                    rule_values['destinations']['dst'].append(href)
-        
-        for service in services:
-            if service.lower() == 'any':
-                rule_values['services'] = self.any
-            else:
-                href = self.fetch_element(service)
-                if href:
-                    rule_values['services']['service'].append(href)
-                    
-        element = SMCElement(json=rule_values, 
-                             href=self.href)
-       
-        return super(IPv4Rule, self).create(element)
-    
+        if 'any' in destinations:
+            rule_values.update(destinations={'any': True})
+        else:
+            rule_values.update(destinations={'dst': destinations})
+            
+        if 'any' in services:
+            rule_values.update(services={'any': True})
+        else:
+            rule_values.update(services={'service': services})
+                
+        return SMCElement(href=self.href,
+                          json=rule_values).create()
+                          
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)
+        return "%s(%r)" % (self.__class__, 
+                                'name={}'.format(self.name))
         
         
 class IPv4NATRule(Rule):

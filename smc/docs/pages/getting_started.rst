@@ -466,31 +466,29 @@ Deleting interfaces
 Deleting interfaces is done at the engine level. In order to delete an interface, you must first call
 load() on the engine to get the context of the engine.
 
-Once you have loaded the engine, you can display all available interfaces by calling 
-:py:func:`smc.elements.engine.Engine.physical_interface()` and
-then deleting by calling :py:func:`smc.elements.engine.Engine.physical_interface_del`.
+Once you have loaded the engine, you can display all available interfaces by calling using the 
+engine level property interface:
+:py:func:`smc.elements.engine.Engine.interface` to view all interfaces for the engine.
 
 The name of the interface is the name the NGFW gives the interface based on interface index. For example, 
 physical interface 1 would be "Interface 1" and so on.
 
-Deleting a layer 3 physical interface:
+To view all assigned interfaces to the engine:
 
 .. code-block:: python
 
-   engine = Node('myfirewall').load()
-   print engine.physical_interface()
-   result = engine.physical_interface_del('1')
-   if not result.msg:
-     print "Success!"
-
-Deleting an inline pair interface:
+   engine = Engine('engine').load()
+   for interface in engine.interface:
+     print interface.name, interface.type
+     
+Deleting an assigned layer 3 physical interface:
 
 .. code-block:: python
 
-   engine = Node('myfirewall').load()
-   result = engine.physical_interface_del('1-2')
-   if not result.msg:
-     print "Success!"
+   engine = Engine('myfirewall').load()
+   for interface in engine.interface:
+     if interface.name = 'Interface 2':
+       interface.delete()
 
 To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation
 
@@ -508,11 +506,11 @@ Example of changing the IP address of an existing single node interface (for lay
 .. code-block:: python
 
    engine = Node('myfirewall').load()
-   physical = PhysicalInterface(0, engine.physical_interface_get('0'))
-   physical.modify_interface('single_node_interface',
-                              address='110.110.110.1', network_value='110.110.110.0/24')
-   engine.update_physical_interface(physical) 
-   
+   for interface in engine.interface:
+     if interface.name == 'Interface 2':
+       my_interface = interface.describe_interface()
+       my_interface.modify_attribute({zone_ref:'My New Zone'})
+       
 .. note:: Key/value pairs can be viewed by retrieving the raw interface data using
 	      smc.elements.engine.Engine.physical_interface_get(interface_id) function.
 
@@ -604,9 +602,91 @@ For all available commands for node, see :py:class:`smc.elements.engines.Node`
 Policies
 --------
 
-Adding Rules
-++++++++++++
+To create a new policy:
 
+.. code-block:: python
+
+   FirewallPolicy.create('newpolicy', 'layer3_fw_template')
+   
+To load an existing policy type:
+
+.. code-block:: python
+
+   FirewallPolicy('existing_policy_by_name').load()
+        
+Example rule creation::
+
+.. code-block:: python
+
+   policy = FirewallPolicy('newpolicy').load()
+   policy.open()
+   policy.ipv4_rule.create(name='myrule', 
+                           sources=mysources,
+                           destinations=mydestinations, 
+                           services=myservices, 
+                           action='permit')
+   policy.save()
+
+See :py:mod:`smc.examples.firewall_policy` for a full example 
+
+VPN Policy
+----------
+
+It is possible to create a VPN policy for SMC managed devices or for creating a 
+VPN to a non-SMC managed external gateway.
+
+An ExternalGateway defines a host that is not a managed VPN peer endpoint.
+
+A full setup of a VPN policy would look like:
+
+.. code-block:: python
+
+   external_gateway = ExternalGateway.create('myextgw')
+    
+ 
+An external endpoint is defined within the external gateway and specifies the
+IP address settings and other VPN specific settings for this endpoint
+After creating, add to the external gateway
+
+.. code-block:: python
+
+   external_endpoint = ExternalEndpoint.create(name='myendpoint', 
+                                                address='2.2.2.2')
+   external_gateway.add_external_endpoint(external_endpoint)
+    
+Lastly, 'sites' need to be configured that identify the network/s on the
+other end of the VPN. You can either use pre-existing network elements, or create
+new ones as in the example below.
+Then add this site to the external gateway
+
+.. code-block:: python
+
+   network = Network('remote-network', '1.1.1.0/24').create().href
+    
+   external_gateway.add_site('remote-site', [network])
+
+Retrieve the internal gateway for SMC managed engine by loading the
+engine configuration. The internal gateway reference is located as
+engine.internal_gateway.href
+
+.. code-block:: python
+
+   engine = Engine('aws-02').load()
+
+Create the VPN Policy
+    
+.. code-block:: python
+
+   vpn = VPNPolicy.create(name='myVPN', nat=True)
+   print vpn.name, vpn.vpn_profile
+    
+   vpn.open()
+   vpn.add_central_gateway(engine.internal_gateway.href)
+   vpn.add_satellite_gateway(external_gateway.href)
+   vpn.save()
+   vpn.close()
+
+See :py:mod:`smc.examples.vpn_to_external` for a full example 
 
 Creating Administrators
 -----------------------
