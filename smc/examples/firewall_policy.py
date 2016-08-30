@@ -6,8 +6,12 @@ a rule by name.
 '''
 
 from smc.elements.policy import FirewallPolicy
+from smc.elements.collections import describe_tcp_services, describe_hosts
 from smc.api.session import session
-import smc.actions.search as search
+
+import logging
+logging.getLogger()
+logging.basicConfig(level=logging.INFO)
 
 if __name__ == '__main__':
     
@@ -16,16 +20,17 @@ if __name__ == '__main__':
     """ 
     Create a new Firewall Policy using the Firewall Inspection Template
     """
-    policy = FirewallPolicy.create(name='smcpython',
-                                   template='Firewall Inspection Template') 
+    #policy = FirewallPolicy.create(name='smcpython',
+    #                               template='Firewall Inspection Template') 
     
     """
     Load an existing policy
     """                            
     policy = FirewallPolicy('smcpython').load() 
+    print "Loaded firewall policy successfully..."
     
     """
-    View non-detailed version of each configured rule
+    View a metadata version of each configured rule
     """
     for rule in policy.fw_ipv4_access_rules:
             print rule
@@ -39,16 +44,12 @@ if __name__ == '__main__':
     
     """
     Open the policy for editing, create a rule, and save the policy
-    """   
-    myservices = [v
-                  for item in search.element_href_by_batch(['HTTP', 'HTTPS'], 'tcp_service')
-                  for k, v in item.iteritems()
-                  if v]
+    """
+    myservices = describe_tcp_services(name=['HTTP', 'HTTPS'])
+    myservices = [service.href for service in myservices]
     
-    mysources = [v
-                 for item in search.element_href_by_batch(['foonetwork', 'amazon-linux'])
-                 for k, v in item.iteritems()
-                 if v]
+    mysources = describe_hosts(name=['amazon-linux'])
+    mysources = [host.href for host in mysources]
     
     mydestinations = ['any']
     
@@ -61,7 +62,7 @@ if __name__ == '__main__':
     policy.save()
     
     """
-    Delete a rule by name
+    Delete a rule by name (comment this out to verify rule creation)
     """
     for rule in policy.fw_ipv4_access_rules:
         if rule.name == 'myrule':

@@ -10,10 +10,11 @@ See SMCElement for more details:
 :class:`smc.elements.element.SMCElement` for more details.
 
 """
+from pprint import pformat
 import smc.actions.search
 import smc.api.common
-from smc.api.web import SMCOperationFailure
-
+from smc.api.exceptions import SMCOperationFailure
+    
 class SMCElement(object):
     """ 
     SMCElement represents the data structure for sending data to
@@ -21,14 +22,16 @@ class SMCElement(object):
     create, update or delete, this is the required object type.
     
     Common parameters that are needed are stored in this base class
+    and are stored as instance attributes:
     
-    :param json: json data to be sent to SMC
-    :param etag: returned during http get and used for modifying elements 
-    :param name: name of object, used for str printing from api.common
-    :param href: REQUIRED location of the resource
-    :param params: If additional URI parameters are needed for href
+    :ivar json: json data to be sent to SMC
+    :ivar etag: required for modify
+    :ivar name: name of object
+    :ivar href: (required) location of the resource
+    :ivar params: If additional URI parameters are needed for href
     """
     def __init__(self, **kwargs):
+        self.name = None
         self.json = None
         self.etag = None
         self.href = None
@@ -42,33 +45,53 @@ class SMCElement(object):
     
     def update(self):
         return smc.api.common.update(self)
-
-    @classmethod
-    def modify(cls, name, **kwargs):
-        obj = cls(name, kwargs)
-        obj.href = obj.href.rsplit('/', 1)[-1]
-        result = smc.actions.search.element_as_smcresult_use_filter(\
-                                    obj.json.get('name'), obj.href)
-        if result:
-            obj.json = result.json
-            obj.etag = result.etag
-            obj.href = result.href
-        else:
-            obj.json = None
-        return obj
+    
+    def describe(self):
+        """
+        Return a pprint representation of the SMCElement. Useful for
+        reviewing the raw json to identify key/values that then can be 
+        used for modify_attribute.
+        
+        :return: raw json of SMCElement
+        """
+        return pformat(smc.actions.search.element_by_href_as_json(self.href))
+            
+    def modify_attribute(self, **kwargs):
+        """
+        Modify attribute/s of an existing element. The proper way to
+        get the context of the element is to use the 'describe' functions
+        in :py:class:`smc.elements.collections` class.
+        For example, to change the name and IP of an existing host
+        object::
+        
+        for host in describe_hosts(name=['myhost']):
+            h.modify_attribute(name='kiley', address='1.1.2.2')
+        
+        This method will acquire the full json along with etag and href 
+        to put the element in context. Most element attributes can be
+        modified, with exception of attributes listed as read-only. Common
+        attributes can be found in class level documentation.
+        
+        :param kwargs: key=value pairs to change element attributes
+        :return: SMCResult
+        """
+        result = smc.api.common.fetch_json_by_href(self.href)
+        self.json = result.json
+        self.etag = result.etag
+        for k, v in kwargs.iteritems():
+            self.json.update({k: v})
+        return self.update()
         
     def _fetch_href(self, element_type):
         self.href = smc.actions.search.element_entry_point(element_type)
         
-    def __str__(self):
-        sb = []
-        for key in self.__dict__:
-            sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
-        return ', '.join(sb)
-  
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)  
-
+        try:
+            return "%s(%r)" % (self.__class__, "name={},type={}".format(
+                                    self.name, self.type))
+        except AttributeError:
+            return "%s(%r)" % (self.__class__, "name={}".format(self.name))
+    
 class Host(SMCElement):
     """ Class representing a Host object used in access rules
     
@@ -81,7 +104,9 @@ class Host(SMCElement):
     
         Host('myhost', '1.1.1.1', '1.1.1.2', 'some comment for my host').create()
     """
-    def __init__(self, name, ip, 
+    typeof = 'host'
+    
+    def __init__(self, name, address, 
                  secondary_ip=None, comment=None):
         SMCElement.__init__(self)
         secondary = []
@@ -90,10 +115,10 @@ class Host(SMCElement):
         comment = comment if comment else ''
         self.json = {
                      'name': name,
-                     'address': ip,
+                     'address': address,
                      'secondary': secondary,
                      'comment': comment }
-        self._fetch_href('host') 
+        self._fetch_href(Host.typeof) 
 
 class Group(SMCElement):
     """ Class representing a Group object used in access rules
@@ -111,6 +136,8 @@ class Group(SMCElement):
     
         Group('mygroup', ['member1','member2']).create()
     """
+    typeof = 'group'
+    
     def __init__(self, name, members=None, comment=None):
         SMCElement.__init__(self)
         member_lst = []
@@ -135,6 +162,8 @@ class AddressRange(SMCElement):
     
         IpRange('myrange', '1.1.1.1-1.1.1.5').create()
     """
+    typeof = 'address_range'
+    
     def __init__(self, name, iprange, comment=None):
         SMCElement.__init__(self)        
         comment = comment if comment else ''
@@ -157,6 +186,8 @@ class Router(SMCElement):
     
         Router('myrouter', '1.2.3.4', comment='my router comment').create()
     """
+    typeof = 'router'
+    
     def __init__(self, name, address, 
                  secondary_ip=None, comment=None):
         SMCElement.__init__(self)
@@ -183,6 +214,8 @@ class Network(SMCElement):
         
     .. note:: ip4_network must be in CIDR format
     """
+    typeof = 'network'
+    
     def __init__(self, name, ip4_network, comment=None):
         SMCElement.__init__(self)        
         comment = comment if comment else ''
@@ -203,6 +236,8 @@ class DomainName(SMCElement):
     
         DomainName('mydomain.net').create()
     """
+    typeof = 'domain_name'
+    
     def __init__(self, name, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -227,6 +262,8 @@ class TCPService(SMCElement):
     
         TCPService('tcpservice', 5000, comment='my service').create()
     """
+    typeof = 'tcp_service'
+    
     def __init__(self, name, min_dst_port, max_dst_port=None,
                  comment=None):
         SMCElement.__init__(self)
@@ -255,6 +292,8 @@ class UDPService(SMCElement):
     
         UDPService('udpservice', 5000, 5005).create()
     """
+    typeof = 'udp_service'
+    
     def __init__(self, name, min_dst_port, max_dst_port=None,
                  comment=None):
         SMCElement.__init__(self)
@@ -281,6 +320,8 @@ class IPService(SMCElement):
     
         IPService('ipservice', 93).create()
     """
+    typeof = 'ip_service'
+    
     def __init__(self, name, protocol_number, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -296,6 +337,8 @@ class EthernetService(SMCElement): #TODO: Error 500 Database problem
     Ethertype should be the ethernet2 ethertype code in decimal 
     (hex to decimal) format 
     """
+    typeof = 'ethernet_service'
+    
     def __init__(self, name, frame_type='eth2', ethertype=None, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -310,6 +353,8 @@ class Protocol(SMCElement):
     """ Represents a protocol module in SMC 
     Add is not possible 
     """
+    typeof = 'protocol'
+    
     def __init__(self):
         SMCElement.__init__(self)
         pass
@@ -330,6 +375,8 @@ class ICMPService(SMCElement):
     
         ICMPService('api-icmp', 3, 7).create()
     """
+    typeof = 'icmp_service'
+    
     def __init__(self, name, icmp_type, icmp_code=None, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -354,6 +401,8 @@ class ICMPIPv6Service(SMCElement):
     
         ICMPIPv6Service('api-Neighbor Advertisement Message', 139).create()
     """
+    typeof = 'icmp_ipv6_service'
+    
     def __init__(self, name, icmp_type, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -379,6 +428,8 @@ class ServiceGroup(SMCElement):
         udp1 = UDPService('api-udp1', 5001).create()
         ServiceGroup('servicegroup', element=[tcp1.href, udp1.href]).create()
     """
+    typeof = 'service_group'
+    
     def __init__(self, name, element=None, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -403,7 +454,9 @@ class TCPServiceGroup(SMCElement):
         tcp1 = TCPService('api-tcp1', 5000).create()
         tcp2 = TCPService('api-tcp2', 5001).create()
         ServiceGroup('servicegroup', element=[tcp1.href, tcp2.href]).create()
-    """    
+    """ 
+    typeof = 'tcp_service_group'
+       
     def __init__(self, name, element=None, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -430,6 +483,8 @@ class UDPServiceGroup(SMCElement):
         udp2 = UDPService('udp-svc2', 5001).create()
         UDPServiceGroup('udpsvcgroup', element=[udp1.href, udp2.href]).create()
     """
+    typeof = 'udp_service_group'
+    
     def __init__(self, name, element=None, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -450,6 +505,8 @@ class IPServiceGroup(SMCElement):
     :param element: IP services or IP service groups by ref
     :type element: list
     """
+    typeof = 'ip_service_group'
+    
     def __init__(self, name, element=None, comment=None):
         SMCElement.__init__(self)
         comment = comment if comment else ''
@@ -472,6 +529,8 @@ class Zone(SMCElement):
         
         Zone('myzone').create()
     """
+    typeof = 'interface_zone'
+    
     def __init__(self, zone):
         SMCElement.__init__(self)
         self.json = {'name': zone}
@@ -489,6 +548,8 @@ class LogicalInterface(SMCElement):
     
         LogicalInterface('mylogical_interface').create()    
     """
+    typeof = 'logical_interface'
+    
     def __init__(self, name, comment=None):
         SMCElement.__init__(self)        
         comment = comment if comment else ''
@@ -612,23 +673,6 @@ class Blacklist(SMCElement):
                      'end_point2': {'name': '', 'address_mode': 'address',
                                     'ip_network': dst}
                      }
-
-class VirtualResource(object):
-    def __init__(self, name, vfw_id, domain='Shared',
-                 show_master_nic=False,
-                 connection_limit=0):
-        self.allocated_domain_ref = domain
-        self.name = name
-        self.connection_limit = connection_limit
-        self.show_master_nic = show_master_nic
-        self.vfw_id = vfw_id
-        self.resolve_domain()
-        
-    def resolve_domain(self):
-        self.allocated_domain_ref = smc.actions.search.element_href_use_filter(
-                                        self.allocated_domain_ref, 'admin_domain')   
-    def as_dict(self):
-        return self.__dict__
 
 def zone_helper(zone):
     zone_ref = smc.actions.search.element_href_use_filter(zone, 'interface_zone')

@@ -8,7 +8,7 @@ more common interface to the responses received
 import re
 import logging
 from smc.api.session import session
-from smc.api.web import SMCOperationFailure, SMCConnectionError
+from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 import smc.actions.search
 
 clean_html = re.compile(r'<.*?>')
@@ -200,7 +200,6 @@ def fetch_json_by_name(name):
         finally:
             if connect_err:
                 raise
-            logger.debug(result)
             return result
     
 def fetch_json_by_href(href):

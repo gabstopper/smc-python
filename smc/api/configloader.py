@@ -5,7 +5,7 @@ Created on Aug 14, 2016
 '''
 import os
 from ConfigParser import SafeConfigParser, NoOptionError, NoSectionError
-from smc.api.web import ConfigLoadError
+from smc.api.exceptions import ConfigLoadError
 
 def load_from_file(alt_filepath=None):
     """ Attempt to read the SMC configuration from a 

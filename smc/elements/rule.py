@@ -25,7 +25,7 @@ from smc.elements.element import SMCElement
 
 class Rule(object):
     """
-    Rule class encapsulating a generic container for any rule type
+    Rule class providing a generic container for any rule type
     along with specific actions such as creating, modifying or
     deleting.
     This base class will hold a limited number of attributes after
@@ -33,11 +33,11 @@ class Rule(object):
     
     Attributes:
     
-    :ivar: href: href location for the actual rule
-    :ivar: name: name of rule
-    :ivar: type: type of rule
+    :ivar href: href location for the rule
+    :ivar name: name of rule
+    :ivar type: type of rule
     
-    To get the actual rule context, use :py:func:`describe_rule` which
+    To get the actual rule content, use :py:func:`describe_rule` which
     will retrieve the rule using the rule href and return the correct
     object type.
     
@@ -66,7 +66,7 @@ class Rule(object):
     def __repr__(self):
         return "%s(%r)" % (self.__class__, 
                                     'name={}'.format(self.name))
-    
+  
 class IPv4Rule(object):
     """ 
     Represents an IPv4 Rule in SMC Policy
@@ -79,12 +79,12 @@ class IPv4Rule(object):
     
     Attributes:
     
-    :ivar: name
-    :ivar: is_disabled: True|False
-    :ivar: destinations
-    :ivar: sources
-    :ivar: services
-    :ivar: action  
+    :ivar name
+    :ivar is_disabled: True|False
+    :ivar destinations
+    :ivar sources
+    :ivar services
+    :ivar action  
     """
     typeof = 'fw_ipv4_access_rule'
     
@@ -98,7 +98,7 @@ class IPv4Rule(object):
         """ Create a new rule
         
         Sources and Destinations can be one of any valid network element types defined
-        in :py:class:smc.elements.element`. The format of these fields will be:
+        in :py:class:smc.elements.element`. 
         
         source=['http://1.1.1.1:8082/elements/network/myelement',
                 'http://1.1.1.1:8082/elements/host/myhost'], etc
@@ -109,11 +109,10 @@ class IPv4Rule(object):
                   'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
         
         You can obtain the href for the network and service elements by using the 
-        :py:class:`smc.actions.search` functions such as::
+        :py:mod:`smc.elements.collections` describe functions such as::
         
-            smc.actions.search.element_href(name)
-            smc.actions.search.element_href_use_filter(name, 'tcp_service')
-            smc.actions.search.element_href_by_batch(['HTTP', 'HTTPS'], 'tcp_service')
+            describe_hosts(name=['host1', 'host2'], exact_match=False)
+            describe_tcp_services(name=['HTTP', 'HTTPS', 'SSH'])
             
         Sources / Destinations and Services can also take the string value 'any' to
         allow all. For example::
@@ -161,15 +160,15 @@ class IPv4Rule(object):
                                 'name={}'.format(self.name))
         
         
-class IPv4NATRule(Rule):
+class IPv4NATRule(object):
     def __init__(self):
-        Rule.__init__(self)
+        pass
         
-class IPv6Rule(Rule):
+class IPv6Rule(object):
     def __init__(self):
-        Rule.__init__(self)
-        
-class IPv6NATRule(Rule):
+        pass
+    
+class IPv6NATRule(object):
     def __init__(self):
-        Rule.__init__(self)
-        
+        pass
+    

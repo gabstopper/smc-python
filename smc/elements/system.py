@@ -1,66 +1,67 @@
 import smc.actions.search as search
+from smc.elements.helpers import find_link_by_name
 from smc.elements.element import SMCElement, Blacklist
 import smc.api.common as common_api
-from smc.api.web import SMCException
+from smc.api.exceptions import SMCException
 
 class System(object):
+    """
+    System level operations such as SMC version, time, update packages, 
+    and updating engines
+    
+    :ivar smc_version: version of SMC
+    :ivar smc_time: SMC time
+    :ivar last_activated_package: latest update package installed
+    :ivar empty_trash_bin: empty trash on SMC
+    """
     def __init__(self):
-        self.last_activated_package_id = None
-        self.version = None
-        self.system_links = []
+        self.link = []
     
     def load(self):
-        system = search.element_by_href_as_json(search.element_entry_point('system'))
+        system = search.element_by_href_as_json(
+                                    search.element_entry_point('system'))
         if system:
-            self.system_links.extend(system.get('link'))
-            self.version = system.get('version')
-            self.last_activated_package_id = system.get('last_activated_package_id')
+            self.link.extend(system.get('link'))
             return self
         else:
             raise SMCException("Exception retrieving system settings")
-        
+    
+    @property    
     def smc_version(self):
         """ Return the SMC version """
-        return search.element_by_href_as_json(self._load_href('smc_version'))
+        return search.element_by_href_as_json(
+                    find_link_by_name('smc_version', self.link)).get('value')
     
+    @property
     def smc_time(self):
         """ Return the SMC time """
-        return search.element_by_href_as_json(self._load_href('smc_time'))
+        return search.element_by_href_as_json(
+                    find_link_by_name('smc_time', self.link)).get('value')
     
+    @property
     def last_activated_package(self):
         """ Return the last activated package by id """
-        return search.element_by_href_as_json(self._load_href('last_activated_package')).get('value')
+        return search.element_by_href_as_json(
+                find_link_by_name('last_activated_package', self.link)).get('value')
     
+    @property    
+    def empty_trash_bin(self):
+        """ Empty system level trash bin """
+        return common_api.delete(find_link_by_name('empty_trash_bin', self.link))
+    
+    #@property
     def update_package(self):
         """ Show all update packages on SMC 
         :return: dict of href,name,type
         """
-        return search.element_by_href_as_json(self._load_href('update_package'))
+        updates=[]
+        for update in search.element_by_href_as_json(
+                            find_link_by_name('update_package', self.link)):
+            updates.append(UpdatePackage(**update))
+        return updates
     
-    def update_package_download(self, package_id=None):
-        """ 
-        POST to download after grabbing the package by id
-        :method: POST
-        """
-        available = {} #{ package_id: [link_hrefs] }
-        for package in self.update_package():
-            state = search.element_by_href_as_json(package.get('href'))
-            if state.get('state') == 'available':
-                available[state.get('package_id')] = state.get('link')             
-        newest = max(available.keys())
-        if newest:
-            for download in available.get(newest):
-                if download.get('rel') == 'download':
-                    print download.get('href')
-        else:
-            print "No downloads available"
-        
-    def update_package_activate(self, package_id):
-        """ Call activate on package after getting """
+    def update_package_import(self):
         pass
-            
-    def import_package(self):
-        print "POST import package"
         
     def engine_upgrade(self, engine_version=None):
         """ List all engine upgrade packages available 
@@ -74,31 +75,19 @@ class System(object):
         :param engine_version: Version of engine to retrieve
         :return: dict of settings
         """
-        if not engine_version:
-            return search.element_by_href_as_json(self._load_href('engine_upgrade'))
-        else:
-            return search.element_by_href_as_json(engine_version)
-    
-    def engine_upgrade_download(self, path):
-        """ Download the engine upgrade
-        
-        First call :py:func:`engine_upgrade` to obtain the link path to the 
-        engine upgrade. Call this function with the download POST link.
-        :param path: href path to engine download  
-        :return: SMCResult. Will return follower link but download in the background.
-        """
-        return SMCElement(href=path).create()
+        upgrades=[]
+        for upgrade in search.element_by_href_as_json(
+                            find_link_by_name('engine_upgrade', self.link)):
+            upgrades.append(EngineUpgrade(**upgrade))
+        return upgrades
         
     def uncommitted(self):
         pass
     
     def system_properties(self):
         """ List of all properties applied to the SMC """
-        return search.element_by_href_as_json(self._load_href('system_properties'))
-        
-    def empty_trash_bin(self):
-        """ Empty system level trash bin """
-        return common_api.delete(self._load_href('empty_trash_bin'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('system_properties', self.link))
         
     def clean_invalid_filters(self):
         pass
@@ -113,9 +102,7 @@ class System(object):
         :return: SMCResult, href if success, msg if error
         """
         element = Blacklist(src, dst, duration)
-        from pprint import pprint
-        pprint(element)
-        element.href = self._load_href('blacklist')
+        element.href = find_link_by_name('blacklist', self.link)
         return element.create()
         
     def licenses(self):
@@ -125,10 +112,12 @@ class System(object):
         
         :return: list of dictionary items specific to all engine licenses
         """
-        return search.element_by_href_as_json(self._load_href('licenses'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('licenses', self.link))
         
     def license_fetch(self):
-        return search.element_by_href_as_json(self._load_href('license_fetch'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('license_fetch', self.link))
         
     def license_install(self):
         print "PUT license install"
@@ -140,11 +129,13 @@ class System(object):
         
         :return: dictionary of key/values
         """
-        return search.element_by_href_as_json(self._load_href('license_details'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('license_details', self.link))
         
     def license_check_for_new(self):
         """ Check for new SMC license """
-        return search.element_by_href_as_json(self._load_href('license_check_for_new'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('license_check_for_new', self.link))
         
     def delete_license(self):
         print "PUT delete license"
@@ -153,11 +144,13 @@ class System(object):
         """ Return list of dictionary mappings for master engines and virtual engines 
         :return: list of dict items related to master engines and virtual engine mappings
         """
-        return search.element_by_href_as_json(self._load_href('visible_virtual_engine_mapping'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('visible_virtual_engine_mapping', self.link))
     
     #TODO: doesnt return anything    
     def references_by_element(self):
-        return search.element_by_href_as_json(self._load_href('references_by_element'))
+        return search.element_by_href_as_json(
+                        find_link_by_name('references_by_element', self.link))
         
     def export_elements(self, type_of=None, filename='export_elements.zip'):
         """
@@ -173,7 +166,7 @@ class System(object):
         """
         params = {'recursive': True,
                   'type': type_of}
-        element = SMCElement(href=self._load_href('export_elements'),
+        element = SMCElement(href=find_link_by_name('export_elements', self.link),
                              params=params).create()
         if not element.msg:
             href = next(common_api.async_handler(element.json.get('follower'), 
@@ -185,56 +178,129 @@ class System(object):
         
     def import_elements(self):
         print "POST import elements"
+
+
+class EngineUpgrade(object):
+    """
+    Engine Upgrade package management
     
-    def _load_href(self, action):
-        href = [entry.get('href') for entry in self.system_links \
-                if entry.get('rel') == action]      
-        if href:
-            return href.pop()
+    For example, to check engine upgrades and find a specific
+    one, then download for installation::
+    
+        for upgrade in system.engine_upgrade():
+            print "Available upgrade: {}".format(upgrade)
+            if upgrade.name == 
+                'Security Engine upgrade 6.0.1 build 16019 for x86-64':
+            for msg in upgrade.download():
+                print msg
+    """            
+    def __init__(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+            
+    def download(self, wait_for_finish=True):
+        """
+        Download Engine Upgrade
         
-class SystemInfo(System):
-    def __init__(self):
-        System.__init__(self)
-        super(SystemInfo, self).load()
+        :method: POST
+        :param boolean wait_for_finish: wait for download to complete
+        :return: Generator messages or final href of follower resource
+        """ 
+        pkg = self.package_info()
+        download_link = find_link_by_name('download', pkg.get('link'))
+        if download_link:
+            result = SMCElement(
+                    href=download_link).create()
+            return common_api.async_handler(result.json.get('follower'), 
+                                        wait_for_finish)
+        else:
+            return ['Package cannot be downloaded, package state: {}'.format(\
+                                                                    self.state)]
     
-    def log_servers(self):
-        return search.log_servers()
+    def package_info(self):
+        return search.element_by_href_as_json(self.href)
     
-    def first_log_server(self):
-        return search.get_first_log_server()
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, "name={},type={}".format(
+                                                    self.name, self.type))        
+
+
+class UpdatePackage(object):
+    """
+    Container for managing update packages on SMC
     
-    def engines(self):
-        engines = []
-        for func in ['single_fw', 'fw_cluster', 'single_layer2', 
-                     'layer2_cluster', 'single_ips', 'ips_cluster',
-                     'master_engine', 'virtual_fw', 'virtual_ips']:
-            result = getattr(self, func)
-            engines.extend(result())
-        return engines 
     
-    def single_fw(self):
-        return search.all_elements_by_type('single_fw')
+    Example of checking for new Update Packages, picking a specific
+    package, and waiting for activation::
     
-    def fw_cluster(self):
-        return search.all_elements_by_type('fw_cluster')
+    Download and activate a package::
         
-    def single_layer2(self):
-        return search.all_elements_by_type('single_layer2')
+        system = smc.elements.system.System().load()
+        print system.last_activated_package
+        
+        for package in system.update_package():
+        if package.name == 'Update Package 788':
+            pprint(package.package_info())
+            for msg in package.download():
+                print msg
+            package.activate()
+                        
+    :ivar state: state of the package                 
+    """
+    def __init__(self, **kwargs):
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+            
+    def download(self, wait_for_finish=True):
+        """ 
+        Download the available package
+        
+        :method: POST
+        :param boolean wait_for_finish: whether to wait for completion
+        :return: Generator messages or final href of follower resource
+        """
+        pkg = self.package_info()
+        download_link = find_link_by_name('download', pkg.get('link'))
+        if download_link:
+            result = SMCElement(
+                    href=download_link).create()
+            return common_api.async_handler(result.json.get('follower'), 
+                                            wait_for_finish)
+        else:
+            return ['Download not possible, package state: {}'.format(
+                                                            self.state)]
     
-    def layer2_cluster(self):
-        return search.all_elements_by_type('layer2_cluster')
+    def activate(self, wait_for_finish=True):
+        """
+        Activate this package on the SMC
+        
+        :param boolean wait_for_finish: True|False, whether to wait 
+        for update messages
+        :return: Update messages or final URI for follower link
+        """
+        pkg = self.package_info()
+        activate_link = find_link_by_name('activate', pkg.get('link'))
+        print "Activate link: %s" % activate_link
+        if activate_link:
+            result = SMCElement(href=activate_link).create()
+            return common_api.async_handler(result.json.get('follower'), 
+                                            wait_for_finish)
+        else:
+            return ['Activate not possible, package state is: {}'.format(\
+                                                                self.state)]
     
-    def single_ips(self):
-        return search.all_elements_by_type('single_ips')
+    def package_info(self):
+        """
+        Retrieve json view of package info
+        :return: package info in json format
+        """
+        return search.element_by_href_as_json(self.href)
     
-    def ips_cluster(self):
-        return search.all_elements_by_type('ips_cluster')
-    
-    def master_engine(self):
-        return search.all_elements_by_type('master_engine')
-    
-    def virtual_fw(self):
-        return search.all_elements_by_type('virtual_fw')
-    
-    def virtual_ips(self):
-        return search.all_elements_by_type('virtual_ips')
+    @property
+    def state(self):
+        pkg = self.package_info()
+        return pkg.get('state')
+          
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, "name={},type={}".format(
+                                                    self.name, self.type))

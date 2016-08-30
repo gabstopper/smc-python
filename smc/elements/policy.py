@@ -41,8 +41,10 @@ from abc import ABCMeta, abstractmethod
 import smc.actions.search as search
 import smc.api.common
 from smc.elements.helpers import find_link_by_name
-from smc.api.web import SMCException, LoadPolicyFailed
+from smc.api.exceptions import SMCException, LoadPolicyFailed,\
+    CreatePolicyFailed
 from smc.elements.element import SMCElement
+import smc.elements.collections as collections
 from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule, Rule
 
 class Policy(object):
@@ -54,7 +56,7 @@ class Policy(object):
     Subclasses should implement create(....) individually as each subclass will likely 
     have different input requirements.
     
-    All generic functions that are policy level, such as 'open', 'save', 'force_unlock',
+    All generic methods that are policy level, such as 'open', 'save', 'force_unlock',
     'export', and 'upload' are encapsulated into this base class.
     """
     __metaclass__ = ABCMeta
@@ -87,8 +89,7 @@ class Policy(object):
         For example::
         
             FirewallPolicy.create('mypolicy', ....)
-            FirewallPolicy('mypolicy').load()
-        
+
         Each policy type have slightly different requirements for referencing adjacent
         policies or required policy references.
          
@@ -107,7 +108,7 @@ class Policy(object):
         the status of the task. 
         
         If wait_for_finish is False, the progress
-        href is returned when calling this function. If wait_for_finish is
+        href is returned when calling this method. If wait_for_finish is
         True, this generator function will return the new messages as they
         arrive.
         
@@ -234,20 +235,28 @@ class FirewallPolicy(Policy):
         
             FirewallPolicy('newpolicy').load()
         """
-        template_href = search.fw_template_policies(policy=template)
+        template_href = collections.describe_fw_template_policies(name=[template])
+
+        if not template_href:
+            raise CreatePolicyFailed('Cannot find fw policy template: {}'.format(template))
         policy = {'name': name,
-                  'template': template_href}
+                  'template': template_href[0].href}
         policy_href = search.element_entry_point('fw_policy')
         
         result = SMCElement(href=policy_href, json=policy).create()
         if result.href:
             return FirewallPolicy(name).load()
         else:
-            raise LoadPolicyFailed('Failed to load firewall policy: {}'.format(
+            raise CreatePolicyFailed('Failed to load firewall policy: {}'.format(
                                         result.msg))
     
     @property
     def fw_ipv4_access_rules(self):
+        """
+        Return list of Rule elements
+        
+        :return: list :py:class:`Rule`
+        """
         rule_lst = search.element_by_href_as_json(
                         find_link_by_name('fw_ipv4_access_rules', self.link))
         rules=[] 
@@ -273,6 +282,8 @@ class FirewallPolicy(Policy):
         Access to IPv4Rule object for creating a rule. This will pass in
         the href for the rule location on this policy and create will be
         called in the rule
+        
+        :return: :py:class:`IPv4Rule`
         """
         return IPv4Rule(
                 href=find_link_by_name('fw_ipv4_access_rules', self.link))
@@ -288,6 +299,10 @@ class FirewallPolicy(Policy):
     @property
     def ipv6_nat_rule(self):
         return IPv6NATRule()
+    
+    @property
+    def href(self):
+        return find_link_by_name('self', self.link)
     
 class InspectionPolicy(Policy):
     """

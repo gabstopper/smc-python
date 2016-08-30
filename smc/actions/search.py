@@ -245,15 +245,6 @@ def get_routing_node(name):
             route_link = next(item for item in node.get('link') if item.get('rel') == 'routing')   
             routing_orig = element_by_href_as_json(route_link.get('href'))
             return routing_orig
-     
-def log_servers():
-    """ Retrieve a list of all available log servers 
-    
-    :return: list of log servers, each item is dict(href,name,type), or None
-    """   
-    available_log_servers = all_elements_by_type('log_server')
-    if available_log_servers:
-        return available_log_servers
 
 def get_first_log_server():
     """ Convenience method to return the first log server match in
@@ -266,91 +257,6 @@ def get_first_log_server():
         for found in available_log_servers:
             return found.get('href')
 
-def policy_by_type(policy=None, policy_type=None):
-    policy_types = ['fw_template_policy', 'ips_template_policy', 'layer2_template_policy',
-                    'inspection_template_policy', 'fw_policy', 'ips_policy',
-                    'layer2_policy', 'file_filtering_policy','sub_ipv6_fw_policy',
-                    'sub_ipv4_fw_policy','sub_ipv4_layer2_policy', 'sub_ipv4_ips_policy']
-    if policy_type in policy_types:
-        policies = all_elements_by_type(policy_type)
-        if policies:
-            if policy:
-                return _href_from_name_href_tuple(policies, policy)
-            else:
-                return _iter_list_to_tuple(policies)
-        
-def fw_template_policies(policy=None):
-    """ Convenience method to find fw templates 
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy, 
-                          policy_type='fw_template_policy')
-
-def ips_template_policies(policy=None):
-    """ Convenience method to find ips templates
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='ips_template_policy')
-
-def layer2_template_policies(policy=None):
-    """ Convenience method to find layer2 templates
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='layer2_template_policy')
-
-def fw_policies(policy=None):
-    """ Convenience method to find file fw policies
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='fw_policy')
-    
-def ips_policies(policy=None):
-    """ Convenience method to find ips policies 
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='ips_policy')
-    
-def layer2_policies(policy=None):
-    """ Convenience method to find file layer2 policies
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='layer2_policy')
-
-def inspection_policies(policy=None):
-    """ Convenience method to find inspection policies
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='inspection_template_policy')
-
-def file_filtering_policies(policy=None):
-    """ Convenience method to find file filtering policies
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href) for found file filtering policies 
-    """
-    return policy_by_type(policy=policy,
-                          policy_type='file_filtering_policy')
-            
 def _iter_list_to_tuple(lst):
     """ Return tuple name,href from top level json query:
     {'href'='http://x.x.x.x', 'name'='blah', 'type'='sometype'}
@@ -361,6 +267,7 @@ def _iter_list_to_tuple(lst):
     return [(opt.get('name'),opt.get('href')) for opt in lst]
 
 def _href_from_name_href_tuple(dictentry, element_name):
-    element = [entry.get('href') for entry in dictentry if entry.get('name') == element_name]
+    element = [entry.get('href') for entry in dictentry 
+               if entry.get('name') == element_name]
     if element:
         return element.pop()

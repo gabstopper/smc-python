@@ -123,8 +123,8 @@ class InlineInterface(object):
     """
     name = 'inline_interface'
     
-    def __init__(self, interface_id=None, logical_interface_ref=None, zone_ref=None,
-                 **kwargs):
+    def __init__(self, interface_id=None, logical_interface_ref=None, 
+                 zone_ref=None, **kwargs):
         self.failure_mode = 'normal'
         self.inspect_unspecified_vlans = True
         self.nicid = interface_id
@@ -155,7 +155,8 @@ class CaptureInterface(object):
     the wire without actually blocking it (although blocking is possible).
     
     :param int interfaceid: the interface id
-    :param str logical_ref: logical interface reference, must be unique from inline intfs
+    :param str logical_ref: logical interface reference, must be unique from 
+    inline intfs
     """
     name = 'capture_interface'
     
@@ -182,6 +183,10 @@ class DHCPInterface(object):
     multiple DHCP interfaces on a single engine.
     The interface ID identifies which physical interface DHCP will be associated
     with.
+    
+    .. note:: When the DHCP interface will be the primary mgt interface, you must
+    create a secondary physical interface and set auth_request=True. 
+    
     :param interface_id: interface to use for DHCP
     :param dynamic_index: DHCP index (when using multiple DHCP interfaces 
     """
@@ -561,7 +566,7 @@ class PhysicalInterface(object):
         """
         If callback attribute doesn't exist, this is because an Engine is 
         being created. The callback should be an SMCElement used to 
-        reference the web api for submitting the json. For engines being 
+        reference the http href for submitting the json. For engines being 
         created, the engine json is compiled directly. This should only 
         execute in the try block when the engine is already in context and 
         operator is adding more interfaces by accessing the property 

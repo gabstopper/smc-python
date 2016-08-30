@@ -6,7 +6,8 @@ Created on Aug 14, 2016
 import json
 import requests
 import logging
-from smc.api.web import SMCConnectionError, SMCAPIConnection, ConfigLoadError
+from smc.api.web import SMCAPIConnection
+from smc.api.exceptions import SMCConnectionError, ConfigLoadError
 from smc.api.configloader import load_from_file
 
 logger = logging.getLogger(__name__)

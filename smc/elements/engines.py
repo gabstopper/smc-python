@@ -1,28 +1,33 @@
-from smc.elements.element import SMCElement, Blacklist, VirtualResource
+from pprint import pformat
+from smc.elements.element import SMCElement, Blacklist
 from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface, Interface
 import smc.actions.search as search
 import smc.api.common as common_api
 from smc.elements.helpers import find_link_by_name
-from smc.api.web import CreateEngineFailed, LoadEngineFailed
-from smc.elements.system import SystemInfo
-
-def get_element_etag(href):
-    return search.element_by_href_as_smcresult(href)
+from smc.api.exceptions import CreateEngineFailed, LoadEngineFailed,\
+    UnsupportedEngineFeature
+from smc.elements.vpn import InternalGateway
 
 class Engine(object):
     """
-    Instance level attributes
-    :ivar: name: name of engine
+    Instance attributes:
     
-    Engine has resources::
+        :ivar name: name of engine
+        :ivar dict json: raw engine json
+        :ivar node_type: type of node in engine
     
-        :ivar: list nodes: (Node) nodes associated with this engine
-        :ivar: list interface: (Interface) interfaces for this engine
-        :ivar: internal_gateway: (InternalGateway) engine level VPN settings
-        :ivar: physical_interface: (PhysicalInterface) access to physical interface settings
+    Instance resources:
+    
+        :ivar list nodes: (Node) nodes associated with this engine
+        :ivar list interface: (Interface) interfaces for this engine
+        :ivar internal_gateway: (InternalGateway) engine level VPN settings
+        :ivar virtual_resource: (VirtualResource) for engine, only relavant to Master Engine
+        :ivar physical_interface: (PhysicalInterface) access to physical interface settings
     """
-    def __init__(self, name):
+    def __init__(self, name, **kwargs):
         self.name = name
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
         
     @classmethod
     def create(cls, name, node_type, 
@@ -58,7 +63,7 @@ class Engine(object):
             pass
         
         if not log_server_ref: #Set log server reference, if not explicitly set
-            log_server_ref = SystemInfo().first_log_server()
+            log_server_ref = search.get_first_log_server()
         
         engine = Engine(name)                     
         base_cfg = {'name': name,
@@ -66,31 +71,41 @@ class Engine(object):
                     'domain_server_address': cls.domain_server_address,
                     'log_server_ref': log_server_ref,
                     'physicalInterfaces': physical_interfaces}
-        for k,v in base_cfg.items():
+        for k, v in base_cfg.items():
             setattr(engine, k, v)
         
         return vars(engine)
           
     def load(self):
-        """ When engine is loaded, save the attributes that are
-        needed. Get data like nodes from engine json so multiple
-        queries aren't required. Call this to reload settings, useful
-        if changes are made and new configuration is needed.
-        raw_json: stores the engine raw json data
-        nodes: link to nodes (has-a)
-        link: engine level href links
+        """ When engine is loaded, save the attributes that are needed. 
+        Engine load can be called directly::
+        
+            engine = Engine('myengine').load()
+            
+        or by calling collections.describe_xxx methods::
+        
+            for fw in describe_single_fws():
+                if fw.name == 'myfw':
+                    engine = fw.load()
+                    
+        Call this to reload settings, useful if changes are made and new 
+        configuration references are needed.
         """
-        result = search.element_as_json_with_etag(self.name)
+        try:
+            #Reference from a collections.describe_* function
+            result = search.element_by_href_as_smcresult(self.href)
+        except AttributeError: #Load called directly 
+            result = search.element_as_json_with_etag(self.name)
         if result:
             engine = Engine(self.name)
-            engine.raw_json = result.json
+            engine.json = result.json
             engine.nodes = []
             engine.link = []
-            for node in engine.raw_json.get('nodes'):
+            for node in engine.json.get('nodes'):
                 for node_type, data in node.iteritems():
                     new_node = Node(node_type, data)
                     engine.nodes.append(new_node)
-            engine.link.extend(engine.raw_json.get('link'))
+            engine.link.extend(engine.json.get('link'))
             return engine
         else:
             raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is correct"
@@ -100,14 +115,19 @@ class Engine(object):
         """
         :param attribute: {'key': 'value'}
         """
-        self.raw_json.update(attribute)    
+        self.json.update(attribute)    
+    
+    @property
+    def node_type(self):
+        for node in self.node():
+            return node.get('type')
     
     def node(self):
         """ Return node/s references for this engine. For a cluster this will
         contain multiple entries. 
         
         :method: GET
-        :return: dict list with reference {href, name, type}
+        :return: list dict with metadata {href, name, type}
         """
         return search.element_by_href_as_json(
                         find_link_by_name('nodes', self.link))
@@ -194,27 +214,44 @@ class Engine(object):
     
     @property
     def internal_gateway(self):
-        """ Engine level VPN gateway reference
+        """ Engine level VPN gateway information. This is a link from
+        the engine to VPN level settings like VPN Client, Enabling/disabling
+        an interface, adding VPN sites, etc. 
     
         :method: GET
-        :return: dict list of internal gateway references
+        :return: :py:class:`smc.elements.vpn.InternalGateway`
+        :raises UnsupportedEngineFeature: this feature doesnt exist for engine type
         """
         result = search.element_by_href_as_json(
                     find_link_by_name('internal_gateway', self.link))
+        if not result:
+            raise UnsupportedEngineFeature('This engine does not support an internal '
+                                           'gateway for VPN, engine type: {}'.format(
+                                                                        self.node_type))
         for gw in result:
             igw = InternalGateway(
                         **search.element_by_href_as_json(gw.get('href')))
         return igw
     
+    @property
     def virtual_resource(self):
         """ Master Engine only 
         
-        :return: list of dict { href, name, type } which hold virtual resources
-                 assigned to the master engine
+        To get all virtual resources call::
+            
+            engine.virtual_resource.all()
+            
+        :return: :py:class:`smc.elements.engine.VirtualResource`
+        :raises UnsupportedEngineFeature: this feature doesnt exist for engine type
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('virtual_resources', self.link))
-    
+        href = find_link_by_name('virtual_resources', self.link)
+        if not href:
+            raise UnsupportedEngineFeature('This engine does not support virtual '
+                                           'resources; engine type: {}'.format(
+                                                                self.node_type))
+        return VirtualResource(href=href)
+        
+            
     @property    
     def interface(self):
         """ Get all interfaces, including non-physical interfaces such
@@ -322,6 +359,7 @@ class Engine(object):
                     href=find_link_by_name('refresh', self.link)).create()
         return common_api.async_handler(element.json.get('follower'), 
                                         wait_for_finish)
+    
     #TODO: When node is not initialized, should terminate rather than let the async
     #handler loop, check for that status or wait_for_finish=False
     def upload(self, policy=None, wait_for_finish=True):
@@ -383,7 +421,10 @@ class Engine(object):
                                              display_msg=False))
 
         return common_api.fetch_content_as_file(href, filename)
-      
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+  
 class Node(object):
     """ 
     Node settings to make each engine node controllable individually.
@@ -393,10 +434,13 @@ class Node(object):
     would call node.modify_attribute({'name': 'value'})
     Engine will have a 'has-a' relationship with node and stored as the
     nodes attribute
-    :ivar: name: name of node
-    :ivar: engine_version: software version installed
-    :ivar: nodeid: node id, useful for commanding engines
-    :ivar: disabled: whether node is disabled or not
+    
+    Instance attributes:
+    
+    :ivar name: name of node
+    :ivar engine_version: software version installed
+    :ivar nodeid: node id, useful for commanding engines
+    :ivar disabled: whether node is disabled or not
     """
     node_type = None
     
@@ -856,7 +900,7 @@ class IPS(object):
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'.format(result.msg))
         
-class Layer3VirtualEngine(Node):
+class Layer3VirtualEngine(object):
     """ 
     Create a layer3 virtual engine and map to specified Master Engine
     Each layer 3 virtual firewall will use the same virtual resource that 
@@ -895,9 +939,9 @@ class Layer3VirtualEngine(Node):
         """
         virt_resource_href = None #need virtual resource reference
         master_engine = Engine(master_engine).load()
-        for virt_resource in master_engine.virtual_resource():
-            if virt_resource.get('name') == virtual_resource:
-                virt_resource_href = virt_resource.get('href')
+        for virt_resource in master_engine.virtual_resource.all():
+            if virt_resource.name == virtual_resource:
+                virt_resource_href = virt_resource.href
                 break
         if not virt_resource_href:
             raise CreateEngineFailed('Cannot find associated virtual resource for '
@@ -938,7 +982,7 @@ class Layer3VirtualEngine(Node):
             raise CreateEngineFailed('Could not create the virtual engine, '
                                      'reason: {}'.format(result.msg))
             
-class FirewallCluster(Node):
+class FirewallCluster(object):
     """ 
     Firewall Cluster
     Creates a layer 3 firewall cluster engine with CVI and NDI's. Once engine is 
@@ -973,14 +1017,16 @@ class FirewallCluster(Node):
         
         Example nodes parameter input::
             
-            [{ 'address': '1.1.1.1', 
-              'network_value': '1.1.1.0/24', 
-              'nodeid': 1
-             },
-             { 'address': '2.2.2.2',
-               'network_value': '2.2.2.0/24',
-               'nodeid': 2
-            }]          
+            [{'address':'5.5.5.2', 
+            'network_value':'5.5.5.0/24', 
+            'nodeid':1},
+            {'address':'5.5.5.3', 
+            'network_value':'5.5.5.0/24', 
+            'nodeid':2},
+            {'address':'5.5.5.4', 
+            'network_value':'5.5.5.0/24', 
+            'nodeid':3}]
+          
         """
         physical = PhysicalInterface()
         physical.add_cluster_virtual_interface(cluster_nic,
@@ -1080,7 +1126,8 @@ class AWSLayer3Firewall(object):
                log_server_ref=None, 
                domain_server_address=None,
                default_nat = True, 
-               zone_ref=None):
+               zone_ref=None,
+               is_mgmt=False):
         """ 
         Create AWS Layer 3 Firewall. This will implement a DHCP
         interface for dynamic connection back to SMC. The initial_contact
@@ -1104,6 +1151,7 @@ class AWSLayer3Firewall(object):
             }]   
         """
         new_interfaces = []
+        
         dhcp_physical = PhysicalInterface()
         dhcp_physical.add_dhcp_interface(dynamic_interface,
                                          dynamic_index, primary_mgt=True)
@@ -1139,90 +1187,89 @@ class AWSLayer3Firewall(object):
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'.format(result.msg))
-'''
-def virtual_resource_add(self, name, vfw_id, domain='Shared Domain',
-                             show_master_nic=False):
-        """ Master Engine only
-        
-        Add a virtual resource to this master engine
-        
-        :param name: name for virtual resource
-        :param vfw_id: virtual fw ID, must be unique, indicates the virtual engine instance
-        :param domain: Domain to place this virtual resource, default Shared
-        :param show_master_nic: Show master NIC mapping in virtual engine interface view
-        :return: SMCResult with href set if success, or msg set if failure
-        """
-        return SMCElement(href=self.__load_href('virtual_resources'),
-                          json=VirtualResource(
-                                name, vfw_id, 
-                                domain=domain,
-                                show_master_nic=show_master_nic).as_dict()).create()
-'''
-                                                       
-class InternalGateway(object):
-    """ 
-    InternalGateway represents the engine side VPN configuration
-    This defines settings such as setting VPN sites on protected
-    networks and generating certificates.
-    
-    :ivar: href: location of this internal gateway 
-    :param kwargs: key/values retrieved from engine settings
+
+class VirtualResource(object):
     """
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+    A Virtual Resource is a container placeholder for a virtual engine
+    within a Master Engine. When creating a virtual engine, each virtual
+    engine must have a unique virtual resource for mapping. The virtual 
+    resource has an identifier (vfw_id) that specifies the engine ID for 
+    that instance. There is currently no modify_attribute method available
+    for this resource.
     
-    def modify_attribute(self, **kwargs):
-        for k, v in kwargs.iteritems():
-            if k in self.__dict__:
-                self.__dict__.update({k:v})
-        result = get_element_etag(
-                    find_link_by_name('self', self.link))
-        return SMCElement(href=result.href,
-                          etag=result.etag,
-                          json=vars(self)).update()                         
-    #TODO:
-    def vpn_site(self):
-        """
-        :method: GET
-        """
-        return search.element_by_href_as_json(
-                find_link_by_name('vpn_site', self.link))
+    This is called as a resource of an engine. To view all virtual
+    resources::
+        
+        for resource in engine.virtual_resource.all():
+            print resource
+            
+    To create a new virtual resource::
     
-    #TODO:
-    def internal_endpoint(self):
-        """
-        :method: GET
-        """
-        return search.element_by_href_as_json(
-                find_link_by_name('internal_endpoint', self.link))
+        engine.virtual_resource.create(......)
     
-    #TODO:
-    def gateway_certificate(self):
-        """
-        :method: GET
-        """
-        return search.element_by_href_as_json(
-                find_link_by_name('gateway_certificate', self.link))
+    When class is initialized, href should be passed in. This is used to populate
+    the SMCElement if create is requested, or may be populated for each resource after
+    calling all().
     
-    def gateway_certificate_request(self):
+    :param href: href should be provided to init to identify base location for virtual
+                 resources
+    """
+    def __init__(self, name=None, **kwargs):
+        self.name = name     
+        for k, v, in kwargs.iteritems():
+            setattr(self, k, v)
+       
+    def create(self, name, vfw_id, domain='Shared Domain',
+               show_master_nic=False, connection_limit=0):
         """
-        :method: GET
+        Create a new virtual resource
+        
+        :param str name: name of virtual resource
+        :param int vfw_id: virtual fw identifier
+        :param str domain: name of domain to install, (default Shared)
+        :param boolean show_master_nic: whether to show the master engine NIC ID's
+        in the virtual instance
+        :param int connection_limit: whether to limit number of connections for this 
+        instance
+        :return: SMCResult
         """
-        return search.element_by_href_as_json(
-                find_link_by_name('gateway_certificate_request', self.link))    
+        self.element = SMCElement(href=self.href, json={}) 
+        self.element.json.update(name=name,
+                                 vfw_id=vfw_id,
+                                 show_master_nic=show_master_nic,
+                                 connection_limit=connection_limit,
+                                 allocated_domain_ref=domain)
+        self.resolve_domain()
+        return self.element.create()
     
-    #TODO: 
-    def generate_certificate(self):
+    def resolve_domain(self):
+        self.element.json.update(allocated_domain_ref=
+                    search.element_href_use_filter(
+                        self.element.json.get('allocated_domain_ref'), 'admin_domain'))
+
+    def describe(self):
         """
-        :method: POST
+        Retrieve full json for this virtual resource and return pretty printed
+        
+        :return: json text
         """
-        return search.element_by_href_as_json(
-                find_link_by_name('generate_certificate', self.link))
+        return pformat(search.element_by_href_as_json(self.href))
     
-    @property
-    def href(self):
-        return find_link_by_name('self', self.link)
-                    
+    def all(self):
+        """
+        Return metadata for all virtual resources
+        
+            for resource in engine.virtual_resource.all():
+                if resource.name == 've-6':
+                    print resource.describe()
+        
+        :return: list VirtualResource
+        """
+        resources=[]
+        for resource in search.element_by_href_as_json(self.href):
+            resources.append(VirtualResource(**resource))
+        return resources
+
     def __repr__(self):
         return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+    

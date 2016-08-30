@@ -22,19 +22,22 @@ In order to view error messages, do the following in your calling script::
 import logging
 import smc.elements.element
 import smc.actions.search
-from smc.elements.element import logical_intf_helper, SMCElement, DomainName,\
+from smc.elements.element import logical_intf_helper, \
     TCPService, EthernetService, ICMPService, ICMPIPv6Service, ServiceGroup,\
     TCPServiceGroup, UDPServiceGroup, UDPService, IPServiceGroup, IPService, Host, \
-    AdminUser, zone_helper
+    AdminUser, zone_helper, SMCElement
 import smc.api.web
 from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster,\
-    MasterEngine, AWSLayer3Firewall, Engine
-from smc.actions import helpers
-
-from smc.api.web import SMCException, SMCResult
+    MasterEngine, AWSLayer3Firewall, Engine, VirtualResource
+    
+from smc.api.web import SMCResult
+from smc.api.exceptions import SMCException
 from smc.elements.interfaces import VlanInterface, PhysicalInterface, TunnelInterface, NodeInterface,\
     SingleNodeInterface
-from smc.elements.system import SystemInfo
+from smc.elements.vpn import VPNPolicy, ExternalGateway, ExternalEndpoint, VPNProfile
+from smc.elements.collections import describe_fw_policies,\
+    describe_address_ranges, describe_vpn_profiles, describe_networks,\
+    describe_hosts, describe_external_gateways, describe_virtual_fws
 
 
 logger = logging.getLogger(__name__)
@@ -48,14 +51,9 @@ def host(name, ipaddress, secondary_ip=[], comment=None):
     :param comment (optional)
     :return: href upon success otherwise None
     """   
-    if helpers.is_valid_ipv4(ipaddress):         
-        return smc.elements.element.Host(name, ipaddress, 
-                                         secondary_ip=secondary_ip, 
-                                         comment=comment).create()
-    else:
-        logger.error("Failed: Invalid IPv4 address specified: %s, "
-                     "create object: %s failed" % (ipaddress, name)) 
-    
+    return smc.elements.element.Host(name, ipaddress, 
+                                    secondary_ip=secondary_ip, 
+                                    comment=comment).create()
 
 def iprange(name, addr_range, comment=None):
     """ Create iprange object
@@ -67,17 +65,9 @@ def iprange(name, addr_range, comment=None):
     """   
     addr = addr_range.split('-') #just verify each side is valid ip addr
     if len(addr) == 2: #has two parts
-        if not helpers.is_valid_ipv4(addr[0]) or not helpers.is_valid_ipv4(addr[1]):
-            logger.error("Invalid ip address range provided: %s" % addr_range)
-            return None
-    else: 
-        logger.error("Invalid ip address range provided: %s" % addr_range)
-        return None
-    
-    return smc.elements.element.AddressRange(name, addr_range,
-                                           comment=comment).create()   
-    
-    
+        return smc.elements.element.AddressRange(name, addr_range,
+                                                 comment=comment).create()   
+       
 def router(name, ipaddress, secondary_ip=None, comment=None):
     """ Create router element
 
@@ -86,13 +76,9 @@ def router(name, ipaddress, secondary_ip=None, comment=None):
     :param comment (optional)
     :return: href upon success otherwise None
     """     
-    if helpers.is_valid_ipv4(ipaddress):
-        return smc.elements.element.Router(name, ipaddress,
-                                             secondary_ip=secondary_ip,
-                                             comment=comment).create()
-    else:
-        logger.error("Invalid IPv4 address specified: %s, create object: %s failed" % (ipaddress, name)) 
-
+    return smc.elements.element.Router(name, ipaddress,
+                                       secondary_ip=secondary_ip,
+                                       comment=comment).create()
 
 def network(name, ip_network, comment=None):
     """ Create network element
@@ -102,14 +88,9 @@ def network(name, ip_network, comment=None):
     :param comment (optional)
     :return: href upon success, or None
     """
-    cidr = helpers.ipaddr_as_network(ip_network)
-    if cidr: 
-        return smc.elements.element.Network(name, cidr,
-                                               comment=comment).create()
-    else:
-        logger.error("Invalid address specified for network: %s; make sure address specified is in network: %s" % (name, ip_network))
+    return smc.elements.element.Network(name, ip_network,
+                                        comment=comment).create()
 
-           
 def group(name, members=[], comment=None):
     """ Create group element, optionally with members
     Members must already exist in SMC. Before being added to the group a search will be 
@@ -169,13 +150,6 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     :param fw_license: attempt license after creation (optional)
     :return: href upon success otherwise None
     """
-    if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
-        logger.error("Management IP: %s is not in the management network: %s, "
-                     "cannot add single_fw" % (mgmt_ip,mgmt_network))
-        return None
-  
-    mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
-    
     result = Layer3Firewall.create(name, mgmt_ip, mgmt_network, 
                                    mgmt_interface=mgmt_interface,
                                    domain_server_address=dns)
@@ -196,13 +170,7 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
     :param dns: dns servers for management interface (optional)
     :param fw_license: attempt license after creation (optional)
     :return: href upon success otherwise None
-    """   
-    if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
-        logger.error("Management IP: %s is not in the management network: %s, cannot add single_fw" % (mgmt_ip,mgmt_network))
-        return None
-
-    mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
-                         
+    """                  
     result = Layer2Firewall.create(name, mgmt_ip, mgmt_network, 
                                    mgmt_interface=mgmt_interface,
                                    inline_interface=inline_interface,
@@ -223,12 +191,6 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     :param fw_license: attempt license after creation (optional)
     :return: href upon success otherwise None
     """ 
-    if not helpers.is_ipaddr_in_network(mgmt_ip, mgmt_network):
-        logger.error("Management IP: %s is not in the management network: %s, cannot add single_fw" % (mgmt_ip,mgmt_network))
-        return None
-    
-    mgmt_network = helpers.ipaddr_as_network(mgmt_network) #convert to cidr
-        
     result = IPS.create(name, mgmt_ip, mgmt_network, 
                         mgmt_interface=mgmt_interface,
                         inline_interface=inline_interface,
@@ -241,17 +203,10 @@ def l3interface(name, ipaddress, ip_network, interfaceid):
        
     :param l3fw: name of firewall to add interface to
     :param ip: ip of interface
-    :param network: ip is validated to be in network before sending
+    :param network: network for ip
     :param interface_id: interface_id to use
     :return: href upon success otherwise None
     """    
-    if not helpers.is_ipaddr_in_network(ipaddress, ip_network):
-        logger.error("IP address: %s is not part of the network provided: %s, \
-            cannot add interface" % (ipaddress,ip_network))
-        return None
-    
-    ip_network = helpers.ipaddr_as_network(ip_network)    #convert to cidr in case full mask provided
-    
     try:
         engine = Engine(name).load()
         physical = PhysicalInterface(interfaceid)
@@ -378,20 +333,7 @@ def virtual_ips(data):
     
 def virtual_fw(data):
     pass
-
-import collections
-def update(d, u):
-    for k, v in u.iteritems():
-        if isinstance(d, collections.Mapping):
-            if isinstance(v, collections.Mapping):
-                r = update(d.get(k, {}), v)
-                d[k] = r
-            else:
-                d[k] = u[k]
-        else:
-            d = {k: u[k]}
-    return d
-
+    
 if __name__ == '__main__':
     #smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001', timeout=60)
     
@@ -400,7 +342,8 @@ if __name__ == '__main__':
     
     from smc.api.session import session
     session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=60)
-    
+    import smc.elements.collections as collections
+    import smc.actions.remove
     from pprint import pprint
     import time
     start_time = time.time()
@@ -412,23 +355,123 @@ if __name__ == '__main__':
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
 
-    import string
     """@type engine: Node"""
-    engine = Engine('CRAP').load()
+    engine = Engine('aws-02').load()
+    for node in engine.nodes:
+        print node.name, node.node_type
+    #pprint(vars(engine))
+    
+    '''
+    for gw in collections.describe_external_gateways():
+        if gw.name == 'externalgw':
+            g = gw.load()
+            pprint(vars(g))
+            for endpoint in g.external_endpoint:
+                pprint(vars(endpoint))
+    '''
+    
+        
+    #for site in engine.internal_gateway.vpn_site.all():
+    #    print site
+    #    site.load()
+    #    site.modify_attribute(site_element=[site_network])
+    #    pprint(vars(site.element))
+    #for x in describe_vpn_profiles():
+    #    if x.name == 'iOS Suite':
+    #        pprint(smc.actions.search.element_by_href_as_json(x.href))
+    
+    
+    #vpn = VPNPolicy('myVPN').load()
+    #print vpn.name, vpn.vpn_profile
+    #vpn.open()
+    #pprint(vars(vpn))
+    #pprint(vpn.central_gateway_node())
+    #vpn.add_central_gateway(engine.internal_gateway.href)
+    #vpn.add_satellite_gateway(engine.internal_gateway.href)
+    #vpn.save()
+    #vpn.close()
+    
+    #from smc.elements.policy import FirewallPolicy
+    #policy = FirewallPolicy('newpolicy').load()
+    
+    #print "template: %s" % policy.template
+    #print "file filtering: %s" % policy.file_filtering_policy
+    #print "inspection policy: %s" % policy.inspection_policy
+    #for x in policy.fw_ipv4_access_rules:
+    #    x.delete()
+    
+    #policy = FirewallPolicy.create(name='smcpython',
+    #                               template_policy='Firewall Inspection Template') 
+    #print(smc.actions.search.element_href('foonetwork'))
+    #engine = Engine('aws-02').load()
+    
+    #pprint(vars(engine.internal_gateway))
+    #for site in engine.internal_gateway.vpn_site:
+    #    pprint(vars(site))
    
-    #for interface in engine.interface():
-    #    print interface.name, interface.type
-    #    if interface.name.startswith('Interface 60'):
-    #        interface.delete()
-    for interface in engine.interface:
-        if interface.name == 'Interface 2':
-            intf = interface.describe_interface()
-            print intf
-            pprint(vars(intf))
-            
+   
+    #pprint(collections.describe_sub_ipv6_fw_policies())
+    
+
+    #for host in describe_hosts(name=['duh']):
+    #    h = host.load()
+    #    h.modify_attribute(name='kiley', address='1.1.2.2')
+    
+   
+    '''
+    for site in engine.internal_gateway.vpn_site:
+        r = smc.actions.search.element_by_href_as_smcresult(site.href) 
+        s = vars(site)
+        s.get('site_element').append('http://172.18.1.150:8082/6.0/elements/network/9822')
+        pprint(s)
+        print SMCElement(href=site.href,
+                         json=s,
+                         etag=r.etag).update()
+    '''
+    '''
+    myservices = [v
+               for item in smc.actions.search.element_href_by_batch(['HTTP', 'HTTPS'], 'tcp_service')
+               for k, v in item.iteritems()
+               if v]
+    
+    mysources = [v
+               for item in smc.actions.search.element_href_by_batch(['foonetwork', 'amazon-linux'])
+               for k, v in item.iteritems()
+               if v]
+    
+    mydestinations = ['any']
+    
+    policy.ipv4_rule.create(name='myrule', 
+                            sources=mysources,
+                            destinations=mydestinations, 
+                            services=myservices, 
+                            action='permit')
+    
+    for rule in policy.fw_ipv4_access_rules:
+        print rule
+    '''   
+    #my_destinations = ['any']
+    #my_services = smc.actions.search.element_href_by_batch(['HTTP', 'HTTPS'])
+    #print my_services
+    
+    #print('ipv4 access rule')
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/fw_policy/244/fw_ipv4_access_rule'))
+    #print "Query vpn sites"
+    #pprint(ext_gw.vpn_site())
+    #print "example vpn site detail"
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/external_gateway/1702/vpn_site/1723'))
+    #print "gateway setting ref: "
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/external_gateway/1702'))
     
     
     
+    #DEFAULT_NAT
+    #Default NAT address alias
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/default_nat_address_alias'))
+    #Leads to get the actual values
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/default_nat_address_alias/133'))
+    #Then call resolve link
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/default_nat_address_alias/133/resolve'))
     '''
     """@type engine: Node"""
     #engine = Node('tooter').load()

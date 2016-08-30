@@ -1,8 +1,4 @@
 '''
-Created on Aug 11, 2016
-
-@author: davidlepage
-
 Stonesoft NGFW configurator for AWS instance deployment with auto-engine creation.
 There are two example use cases that can be leveraged to generate NGFW automation into AWS:
 
@@ -42,14 +38,24 @@ This should not be an issue if the SMC is on the same network or routable from i
 
 The tested scenario was based on public AWS documentation found at:
 http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Scenario2.html
- 
+
+Requirements:
+smc-python
+boto3
+
+Install smc-python::
+
+    python install git+https://github.com/gabstopper/smc-python.git
+    
 '''
 
 from pprint import pprint
 import re
 import time
 import boto3
+import botocore
 from smc.api.session import session
+from smc.api.exceptions import CreateEngineFailed
 from smc.elements.engines import AWSLayer3Firewall
 
 smc_public_ip = '73.88.56.153'  #Hack initial_contact file; Locations are not configurable via SMC API
@@ -86,8 +92,14 @@ class VpcConfiguration(object):
             for v in default_vpc:
                 self.vpc = v
         else:
-            self.vpc = ec2.Vpc(self.vpcid)
- 
+            for _ in range(5):
+                try:
+                    self.vpc = ec2.Vpc(self.vpcid)
+                    print 'State of VPC: {}'.format(self.vpc.state)
+                    break
+                except botocore.exceptions.ClientError:
+                    time.sleep(2)
+            
         print "Loaded VPC with id: {} and cidr_block: {}".\
             format(self.vpc.vpc_id, self.vpc.cidr_block)
         return self
@@ -101,7 +113,7 @@ class VpcConfiguration(object):
         * Create route in main route table for all outbound to igw
         
         :param vpc_subnet: VPC cidr for encapsulated subnets
-        :param instance_tenancy: 'default'|'dedicated'|'host'
+        :param instance_tenancy: 'default|dedicated|host'
         :returns: self
         """
         vpc_new = ec2.create_vpc(CidrBlock=vpc_subnet,
@@ -110,10 +122,11 @@ class VpcConfiguration(object):
         
         vpc = VpcConfiguration(vpc_new.vpc_id).load() 
         
-        igw = ec2.create_internet_gateway()
-        print "Created internet gateway: {}".format(igw.id)
+        vpc.internet_gateway = ec2.create_internet_gateway()
+        print "Created internet gateway: {}".format(vpc.internet_gateway.id)
         
-        igw.attach_to_vpc(VpcId=vpc.vpc.vpc_id)
+        #attach igw to vpc
+        vpc.internet_gateway.attach_to_vpc(VpcId=vpc.vpc.vpc_id)
         
         vpc.create_default_gw()
         vpc.create_alt_route_table()
@@ -135,27 +148,26 @@ class VpcConfiguration(object):
         Interface 0 will be attached to the AWS interface eth0 which will
         be bound to the AWS Internet GW for inbound / outbound routing.
         
-        :param interface_id: id to assign interface
-        :type interface_id: int
+        :param int interface_id: id to assign interface
         :param cidr_block: cidr of subnet
         :param availability_zone: optional
         :param description: description on interface
         :raises: botocore.exception.ClientError
         """
         subnet = self.create_subnet(cidr_block)
+        wait_for_resource(subnet, self.vpc.subnets.all())
+            
         interface = subnet.create_network_interface(Description=description)
+        wait_for_resource(interface, self.vpc.network_interfaces.all())
         
-        #Disable source / dest check
         interface.modify_attribute(SourceDestCheck={'Value': False})
-        
+               
         #Assign elastic to eth0
         if interface_id == 0:
             allocation_id = self.allocate_elastic_ip()
             address = ec2.VpcAddress(allocation_id)
             address.associate(NetworkInterfaceId=interface.network_interface_id)
-        #else:
-        #    self.private_subnets.append(subnet) #track private subnets
-            
+
         print "Created network interface: {}, subnet_id: {}, private address: {}".\
                 format(interface.network_interface_id, interface.subnet_id,
                        interface.private_ip_address)
@@ -179,11 +191,10 @@ class VpcConfiguration(object):
         Create the default GW pointing to IGW 
         """
         def_route = self.default_route_table()
-        igw = self.internet_gateway().id
-    
+        
         def_route.create_route(
                     DestinationCidrBlock='0.0.0.0/0',
-                    GatewayId=igw)
+                    GatewayId=self.internet_gateway.id)
  
     def create_alt_route_table(self):
         """ 
@@ -212,17 +223,33 @@ class VpcConfiguration(object):
         used for the public facing interface for the NGFW AMI
         :return: AllocationId (elastic IP reference)
         """
-        eip = ec2.meta.client.allocate_address(Domain='vpc')
+        eip = None
+        try:
+            eip = ec2.meta.client.allocate_address(Domain='vpc')
+        except botocore.exceptions.ClientError:
+            #Caught AddressLimitExceeded. Find unassigned or re-raise
+            addresses = ec2.meta.client.describe_addresses().get('Addresses')
+            for unassigned in addresses:
+                if not unassigned.get('NetworkInterfaceId'):
+                    print "Unassigned Elastic IP found: {}".\
+                                        format(unassigned.get('AllocationId'))
+                    eip = unassigned
+                    break
+            if not eip: raise
         return eip.get('AllocationId')
-    
+        
+    @property    
     def internet_gateway(self):
         """ 
         Get the internet gateway
         :return: InternetGateway
         """
-        for igw in self.vpc.internet_gateways.all():
-            return igw
-            
+        return self._internet_gateway
+    
+    @internet_gateway.setter
+    def internet_gateway(self, value):
+        self._internet_gateway = value
+                
     def default_route_table(self):
         """ 
         Get the default route table
@@ -255,7 +282,7 @@ class VpcConfiguration(object):
             print "Route table doesn't exist!"
             #No alt route found, check for non-default route tables to use, or
             #that may already be used, or create a new one
-            for rt in vpc.vpc.route_tables.filter(Filters=[{
+            for rt in self.vpc.route_tables.filter(Filters=[{
                                         'Name': 'association.main',
                                         'Values': ['false']}]):
                 print "non_default: %s" % rt
@@ -295,14 +322,6 @@ class VpcConfiguration(object):
                                     'address': obj.private_ip_address,
                                     'network_value': obj.subnet.cidr_block})
         return interfaces
-                  
-    def rollback(self):
-        """ 
-        In case of failure, convenience to wrap in try/except and remove
-        the VPC. If there is a running EC2 instance, you must delete that
-        first.
-        """
-        self.vpc.delete()
                        
     def launch(self, key_pair, userdata=None, 
                imageid=ngfw_6_0_2, 
@@ -336,35 +355,90 @@ class VpcConfiguration(object):
                                         NetworkInterfaces=interfaces,
                                         UserData=userdata
                                         )
+        return instance[0]
+    
+    def rollback(self):
+        """ 
+        In case of failure, convenience to wrap in try/except and remove
+        the VPC. If there is a running EC2 instance, this will terminate
+        that instnace, remove all other dependencies and delete the VPC.
+        Typically this is best run when attempting to create the entire
+        VPC. It is not advisable if loading an existing VPC as it will remove
+        the entire configuration.
+        """
+        for instance in self.vpc.instances.filter(Filters=[{
+                                    'Name': 'instance-state-name',
+                                    'Values': ['running', 'pending']}]):
+            print "Terminating instance: {}".format(instance.instance_id)
+            instance.terminate()
+            for state in waiter(instance, 'terminated'):
+                print state
+     
+        for intf in self.vpc.network_interfaces.all():
+            print "Deleting interface: {}".format(intf)
+            intf.delete()
+        for subnet in self.vpc.subnets.all():
+            print "Deleting subnet: {}".format(subnet)
+            subnet.delete()
+        for rt in self.vpc.route_tables.all():
+            if not rt.associations_attribute:
+                print "Deleting unassociated route table: {}".format(rt)
+                rt.delete()
+            else:
+                for current in rt.associations_attribute:
+                    if not current or current.get('Main') == False:
+                        print "Deleting non-default route table: {}".format(rt)
+                        rt.delete()
+        for igw in self.vpc.internet_gateways.all():
+            print "Detach and deleting IGW: {}".format(igw)
+            igw.detach_from_vpc(VpcId=self.vpc.vpc_id)
+            igw.delete()
         
-        for aws_ngfw in instance:
-            print "Instance name: %s" % aws_ngfw.instance_id
-            return aws_ngfw.instance_id
-        
+        self.vpc.delete()
+        print "Deleted vpc: {}".format(self.vpc.vpc_id)
+            
 def verify_key_pair(key_pair):
     """ 
     Verifies key pair before launching AMI
     :raises: botocore.exception.ClientError 
     """
     ec2.meta.client.describe_key_pairs(KeyNames=[key_pair])
-        
-def wait_for_ready(instance):
+
+def waiter(instance, status):
     """ Generator to monitor the startup of the launched AMI 
-    :param instance: instance ID to monitor during startup
-    :returns: generator message updates waiting for state 'running'
+    Call this in loop to get status
+    :param instance: instance to monitor 
+    :param status: status to check for:
+           'pending|running|shutting-down|terminated|stopping|stopped'
+    :returns: generator message updates 
     """
     while True:
-        status = ec2.meta.client.describe_instance_status(\
-                                    InstanceIds=[instance],
-                                    Filters=[{'Name': 'instance-state-name',
-                                              'Values': ['running']}])
-        if not status.get('InstanceStatuses'):
-            yield "Waiting for image to become ready...."
+        if instance.state.get('Name') != status:
+            print "Instance in state: {}, waiting..".format(instance.state.get('Name'))
             time.sleep(5)
+            instance.reload()
         else:
-            yield "Image in running state!"
+            yield "Image in desired state: {}!".format(status)
             break
 
+def wait_for_resource(resource, iterable):
+    """
+    Wait for the resource to become available. If the AWS
+    component isn't available right away and a reference call is
+    made the AWS client throw an exception. This checks the iterable 
+    for the component id before continuing. Insert this where you 
+    might need to introduce a short delay.
+    
+    :param resource: subnet, interface, etc
+    :param iterable: iterable function
+    :return: None
+    """
+    for _ in range(5):
+        for _id in iterable:
+            if resource.id == _id.id:
+                return
+            time.sleep(2)
+            
 def create_ngfw_in_smc(name, interfaces, 
                        domain_server_address=None,
                        default_nat=True):
@@ -376,56 +450,63 @@ def create_ngfw_in_smc(name, interfaces,
     
     :param name: name of ngfw in smc
     :param interfaces: list of interfaces from VpcConfiguration
-    :param domain_server_address: (optional) dns address for engine
-    :type domain_server_address: list
+    :param list domain_server_address: (optional) dns address for engine
     :param default_nat: (optional: default True) whether to enable default NAT
     
     See :py:class:`smc.elements.engines.AWSLayer3Firewall` for more info
     """
     global engine
+    print "Calling create ngfw.."
+    
     engine = AWSLayer3Firewall.create(name, 
                                       interfaces,  
                                       domain_server_address=domain_server_address,
-                                      default_nat = True)
+                                      default_nat=True)
     print "Created NGFW..."
-    engine.bind_license() 
+    for node in engine.nodes:
+        node.bind_license()
+        content = node.initial_contact(enable_ssh=True)
+     
     #engine.upload(policy='Layer 3 Virtual Firewall Policy') #queue policy
-    content = engine.initial_contact(enable_ssh=True)
     return re.sub(r"management-address string (.+)", "management-address string " + \
                   smc_public_ip, content)
-
+    
 def change_ngfw_name(instance_id):
     """ Change the engine name to match the InstanceId on Amazon
          
     :param instance_id: instance ID obtained from AWS run_instances 
     """
     engine.change_name(instance_id)
+
         
 if __name__ == '__main__':
     
-    session.login(url='http://172.18.1.150:8082', api_key='xxxxxxxxxxxxxxxxxxxxxx')
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
     
     import smc.actions.remove
     smc.actions.remove.element('aws-02', 'single_fw')
 
     ec2 = boto3.resource('ec2', 
-                         region_name='us-west-2')
+                         #region_name='us-west-2',
+                         region_name='us-east-1')
     '''
     Use Case 1: Create entire VPC and deploy NGFW
     ---------------------------------------------
     This will fully create a VPC and associated requirements. 
     The following will occur:
-    * A new VPC will be created in the AZ based on boto3 client connection
+    * A new VPC will be created in the AZ based on boto3 client region
     * Two network subnets are created in the VPC, one public and one private
     * Two network interfaces are created and assigned to the subnets
+      eth0 = public, eth1 = private
     * An elastic IP is created and attached to the public network interface
+    * An internet gateway is created and attached to the public network interface
     * A route is created in the default route table for the public interface to
       route 0.0.0.0/0 to the IGW
     * The default security group is modified to allow inbound access from 0.0.0.0/0
       to to the NGFW network interface
       :py:func:`VpcConfiguration.authorize_security_group_ingress`
     * A secondary route table is created with a default route to 0.0.0.0/0 with a next
-      hop of the private network interface assigned to NGFW
+      hop assigned to interface eth1 (NGFW). This is attached to the private subnet.
     * The NGFW is automatically created and UserData is obtained for AMI instance launch
     * AMI is launched using UserData to allow auto-connection to NGFW SMC Management
     * NGFW receives queued policy and becomes active
@@ -434,21 +515,28 @@ if __name__ == '__main__':
              by AWS when the interface is created. If you require a different AZ, set the 
              attribute :py:class:`VpcConfiguration.availability_zone` before called launch. 
     '''
-    '''
+    
     vpc = VpcConfiguration.create(vpc_subnet='192.168.3.0/24')
-    vpc.create_network_interface(0, '192.168.3.240/28', description='public-ngfw') 
-    vpc.create_network_interface(1, '192.168.3.0/25', description='private-ngfw')
-    vpc.associate_alt_route_to_subnets()
-    vpc.authorize_security_group_ingress('0.0.0.0/0', ip_protocol='-1')
+    try:
+        vpc.create_network_interface(0, '192.168.3.240/28', description='public-ngfw') 
+        vpc.create_network_interface(1, '192.168.3.0/25', description='private-ngfw')
+        vpc.associate_alt_route_to_subnets()
+        vpc.authorize_security_group_ingress('0.0.0.0/0', ip_protocol='-1')
+        
+        userdata = create_ngfw_in_smc(name='aws-02', 
+                                      interfaces=vpc.build_ngfw_interfaces(),
+                                      domain_server_address=['8.8.8.8', '8.8.4.4'])
+        
+        #instance = vpc.launch(key_pair='aws-ngfw', userdata=userdata)
+        instance = vpc.launch(key_pair='dlepage', userdata=userdata)
+        for message in waiter(instance, 'running'):
+            print message
+        
+        
+    except (botocore.exceptions.ClientError, CreateEngineFailed) as e:
+        print "Caught exception, rolling back: {}".format(e)
+        vpc.rollback()
     
-    userdata = create_ngfw_in_smc(name='aws-02', 
-                                  interfaces=vpc.build_ngfw_interfaces(),
-                                  domain_server_address=['8.8.8.8', '8.8.4.4'])
-    
-    instance = vpc.launch(key_pair='aws-ngfw', userdata=userdata)
-    for message in wait_for_ready(instance):
-        print message
-    '''
     '''
     Use Case 2: Deploy NGFW into existing VPC
     -----------------------------------------
@@ -468,7 +556,7 @@ if __name__ == '__main__':
     interface id for eth1 (not the instance). Then attach the new route table 
     to the private subnet.
     '''
-        
+    '''    
     vpc = VpcConfiguration('vpc-f1735e95').load()
     vpc.associate_network_interface(0, 'eni-49ab2635')
     vpc.associate_network_interface(1, 'eni-0b931e77')
@@ -482,8 +570,13 @@ if __name__ == '__main__':
     instance = vpc.launch(key_pair='aws-ngfw', userdata=userdata)
     for message in wait_for_ready(instance):
         print message
-    
-    pprint(vars(vpc))
+    '''
+    '''
+    addr = ec2.meta.client.describe_addresses().get('Addresses')
+    for available in addr:
+        if not available.get('NetworkInterfaceId'):
+            print "Available Elastic IP: {}".format(available.get('AllocationId'))
+    '''
     
     session.logout()
     

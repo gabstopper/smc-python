@@ -60,6 +60,28 @@ unless `logout` has been called.
 		  between calls, the smc-python API will re-authenticate the session automatically as long as a previous 
 		  session was already obtained and stored in the session cache.
 
+Resources
+---------
+
+Resources are specific areas within the smc-python API that require 'load' actions to retrieve the 
+configuration data and encapsulate specific methods based on the element type. 
+For example, to perform actions against a specific engine within SMC, you must first identify the engine and
+perform load the configuration:
+
+.. code-block:: python
+
+   engine = Engine('myengine').load()
+   
+Once the engine is loaded, all methods for that engine and engine nodes are provided in the resulting 
+engine reference.
+
+A list of current resources are:
+
+* Engine: encapsulates all engine types; :py:class:`smc.elements.engine.Engine`
+* FirewallPolicy: configuration of firewall policies; :py:class:`smc.elements.policy.FirewallPolicy`
+* VPNPolicy: VPN Policy specific actions; :py:class:`smc.elements.vpn.VPNPolicy`
+* External Gateway: VPN external gateway actions; :py:class:`smc.elements.vpn.ExternalGateway`
+
 Creating elements
 -----------------
 
@@ -285,15 +307,16 @@ constructor as follows:
 .. code-block:: python
 
    engine = FirewallCluster.create(name='mycluster', 
-                                   cluster_virtual='1.1.1.1', 
-                                   cluster_mask='1.1.1.0/24',
-                                   cluster_nic=0,
-                                   macaddress='02:11:11:11:11:11',
-                                   nodes=[{'address': '1.1.1.2', 'netmask': '1.1.1.0/24'},
-                                          {'address': '1.1.1.3', 'netmask': '1.1.1.0/24'},
-                                          {'address': '1.1.1.4', 'netmask': '1.1.1.0/24'}],
-                                   dns=['1.1.1.1'], 
-                                   zone_ref=zone)
+                                    cluster_virtual='1.1.1.1', 
+                                    cluster_mask='1.1.1.0/24',
+                                    cluster_nic=0,
+                                    macaddress='02:02:02:02:02:02',
+                                    nodes=[{'address': '1.1.1.2', 'network_value': '1.1.1.0/24', 'nodeid':1},
+                                           {'address': '1.1.1.3', 'network_value': '1.1.1.0/24', 'nodeid':2},
+                                           {'address': '1.1.1.4', 'network_value': '1.1.1.0/24', 'nodeid':3}],
+                                    domain_server_address=['1.1.1.1'], 
+                                    zone_ref=zone_helper('Internal'))
+                             
                                    
 Interfaces
 ++++++++++
@@ -511,8 +534,8 @@ Example of changing the IP address of an existing single node interface (for lay
        my_interface = interface.describe_interface()
        my_interface.modify_attribute({zone_ref:'My New Zone'})
        
-.. note:: Key/value pairs can be viewed by retrieving the raw interface data using
-	      smc.elements.engine.Engine.physical_interface_get(interface_id) function.
+.. note:: Key/value pairs can be viewed by viewing the output of
+          interface.describe_interface()
 
 Adding routes
 +++++++++++++
@@ -542,12 +565,13 @@ Example of attempting an auto-fetch and falling back to auto binding a dynamic l
 
 .. code-block:: python
    
-   engine = Node('myvirtualfw').load()
-   result = engine.fetch_license() #try to find POS
-   if result.msg:
+   engine = Engine('myvirtualfw').load()
+   for node in engine:
+     result = engine.fetch_license() #try to find POS
+     if result.msg:
        print result.msg 	#print fail message
        if not engine.bind_license().msg:
-           print "Success with auto binding of license"
+          print "Success with auto binding of license"
 
 Controlling engines
 -------------------
@@ -569,7 +593,7 @@ export configuration, blacklisting, adding routes, route monitoring, and add or 
 
 .. code-block:: python
 
-   engine = Node('myengine').load()
+   engine = Engine('myengine').load()
    engine.generate_snapshot() #generate a policy snapshot
    engine.export(filename='/Users/davidlepage/export.xml') #generate policy export
    engine.refresh() #refresh policy
@@ -588,14 +612,21 @@ ssh (enable/disable/change pwd), and time sync.
 
 .. code-block:: python
 
-   engine = Node('myengine').load()
-   engine.node_names()	#list all nodes in this engine
-   engine.reboot()	#single node engine
-   engine.reboot(node='ngf-1035') #cluster, reboot only node 'ngf-1035'
-   engine.initial_contact(filename='/Users/davidlepage/engine.cfg')	#gen initial contact and save to engine.cfg
-   engine.bind_license()	#bind license on single node
-   engine.go_standby(node='ngf-1035') #command node 'ngf-1035' to standby
-   ....
+   engine = Engine('myengine').load()
+   for node in engine.nodes:
+     print node
+   
+   for node in engine.nodes:
+     if node.name == 'ngf-1035':
+       node.reboot()
+
+Bind license, then generate initial contact for each node for a specific engine:
+
+.. code-block:: python
+   
+   for node in engine.nodes:
+     node.initial_contact(filename='/Users/davidlepage/engine.cfg')	#gen initial contact and save to engine.cfg
+     node.bind_license()	#bind license on single node
 
 For all available commands for node, see :py:class:`smc.elements.engines.Node`
 
@@ -614,7 +645,7 @@ To load an existing policy type:
 
    FirewallPolicy('existing_policy_by_name').load()
         
-Example rule creation::
+Example rule creation:
 
 .. code-block:: python
 
@@ -714,7 +745,45 @@ To modify after creation by setting a password and making a superuser:
    admin.update()
    admin.enable_disable() #enable or disable account
     
+Collections
+-----------
 
+Collections are functions provided to return base level information about a 
+specific SMC element by type :py:mod:`smc.elements.collections`
+Some collection types have additional filters that can be used to get more specific 
+results.
+
+Each collection returns a :py:class:`smc.elements.collections.Element` with 3 attributes
+set:
+
+* name (list): name of element
+* type: type of element
+* href: href to location of element
+
+The Element returned will not have the full element details but will provide a linkage to 
+retrieving them.
+
+To search for all host objects:
+
+.. code-block:: python
+
+   for host in collections.describe_hosts():
+   	 print host
+        
+To search only for a host name 'test':
+
+.. code-block:: python
+
+   for host in collections.describe_hosts(name=['test']):
+     print host
+
+To search for all hosts with 'test' in the name:
+
+.. code-block:: python
+
+   for host in collections.describe_hosts(name=['test'], exact_match=False):
+     print host
+       
 Search
 ------
 

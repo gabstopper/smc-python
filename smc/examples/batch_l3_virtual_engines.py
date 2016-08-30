@@ -33,7 +33,7 @@ from smc.elements.interfaces import PhysicalInterface
 from smc.elements.engines import Node, Layer3VirtualEngine
 
 import logging
-from smc.api.web import SMCException
+from smc.api.exceptions import SMCException
 logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 

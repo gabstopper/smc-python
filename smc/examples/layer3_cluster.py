@@ -35,7 +35,6 @@ from smc.elements.engines import FirewallCluster
 from smc.elements.element import zone_helper
 
 import logging
-from smc.elements.interfaces import PhysicalInterface
 logging.getLogger()
 #logging.basicConfig(level=logging.ERROR)
 

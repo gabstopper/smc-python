@@ -265,7 +265,7 @@ VirtualPhysicalInterface
    :members:
 
 Policy
---------------
+------
 
 .. automodule:: smc.elements.policy
     :members: Policy
@@ -297,8 +297,8 @@ Rule
 ----
 
 .. automodule:: smc.elements.rule
-    :members: Rule
-    :show-inheritance:
+   :members: Rule
+   :show-inheritance:
 
 IPv4Rule
 ++++++++
@@ -314,6 +314,48 @@ IPv4NATRule
    :members:
    :show-inheritance:
 
+VPNPolicy
+---------
+
+.. automodule:: smc.elements.vpn
+   :members: VPNPolicy
+
+InternalGateway
++++++++++++++++
+
+.. autoclass:: InternalGateway
+   :members:
+
+InternalEndpoint
+++++++++++++++++
+
+.. autoclass:: InternalEndpoint
+   :members:
+   
+ExternalGateway
++++++++++++++++
+
+.. autoclass:: ExternalGateway
+   :members:
+   
+ExternalEndpoint
+++++++++++++++++
+
+.. autoclass:: ExternalEndpoint
+   :members:
+   
+VPNSite
++++++++
+
+.. autoclass:: VPNSite
+   :members:
+
+Collections
+-----------
+
+.. automodule:: smc.elements.collections
+   :members:
+ 
 Search
 ------
 
