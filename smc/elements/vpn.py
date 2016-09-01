@@ -26,7 +26,20 @@ class InternalGateway(object):
         self.name = name
         for key, value in kwargs.items():
             setattr(self, key, value)
-                        
+    
+    def modify_attribute(self, **kwargs):
+        """
+        Modify attribute
+        
+        :param kwargs: (key=value)
+        :return: SMCResult
+        """
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v) 
+        latest = search.element_by_href_as_smcresult(self.href)
+        return SMCElement(href=self.href, json=vars(self),
+                          etag=latest.etag).update()
+                   
     @property
     def vpn_site(self):
         """

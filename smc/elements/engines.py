@@ -15,6 +15,8 @@ class Engine(object):
         :ivar name: name of engine
         :ivar dict json: raw engine json
         :ivar node_type: type of node in engine
+        :ivar href: href of the engine
+        :ivar link: list link to engine resources
     
     Instance resources:
     
@@ -100,22 +102,42 @@ class Engine(object):
             engine = Engine(self.name)
             engine.json = result.json
             engine.nodes = []
-            engine.link = []
             for node in engine.json.get('nodes'):
                 for node_type, data in node.iteritems():
                     new_node = Node(node_type, data)
                     engine.nodes.append(new_node)
-            engine.link.extend(engine.json.get('link'))
             return engine
         else:
             raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is correct"
                                " and the engine exists." % self.name)
     
-    def modify_attribute(self, attribute):
+    def modify_attribute(self, **kwargs):
         """
-        :param attribute: {'key': 'value'}
+        :param kwargs: (key=value)
         """
-        self.json.update(attribute)    
+        for k, v in kwargs.iteritems():
+            self.json.update({k: v})
+        latest = search.element_by_href_as_smcresult(self.href)
+        return SMCElement(href=self.href, json=self.json,
+                          etag=latest.etag).update()
+          
+    @property
+    def href(self):
+        try:
+            return self._href
+        except AttributeError:
+            return find_link_by_name('self', self.link)
+      
+    @href.setter
+    def href(self, value):
+        self._href = value
+    
+    @property
+    def link(self):
+        try:
+            return self.json.get('link')
+        except AttributeError:
+            return "You must first load the engine to access resources"
     
     @property
     def node_type(self):
@@ -419,7 +441,6 @@ class Engine(object):
         
         href = next(common_api.async_handler(element.json.get('follower'), 
                                              display_msg=False))
-
         return common_api.fetch_content_as_file(href, filename)
     
     def __repr__(self):
@@ -431,7 +452,7 @@ class Node(object):
     When Engine().load() is called, setattr will set all instance attributes
     with the contents of the node json. Very few would benefit from being
     modified with exception of 'name'. To change a top level attribute, you
-    would call node.modify_attribute({'name': 'value'})
+    would call node.modify_attribute(name='value')
     Engine will have a 'has-a' relationship with node and stored as the
     nodes attribute
     
@@ -441,6 +462,7 @@ class Node(object):
     :ivar engine_version: software version installed
     :ivar nodeid: node id, useful for commanding engines
     :ivar disabled: whether node is disabled or not
+    :ivar href: href of this resource
     """
     node_type = None
     
@@ -465,14 +487,22 @@ class Node(object):
         return({node_type: 
                 vars(node)}) 
 
-    def modify_attribute(self, attribute):
+    def modify_attribute(self, **kwargs):
         """ Modify attribute/value pair of base node
-        :ivar name
+        
+        :param kwargs: key=value
         """
-        self.__dict__.update(attribute)
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+            
+        latest = search.element_by_href_as_smcresult(self.href)
         return SMCElement(
-                    href=find_link_by_name('self', self.link),
-                    json=vars(self)).update()
+                    href=self.href, json=vars(self),
+                    etag=latest.etag).update()
+    
+    @property
+    def href(self):
+        return find_link_by_name('self', self.link)
     
     def fetch_license(self):
         """ Fetch the node level license
@@ -746,6 +776,7 @@ class Layer3Firewall(object):
                log_server_ref=None,
                mgmt_interface=0, 
                default_nat=False,
+               reverse_connection=False,
                domain_server_address=None, zone_ref=None):
         """ 
         Create a single layer 3 firewall with management interface and DNS
@@ -757,6 +788,7 @@ class Layer3Firewall(object):
         :param int mgmt_interface: (optional) interface for management from SMC to fw
         :param list domain_server_address: (optional) DNS server addresses
         :param str zone_ref: (optional) zone name for management interface (created if not found)
+        :param boolean reverse_connection: should the NGFW be the mgmt initiator (used when behind NAT)
         :param boolean default_nat: (optional) Whether to enable default NAT for outbound
         :return: Engine
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
@@ -766,6 +798,7 @@ class Layer3Firewall(object):
                                            mgmt_ip, 
                                            mgmt_network,
                                            is_mgmt=True,
+                                           reverse_connection=reverse_connection,
                                            zone_ref=zone_ref)
 
         engine = Engine.create(name=name,
@@ -955,6 +988,7 @@ class Layer3VirtualEngine(object):
                                                interface.get('address'),
                                                interface.get('network_value'),
                                                zone_ref=interface.get('zone_ref'))
+
             #set auth request and outgoing on one of the interfaces
             if interface.get('interface_id') == outgoing_intf:
                 physical.modify_interface('single_node_interface', 
@@ -1151,7 +1185,19 @@ class AWSLayer3Firewall(object):
             }]   
         """
         new_interfaces = []
-        
+        '''
+        for interface in interfaces:
+            if interface.get('interface_id') == 0:
+                print "ip: {}, netmask: {}, id: {}".format(interface.get('address'),
+                                                           interface.get('network_value'),
+                                                           interface.get('interface_id'))
+                route = ipaddress.ip_network(u'{}'.format(interface.get('network_value')))
+                print "Create default route: %s" % str(list(route)[1])
+            else:
+                print "ip: {}, netmask: {}, id: {}".format(interface.get('address'),
+                                                           interface.get('network_value'),
+                                                           interface.get('interface_id'))
+        '''
         dhcp_physical = PhysicalInterface()
         dhcp_physical.add_dhcp_interface(dynamic_interface,
                                          dynamic_index, primary_mgt=True)

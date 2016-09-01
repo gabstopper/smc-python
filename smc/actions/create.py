@@ -333,7 +333,19 @@ def virtual_ips(data):
     
 def virtual_fw(data):
     pass
-    
+
+def menu(list, question):
+    while True:
+        print question
+        for entry in list:
+            print(1 + list.index(entry)),
+            print(") " + entry.name)
+        
+        try:
+            return list[input()-1]
+        except IndexError:
+            print "Invalid choice. Try again."
+                
 if __name__ == '__main__':
     #smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001', timeout=60)
     
@@ -355,11 +367,15 @@ if __name__ == '__main__':
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
 
-    """@type engine: Node"""
-    engine = Engine('aws-02').load()
-    for node in engine.nodes:
-        print node.name, node.node_type
-    #pprint(vars(engine))
+    """@type engine: Node""" #aws-02 node 1
+    #engine = Engine('i-cc9e5bcd (us-east-1a)').load()
+    
+    
+    engine = Engine('bo').load()
+    pprint(vars(engine))
+    
+    for x in engine.interface:
+        print x
     
     '''
     for gw in collections.describe_external_gateways():

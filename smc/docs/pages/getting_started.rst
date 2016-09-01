@@ -82,6 +82,48 @@ A list of current resources are:
 * VPNPolicy: VPN Policy specific actions; :py:class:`smc.elements.vpn.VPNPolicy`
 * External Gateway: VPN external gateway actions; :py:class:`smc.elements.vpn.ExternalGateway`
 
+Much of the functionality is encapsulated into these top level resources. For example, after loading 
+a VPNPolicy, you can add external endpoints (for External Gateways), add VPN Sites, enable/disable sites, etc.
+
+Collections
+-----------
+
+Collections are functions provided to return base level information about a 
+specific SMC element by type :py:mod:`smc.elements.collections`
+Some collection types have additional filters that can be used to get more specific 
+results.
+
+Each collection returns a :py:class:`smc.elements.collections.Element` with 3 attributes
+set:
+
+* name (list): name of element
+* type: type of element
+* href: href to location of element
+
+The Element returned will not have the full element details but will provide a linkage to 
+retrieving them.
+
+To search for all host objects:
+
+.. code-block:: python
+
+   for host in collections.describe_hosts():
+   	 print host
+        
+To search only for a host name 'test':
+
+.. code-block:: python
+
+   for host in collections.describe_hosts(name=['test']):
+     print host
+
+To search for all hosts with 'test' in the name:
+
+.. code-block:: python
+
+   for host in collections.describe_hosts(name=['test'], exact_match=False):
+     print host
+   
 Creating elements
 -----------------
 
@@ -745,45 +787,6 @@ To modify after creation by setting a password and making a superuser:
    admin.update()
    admin.enable_disable() #enable or disable account
     
-Collections
------------
-
-Collections are functions provided to return base level information about a 
-specific SMC element by type :py:mod:`smc.elements.collections`
-Some collection types have additional filters that can be used to get more specific 
-results.
-
-Each collection returns a :py:class:`smc.elements.collections.Element` with 3 attributes
-set:
-
-* name (list): name of element
-* type: type of element
-* href: href to location of element
-
-The Element returned will not have the full element details but will provide a linkage to 
-retrieving them.
-
-To search for all host objects:
-
-.. code-block:: python
-
-   for host in collections.describe_hosts():
-   	 print host
-        
-To search only for a host name 'test':
-
-.. code-block:: python
-
-   for host in collections.describe_hosts(name=['test']):
-     print host
-
-To search for all hosts with 'test' in the name:
-
-.. code-block:: python
-
-   for host in collections.describe_hosts(name=['test'], exact_match=False):
-     print host
-       
 Search
 ------
 

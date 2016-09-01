@@ -26,9 +26,14 @@ class ConfigLoadError(SMCException):
 class SMCOperationFailure(SMCException):
     """ Exception class for storing results from calls to the SMC
     This is thrown for HTTP methods that do not return the expected HTTP
-    status code. See each method above for expected success status
+    status code. See each http_* method in :py:mod:`smc.api.web` for 
+    expected success status
     
     :param response: response object returned from HTTP method
+    :param msg: optional msg to insert
+    
+    Instance attributes:
+    
     :ivar response: http request response object
     :ivar code: http status code
     :ivar status: status from SMC API

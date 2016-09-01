@@ -30,7 +30,7 @@ from smc.api.session import session
 import smc.actions.search
 import smc.elements.element
 from smc.elements.interfaces import PhysicalInterface
-from smc.elements.engines import Node, Layer3VirtualEngine
+from smc.elements.engines import Layer3VirtualEngine, Engine
 
 import logging
 from smc.api.exceptions import SMCException
@@ -49,7 +49,7 @@ dns=['8.8.8.8','8.8.8.9']
 
 if __name__ == '__main__':
 
-    session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.150:8082', apikey='EiGpKD4QxlLJ25dbBEp20001')
 
     #Get zone references
     for idx, zone in zone_map.iteritems():
@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 smc.elements.element.Zone(zone).create().href
     
     #Load Master Engine
-    engine = Node(master_engine_name).load()
+    engine = Engine(master_engine_name).load()
     
     engine_info = OrderedDict()
     

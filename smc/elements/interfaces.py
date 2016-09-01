@@ -303,7 +303,7 @@ class PhysicalInterface(object):
         return self._make()
           
     def add_single_node_interface(self, interface_id, address, network_value, 
-                                  zone_ref=None, is_mgmt=False):
+                                  zone_ref=None, is_mgmt=False, **kwargs):
         """
         Adds a single node interface to engine in context
         
@@ -316,7 +316,7 @@ class PhysicalInterface(object):
         
         See :py:class:`SingleNodeInterface` for more information 
         """
-        intf = SingleNodeInterface(interface_id, address, network_value)
+        intf = SingleNodeInterface(interface_id, address, network_value, **kwargs)
         if is_mgmt:
             intf.modify_attribute(auth_request=True, outgoing=True,
                                   primary_mgt=True)
@@ -326,7 +326,7 @@ class PhysicalInterface(object):
         return self._make()
  
     def add_node_interface(self, interface_id, address, network_value,
-                           zone_ref=None, nodeid=1, is_mgmt=False):
+                           zone_ref=None, nodeid=1, is_mgmt=False, **kwargs):
         """
         Add a node interface to engine
         
@@ -340,7 +340,8 @@ class PhysicalInterface(object):
         
         See :py:class:`NodeInterface` for more information 
         """
-        intf = NodeInterface(interface_id, address, network_value, nodeid=nodeid)
+        intf = NodeInterface(interface_id, address, network_value, nodeid=nodeid,
+                             **kwargs)
         if is_mgmt:
             intf.modify_attribute(primary_mgt=True, outgoing=True)
         self.data.update(interface_id=interface_id, 
@@ -349,7 +350,7 @@ class PhysicalInterface(object):
         return self._make()
    
     def add_capture_interface(self, interface_id, logical_interface_ref, 
-                              zone_ref=None):
+                              zone_ref=None, **kwargs):
         """
         Add a capture interface
         
@@ -360,7 +361,7 @@ class PhysicalInterface(object):
         
         See :py:class:`CaptureInterface` for more information 
         """
-        intf = CaptureInterface(interface_id, logical_interface_ref)
+        intf = CaptureInterface(interface_id, logical_interface_ref, **kwargs)
         self.data.update(interface_id=interface_id,
                          interfaces=[{CaptureInterface.name: vars(intf)}],
                          zone_ref=zone_ref)
@@ -617,6 +618,9 @@ class Interface(object):
     def delete(self):
         return smc.api.common.delete(self.href)
     
+    def modify_attribute(self, **kwargs):
+        pass
+        
     @property
     def physical_interface(self):
         return PhysicalInterface()

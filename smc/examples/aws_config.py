@@ -52,15 +52,17 @@ Install smc-python::
 from pprint import pprint
 import re
 import time
+import ipaddress
 import boto3
 import botocore
 from smc.api.session import session
+from smc.elements.engines import Layer3Firewall
+from smc.elements import collections as collections
 from smc.api.exceptions import CreateEngineFailed
-from smc.elements.engines import AWSLayer3Firewall
 
 smc_public_ip = '73.88.56.153'  #Hack initial_contact file; Locations are not configurable via SMC API
 instance_type='t2.micro'
-ngfw_6_0_2 = 'ami-34a26b54'
+ngfw_6_0_2 = 'ami-b50f60a2' #east
             
 class VpcConfiguration(object):
     """ 
@@ -74,6 +76,12 @@ class VpcConfiguration(object):
     
     Note that operations performed against AWS are not idempotent, so if there is a 
     failure, changes made would need to be undone.
+    
+    Instance attributes:
+    
+    :ivar availability_zone: AWS AZ for placement
+    :ivar internet_gateway: AWS internet gateway object reference
+    :ivar vpc: vpc object reference
      
     :param vpcid: VPC id
     """ 
@@ -82,7 +90,6 @@ class VpcConfiguration(object):
         self.vpc = None #: Reference to VPC
         self.alt_route_table = None
         self.network_interface = [] #: interface idx, network ref
-        self.availability_zone = set()
   
     def load(self):
         if not self.vpcid:
@@ -146,7 +153,11 @@ class VpcConfiguration(object):
         NGFW will act as a gateway to the private networks and will have 
         default NAT enabled.
         Interface 0 will be attached to the AWS interface eth0 which will
-        be bound to the AWS Internet GW for inbound / outbound routing.
+        be bound to the AWS Internet GW for inbound / outbound routing. The
+        static IP address for eth0 will be calculated based on the network address
+        broadcast -1.
+        See AWS doc's for reserved addresses in a VPC:
+        http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html
         
         :param int interface_id: id to assign interface
         :param cidr_block: cidr of subnet
@@ -156,23 +167,28 @@ class VpcConfiguration(object):
         """
         subnet = self.create_subnet(cidr_block)
         wait_for_resource(subnet, self.vpc.subnets.all())
-            
-        interface = subnet.create_network_interface(Description=description)
-        wait_for_resource(interface, self.vpc.network_interfaces.all())
-        
-        interface.modify_attribute(SourceDestCheck={'Value': False})
-               
-        #Assign elastic to eth0
+       
+        #Assign static address and elastic to eth0
         if interface_id == 0:
+            external = ipaddress.ip_network(u'{}'.format(cidr_block))
+            external = str(list(external)[-2]) #broadcast address -1
+            interface = subnet.create_network_interface(PrivateIpAddress=external,
+                                                        Description=description)
+            
+            wait_for_resource(interface, self.vpc.network_interfaces.all()) 
             allocation_id = self.allocate_elastic_ip()
             address = ec2.VpcAddress(allocation_id)
             address.associate(NetworkInterfaceId=interface.network_interface_id)
-
+        else:
+            interface = subnet.create_network_interface(Description=description)
+            wait_for_resource(interface, self.vpc.network_interfaces.all())
+            
+        interface.modify_attribute(SourceDestCheck={'Value': False})
         print "Created network interface: {}, subnet_id: {}, private address: {}".\
                 format(interface.network_interface_id, interface.subnet_id,
                        interface.private_ip_address)
     
-        self.availability_zone.add(interface.availability_zone) 
+        self.availability_zone = interface.availability_zone 
         self.associate_network_interface(interface_id, interface.network_interface_id)
 
     def create_subnet(self, cidr_block):
@@ -237,13 +253,27 @@ class VpcConfiguration(object):
                     break
             if not eip: raise
         return eip.get('AllocationId')
-        
+    
+    @property
+    def availability_zone(self):
+        """
+        :return: availability_zone
+        """
+        if not hasattr(self, '_availability_zone'):
+            return None
+        return self._availability_zone
+    
+    @availability_zone.setter
+    def availability_zone(self, value):
+        self._availability_zone = value
+    
     @property    
     def internet_gateway(self):
         """ 
-        Get the internet gateway
         :return: InternetGateway
         """
+        if not hasattr(self, '_internet_gateway'):
+            return None
         return self._internet_gateway
     
     @internet_gateway.setter
@@ -278,14 +308,6 @@ class VpcConfiguration(object):
         network and other network subnets will be considered private. Note that
         a network interface will always have a subnet reference.
         """
-        if not self.alt_route_table: 
-            print "Route table doesn't exist!"
-            #No alt route found, check for non-default route tables to use, or
-            #that may already be used, or create a new one
-            for rt in self.vpc.route_tables.filter(Filters=[{
-                                        'Name': 'association.main',
-                                        'Values': ['false']}]):
-                print "non_default: %s" % rt
         for networks in self.network_interface:
             for idx, ntwk in networks.iteritems():
                 if idx != 0: #0 is considered public
@@ -301,7 +323,6 @@ class VpcConfiguration(object):
         For protocols, AWS references:
         http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
         
-        #TODO: Could more than 1 security group be applied? 
         :param cidr_block: network (src 0.0.0.0/0 from internet)
         :param protocol: protocol to allow (-1 for all)
         """
@@ -313,7 +334,7 @@ class VpcConfiguration(object):
     def build_ngfw_interfaces(self):
         """ 
         Build the right data structure for NGFW firewall interfaces
-        :returns: list of dictionarys representing NGFW interface
+        :return: list of dictionarys representing NGFW interface
         """
         interfaces = []
         for intf in self.network_interface:
@@ -333,11 +354,12 @@ class VpcConfiguration(object):
         :param userdata: optional, but recommended
         :param imageid: NGFW AMI id
         :param availability_zone: where to launch instance
-        :return: instance id
+        :return: instance
         """
         verify_key_pair(key_pair) #exception raised here
-        az = next(iter(self.availability_zone))
-        print "Launching instance into availability zone: {}".format(az)
+        
+        print "Launching instance into availability zone: {}".format(\
+                                                self.availability_zone)
           
         interfaces = []
         for interface in self.network_interface:
@@ -351,10 +373,10 @@ class VpcConfiguration(object):
                                         MaxCount=1,
                                         InstanceType=instance_type,
                                         KeyName=key_pair,
-                                        Placement={'AvailabilityZone': az},
+                                        Placement={'AvailabilityZone': 
+                                                   self.availability_zone},
                                         NetworkInterfaces=interfaces,
-                                        UserData=userdata
-                                        )
+                                        UserData=userdata)
         return instance[0]
     
     def rollback(self):
@@ -405,12 +427,13 @@ def verify_key_pair(key_pair):
     ec2.meta.client.describe_key_pairs(KeyNames=[key_pair])
 
 def waiter(instance, status):
-    """ Generator to monitor the startup of the launched AMI 
+    """ 
+    Generator to monitor the startup of the launched AMI 
     Call this in loop to get status
     :param instance: instance to monitor 
     :param status: status to check for:
            'pending|running|shutting-down|terminated|stopping|stopped'
-    :returns: generator message updates 
+    :return: generator message updates 
     """
     while True:
         if instance.state.get('Name') != status:
@@ -441,42 +464,121 @@ def wait_for_resource(resource, iterable):
             
 def create_ngfw_in_smc(name, interfaces, 
                        domain_server_address=None,
-                       default_nat=True):
+                       default_nat=True,
+                       reverse_connection=True):
     """ 
     Create NGFW instance in SMC, bind the license and return the 
     initial_contact info which will be fed to the AWS launcher as 
     UserData.
     The NGFW will be configured to enable Default NAT for outbound.
     
-    :param name: name of ngfw in smc
-    :param interfaces: list of interfaces from VpcConfiguration
+    :param str name: name of ngfw in smc
+    :param list interfaces: list of interfaces from VpcConfiguration
     :param list domain_server_address: (optional) dns address for engine
-    :param default_nat: (optional: default True) whether to enable default NAT
+    :param boolean default_nat: (optional: default True) whether to enable default NAT
+    :param boolean reverse_connection: (optional: default True) use when behind NAT
     
-    See :py:class:`smc.elements.engines.AWSLayer3Firewall` for more info
+    See :py:class:`smc.elements.engines.Layer3Firewall` for more info
     """
     global engine
-    print "Calling create ngfw.."
+    print "Creating NGFW...."
     
-    engine = AWSLayer3Firewall.create(name, 
-                                      interfaces,  
-                                      domain_server_address=domain_server_address,
-                                      default_nat=True)
+    for interface in interfaces:
+        address = interface.get('address')
+        interface_id = interface.get('interface_id')
+        network_value = interface.get('network_value')
+        if interface_id == 0:
+            mgmt_ip = address
+            mgmt_network = network_value
+            engine = Layer3Firewall.create(name, 
+                                           mgmt_ip, 
+                                           mgmt_network,
+                                           domain_server_address=domain_server_address,
+                                           reverse_connection=reverse_connection, 
+                                           default_nat=default_nat)
+            #default gateway is first IP on network subnet
+            gateway = ipaddress.ip_network(u'{}'.format(mgmt_network))
+            gateway = str(list(gateway)[1])
+            engine.add_route(gateway, '0.0.0.0/0')
+        else:
+            engine.physical_interface.add_single_node_interface(interface_id, 
+                                                                address, 
+                                                                network_value)
+        #Enable VPN on external interface
+        for intf in engine.internal_gateway.internal_endpoint.all():
+            if intf.name == mgmt_ip:
+                intf.modify_attribute(enabled=True)
+    
     print "Created NGFW..."
     for node in engine.nodes:
         node.bind_license()
         content = node.initial_contact(enable_ssh=True)
-     
+    
+    #reload engine to update engine settings
+    engine = engine.load()
+    
     #engine.upload(policy='Layer 3 Virtual Firewall Policy') #queue policy
     return re.sub(r"management-address string (.+)", "management-address string " + \
                   smc_public_ip, content)
-    
-def change_ngfw_name(instance_id):
+
+def change_ngfw_name(instance_id, az):
     """ Change the engine name to match the InstanceId on Amazon
          
-    :param instance_id: instance ID obtained from AWS run_instances 
+    :param instance_id: instance ID obtained from AWS run_instances
+    :param az: availability zone
     """
-    engine.change_name(instance_id)
+    engine.modify_attribute(name='{} ({})'.format(instance_id, az))
+    engine.internal_gateway.modify_attribute(name='{} ({}) Primary'.format(\
+                                        instance_id, az))
+    for node in engine.nodes:
+        node.modify_attribute(name='{} node {}'.format(instance_id, node.nodeid))
+
+def associate_vpn_policy(vpn_policy_name, gateway='central'):
+    """
+    Associate this engine with an existing VPN Policy
+    First create the proper VPN Policy within the SMC. This will add the AWS NGFW as
+    a gateway node.
+    
+    :param str vpn_policy_name: name of existing VPN Policy
+    :param str gateway: |central|satellite
+    :return: None
+    """ 
+    for policy in collections.describe_vpn_policies():
+        if policy.name == vpn_policy_name:
+            vpn = policy.load()
+            vpn.open()
+            if gateway == 'central':
+                vpn.add_central_gateway(engine.internal_gateway.href)
+            else:
+                vpn.add_satellite_gateway(engine.internal_gateway.href)
+            vpn.save()
+            vpn.close()
+        break
+        
+def monitor_ngfw_status(step=10):
+    """
+    Monitor NGFW initialization. Status will start as 'Declared' and move to
+    'Configured' once initial contact has been made. After policy upload, status
+    will move to 'Installed'.
+    
+    :param step: sleep interval
+    """
+    print "Waiting for NGFW to fully initialize..."
+    desired_status = 'Online'
+    while True:
+        for node in engine.nodes:
+            status = node.status()
+            if status.get('status') != desired_status:
+                print "Status: {}, Config Status: {}, State: {}".format(\
+                        status.get('status'), status.get('configuration_status'), 
+                        status.get('state'))
+            else:
+                print 'NGFW Status: {}, Installed Policy: {}, State: {}, Version: {}'.\
+                format(status.get('status'), status.get('installed_policy'),
+                       status.get('state'), status.get('version'))
+                return
+        time.sleep(step)
+        
 
         
 if __name__ == '__main__':
@@ -488,7 +590,8 @@ if __name__ == '__main__':
 
     ec2 = boto3.resource('ec2', 
                          #region_name='us-west-2',
-                         region_name='us-east-1')
+                         region_name='us-east-1'
+                         )
     '''
     Use Case 1: Create entire VPC and deploy NGFW
     ---------------------------------------------
@@ -515,6 +618,10 @@ if __name__ == '__main__':
              by AWS when the interface is created. If you require a different AZ, set the 
              attribute :py:class:`VpcConfiguration.availability_zone` before called launch. 
     '''
+    #Uncomment and put your VPC name in here to delete the whole thing
+    vpc = VpcConfiguration('vpc-da3a74bd').load()
+    vpc.rollback()
+    
     
     vpc = VpcConfiguration.create(vpc_subnet='192.168.3.0/24')
     try:
@@ -527,16 +634,23 @@ if __name__ == '__main__':
                                       interfaces=vpc.build_ngfw_interfaces(),
                                       domain_server_address=['8.8.8.8', '8.8.4.4'])
         
-        #instance = vpc.launch(key_pair='aws-ngfw', userdata=userdata)
         instance = vpc.launch(key_pair='dlepage', userdata=userdata)
+        
+        #change ngfw name to 'instanceid-availability_zone
+        change_ngfw_name(instance.id, vpc.availability_zone)
+        associate_vpn_policy('myVPN')
+        
         for message in waiter(instance, 'running'):
             print message
         
-        
+        start_time = time.time()
+        monitor_ngfw_status()
+        print("--- %s seconds ---" % (time.time() - start_time))
+    
     except (botocore.exceptions.ClientError, CreateEngineFailed) as e:
         print "Caught exception, rolling back: {}".format(e)
         vpc.rollback()
-    
+
     '''
     Use Case 2: Deploy NGFW into existing VPC
     -----------------------------------------
@@ -578,5 +692,6 @@ if __name__ == '__main__':
             print "Available Elastic IP: {}".format(available.get('AllocationId'))
     '''
     
+    #http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html
     session.logout()
     

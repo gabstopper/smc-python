@@ -15,9 +15,9 @@ before fully initializing the configuration.
 All return element types (regardless of type) will have the following attributes as
 metadata::
 
-* href: href location of the element in SMC
-* type: type of element
-* name: name of element
+    href: href location of the element in SMC
+    type: type of element
+    name: name of element
 
 Describe functions that return specific element types, such as Engine, require that
 the load() method be called in order to initialize the data set and available methods for

@@ -16,9 +16,6 @@ Or optionally download the latest tarball (windows): smc-python_, unzip and run:
 Dependencies on this library are:
 
 * requests
-* ipaddress
-* prompt-toolkit (only if using CLI)
-* pygments (only if using CLI)
 
 If installation is required on a non-internet facing machine, you will have to download
 the smc-python tarball and dependencies manually and install by running python setup install.

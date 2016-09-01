@@ -79,6 +79,7 @@ class SMCAPIConnection(object):
         Add object to SMC
         If response code is success, return href to new object location
         If not success, raise exception, caught in middle tier calling method
+        
         :param href: entry point to add specific object type
         :param data: json document with object def
         :param uri (optional): not implemented
@@ -86,6 +87,8 @@ class SMCAPIConnection(object):
         :raise SMCOperationFailure in case of non-http 201 return
         """
         try:
+            logger.debug('POST request with href: {}, params: {}, data:{}'.format(\
+                                            href, params, data))
             if self.session:
                 r = self.session.post(href,
                             data=json.dumps(data),
@@ -173,11 +176,11 @@ class SMCAPIConnection(object):
       
 class SMCResult(object):
     """
-    SMCResult will store the data needed to do modify based operations on
-    an existing record. To modify, an HTTP GET is first made returning the
-    element json and the current etag. The modified json should be POST to the
-    SMC with json as payload and etag header to verify the element has not been
-    modified since previous GET.
+    SMCResult will store the return data for operations performed against the
+    SMC API. If the function returns an SMCResult, the following attributes are
+    set.
+    
+    Instance attributes:
     
     :ivar etag: etag from HTTP GET, representing unique value from server
     :ivar href: href of location header if it exists
