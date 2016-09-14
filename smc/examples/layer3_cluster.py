@@ -17,6 +17,9 @@ This is a Layer 3 Firewall cluster with the following configuration::
     :param nodes: Node addresses to add to cluster. Each address/netmask combination is added as a singular node
     :param dns: Optional DNS settings for engine
     :param zone_ref: Optional zone to assign to physical interface
+    :param default_nat: enable default NAT for outbound
+    :param enable_gti: enable GTI on engine
+    :param enable_antivirus: enable AV on engine
 
 See :class:`smc.elements.engines.FirewallCluster` for more details.
     
@@ -30,7 +33,7 @@ line below and set the logging level (recommend ERROR unless troubleshooting)::
     logging.basicConfig(level=logging.ERROR)
 """
 
-from smc.api.session import session
+from smc import session
 from smc.elements.engines import FirewallCluster
 from smc.elements.element import zone_helper
 
@@ -52,7 +55,10 @@ if __name__ == '__main__':
                                            {'address': '1.1.1.3', 'network_value': '1.1.1.0/24', 'nodeid':2},
                                            {'address': '1.1.1.4', 'network_value': '1.1.1.0/24', 'nodeid':3}],
                                     domain_server_address=['1.1.1.1'], 
-                                    zone_ref=zone_helper('Internal'))
+                                    zone_ref=zone_helper('Internal'),
+                                    enable_antivirus=True,
+                                    enable_gti=True,
+                                    default_nat=True)
     
     engine.physical_interface.add_cluster_virtual_interface(
                                             interface_id=1,

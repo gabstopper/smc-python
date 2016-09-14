@@ -8,18 +8,18 @@ class SMCException(Exception):
     """ Base class for exceptions """
     pass
 
+class ConfigLoadError(SMCException):
+    """
+    Thrown when there was a problem reading credential information from 
+    file. Typically caused by missing settings.
+    """
+    pass
+
 class SMCConnectionError(SMCException):
     """
     Thrown when there are connection related issues with the SMC.
     This could be that the underlying http requests library could not connect
     due to wrong IP address, wrong port, or time out
-    """
-    pass
-
-class ConfigLoadError(SMCException):
-    """
-    Thrown when there was a problem reading credential information from 
-    file. Typically caused by missing settings.
     """
     pass
     
@@ -115,11 +115,30 @@ class CreateElementFailed(SMCException):
     """
     pass
 
+class UnsupportedEntryPoint(SMCException):
+    """
+    An entry point was specified that was not found in this API
+    version. This is likely due to using an older version of the 
+    SMC API that does not support that feature. The exception is 
+    thrown specifying the entry point specified.
+    """
+    pass
+
 class UnsupportedEngineFeature(SMCException):
     """
     If an operation is performed on an engine that does not support
     the functionality, this is thrown. For example, only Master Engine
     has virtual resources. IPS and Layer 2 Firewall do not have internal
     gateways (used for VPN).
+    """
+    pass
+
+class UnsupportedInterfaceType(SMCException):
+    """
+    Some interface types are not supported on certain engines. For example,
+    Virtual Engines only have Virtual Physical Interfaces. Layer 3 Firewalls
+    do not support Capture or Inline Interfaces. This exception will be thrown
+    when an attempt is made to enumerate interfaces for an engine type missing
+    a reference to an unsupported interface type
     """
     pass

@@ -25,11 +25,10 @@ and assumes that all names with same digit/s are interface of the same virtual e
 """
 import re
 import csv
+from smc import session
 from collections import OrderedDict
-from smc.api.session import session
 import smc.actions.search
 import smc.elements.element
-from smc.elements.interfaces import PhysicalInterface
 from smc.elements.engines import Layer3VirtualEngine, Engine
 
 import logging
@@ -37,8 +36,8 @@ from smc.api.exceptions import SMCException
 logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 
-master_engine_name = 'master-eng2'
-csv_filename = '/Users/davidlepage/info2.csv'
+master_engine_name = 'master-eng'
+csv_filename = '/Users/davidlepage/info.csv'
 virtual_intf_offset = 1 #Virtual interface offset based on used MasterEngine interfaces
 #Master engine physical interface to zone map
 zone_map = {1: 'Web', 
@@ -49,7 +48,7 @@ dns=['8.8.8.8','8.8.8.9']
 
 if __name__ == '__main__':
 
-    session.login(url='http://172.18.1.150:8082', apikey='EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
 
     #Get zone references
     for idx, zone in zone_map.iteritems():
@@ -81,9 +80,10 @@ if __name__ == '__main__':
                 print "Creating VLANs and Virtual Resources for VE: {}".format(virtual_engine_name) 
                 
                 #Create virtual resource on the Master Engine
-                print engine.virtual_resource_add(virtual_engine_name, vfw_id=current_engine,
-                                            show_master_nic=False)
-                
+                engine.virtual_resource.create(name=virtual_engine_name, 
+                                               vfw_id=current_engine, 
+                                               show_master_nic=False)
+              
                 engine_info[virtual_engine_name] = []
             
             physical_interface_id = int(row.get('interface_id'))    
@@ -95,23 +95,21 @@ if __name__ == '__main__':
                                                      'network_value': row.get('address')+'/'+row.get('cidr'),
                                                      'zone_ref': zone_map.get(physical_interface_id)})    
 
-            physical = PhysicalInterface(physical_interface_id)
-            physical.add_vlan_to_node_interface(row.get('vlan_id'), 
-                              virtual_mapping=virtual_interface_id, 
-                              virtual_resource_name=virtual_engine_name)
-
-            result = engine.add_physical_interfaces(physical.data)
+            result = engine.physical_interface.add_vlan_to_node_interface(
+                                                        physical_interface_id,
+                                                        row.get('vlan_id'), 
+                                                        virtual_mapping=virtual_interface_id, 
+                                                        virtual_resource_name=virtual_engine_name)
             
             if result.href:
                 print "Successfully created VLAN {}".format(row.get('vlan_id'))
             else:
                 print "Failed creating VLAN {}, reason: {}".format(row.get('vlan_id'), result.msg)
-            
-                
+                           
         for name, interfaces in engine_info.iteritems():
             try:
                 result = Layer3VirtualEngine.create(name, master_engine_name, name, default_nat=False, 
-                                                interfaces=interfaces, dns=dns)        
+                                                    interfaces=interfaces, dns=dns)        
                 print "Success creating virtual engine: %s" % name
     
             except SMCException, reason:

@@ -29,7 +29,7 @@ For example, providing the connect information through the constructor:
 
 .. code-block:: python
 
-   from smc.api.session import session
+   from smc import session
 
    session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
    ....do stuff....
@@ -40,7 +40,7 @@ constructor. Otherwise the latest API version available will be used:
 
 .. code-block:: python
 
-   from smc.api.session import session
+   from smc import session
    session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
    api_version='5.10')
 
@@ -59,6 +59,13 @@ unless `logout` has been called.
 .. note:: If you have a longer running application where the session may time out due to long delays 
 		  between calls, the smc-python API will re-authenticate the session automatically as long as a previous 
 		  session was already obtained and stored in the session cache.
+
+To enable logging from smc-python, a convenience method is provided to show stream logging:
+
+.. code-block:: python
+
+   from smc import set_stream_logger
+   set_stream_logger(level=logging.DEBUG, format_string=None)
 
 Resources
 ---------
@@ -178,42 +185,38 @@ Once called, the json attribute will have the existing settings for the object t
 be modified. After making modifications to the object attributes, call update() to update the
 element on the SMC.
 
-Example of modifying a TCPServiceGroup by changing the name and adding an additional service:
+Example of modifying a TCPServiceGroup by changing the name:
 
 .. code-block:: python
    
-   service = TCPServiceGroup.modify('api-tcpgrp2') #Get raw group json
    tcp = TCPService('newservice', 6000).create() #create a new tcp service
-   service.json['name'] = 'api-tcpgrp2' #change original service name
-   service.json.get('element').append(tcp.href) #add the new service
-   service.update() #call update to refresh element
+   for service in describe_tcp_services():
+     if service.name == 'api-tcpgrp2':
+       service.modify_attribute(name='mynew-servicename')
  
 Example of adding TCP and UDP Services to an existing Service Group:
 
 .. code-block:: python
    
-   grp = ServiceGroup.modify('api-servicegrp')
    udp = UDPService('api-udp-svc', 6000).create()
    tcp = TCPService('api-tcp-svc', 6000).create()
-   grp.json.get('element').extend([udp.href, tcp.href])
-   grp.update()
+   for group in describe_tcp_service_groups([name='api-servicegrp']):
+     group.modify_attribute(element=[udp.href, tcp.href])
 
 Example of changing an existing Host and IP address:
 
 .. code-block:: python
 
-   host = Host.modify('ami')
-   host.json['address'] = '2.2.2.2'
-   host.json['name'] = 'ami-changed'
-   host.update()
+   for host in describe_hosts(name=['myhost']):
+     h.modify_attribute(name='kiley', address='1.1.2.2')
 
 Empty out all members of a specific network element group:
 
 .. code-block:: python
    
-   group = Group.modify('mygroup')
-   group.json['element'] = []
-   group.update()
+   for groups in describe_groups():
+     if group.name == 'mygroup':
+       group.modify_attribute(element=[member1, member2]
             
 If modification was successful, SMCResult will have the href attribute set with the location of
 the element, or the msg attribute set with reason if modification fails.

@@ -20,9 +20,18 @@ def counted(f):
     return wrapped
 
 class SMCAPIConnection(object):
-    def __init__(self, _session):
-        self._session = _session #Session
-        self.session = _session.session
+    """
+    Represents the ReST methods used to perform operations against the
+    SMC API. 
+    
+    :param session: :py:class:`smc.api.session.Session` object
+    """
+    def __init__(self, session):
+        self._session = session
+    
+    @property
+    def session(self):
+        return self._session.session
 
     @counted
     def http_get(self, href, params=None, stream=False, filename=None):
@@ -194,7 +203,7 @@ class SMCResult(object):
         self.content = None
         self.msg = msg
         self.code = None
-        self.json = self.extract(respobj)
+        self.json = self.extract(respobj) #: list
 
     def extract(self, response):
         if response:
@@ -208,10 +217,12 @@ class SMCResult(object):
                         self.json = result.get('result')
                     else:
                         self.json = result
+                else:
+                    self.json = []
                 return self.json
             elif response.headers.get('content-type') == 'application/octet-stream':
                 self.content = response.text
-
+            
     def __str__(self):
         sb = []
         for key in self.__dict__:
@@ -219,4 +230,4 @@ class SMCResult(object):
         return ', '.join(sb)
                 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)
+        return "%s(%r)" % (self.__class__.__name__, self.__dict__)

@@ -6,7 +6,7 @@ Specify a policy to upload once the single FW instance has made the initial cont
 be queued and kick off once the contact is complete.
 Generate the initial contact information for sg-reconfigure on the virtual or appliance.
 """
-from smc.api.session import session
+from smc import session
 from smc.elements.engines import Layer3Firewall
 from smc.elements.interfaces import PhysicalInterface
 
@@ -24,17 +24,19 @@ if __name__ == '__main__':
         print "Successfully created Layer 3 firewall, adding interfaces.."
         
     #Create a new physical interface for single firewall
-    physical = PhysicalInterface(1)
-    physical.add_single_node_interface('1.1.1.1', '1.1.1.0/24')
-    engine.add_physical_interfaces(physical.data)
+    engine.physical_interface.add_single_node_interface(interface_id=1, 
+                                                        address='1.1.1.1', 
+                                                        network_value='1.1.1.0/24')
     
     #Create a second interface using VLANs and assign IP info
-    physical = PhysicalInterface(2)
-    physical.add_single_node_interface_to_vlan('2.2.2.2', '2.2.2.0/24', 2)
-    physical.add_single_node_interface_to_vlan('3.3.3.3', '3.3.3.0/24', 3)
-    physical.add_single_node_interface_to_vlan('4.4.4.4', '4.4.4.0/24', 4)
-    physical.add_single_node_interface_to_vlan('5.5.5.5', '5.5.5.0/24', 5)
-    engine.add_physical_interfaces(physical.data)
+    engine.physical_interface.add_vlan_to_single_node_interface(interface_id=2, 
+                                                                address='2.2.2.2', 
+                                                                network_value='2.2.2.0/24', 
+                                                                vlan_id=2)
+    engine.physical_interface.add_vlan_to_single_node_interface(2, '3.3.3.3', '3.3.3.0/24', 3)
+    engine.physical_interface.add_vlan_to_single_node_interface(2, '4.4.4.4', '4.4.4.0/24', 4)
+    engine.physical_interface.add_vlan_to_single_node_interface(2, '5.5.5.5', '5.5.5.0/24', 5)
+    
     
     #Add route information, mapping to interface is automatic
     engine.add_route('172.18.1.1', '192.168.1.0/24')
@@ -45,6 +47,7 @@ if __name__ == '__main__':
     engine.upload(policy='Layer 3 Router Policy')
     
     #Get initial contact information for sg-reconfigure
-    print engine.initial_contact('myfirewall', enable_ssh=True)
+    for node in engine.nodes:
+        print node.initial_contact(enable_ssh=True)
     
     session.logout()

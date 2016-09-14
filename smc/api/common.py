@@ -7,9 +7,9 @@ more common interface to the responses received
 
 import re
 import logging
-from smc.api.session import session
-from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 import smc.actions.search
+from smc import session
+from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
 clean_html = re.compile(r'<.*?>')
 
@@ -228,7 +228,7 @@ def fetch_json_by_href(href):
 
 
 def async_handler(follower_href, wait_for_finish=True,  
-                  display_msg=True):
+                  display_msg=True, sleep=3):
     """ Handles asynchronous operations called on engine or node levels
     
     :method: POST
@@ -246,12 +246,13 @@ def async_handler(follower_href, wait_for_finish=True,
             print msg
     """
     if wait_for_finish:
+        import time
         last_msg = ''
         while True:
             status = smc.actions.search.element_by_href_as_json(follower_href)
             msg = status.get('last_message')
             if display_msg:
-                if msg != last_msg:
+                if msg != last_msg and msg is not None:
                     yield re.sub(clean_html,'', msg)
                     last_msg = msg
             if status.get('success') == True:
@@ -262,5 +263,6 @@ def async_handler(follower_href, wait_for_finish=True,
             elif status.get('in_progress') == False and \
                     status.get('success') == False: #fails with SMC msg
                 raise SMCOperationFailure(msg=status.get('last_message'))
+            time.sleep(sleep)
     else:
         yield follower_href

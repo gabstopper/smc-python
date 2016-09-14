@@ -57,16 +57,18 @@ def load_from_file(alt_filepath=None):
         raise ConfigLoadError('Failed loading credential file from: {}, check the '
                               'path and verify contents are correct.'.format(path, e))
     
-    for flag in [ 'ssl_on' ]:
+    for flag in ['ssl_on']:
         use_ssl = parser.has_option('smc', flag)
             
     if use_ssl:
         scheme = 'https'
     else:
         scheme = 'http'
-        
-    url = "{}://{}:{}".format(scheme, config.get('smc_address'), config.get('smc_port'))
-    return {'url': url, 
-            'api_key': config.get('smc_apikey'), 
-            'api_version': config.get('smc_api')}
-            
+    
+    data = {}    
+    url = '{}://{}:{}'.format(scheme, config.get('smc_address'), config.get('smc_port'))
+    data.update(url=url,
+                api_key=config.get('smc_apikey'),
+                api_version=config.get('smc_api'))
+    return data
+

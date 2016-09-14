@@ -47,14 +47,14 @@ route add route=10.6.4.0/255.255.255.0 gateway=10.12.127.33 distance=1 descripti
 import re
 import ipaddress
 import logging
-from smc.api.session import session
+from smc import session
 from smc.elements.engines import Engine
 
 logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 
 filename = '/Users/davidlepage/statis routes.txt'
-firewall = 'bo'
+firewall = 'stonesoftfw'
 
 if __name__ == '__main__':
 

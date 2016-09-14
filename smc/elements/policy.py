@@ -41,10 +41,11 @@ from abc import ABCMeta, abstractmethod
 import smc.actions.search as search
 import smc.api.common
 from smc.elements.helpers import find_link_by_name
-from smc.api.exceptions import SMCException, LoadPolicyFailed,\
-    CreatePolicyFailed
+from smc.api.exceptions import SMCException, CreatePolicyFailed
 from smc.elements.element import SMCElement
-import smc.elements.collections as collections
+import smc.elements.collections
+#from smc.elements import collections
+#import smc.elements.collections as collections
 from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule, Rule
 
 class Policy(object):
@@ -235,8 +236,10 @@ class FirewallPolicy(Policy):
         
             FirewallPolicy('newpolicy').load()
         """
-        template_href = collections.describe_fw_template_policies(name=[template])
-
+        #template_href = collections.describe_fw_template_policies(name=[template])
+        
+        template_href = smc.elements.collections.describe_fw_template_policies(name=[template])
+        
         if not template_href:
             raise CreatePolicyFailed('Cannot find fw policy template: {}'.format(template))
         policy = {'name': name,

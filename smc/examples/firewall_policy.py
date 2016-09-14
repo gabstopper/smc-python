@@ -5,9 +5,9 @@ Create a new Firewall policy, open (lock) the policy, create a rule and save, th
 a rule by name. 
 '''
 
+from smc import session
 from smc.elements.policy import FirewallPolicy
 from smc.elements.collections import describe_tcp_services, describe_hosts
-from smc.api.session import session
 
 import logging
 logging.getLogger()

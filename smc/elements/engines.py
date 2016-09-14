@@ -1,11 +1,11 @@
-from pprint import pformat
 from smc.elements.element import SMCElement, Blacklist
-from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface, Interface
+from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface, Interface,\
+    TunnelInterface
 import smc.actions.search as search
 import smc.api.common as common_api
 from smc.elements.helpers import find_link_by_name
 from smc.api.exceptions import CreateEngineFailed, LoadEngineFailed,\
-    UnsupportedEngineFeature
+    UnsupportedEngineFeature, UnsupportedInterfaceType
 from smc.elements.vpn import InternalGateway
 
 class Engine(object):
@@ -21,10 +21,11 @@ class Engine(object):
     Instance resources:
     
         :ivar list nodes: (Node) nodes associated with this engine
-        :ivar list interface: (Interface) interfaces for this engine
+        :ivar interface: (Interface) interfaces for this engine
         :ivar internal_gateway: (InternalGateway) engine level VPN settings
         :ivar virtual_resource: (VirtualResource) for engine, only relavant to Master Engine
         :ivar physical_interface: (PhysicalInterface) access to physical interface settings
+        :ivar tunnel_interface: (TunnelInterface) retrieve or create tunnel interfaces
     """
     def __init__(self, name, **kwargs):
         self.name = name
@@ -34,9 +35,10 @@ class Engine(object):
     @classmethod
     def create(cls, name, node_type, 
                physical_interfaces,
-               nodes=1,
-               log_server_ref=None, 
-               domain_server_address=None):
+               nodes=1, log_server_ref=None, 
+               domain_server_address=None,
+               enable_antivirus=False, enable_gti=False,
+               default_nat=False):
         """
         Create will return the engine configuration as a dict that is a 
         representation of the engine. The creating class will also add 
@@ -50,30 +52,42 @@ class Engine(object):
         :param str log_server_ref: href of log server
         :param list domain_server_address
         """
-        cls.nodes = []
-        nodes = nodes
+        node_list = []
         for nodeid in range(1, nodes+1): #start at nodeid=1
-            cls.nodes.append(Node.create(name, node_type, nodeid))
-        
-        try:
-            cls.domain_server_address = []
+            node_list.append(Node.create(name, node_type, nodeid))
+            
+        domain_server_list = []
+        if domain_server_address:
             rank_i = 0
             for entry in domain_server_address:
-                cls.domain_server_address.append(
+                domain_server_list.append(
                                     {"rank": rank_i, "value": entry})
-        except (AttributeError, TypeError):
-            pass
         
         if not log_server_ref: #Set log server reference, if not explicitly set
             log_server_ref = search.get_first_log_server()
         
         engine = Engine(name)                     
         base_cfg = {'name': name,
-                    'nodes': cls.nodes,
-                    'domain_server_address': cls.domain_server_address,
+                    'nodes': node_list,
+                    'domain_server_address': domain_server_list,
                     'log_server_ref': log_server_ref,
                     'physicalInterfaces': physical_interfaces}
-        for k, v in base_cfg.items():
+        if enable_antivirus:
+            antivirus = {'antivirus': {
+                            'antivirus_enabled': True,
+                            'antivirus_update': 'daily',
+                            'virus_log_level': 'stored',
+                            'virus_mirror': 'update.nai.com/Products/CommonUpdater'}}
+            base_cfg.update(antivirus)
+        if enable_gti:
+            gti = {'gti_settings': {
+                        'file_reputation_context': 'gti_cloud_only'}}
+            base_cfg.update(gti)
+        if default_nat:
+            nat = {'default_nat': True}
+            base_cfg.update(nat)
+        
+        for k, v in base_cfg.iteritems():
             setattr(engine, k, v)
         
         return vars(engine)
@@ -91,7 +105,7 @@ class Engine(object):
                     engine = fw.load()
                     
         Call this to reload settings, useful if changes are made and new 
-        configuration references are needed.
+        configuration references or updated attributes are needed.
         """
         try:
             #Reference from a collections.describe_* function
@@ -111,33 +125,64 @@ class Engine(object):
             raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is correct"
                                " and the engine exists." % self.name)
     
+    def reload(self):
+        """ 
+        Reload json into context, same as :py:func:`load`
+        """
+        return self.load()
+    
+    def rename(self, name):
+        """
+        Rename the firewall engine, nodes, and internal gateway (vpn)
+        :return: None
+        """
+        self.modify_attribute(name='{}'.format(name))
+        self.internal_gateway.modify_attribute(name='{} Primary'\
+                                               .format(name))
+        for node in self.nodes:
+            node.modify_attribute(name='{} node {}'.format(name, node.nodeid))
+    
     def modify_attribute(self, **kwargs):
         """
+        Modify a top level engine attribute. This is limited to key/value pairs
+        that have single values, or where the value is a dict::
+            
+            engine.modify_attribute(passive_discard_mode=False)
+            engine.modify_attribute(antivirus={'antivirus_enabled':True, 
+                                               'virus_log_level':'stored'})
+            engine.modify_attribute(gti_settings={'file_reputation_context': 
+                                                  'gti_cloud_only'})
         :param kwargs: (key=value)
         """
         for k, v in kwargs.iteritems():
-            self.json.update({k: v})
-        latest = search.element_by_href_as_smcresult(self.href)
+            if isinstance(self.json.get(k), dict):
+                self.json[k].update(v)
+            else: #single key/value
+                self.json.update({k: v})
         return SMCElement(href=self.href, json=self.json,
-                          etag=latest.etag).update()
-          
+                          etag=self.etag).update()
+    
+    @property
+    def etag(self):
+        return search.element_by_href_as_smcresult(self.href).etag
+      
     @property
     def href(self):
-        try:
+        if hasattr(self, '_href'):
             return self._href
-        except AttributeError:
+        else:
             return find_link_by_name('self', self.link)
-      
+
     @href.setter
     def href(self, value):
         self._href = value
     
     @property
     def link(self):
-        try:
+        if hasattr(self, 'json'):
             return self.json.get('link')
-        except AttributeError:
-            return "You must first load the engine to access resources"
+        else:
+            raise AttributeError("You must first load the engine to access resources")
     
     @property
     def node_type(self):
@@ -168,10 +213,9 @@ class Engine(object):
         """ Add blacklist entry to engine node by name
     
         :method: POST
-        :param name: name of engine node or cluster
-        :param src: source to blacklist, can be /32 or network cidr
-        :param dst: dest to deny to, 0.0.0.0/32 indicates all destinations
-        :param duration: how long to blacklist in seconds
+        :param str src: source to blacklist, can be /32 or network cidr
+        :param str dst: dest to deny to, 0.0.0.0/32 indicates all destinations
+        :param int duration: how long to blacklist in seconds
         :return: SMCResult (href attr set with blacklist entry)
         """
         element = Blacklist(src, dst, duration)
@@ -182,7 +226,6 @@ class Engine(object):
         """ Flush entire blacklist for node name
     
         :method: DELETE
-        :param name: name of node or cluster to remove blacklist
         :return: SMCResult (msg attribute set if failure)
         """
         return common_api.delete(find_link_by_name('flush_blacklist', self.link))
@@ -196,8 +239,8 @@ class Engine(object):
                  corresponding interface on the network.
         
         :method: POST
-        :param gateway: gateway of an existing interface
-        :param network: network address in cidr format
+        :param str gateway: gateway of an existing interface
+        :param str network: network address in cidr format
         :return: SMCResult
         """
         return SMCElement(
@@ -223,7 +266,18 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('routing_monitoring', self.link))
+    
+    def contact_addresses(self):
+        """ Need to add check on API version, this is only supported with v6.1,
+        maybe just throw an UnsupportedVersionException
         
+        :method: GET
+        """
+        href = find_link_by_name('contact_addresses', self.link)
+        if href:
+            return search.element_by_href_as_json(href)
+        
+                        
     def antispoofing(self):
         """ Antispoofing interface information. By default is based on routing
         but can be modified in special cases
@@ -248,8 +302,8 @@ class Engine(object):
                     find_link_by_name('internal_gateway', self.link))
         if not result:
             raise UnsupportedEngineFeature('This engine does not support an internal '
-                                           'gateway for VPN, engine type: {}'.format(
-                                                                        self.node_type))
+                                           'gateway for VPN, engine type: {}'\
+                                           .format(self.node_type))
         for gw in result:
             igw = InternalGateway(
                         **search.element_by_href_as_json(gw.get('href')))
@@ -264,13 +318,13 @@ class Engine(object):
             engine.virtual_resource.all()
             
         :return: :py:class:`smc.elements.engine.VirtualResource`
-        :raises UnsupportedEngineFeature: this feature doesnt exist for engine type
+        :raises UnsupportedEngineFeature: this feature doesn't exist for engine type
         """
         href = find_link_by_name('virtual_resources', self.link)
         if not href:
             raise UnsupportedEngineFeature('This engine does not support virtual '
-                                           'resources; engine type: {}'.format(
-                                                                self.node_type))
+                                           'resources; engine type: {}'\
+                                           .format(self.node_type))
         return VirtualResource(href=href)
         
             
@@ -281,17 +335,12 @@ class Engine(object):
         objects and can be used to load specific interfaces to modify, etc.
 
         :method: GET
-        :return: list Interface: returns a top level Interface representing each
-                 configured interface on the engine. 
+        :return: :py:class:smc.elements.interfaces.Interface`
         
         See :py:class:`smc.elements.engines.Interface` for more info
         """
-        intf = search.element_by_href_as_json(
-                        find_link_by_name('interfaces', self.link))
-        interfaces=[]
-        for interface in intf:
-            interfaces.append(Interface(**interface))
-        return interfaces
+        href = find_link_by_name('interfaces', self.link)
+        return Interface(href=href)
     
     @property
     def physical_interface(self):
@@ -302,31 +351,54 @@ class Engine(object):
             engine.physical_interface.add_node_interface(....)
        
         :method: GET
-        :return: PhysicalInterface: for manipulating physical interfaces
+        :return: :py:class:`smc.elements.interfaces.PhysicalInterface`
         """
         href = find_link_by_name('physical_interface', self.link)
-        return PhysicalInterface(callback=SMCElement(href=href))
-        
+        if not href: #not supported by virtual engines
+            raise UnsupportedInterfaceType('Engine type: {} does not support the '
+                                           'physical interface type'\
+                                           .format(self.node_type))
+        return PhysicalInterface(href=href)
+    
+    @property    
     def virtual_physical_interface(self):
         """ Master Engine virtual instance only
         
-        A virtual physical interface is for a master engine virtual instance.
+        A virtual physical interface is for a master engine virtual instance. This
+        interface type is just a subset of a normal physical interface but for virtual
+        engines. This interface only sets Auth_Request and Outgoing on the interface.
+        
+        To view all interfaces for a virtual engine::
+        
+            for intf in engine.virtual_physical_interface.all():
+                print intf.describe()
         
         :method: GET
-        :return: list of dict entries with href,name,type or None
+        :return: :py:class:`smc.elements.interfaces.VirtualPhysicalInterface`
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('virtual_physical_interface', self.link))
+        href = find_link_by_name('virtual_physical_interface', self.link)
+        if not href:
+            raise UnsupportedInterfaceType('Only virtual engines support the '
+                                           'virtual physical interface type. Engine '
+                                           'type is: {}'
+                                           .format(self.node_type))
+        return VirtualPhysicalInterface(href=href)
     
+    @property
     def tunnel_interface(self):
         """ Get only tunnel interfaces for this engine node.
         
         :method: GET
-        :return: list of dict entries with href,name,type, or None
+        :return: :py:class:`smc.elements.interfaces.TunnelInterface`
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('tunnel_interface', self.link)) 
-    
+        href = find_link_by_name('tunnel_interface', self.link)
+        if not href:
+            raise UnsupportedInterfaceType('Tunnel interfaces are only supported on '
+                                           'layer 3 single engines or clusters; '
+                                           'Engine type is: {}'
+                                           .format(self.node_type))
+        return TunnelInterface(href=href)
+     
     def modem_interface(self):
         """ Get only modem interfaces for this engine node.
         
@@ -363,7 +435,7 @@ class Engine(object):
         return search.element_by_href_as_json(
                         find_link_by_name('switch_physical_interface', self.link))
     
-    def refresh(self, wait_for_finish=True):
+    def refresh(self, wait_for_finish=False, sleep=3):
         """ Refresh existing policy on specified device. This is an asynchronous 
         call that will return a 'follower' link that can be queried to determine 
         the status of the task. 
@@ -374,44 +446,48 @@ class Engine(object):
         the follower href
         
         :method: POST
-        :param wait_for_finish: whether to wait in a loop until the upload completes
+        :param boolean wait_for_finish: whether to wait in a loop until the upload completes
+        :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: generator yielding updates on progress
         """
         element = SMCElement(
                     href=find_link_by_name('refresh', self.link)).create()
-        return common_api.async_handler(element.json.get('follower'), 
-                                        wait_for_finish)
+        if element.json:
+            return common_api.async_handler(element.json.get('follower'), 
+                                            wait_for_finish, sleep)
     
-    #TODO: When node is not initialized, should terminate rather than let the async
-    #handler loop, check for that status or wait_for_finish=False
-    def upload(self, policy=None, wait_for_finish=True):
-        """ Upload policy to existing engine. If no policy is specified, and the engine
-        has already had a policy installed, this policy will be re-uploaded. 
+    def upload(self, policy, wait_for_finish=False, sleep=3):
+        """ Upload policy to engine. This is used when a new policy is required
+        for an engine, or this is the first time a policy is pushed to an engine.
+        If an engine already has a policy and the intent is to re-push, then use
+        :py:func:`refresh` instead.
+        The policy argument can use a wildcard * to specify in the event a full 
+        name is not known.
         
-        This is typically used to install a new policy on the engine. If you just
-        want to re-push an existing policy, call :func:`refresh`
+            engine = Engine('i-4aea8ad3 (us-east-1a)').load()
+            for x in engine.upload('Layer 3*', wait_for_finish=True):
+                print x
         
-        :param policy: name of policy to upload to engine
-        :param wait_for_finish: whether to wait for async responses
+        :param str policy: name of policy to upload to engine
+        :param boolean wait_for_finish: whether to wait for async responses
+        :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: generator yielding updates on progress
         """
-        if not policy: #if policy not specified SMC seems to apply some random policy: bug?
-            for node in self.nodes:
-                policy = node.status().get('installed_policy')
-                if policy:
-                    break
         element = SMCElement(
                     href=find_link_by_name('upload', self.link),
                     params={'filter': policy}).create()
-        return common_api.async_handler(element.json.get('follower'), 
-                                        wait_for_finish)
+        if element.json:
+            return common_api.async_handler(element.json.get('follower'), 
+                                            wait_for_finish, sleep)
+        else:
+            return "Upload returned a failure message, result: {}".format(element.msg)
     
     def generate_snapshot(self, filename='snapshot.zip'):
         """ Generate and retrieve a policy snapshot from the engine
         This is blocking as file is downloaded
         
         :method: GET
-        :param filename: name of file to save file to, including directory path
+        :param str filename: name of file to save file to, including directory path
         :return: None
         """
         href = find_link_by_name('generate_snapshot', self.link)
@@ -432,7 +508,7 @@ class Engine(object):
         file specified in filename parameter.
         
         :mathod: POST
-        :param filename: if set, the export will download the file. 
+        :param str filename: if set, the export will download the file. 
         :return: href of export, file download
         """
         element = SMCElement(
@@ -444,7 +520,8 @@ class Engine(object):
         return common_api.fetch_content_as_file(href, filename)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
   
 class Node(object):
     """ 
@@ -468,7 +545,7 @@ class Node(object):
     
     def __init__(self, node_type, mydict):
         Node.node_type = node_type
-        for k, v in mydict.items():
+        for k, v in mydict.iteritems():
             setattr(self, k, v)
     
     @classmethod
@@ -753,8 +830,8 @@ class Node(object):
                 find_link_by_name('certificate_info', self.link))
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={},nodeid={}'.format(\
-                                    self.name, self.nodeid))
+        return "%s(%r)" % (self.__class__.__name__, 'name={},nodeid={}'\
+                           .format(self.name, self.nodeid))
 
 class Layer3Firewall(object):
     """
@@ -768,6 +845,7 @@ class Layer3Firewall(object):
     Set additional constructor values as necessary.       
     """ 
     node_type = 'firewall_node'
+    
     def __init__(self, name):
         pass
 
@@ -777,7 +855,8 @@ class Layer3Firewall(object):
                mgmt_interface=0, 
                default_nat=False,
                reverse_connection=False,
-               domain_server_address=None, zone_ref=None):
+               domain_server_address=None, zone_ref=None,
+               enable_antivirus=False, enable_gti=False):
         """ 
         Create a single layer 3 firewall with management interface and DNS
         
@@ -790,7 +869,9 @@ class Layer3Firewall(object):
         :param str zone_ref: (optional) zone name for management interface (created if not found)
         :param boolean reverse_connection: should the NGFW be the mgmt initiator (used when behind NAT)
         :param boolean default_nat: (optional) Whether to enable default NAT for outbound
-        :return: Engine
+        :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param boolean enable_gti: (optional) Enable GTI
+        :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         """
         physical = PhysicalInterface()
@@ -807,9 +888,9 @@ class Layer3Firewall(object):
                                     {PhysicalInterface.name: physical.data}], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
-                               nodes=1)
-        if default_nat:
-            engine.setdefault('default_nat', True)
+                               nodes=1, enable_gti=enable_gti,
+                               enable_antivirus=enable_antivirus,
+                               default_nat=default_nat)
        
         href = search.element_entry_point('single_fw')
         result = SMCElement(href=href, json=engine).create()
@@ -820,7 +901,11 @@ class Layer3Firewall(object):
                                      'reason: {}'.format(result.msg))
 
 class Layer2Firewall(object):
+    """
+    Creates a Layer 2 Firewall with a default inline interface pair
+    """
     node_type = 'fwlayer2_node'
+    
     def __init__(self, name):
         pass
     
@@ -830,7 +915,8 @@ class Layer2Firewall(object):
                inline_interface='1-2', 
                logical_interface='default_eth',
                log_server_ref=None, 
-               domain_server_address=None, zone_ref=None):
+               domain_server_address=None, zone_ref=None,
+               enable_antivirus=False, enable_gti=False):
         """ 
         Create a single layer 2 firewall with management interface and inline pair
         
@@ -843,7 +929,9 @@ class Layer2Firewall(object):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param str zone_ref: (optional) zone name for management interface (created if not found)
-        :return: Engine
+        :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param boolean enable_gti: (optional) Enable GTI
+        :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         """
         interfaces = [] 
@@ -865,7 +953,8 @@ class Layer2Firewall(object):
                                physical_interfaces=interfaces, 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
-                               nodes=1)
+                               nodes=1, enable_gti=enable_gti,
+                               enable_antivirus=enable_antivirus)
        
         href = search.element_entry_point('single_layer2')
         result = SMCElement(href=href, 
@@ -877,7 +966,11 @@ class Layer2Firewall(object):
                                      'reason: {}'.format(result.msg))   
 
 class IPS(object):
+    """
+    Creates an IPS engine with a default inline interface pair
+    """
     node_type = 'ips_node'
+    
     def __init__(self, name):
         pass
     
@@ -887,7 +980,8 @@ class IPS(object):
                inline_interface='1-2',
                logical_interface='default_eth',
                log_server_ref=None,
-               domain_server_address=None, zone_ref=None):
+               domain_server_address=None, zone_ref=None,
+               enable_antivirus=False, enable_gti=False):
         """ 
         Create a single IPS engine with management interface and inline pair
         
@@ -900,7 +994,9 @@ class IPS(object):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param str zone_ref: (optional) zone name for management interface (created if not found)
-        :return: Engine
+        :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param boolean enable_gti: (optional) Enable GTI
+        :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         """
         interfaces = []
@@ -922,7 +1018,8 @@ class IPS(object):
                                physical_interfaces=interfaces, 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
-                               nodes=1)
+                               nodes=1, enable_gti=enable_gti,
+                               enable_antivirus=enable_antivirus)
         
         href = search.element_entry_point('single_ips')
         result = SMCElement(href=href, 
@@ -951,6 +1048,7 @@ class Layer3VirtualEngine(object):
                                          'zone_ref': ''}]
     """
     node_type = 'virtual_fw_node'
+    
     def __init__(self, name):
         Node.__init__(self, name)
         pass
@@ -967,7 +1065,7 @@ class Layer3VirtualEngine(object):
         :param boolean default_nat: Whether to enable default NAT for outbound
         :param int outgoing_intf: outgoing interface for VE. Specifies interface number
         :param list interfaces: interfaces mappings passed in            
-        :return: Engine
+        :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         """
         virt_resource_href = None #need virtual resource reference
@@ -991,9 +1089,8 @@ class Layer3VirtualEngine(object):
 
             #set auth request and outgoing on one of the interfaces
             if interface.get('interface_id') == outgoing_intf:
-                physical.modify_interface('single_node_interface', 
-                                           outgoing=True,
-                                           auth_request=True)
+                physical.modify_attribute(outgoing=True,
+                                          auth_request=True)
             new_interfaces.append({VirtualPhysicalInterface.name: physical.data})
            
             engine = Engine.create(name=name,
@@ -1001,9 +1098,8 @@ class Layer3VirtualEngine(object):
                                physical_interfaces=new_interfaces, 
                                domain_server_address=domain_server_address,
                                log_server_ref=None, #Isn't used in VE
-                               nodes=1)
-            if default_nat:
-                engine.update(default_nat=True)
+                               nodes=1, default_nat=default_nat)
+
             engine.update(virtual_resource=virt_resource_href)
             engine.pop('log_server_ref', None) #Master Engine provides this service
         
@@ -1024,6 +1120,7 @@ class FirewallCluster(object):
     :py:class:PhysicalInterface.add_cluster_virtual_interface`
     """
     node_type = 'firewall_node'  
+
     def __init__(self, name):
         pass
     
@@ -1032,7 +1129,8 @@ class FirewallCluster(object):
                macaddress, cluster_nic, nodes, 
                log_server_ref=None, 
                domain_server_address=None, 
-               zone_ref=None):
+               zone_ref=None, default_nat=False,
+               enable_antivirus=False, enable_gti=False):
         """
          Create a layer 3 firewall cluster with management interface and any number
          of nodes
@@ -1046,7 +1144,9 @@ class FirewallCluster(object):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param str zone_ref: (optional) zone name for management interface (created if not found)
-        :return: Engine
+        :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param boolean enable_gti: (optional) Enable GTI
+        :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         
         Example nodes parameter input::
@@ -1077,7 +1177,9 @@ class FirewallCluster(object):
                                         {PhysicalInterface.name: physical.data}], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
-                               nodes=len(nodes))
+                               nodes=len(nodes), enable_gti=enable_gti,
+                               enable_antivirus=enable_antivirus,
+                               default_nat=default_nat)
 
         href = search.element_entry_point('fw_cluster')
         result = SMCElement(href=href,
@@ -1094,14 +1196,16 @@ class MasterEngine(object):
     to add each individual instance to the Master Engine.
     """
     node_type = 'master_node'
+    
     def __init__(self, name):
         pass
     
     @classmethod
-    def create(cls, name, master_type,
+    def create(cls, name, master_type, mgmt_ip, mgmt_netmask,
                mgmt_interface=0, 
                log_server_ref=None, 
-               domain_server_address=None):
+               domain_server_address=None, enable_gti=False,
+               enable_antivirus=False):
         """
          Create a Master Engine with management interface
         
@@ -1109,14 +1213,15 @@ class MasterEngine(object):
         :param str master_type: firewall|
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
-        :return: Engine
+        :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param boolean enable_gti: (optional) Enable GTI
+        :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         """             
         physical = PhysicalInterface()
         physical.add_node_interface(mgmt_interface, 
-                                    '2.2.2.2', '2.2.2.0/24')
-        physical.modify_interface('node_interface',
-                                  primary_mgt=True,
+                                    mgmt_ip, mgmt_netmask)
+        physical.modify_attribute(primary_mgt=True,
                                   primary_heartbeat=True,
                                   outgoing=True)
         
@@ -1126,7 +1231,8 @@ class MasterEngine(object):
                                         {PhysicalInterface.name: physical.data}], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
-                               nodes=1)      
+                               nodes=1, enable_gti=enable_gti,
+                               enable_antivirus=enable_antivirus)      
         engine.setdefault('master_type', master_type)
         engine.setdefault('cluster_mode', 'balancing')
 
@@ -1150,6 +1256,7 @@ class AWSLayer3Firewall(object):
     to the constructor. This can be statically assigned as well.
     """
     node_type = 'firewall_node'
+    
     def __init__(self, name):
         pass
         
@@ -1212,7 +1319,7 @@ class AWSLayer3Firewall(object):
                                                interface.get('address'), 
                                                interface.get('network_value'))
             if not auth_request: #set this on first interface that is not the dhcp_interface
-                physical.modify_interface('single_node_interface', auth_request=True)
+                physical.modify_attribute(auth_request=True)
                 auth_request = 1
             new_interfaces.append({PhysicalInterface.name: physical.data})
         
@@ -1299,7 +1406,7 @@ class VirtualResource(object):
         
         :return: json text
         """
-        return pformat(search.element_by_href_as_json(self.href))
+        return search.element_by_href_as_json(self.href)
     
     def all(self):
         """
@@ -1317,5 +1424,6 @@ class VirtualResource(object):
         return resources
 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
     

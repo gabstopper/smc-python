@@ -258,6 +258,12 @@ ClusterVirtualInterface
 .. autoclass:: ClusterVirtualInterface
    :members:
 
+TunnelInterface
++++++++++++++++
+
+.. autoclass:: TunnelInterface
+   :members:
+
 VirtualPhysicalInterface
 ++++++++++++++++++++++++
 

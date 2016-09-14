@@ -7,22 +7,59 @@ import json
 import requests
 import logging
 from smc.api.web import SMCAPIConnection
-from smc.api.exceptions import SMCConnectionError, ConfigLoadError
+from smc.api.exceptions import SMCConnectionError, ConfigLoadError,\
+    UnsupportedEntryPoint
 from smc.api.configloader import load_from_file
 
 logger = logging.getLogger(__name__)
 
 class Session(object):
     def __init__(self):
-        self.url = None
-        self.api_key = None
-        self.session = None
-        self.cookies = None
-        self.api_version = None
-        self.cache = None #SessionCache
-        self.connection = None #SMCAPIConnection
+        self._cache = None
+        self._session = None
+        self._connection = None
+        self._url = None
+        self._api_key = None
+        self._timeout = 10
+
+    @property
+    def api_version(self):
+        return self.cache.api_version
     
-    def login(self, **kwargs):
+    @property
+    def session(self):
+        return self._session
+
+    @property
+    def session_id(self):
+        return self.session.cookies
+
+    @property
+    def connection(self):
+        return self._connection
+
+    @property
+    def cache(self):
+        if self._cache is not None:
+            return self._cache
+        else:
+            self._cache = SessionCache()
+            return self._cache
+
+    @property
+    def url(self):
+        return self._url
+    
+    @property
+    def api_key(self):
+        return self._api_key
+    
+    @property
+    def timeout(self):
+        return self._timeout
+    
+    def login(self, url=None, api_key=None, api_version=None,
+              timeout=None, **kwargs):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
@@ -34,39 +71,38 @@ class Session(object):
             .....do stuff.....
             session.logout()
             
-        :param url: ip of SMC management server
-        :param api_key: API key created for api client in SMC
+        :param str url: ip of SMC management server
+        :param str api_key: API key created for api client in SMC
         :param api_version (optional): specify api version
+        :param int timeout: (optional): specify a timeout for initial connect; (default 10)
 
         Logout should be called to remove the session immediately from the
         SMC server.
         #TODO: Implement SSL tracking
         """
-        if kwargs:
-            for key, value in kwargs.items():
-                setattr(self, key, value)
+        if url and api_key:
+            self._url = url
+            self._api_key = api_key
+            if timeout:
+                self._timeout = timeout
         else:
             try:
                 self.login(**load_from_file())
             except ConfigLoadError:
                 raise
-                    
-        self.cache = SessionCache()
-        self.cache.get_api_entry(self.url, self.api_version)
-        self.api_version = self.cache.api_version
+                   
+        self.cache.get_api_entry(self.url, api_version, 
+                                 timeout=self.timeout)
 
         s = requests.session() #no session yet
         r = s.post(self.cache.get_entry_href('login'),
                    json={'authenticationkey': self.api_key},
-                   headers={'content-type': 'application/json'}
-                   )
+                   headers={'content-type': 'application/json'})
         if r.status_code == 200:
-            self.session = s #session creation was successful
-            self.cookies = self.session.cookies.items()
+            self._session = s #session creation was successful
             logger.debug("Login succeeded and session retrieved: %s", \
-                         self.cookies)
-            self.connection = SMCAPIConnection(self)
-
+                         self.session_id)
+            self._connection = SMCAPIConnection(self)
         else:
             raise SMCConnectionError("Login failed, HTTP status code: %s" \
                                      % r.status_code)
@@ -95,9 +131,9 @@ class Session(object):
             self.login(url=self.url, 
                        api_key=self.api_key, 
                        api_version=self.api_version)
-        else: #TODO: Throw exception here
-            logger.error("No previous SMC session found. "
-                         "This may require a new login attempt")
+        else:
+            raise SMCConnectionError("No previous SMC session found. "
+                                     "This will require a new login attempt")
 
 class SessionCache(object):
     def __init__(self):
@@ -148,9 +184,19 @@ class SessionCache(object):
         That would mean no login has occurred
         """
         if self.api_entry:
+            href = None
             for entry in self.api_entry:
                 if entry.get('rel') == verb:
-                    return entry.get('href', None)
+                    href = entry.get('href', None)
+            if not href:
+                raise UnsupportedEntryPoint(
+                        "The specified entry point '{}' was not found in this "
+                        "version of the SMC API. Check the element documentation "
+                        "to determine the correct version and specify the api_version "
+                        "parameter during session.login() if necessary. Current api version "
+                        "is {}".format(verb, self.api_version))
+            else:
+                return href      
         else:
             raise SMCConnectionError("No entry points found, it is likely "
                                      "there is no valid login session.")
@@ -158,5 +204,3 @@ class SessionCache(object):
     def get_all_entry_points(self):
         """ Returns all entry points into SMC api """
         return self.api_entry
-
-session = Session()

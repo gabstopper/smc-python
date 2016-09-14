@@ -8,10 +8,10 @@ Sites are defined to identify the remote networks protected behind the VPN peer
 network.
 
 """
+from smc import session
 from smc.elements.element import Network
 from smc.elements.engines import Engine
 from smc.elements.vpn import ExternalGateway, ExternalEndpoint, VPNPolicy
-from smc.api.session import session
 
 if __name__ == '__main__':
     

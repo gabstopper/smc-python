@@ -1,3 +1,13 @@
+"""
+Module that controls aspects of the System itself, such as updating dynamic packages,
+updating engines, applying global blacklists, etc.
+
+To load the configuration for system, do::
+
+    from smc.elements.system import System
+    system = System().load()
+
+"""
 import smc.actions.search as search
 from smc.elements.helpers import find_link_by_name
 from smc.elements.element import SMCElement, Blacklist
@@ -52,6 +62,7 @@ class System(object):
     #@property
     def update_package(self):
         """ Show all update packages on SMC 
+        
         :return: dict of href,name,type
         """
         updates=[]
@@ -99,7 +110,7 @@ class System(object):
         
         :param src: source of the entry
         :param dst: destination of blacklist entry
-        :return: SMCResult, href if success, msg if error
+        :return: SMCResult
         """
         element = Blacklist(src, dst, duration)
         element.href = find_link_by_name('blacklist', self.link)
@@ -142,6 +153,7 @@ class System(object):
     
     def visible_virtual_engine_mapping(self):
         """ Return list of dictionary mappings for master engines and virtual engines 
+        
         :return: list of dict items related to master engines and virtual engine mappings
         """
         return search.element_by_href_as_json(
@@ -198,12 +210,13 @@ class EngineUpgrade(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
             
-    def download(self, wait_for_finish=True):
+    def download(self, wait_for_finish=False, sleep=3):
         """
         Download Engine Upgrade
         
         :method: POST
         :param boolean wait_for_finish: wait for download to complete
+        :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: Generator messages or final href of follower resource
         """ 
         pkg = self.package_info()
@@ -212,7 +225,7 @@ class EngineUpgrade(object):
             result = SMCElement(
                     href=download_link).create()
             return common_api.async_handler(result.json.get('follower'), 
-                                        wait_for_finish)
+                                        wait_for_finish, sleep)
         else:
             return ['Package cannot be downloaded, package state: {}'.format(\
                                                                     self.state)]
@@ -221,15 +234,14 @@ class EngineUpgrade(object):
         return search.element_by_href_as_json(self.href)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, "name={},type={}".format(
-                                                    self.name, self.type))        
+        return "%s(%r)" % (self.__class__.__name__, "name={},type={}"\
+                           .format(self.name, self.type))        
 
 
 class UpdatePackage(object):
     """
     Container for managing update packages on SMC
-    
-    
+
     Example of checking for new Update Packages, picking a specific
     package, and waiting for activation::
     
@@ -239,11 +251,11 @@ class UpdatePackage(object):
         print system.last_activated_package
         
         for package in system.update_package():
-        if package.name == 'Update Package 788':
-            pprint(package.package_info())
-            for msg in package.download():
-                print msg
-            package.activate()
+            if package.name == 'Update Package 788':
+                pprint(package.package_info())
+                for msg in package.download():
+                    print msg
+                package.activate()
                         
     :ivar state: state of the package                 
     """
@@ -251,12 +263,13 @@ class UpdatePackage(object):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
             
-    def download(self, wait_for_finish=True):
+    def download(self, wait_for_finish=False, sleep=3):
         """ 
         Download the available package
         
         :method: POST
         :param boolean wait_for_finish: whether to wait for completion
+        :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: Generator messages or final href of follower resource
         """
         pkg = self.package_info()
@@ -265,17 +278,18 @@ class UpdatePackage(object):
             result = SMCElement(
                     href=download_link).create()
             return common_api.async_handler(result.json.get('follower'), 
-                                            wait_for_finish)
+                                            wait_for_finish, sleep)
         else:
             return ['Download not possible, package state: {}'.format(
                                                             self.state)]
     
-    def activate(self, wait_for_finish=True):
+    def activate(self, wait_for_finish=False, sleep=3):
         """
         Activate this package on the SMC
         
         :param boolean wait_for_finish: True|False, whether to wait 
         for update messages
+        :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: Update messages or final URI for follower link
         """
         pkg = self.package_info()
@@ -284,7 +298,7 @@ class UpdatePackage(object):
         if activate_link:
             result = SMCElement(href=activate_link).create()
             return common_api.async_handler(result.json.get('follower'), 
-                                            wait_for_finish)
+                                            wait_for_finish, sleep)
         else:
             return ['Activate not possible, package state is: {}'.format(\
                                                                 self.state)]
@@ -302,5 +316,5 @@ class UpdatePackage(object):
         return pkg.get('state')
           
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, "name={},type={}".format(
-                                                    self.name, self.type))
+        return "%s(%r)" % (self.__class__.__name__, "name={},type={}"\
+                           .format(self.name, self.type))

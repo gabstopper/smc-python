@@ -24,7 +24,7 @@ class InternalGateway(object):
     """
     def __init__(self, name=None, **kwargs):
         self.name = name
-        for key, value in kwargs.items():
+        for key, value in kwargs.iteritems():
             setattr(self, key, value)
     
     def modify_attribute(self, **kwargs):
@@ -91,8 +91,8 @@ class InternalGateway(object):
         """
         :method: POST
         """
-        return search.element_by_href_as_json(
-                find_link_by_name('generate_certificate', self.link))
+        return SMCElement(
+                href=find_link_by_name('generate_certificate', self.link)).create()
     
     def describe(self):
         """
@@ -110,7 +110,8 @@ class InternalGateway(object):
         return find_link_by_name('self', self.link)
                     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
 
 class InternalEndpoint(object):
     """
@@ -135,11 +136,11 @@ class InternalEndpoint(object):
     
     :param href: pass in href to init which will have engine insert location  
     """
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, href=None, **kwargs):
         self.name = name
+        self.href = href
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
-        self.element = SMCElement(href=self.href,json={})
 
     def modify_attribute(self, **kwargs):
         """
@@ -154,8 +155,8 @@ class InternalEndpoint(object):
             
         :return: SMCResult
         """
-        return self.element.modify_attribute(**kwargs)
-    
+        return SMCElement(href=self.href).modify_attribute(**kwargs)
+       
     def describe(self):
         """
         Return json representation of element
@@ -177,7 +178,8 @@ class InternalEndpoint(object):
         return gateways
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
         
 class ExternalGateway(object):
     """
@@ -201,9 +203,11 @@ class ExternalGateway(object):
     
     :param href: pass in href to init which will have engine insert location
     """
+    typeof = 'external_gateway'
+    
     def __init__(self, name=None, **kwargs):
         self.name = name
-        for key, value in kwargs.items():
+        for key, value in kwargs.iteritems():
             setattr(self, key, value)
     
     @classmethod
@@ -217,9 +221,8 @@ class ExternalGateway(object):
         """
         data = {'name': name,
                 'trust_all_cas': trust_all_cas }
-        
-        href = search.element_entry_point('external_gateway')
-        result = SMCElement(href=href, json=data).create()
+
+        result = SMCElement(json=data, typeof=cls.typeof).create()
         if result.href:
             return ExternalGateway(name).load()
         else:
@@ -245,12 +248,6 @@ class ExternalGateway(object):
             return self
         else:
             raise SMCException('External GW exception, replace this')
-        
-    def export(self):
-        """
-        :method: POST
-        """
-        pass
     
     @property
     def vpn_site(self):
@@ -282,8 +279,15 @@ class ExternalGateway(object):
         href = find_link_by_name('external_endpoint', self.link)
         return ExternalEndpoint(href=href)
     
+    def export(self):
+        """
+        :method: POST
+        """
+        pass
+
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
 
 class ExternalEndpoint(object):
     """
@@ -295,12 +299,12 @@ class ExternalEndpoint(object):
     
     :param href: pass in href to init which will have engine insert location   
     """
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, href=None, **kwargs):
         self.name = name
+        self.href = href
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
-        self.element = SMCElement(href=self.href,json={})
-        
+
     def create(self, name, address, enabled=True, balancing_mode='active',
                ipsec_vpn=True, nat_t=False, dynamic=False):
         """
@@ -315,14 +319,15 @@ class ExternalEndpoint(object):
         :param boolean nat_t: True|False (default: False)
         :param boolean dynamic: is a dynamic VPN (default: False)
         """
-        self.element.json.update(name=name,
-                                 address=address,
-                                 balancing_mode=balancing_mode,
-                                 dynamic=dynamic,
-                                 enabled=enabled,
-                                 nat_t=nat_t,
-                                 ipsec_vpn=ipsec_vpn) 
-        return self.element.create()
+        json={}
+        json.update(name=name,
+                    address=address,
+                    balancing_mode=balancing_mode,
+                    dynamic=dynamic,
+                    enabled=enabled,
+                    nat_t=nat_t,
+                    ipsec_vpn=ipsec_vpn)
+        return SMCElement(href=self.href, json=json).create()
 
     def modify_attribute(self, **kwargs):
         """
@@ -338,7 +343,7 @@ class ExternalEndpoint(object):
                     
         :return: SMCResult
         """
-        return self.element.modify_attribute(**kwargs)
+        return SMCElement(href=self.href).modify_attribute(**kwargs)
     
     def describe(self):
         """
@@ -361,7 +366,8 @@ class ExternalEndpoint(object):
         return endpoints
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
         
 class VPNSite(object):
     """
@@ -385,21 +391,21 @@ class VPNSite(object):
     
     :param href: pass in href to init which will have engine insert location
     """
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, href=None, **kwargs):
         self.name = name
+        self.href = href
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
-        self.element = SMCElement(href=self.href, json={})
-    
+
     def create(self, name, site_element):
         """
         :param name: name of site
         :param list site_element: list of protected networks/hosts
         :return: VPNSite json
         """
-        self.element.json.update(name=name,
-                                 site_element=site_element) 
-        self.element.create()
+        json={}
+        json.update(name=name, site_element=site_element)
+        return SMCElement(href=self.href,json=json).create()
     
     def modify_attribute(self, **kwargs):
         """
@@ -414,8 +420,8 @@ class VPNSite(object):
                 if site.name == 'newsite':
                     site.modify_attribute(site_element=h)
         """
-        return self.element.modify_attribute(**kwargs)
-    
+        return SMCElement(href=self.href).modify_attribute(**kwargs)
+
     def describe(self):
         """
         Return json representation of element
@@ -436,7 +442,8 @@ class VPNSite(object):
         return sites
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+                           .format(self.name))
 
 class VPNProfile(object):
     """
@@ -458,8 +465,11 @@ class VPNPolicy(object):
     :ivar nat: whether NAT is enabled on the VPN policy
     :ivar mobile_vpn_topology_mode: where to allow remote clients
     """
-    def __init__(self, name, **kwargs):
+    typeof = 'vpn'
+
+    def __init__(self, name, href=None, **kwargs):
         self.name = name
+        self.href = href
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
@@ -478,9 +488,8 @@ class VPNPolicy(object):
                 'name': name,
                 'nat': nat,
                 'vpn_profile': vpn_profile}
-        
-        href = search.element_entry_point('vpn')
-        result = SMCElement(href=href, 
+
+        result = SMCElement(typeof=cls.typeof,
                             json=json).create()
         if result.href:
             return VPNPolicy(name).load()
@@ -496,16 +505,26 @@ class VPNPolicy(object):
         try:
             result = search.element_by_href_as_json(self.href)
         except AttributeError:
-            result = search.element_as_json_with_filter(self.name, 'vpn')
+            result = search.element_as_json_with_filter(self.name, self.typeof)
         if result:
             self.json = {}
             for k, v in result.iteritems():
                 self.json.update({k: v})
-            self.link = self.json.get('link')
             return self
         else:
             raise LoadPolicyFailed('Failed to load VPN policy, please ensure the policy exists')
     
+    @property
+    def link(self):
+        try:
+            return self.json.get('link')
+        except AttributeError:
+            raise AttributeError("You must load the VPN Policy before accessing resources.")
+    
+    @property
+    def vpn_profile(self):
+        return self.json.get('vpn_profile')
+
     def central_gateway_node(self):
         """
         Central Gateway Node acts as the hub of a hub-spoke VPN. 
@@ -604,10 +623,6 @@ class VPNPolicy(object):
                           json={'gateway': gateway,
                                 'node_usage':'satellite'}).create() 
     
-    @property
-    def vpn_profile(self):
-        return self.json.get('vpn_profile')
-    
     def describe(self):
         """
         Return json representation of this VPNPolicy
@@ -617,4 +632,5 @@ class VPNPolicy(object):
         return pformat(vars(self))
 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'policy={}'.format(self.name))       
+        return "%s(%r)" % (self.__class__.__name__, 'policy={}'\
+                           .format(self.name))       
