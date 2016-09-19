@@ -10,10 +10,13 @@ See SMCElement for more details:
 :class:`smc.elements.element.SMCElement` for more details.
 
 """
+import collections
 import smc.actions.search as search
 import smc.api.common
 from smc.api.exceptions import SMCOperationFailure
-from smc.elements.helpers import find_link_by_name
+from smc.elements.util import find_link_by_name
+
+Meta = collections.namedtuple("Meta", ["name", "href", "type"])
     
 class SMCElement(object):
     """ 
@@ -30,22 +33,24 @@ class SMCElement(object):
     :ivar href: (required) location of the resource
     :ivar params: If additional URI parameters are needed for href
     """
-    def __init__(self, **kwargs):
+    def __init__(self, meta=None, **kwargs):
         self.name = None
         self.json = None
         self.etag = None
         self.href = None
         self.params = None
+        if meta:
+            kwargs.update(meta._asdict())
     
         for key, value in kwargs.iteritems():
             setattr(self, key, value)
             
     def create(self):
         if self.href is None:
-            try: #retrieve href from class attribute
+            if hasattr(self, 'typeof'):
+                #retrieve href from class attribute if available
                 self.href = search.element_entry_point(self.typeof)
-            except AttributeError:
-                pass
+        #return getattr(smc.api.common, 'create')(self)
         return smc.api.common.create(self)
     
     def update(self):
@@ -53,8 +58,8 @@ class SMCElement(object):
     
     def describe(self):
         """
-        Return a pprint representation of the SMCElement. Useful for
-        reviewing the raw json to identify key/values that then can be 
+        Return the json representation of the SMCElement. Useful for
+        reviewing to identify key/values that then can be 
         used for modify_attribute.
         
         :return: raw json of SMCElement
@@ -65,7 +70,7 @@ class SMCElement(object):
         """
         Modify attribute/s of an existing element. The proper way to
         get the context of the element is to use the 'describe' functions
-        in :py:class:`smc.elements.collections` class.
+        in :py:class:`smc.elements.collection` class.
         For example, to change the name and IP of an existing host
         object::
         
@@ -88,13 +93,10 @@ class SMCElement(object):
         return self.update()
 
     def __repr__(self):
-        try:
-            return "%s(%r)" % (self.__class__.__name__, "name={},type={}"\
-                               .format(self.name, self.type))
-        except AttributeError:
-            return "%s(%r)" % (self.__class__.__name__, "name={}"\
-                               .format(self.name))
-    
+        return '{0}(name={1})'.format(self.__class__.__name__, 
+                                      self.name.encode('UTF8'))
+
+   
 class Host(SMCElement):
     """ Class representing a Host object used in access rules
     
@@ -565,7 +567,7 @@ class AdminUser(SMCElement):
     If modifications are required after you can load the admin and
     make changes::
     
-        for x in collections.describe_admin_users():
+        for x in collection.describe_admin_users():
             if x.name == 'dlepage':
                 admin = x.load()
                 admin.change_password('mynewpassword1')
@@ -575,9 +577,10 @@ class AdminUser(SMCElement):
     
     def __init__(self, name, local_admin=False, allow_sudo=False, 
                  superuser=False, admin_domain=None, enabled=True,
-                 engine_target=None, href=None, **kwargs):
+                 engine_target=None, href=None, meta=None, **kwargs):
         SMCElement.__init__(self)
         self.name = name
+        self.meta = meta
         self.href = href
         engines = []
         if engine_target:
@@ -593,6 +596,13 @@ class AdminUser(SMCElement):
         """
         Load Admin by name
         """
+        if not self.meta:
+            self.meta = Meta(**search.element_info_as_json(self.name))
+        result = search.element_by_href_as_smcresult(self.meta.href)
+        if result:
+            self.json = result.json
+        return self
+    
         result = search.element_as_smcresult_use_filter(
                                             self.name, self.typeof)
         self.etag = result.etag
@@ -688,28 +698,6 @@ class ContactAddress(SMCElement):
     """
     def __init__(self, addresses, location):
         SMCElement.__init__(self)
+        assert(isinstance(addresses, list))
         self.json = {'addresses': addresses,
                      'location': location }
-        
-def zone_helper(name):
-    zone_ref = search.element_href_use_filter(name, 'interface_zone')
-    if zone_ref:
-        return zone_ref
-    else:
-        return Zone(name).create().href
-    
-def logical_intf_helper(name):
-    intf_ref = search.element_href_use_filter(name, 'logical_interface')
-    if intf_ref:
-        return intf_ref
-    else:
-        return LogicalInterface(name).create().href
-
-def location_helper(name):
-    href = [x.get('href') 
-            for x in search.all_elements_by_type('location') 
-            if x.get('name') == name]
-    if href:
-        return href[0]
-    else:
-        return Location(name).create().href

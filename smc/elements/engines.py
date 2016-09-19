@@ -1,21 +1,24 @@
-from smc.elements.element import SMCElement, Blacklist
+from smc.elements.element import SMCElement, Blacklist, Meta
 from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface, Interface,\
     TunnelInterface
 import smc.actions.search as search
 import smc.api.common as common_api
-from smc.elements.helpers import find_link_by_name
+from smc.elements.util import find_link_by_name
 from smc.api.exceptions import CreateEngineFailed, LoadEngineFailed,\
     UnsupportedEngineFeature, UnsupportedInterfaceType
 from smc.elements.vpn import InternalGateway
+from smc.api.common import SMCRequest as request
 
 class Engine(object):
     """
     Instance attributes:
     
         :ivar name: name of engine
+        :ivar meta: meta information about the engine
         :ivar dict json: raw engine json
         :ivar node_type: type of node in engine
         :ivar href: href of the engine
+        :ivar etag: current etag
         :ivar link: list link to engine resources
     
     Instance resources:
@@ -27,10 +30,9 @@ class Engine(object):
         :ivar physical_interface: (PhysicalInterface) access to physical interface settings
         :ivar tunnel_interface: (TunnelInterface) retrieve or create tunnel interfaces
     """
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, meta=None, **kwargs):
         self.name = name
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
+        self.meta = meta
         
     @classmethod
     def create(cls, name, node_type, 
@@ -66,7 +68,6 @@ class Engine(object):
         if not log_server_ref: #Set log server reference, if not explicitly set
             log_server_ref = search.get_first_log_server()
         
-        engine = Engine(name)                     
         base_cfg = {'name': name,
                     'nodes': node_list,
                     'domain_server_address': domain_server_list,
@@ -86,11 +87,8 @@ class Engine(object):
         if default_nat:
             nat = {'default_nat': True}
             base_cfg.update(nat)
-        
-        for k, v in base_cfg.iteritems():
-            setattr(engine, k, v)
-        
-        return vars(engine)
+
+        return base_cfg
           
     def load(self):
         """ When engine is loaded, save the attributes that are needed. 
@@ -98,33 +96,53 @@ class Engine(object):
         
             engine = Engine('myengine').load()
             
-        or by calling collections.describe_xxx methods::
+        or by calling collection.describe_xxx methods::
         
             for fw in describe_single_fws():
                 if fw.name == 'myfw':
                     engine = fw.load()
                     
         Call this to reload settings, useful if changes are made and new 
-        configuration references or updated attributes are needed.
+        configuration references or updated attributes are needed. Metadata
+        is set upon load either via collection.describe_* function or directly.
         """
-        try:
-            #Reference from a collections.describe_* function
-            result = search.element_by_href_as_smcresult(self.href)
-        except AttributeError: #Load called directly 
-            result = search.element_as_json_with_etag(self.name)
+        if not self.meta:
+            self.meta = Meta(**search.element_info_as_json(self.name))
+        result = search.element_by_href_as_smcresult(self.meta.href)
         if result:
-            engine = Engine(self.name)
-            engine.json = result.json
-            engine.nodes = []
-            for node in engine.json.get('nodes'):
+            self.json = result.json
+            self.nodes = []
+            for node in self.json.get('nodes'):
                 for node_type, data in node.iteritems():
                     new_node = Node(node_type, data)
-                    engine.nodes.append(new_node)
-            return engine
+                    self.nodes.append(new_node)
+            return self
         else:
             raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is correct"
                                " and the engine exists." % self.name)
     
+    @property
+    def etag(self):
+        if self.meta:
+            return search.element_by_href_as_smcresult(self.meta.href).etag
+    
+    @property
+    def href(self):
+        if self.meta:
+            return self.meta.href
+    
+    @property
+    def link(self):
+        if hasattr(self, 'json'):
+            return self.json.get('link')
+        else:
+            raise AttributeError("You must first load the engine to access resources!")
+    
+    @property
+    def node_type(self):
+        for node in self.node():
+            return node.get('type')
+
     def reload(self):
         """ 
         Reload json into context, same as :py:func:`load`
@@ -161,33 +179,8 @@ class Engine(object):
                 self.json.update({k: v})
         return SMCElement(href=self.href, json=self.json,
                           etag=self.etag).update()
-    
-    @property
-    def etag(self):
-        return search.element_by_href_as_smcresult(self.href).etag
-      
-    @property
-    def href(self):
-        if hasattr(self, '_href'):
-            return self._href
-        else:
-            return find_link_by_name('self', self.link)
-
-    @href.setter
-    def href(self, value):
-        self._href = value
-    
-    @property
-    def link(self):
-        if hasattr(self, 'json'):
-            return self.json.get('link')
-        else:
-            raise AttributeError("You must first load the engine to access resources")
-    
-    @property
-    def node_type(self):
-        for node in self.node():
-            return node.get('type')
+        #return request(href=self.href, json=self.json,
+        #               etag=self.etag).update()
     
     def node(self):
         """ Return node/s references for this engine. For a cluster this will
@@ -198,6 +191,8 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('nodes', self.link))
+        #href=find_link_by_name('nodes', self.link)
+        #return request(href=href).as_json()
         
     def alias_resolving(self):
         """ Alias definitions defined for this engine 
@@ -207,7 +202,9 @@ class Engine(object):
         :return: dict list [{alias_ref: str, 'cluster_ref': str, 'resolved_value': []}]
         """
         return search.element_by_href_as_json(
-                        find_link_by_name('alias_resolving', self.link)) 
+                        find_link_by_name('alias_resolving', self.link))
+        #href=find_link_by_name('alias_resolving', self.link)
+        #return request(href=href).as_json() 
     
     def blacklist(self, src, dst, duration=3600):
         """ Add blacklist entry to engine node by name
@@ -218,9 +215,10 @@ class Engine(object):
         :param int duration: how long to blacklist in seconds
         :return: SMCResult (href attr set with blacklist entry)
         """
-        element = Blacklist(src, dst, duration)
-        element.href = find_link_by_name('blacklist', self.link)
-        return element.create()
+        #return request(href=find_link_by_name('blacklist', self.link),
+        #               json=Blacklist(src, dst, duration).json).create()
+        return SMCElement(href=find_link_by_name('blacklist', self.link),
+                          json=Blacklist(src, dst, duration).json).create()
     
     def blacklist_flush(self):
         """ Flush entire blacklist for node name
@@ -228,6 +226,8 @@ class Engine(object):
         :method: DELETE
         :return: SMCResult (msg attribute set if failure)
         """
+        #href=find_link_by_name('flush_blacklist', self.link)
+        #return request(href=href).delete()
         return common_api.delete(find_link_by_name('flush_blacklist', self.link))
     
     def add_route(self, gateway, network):
@@ -243,6 +243,10 @@ class Engine(object):
         :param str network: network address in cidr format
         :return: SMCResult
         """
+        #href=find_link_by_name('add_route', self.link)
+        #return request(href=href,
+        #               params={'gateway': gateway, 
+        #                       'network': network}).create()
         return SMCElement(
                     href=find_link_by_name('add_route', self.link),
                     params={'gateway': gateway, 
@@ -256,6 +260,8 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('routing', self.link))
+        #href=find_link_by_name('routing', self.link)
+        #return request(href=href).as_json() 
     
     def routing_monitoring(self):
         """ Return route information for the engine, including gateway, networks
@@ -325,7 +331,7 @@ class Engine(object):
             raise UnsupportedEngineFeature('This engine does not support virtual '
                                            'resources; engine type: {}'\
                                            .format(self.node_type))
-        return VirtualResource(href=href)
+        return VirtualResource(meta=Meta(name=None, href=href, type='virtual_resource'))
         
             
     @property    
@@ -340,7 +346,7 @@ class Engine(object):
         See :py:class:`smc.elements.engines.Interface` for more info
         """
         href = find_link_by_name('interfaces', self.link)
-        return Interface(href=href)
+        return Interface(meta=Meta(href=href, name=None, type=None))
     
     @property
     def physical_interface(self):
@@ -358,7 +364,7 @@ class Engine(object):
             raise UnsupportedInterfaceType('Engine type: {} does not support the '
                                            'physical interface type'\
                                            .format(self.node_type))
-        return PhysicalInterface(href=href)
+        return PhysicalInterface(meta=Meta(name=None, href=href, type='physical_interface'))
     
     @property    
     def virtual_physical_interface(self):
@@ -382,7 +388,8 @@ class Engine(object):
                                            'virtual physical interface type. Engine '
                                            'type is: {}'
                                            .format(self.node_type))
-        return VirtualPhysicalInterface(href=href)
+        return VirtualPhysicalInterface(meta=Meta(name=None, href=href, 
+                                                  type='virtual_physical_interface'))
     
     @property
     def tunnel_interface(self):
@@ -397,7 +404,7 @@ class Engine(object):
                                            'layer 3 single engines or clusters; '
                                            'Engine type is: {}'
                                            .format(self.node_type))
-        return TunnelInterface(href=href)
+        return TunnelInterface(meta=Meta(name=None, href=href, type='tunnel_interface'))
      
     def modem_interface(self):
         """ Get only modem interfaces for this engine node.
@@ -548,6 +555,10 @@ class Node(object):
         for k, v in mydict.iteritems():
             setattr(self, k, v)
     
+    @property
+    def href(self):
+        return find_link_by_name('self', self.link)
+    
     @classmethod
     def create(cls, name, node_type, nodeid=1):
         """
@@ -576,10 +587,6 @@ class Node(object):
         return SMCElement(
                     href=self.href, json=vars(self),
                     etag=latest.etag).update()
-    
-    @property
-    def href(self):
-        return find_link_by_name('self', self.link)
     
     def fetch_license(self):
         """ Fetch the node level license
@@ -885,7 +892,7 @@ class Layer3Firewall(object):
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
                                physical_interfaces=[
-                                    {PhysicalInterface.name: physical.data}], 
+                                    {PhysicalInterface.typeof: physical.data}], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=1, enable_gti=enable_gti,
@@ -945,8 +952,8 @@ class Layer2Firewall(object):
         
         inline = PhysicalInterface()
         inline.add_inline_interface(inline_interface, intf_href)
-        interfaces.append({PhysicalInterface.name: physical.data})
-        interfaces.append({PhysicalInterface.name: inline.data})    
+        interfaces.append({PhysicalInterface.typeof: physical.data})
+        interfaces.append({PhysicalInterface.typeof: inline.data})    
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -1010,8 +1017,8 @@ class IPS(object):
       
         inline = PhysicalInterface()
         inline.add_inline_interface(inline_interface, intf_href)
-        interfaces.append({PhysicalInterface.name: physical.data})
-        interfaces.append({PhysicalInterface.name: inline.data}) 
+        interfaces.append({PhysicalInterface.typeof: physical.data})
+        interfaces.append({PhysicalInterface.typeof: inline.data}) 
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -1091,7 +1098,7 @@ class Layer3VirtualEngine(object):
             if interface.get('interface_id') == outgoing_intf:
                 physical.modify_attribute(outgoing=True,
                                           auth_request=True)
-            new_interfaces.append({VirtualPhysicalInterface.name: physical.data})
+            new_interfaces.append({VirtualPhysicalInterface.typeof: physical.data})
            
             engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -1174,7 +1181,7 @@ class FirewallCluster(object):
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
                                physical_interfaces=[
-                                        {PhysicalInterface.name: physical.data}], 
+                                        {PhysicalInterface.typeof: physical.data}], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=len(nodes), enable_gti=enable_gti,
@@ -1228,7 +1235,7 @@ class MasterEngine(object):
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
                                physical_interfaces=[
-                                        {PhysicalInterface.name: physical.data}], 
+                                        {PhysicalInterface.typeof: physical.data}], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=1, enable_gti=enable_gti,
@@ -1308,7 +1315,7 @@ class AWSLayer3Firewall(object):
         dhcp_physical = PhysicalInterface()
         dhcp_physical.add_dhcp_interface(dynamic_interface,
                                          dynamic_index, primary_mgt=True)
-        new_interfaces.append({PhysicalInterface.name: dhcp_physical.data})
+        new_interfaces.append({PhysicalInterface.typeof: dhcp_physical.data})
         
         auth_request = 0
         for interface in interfaces:
@@ -1321,7 +1328,7 @@ class AWSLayer3Firewall(object):
             if not auth_request: #set this on first interface that is not the dhcp_interface
                 physical.modify_attribute(auth_request=True)
                 auth_request = 1
-            new_interfaces.append({PhysicalInterface.name: physical.data})
+            new_interfaces.append({PhysicalInterface.typeof: physical.data})
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -1367,11 +1374,19 @@ class VirtualResource(object):
     :param href: href should be provided to init to identify base location for virtual
                  resources
     """
-    def __init__(self, name=None, **kwargs):
-        self.name = name     
-        for k, v, in kwargs.iteritems():
-            setattr(self, k, v)
-       
+    def __init__(self, meta=None, **kwargs):
+        self.meta = meta    
+
+    @property
+    def href(self):
+        if self.meta:
+            return self.meta.href
+    
+    @property
+    def name(self):
+        if self.meta:
+            return self.meta.name
+   
     def create(self, name, vfw_id, domain='Shared Domain',
                show_master_nic=False, connection_limit=0):
         """
@@ -1386,20 +1401,16 @@ class VirtualResource(object):
         instance
         :return: SMCResult
         """
-        self.element = SMCElement(href=self.href, json={}) 
-        self.element.json.update(name=name,
-                                 vfw_id=vfw_id,
-                                 show_master_nic=show_master_nic,
-                                 connection_limit=connection_limit,
-                                 allocated_domain_ref=domain)
-        self.resolve_domain()
-        return self.element.create()
-    
-    def resolve_domain(self):
-        self.element.json.update(allocated_domain_ref=
-                    search.element_href_use_filter(
-                        self.element.json.get('allocated_domain_ref'), 'admin_domain'))
+        allocated_domain = search.element_href_use_filter(\
+                                        domain, 'admin_domain')
+        json = {'name': name,
+                'connection_limit': connection_limit,
+                'show_master_nic': show_master_nic,
+                'vfw_id': vfw_id,
+                'allocated_domain_ref': allocated_domain}
 
+        return SMCElement(href=self.href, json=json).create()
+      
     def describe(self):
         """
         Retrieve full json for this virtual resource and return pretty printed
@@ -1419,8 +1430,8 @@ class VirtualResource(object):
         :return: list VirtualResource
         """
         resources=[]
-        for resource in search.element_by_href_as_json(self.href):
-            resources.append(VirtualResource(**resource))
+        for resource in search.element_by_href_as_json(self.meta.href):
+            resources.append(VirtualResource(meta=Meta(**resource)))
         return resources
 
     def __repr__(self):

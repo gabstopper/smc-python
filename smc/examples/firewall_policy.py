@@ -7,7 +7,7 @@ a rule by name.
 
 from smc import session
 from smc.elements.policy import FirewallPolicy
-from smc.elements.collections import describe_tcp_services, describe_hosts
+from smc.elements.collection import describe_tcp_services, describe_hosts
 
 import logging
 logging.getLogger()

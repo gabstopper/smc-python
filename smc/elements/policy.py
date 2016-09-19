@@ -40,12 +40,12 @@ Example rule deletion::
 from abc import ABCMeta, abstractmethod
 import smc.actions.search as search
 import smc.api.common
-from smc.elements.helpers import find_link_by_name
+from smc.elements.util import find_link_by_name
 from smc.api.exceptions import SMCException, CreatePolicyFailed
 from smc.elements.element import SMCElement
-import smc.elements.collections
+import smc.elements.collection
 #from smc.elements import collections
-#import smc.elements.collections as collections
+#import smc.elements.collection as collections
 from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule, Rule
 
 class Policy(object):
@@ -198,7 +198,7 @@ class FirewallPolicy(Policy):
     """
     policy_type = 'fw_policy'
     
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
         Policy.__init__(self, name)
         self.name = name
     
@@ -238,7 +238,7 @@ class FirewallPolicy(Policy):
         """
         #template_href = collections.describe_fw_template_policies(name=[template])
         
-        template_href = smc.elements.collections.describe_fw_template_policies(name=[template])
+        template_href = smc.elements.collection.describe_fw_template_policies(name=[template])
         
         if not template_href:
             raise CreatePolicyFailed('Cannot find fw policy template: {}'.format(template))
@@ -307,6 +307,10 @@ class FirewallPolicy(Policy):
     def href(self):
         return find_link_by_name('self', self.link)
     
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__.__name__, "name={}"\
+                           .format(self.name))
+        
 class InspectionPolicy(Policy):
     """
     The Inspection Policy references a specific inspection policy that is a property
@@ -315,9 +319,13 @@ class InspectionPolicy(Policy):
     In addition, exceptions can be made at this policy level to bypass scanning based
     on the rule properties.
     """
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
         Policy.__init__(self, name)
         print "Inspection Policy"
+    
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__.__name__, "name={}"\
+                           .format(self.name))
         
 class FileFilteringPolicy(Policy):
     """ The File Filtering Policy references a specific file based policy for doing 

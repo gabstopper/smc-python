@@ -15,6 +15,37 @@ clean_html = re.compile(r'<.*?>')
 
 logger = logging.getLogger(__name__)
 
+class SMCRequest(object):
+    def __init__(self, **kwargs):
+        self.filename = None
+        self.headers = None
+        self.params = None
+        self.href = None
+        self.etag = None
+        self.json = None
+
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+    
+    def create(self):
+        return create(self)
+        
+    def delete(self):
+        return delete(self.href)
+    
+    def update(self):
+        return update(self)
+
+    def as_json(self):
+        element = fetch_json_by_href(self.href)
+        if element:
+            return element.json
+        
+    def as_file(self):
+        return fetch_content_as_file(self.href, self.filename, 
+                                     stream=True)
+
+    
 def create(element):
     """ 
     Create element on SMC

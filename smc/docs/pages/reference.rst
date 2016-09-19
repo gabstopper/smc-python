@@ -356,11 +356,10 @@ VPNSite
 .. autoclass:: VPNSite
    :members:
 
-Collections
------------
+Collection
+----------
 
-.. automodule:: smc.elements.collections
-   :members:
+.. automodule:: smc.elements.collection
  
 Search
 ------

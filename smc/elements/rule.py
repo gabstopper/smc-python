@@ -109,7 +109,7 @@ class IPv4Rule(object):
                   'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
         
         You can obtain the href for the network and service elements by using the 
-        :py:mod:`smc.elements.collections` describe functions such as::
+        :py:mod:`smc.elements.collection` describe functions such as::
         
             describe_hosts(name=['host1', 'host2'], exact_match=False)
             describe_tcp_services(name=['HTTP', 'HTTPS', 'SSH'])

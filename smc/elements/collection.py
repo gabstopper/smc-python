@@ -1,5 +1,5 @@
 """
-Collections module allows for search queries against the SMC API to retrieve
+Collection module allows for search queries against the SMC API to retrieve
 element data.
 
 Each describe function allows two possible (optional) parameters:
@@ -38,19 +38,21 @@ Elements that return type SMCElement have methods available to SMCElement class
 
 Some additional generic search examples follow...
 
+    import smc.elements.collection as collection
+    
 To search for all host objects::
 
-    for host in collections.describe_hosts():
+    for host in describe_hosts():
         print host
         
 To search only for a host name 'test'::
 
-    for host in collections.describe_hosts(name=['test']):
+    for host in describe_hosts(name=['test']):
         print host
 
 To search for all hosts with 'test' in the name::
 
-    for host in collections.describe_hosts(name=['test'], exact_match=False):
+    for host in describe_hosts(name=['test'], exact_match=False):
         print host
         
 It may be useful to do a wildcard search for an element type and view the entire
@@ -63,16 +65,27 @@ Modify a specific SMCElement type by changing the name::
 
     for host in describe_hosts(name=['myhost']):
         if host:
-            host.modify_attribute(name='mynewname')
-    
+            host.modify_attribute(name='mynewname')   
+            
+It is also possible to use wildcards when searching for a specific host, without
+setting the exact_match=False flag. For example::
+
+    for x in describe_hosts(name=['TOR*']):
+        print x.describe()
+        
+    for y in describe_hosts(name=['TOR'], exact_match=False):
+        print y
+        
+Both will work, however the first option will only find items starting with TOR*, whereas
+the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 """
 from smc import session
-from smc.elements.element import SMCElement, AdminUser
+from smc.elements.element import SMCElement, AdminUser, Meta
 from smc.elements.engines import Engine
 from smc.elements.vpn import ExternalGateway, VPNPolicy
-#from smc.elements.policy import FirewallPolicy
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
 from smc.elements.servers import ManagementServer, LogServer
+from smc.elements.policy import FirewallPolicy
 
 """        
 Policy Elements
@@ -87,7 +100,7 @@ def describe_fw_policies(name=None, exact_match=True):
     
     :return: list :py:class:`smc.elements.element.SMCElement`
     """
-    return generic_list_builder('fw_policy', name, exact_match)
+    return generic_list_builder('fw_policy', name, exact_match, FirewallPolicy)
 
 def describe_fw_template_policies(name=None, exact_match=True):
     """
@@ -626,6 +639,11 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
     """
     Build the query to SMC based on parameters
     
+    Each constructor that has a describe function must have two arguments, 
+    name=None, meta=None. This is because some top level classes require name.
+    If the resource does not have a top level api entry point, it will be
+    referenced by the linked resource using meta only.
+    
     :param list name: Name of host object (optional)
     :param exact_match: Do exact match against name field (default True)
     :return: list :py:class:`smc.elements.element.SMCElement`
@@ -638,7 +656,8 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
                     session.cache.get_entry_href(typeof)).json
         if lst:
             for item in lst:
-                result.append(klazz(**item))
+                result.append(klazz(name=item.get('name'), 
+                                    meta=Meta(**item)))
     else: #Filter provided
         for element in name:
             for item in fetch_href_by_name(element, 

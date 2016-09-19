@@ -9,7 +9,7 @@ To load the configuration for system, do::
 
 """
 import smc.actions.search as search
-from smc.elements.helpers import find_link_by_name
+from smc.elements.util import find_link_by_name
 from smc.elements.element import SMCElement, Blacklist
 import smc.api.common as common_api
 from smc.api.exceptions import SMCException

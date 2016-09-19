@@ -92,15 +92,15 @@ A list of current resources are:
 Much of the functionality is encapsulated into these top level resources. For example, after loading 
 a VPNPolicy, you can add external endpoints (for External Gateways), add VPN Sites, enable/disable sites, etc.
 
-Collections
------------
+Collection
+----------
 
 Collections are functions provided to return base level information about a 
-specific SMC element by type :py:mod:`smc.elements.collections`
+specific SMC element by type :py:mod:`smc.elements.collection`
 Some collection types have additional filters that can be used to get more specific 
 results.
 
-Each collection returns a :py:class:`smc.elements.collections.Element` with 3 attributes
+Each collection returns a :py:class:`smc.elements.collection.Element` with 3 attributes
 set:
 
 * name (list): name of element
@@ -114,21 +114,21 @@ To search for all host objects:
 
 .. code-block:: python
 
-   for host in collections.describe_hosts():
+   for host in collection.describe_hosts():
    	 print host
         
 To search only for a host name 'test':
 
 .. code-block:: python
 
-   for host in collections.describe_hosts(name=['test']):
+   for host in collection.describe_hosts(name=['test']):
      print host
 
 To search for all hosts with 'test' in the name:
 
 .. code-block:: python
 
-   for host in collections.describe_hosts(name=['test'], exact_match=False):
+   for host in collection.describe_hosts(name=['test'], exact_match=False):
      print host
    
 Creating elements
@@ -444,7 +444,7 @@ To add an inline interface to an existing engine:
 
    logical_interface = logical_intf_helper('MyLogicalInterface') #get logical interface reference
    engine = Engine('myengine').load()
-   engine.add_inline_interface('5-6', logical_interface_ref=logical_intf)
+   engine.physical_interface.add_inline_interface('5-6', logical_interface_ref=logical_intf)
    
 .. note:: Use :py:func:`smc.elements.element.logical_intf_helper('name')` which will find the existing
 		  logical interface reference or create the logical interface automatically
@@ -457,7 +457,7 @@ To add a capture interface to a layer2 FW or IPS:
 
    logical_interface = logical_intf_helper('MyLogicalInterface')
    engine = Engine('myengine').load()
-   engine.add_capture_interface(10, logical_interface_ref=logical_interface)
+   engine.physical_interface.add_capture_interface(10, logical_interface_ref=logical_interface)
 
 Cluster Virtual Interfaces are used on clustered engines and require a defined "CVI" (sometimes called a 'VIP'),
 as well as node dedicated interfaces for the engine initiated communications. Each clustered interface will therefore

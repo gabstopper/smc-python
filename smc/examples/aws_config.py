@@ -63,9 +63,9 @@ import boto3
 import botocore
 from smc import session
 from smc.elements.engines import Layer3Firewall
-from smc.elements import collections
+from smc.elements import collection
 from smc.api.exceptions import CreateEngineFailed
-from smc.elements.element import location_helper
+from smc.elements.helpers import location_helper
 #from smc import set_stream_logger
 #set_stream_logger()
 
@@ -515,7 +515,7 @@ class NGFWConfiguration(object):
         :return: None
         """
         if self.vpn_policy: 
-            for policy in collections.describe_vpn_policies():
+            for policy in collection.describe_vpn_policies():
                 if policy.name.startswith(self.vpn_policy):
                     vpn = policy.load()
                     vpn.open()
