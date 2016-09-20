@@ -1,72 +1,26 @@
 """
-Rule module that handles rule creation and provides a class factory to dispatch
-the proper class based on the rule type required (IPv4Rule, IPS Rule, Inspection Rule,
-File Filtering Rule, etc)
+Rule module that handles each of the different rule types available 
+(IPv4Rule, IPS Rule, Inspection Rule, File Filtering Rule, etc)
 
-This is not called directly, but is linked to the Policy class and loading the proper
-policy.
+This is not called directly, but is linked to the Policy class which handles using
+the correct class instance based on the policy links.
 
 Here is an example of how this is referenced and used::
 
     policy = FirewallPolicy('smcpython').load()
-    policy.ipv4_rule.create(name='myrule', 
-                            sources=mysources,
-                            destinations=mydestinations, 
-                            services=myservices, 
-                            action='permit')
+    policy.fw_ipv4_access_rules.create(name='myrule', 
+                                       sources=mysources,
+                                       destinations=mydestinations, 
+                                       services=myservices, 
+                                       action='permit')
                             
 For rule creation, refer to each 'create' method based on the rule type to understand the
 parameters required. However, each class will have a property to refer to a rule class 
 object for creation.
 """
-import smc.api.common
 import smc.actions.search as search
-from smc.elements.element import SMCElement
+from smc.elements.element import SMCElement, Meta
 
-class Rule(object):
-    """
-    Rule class providing a generic container for any rule type
-    along with specific actions such as creating, modifying or
-    deleting.
-    This base class will hold a limited number of attributes after
-    initialization.
-    
-    Attributes:
-    
-    :ivar href: href location for the rule
-    :ivar name: name of rule
-    :ivar type: type of rule
-    
-    To get the actual rule content, use :py:func:`describe_rule` which
-    will retrieve the rule using the rule href and return the correct
-    object type.
-    
-    For example, load a firewall policy and describe all rules::
-    
-        policy = FirewallPolicy('newpolicy').load()
-        for rule in policy.fw_ipv4_access_rules:
-            print rule #Is a Rule object
-            print rule.describe_rule() #Is an IPv4Rule object
-    """
-    def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
-    
-    def describe_rule(self):
-        if self.type == IPv4Rule.typeof:
-            return IPv4Rule(
-                    **search.element_by_href_as_json(self.href))
-    
-    def modify_attribute(self, **kwargs):
-        pass
-    
-    def delete(self):
-        return smc.api.common.delete(self.href)
-    
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__, 
-                                    'name={}'.format(self.name))
-  
 class IPv4Rule(object):
     """ 
     Represents an IPv4 Rule in SMC Policy
@@ -88,15 +42,30 @@ class IPv4Rule(object):
     """
     typeof = 'fw_ipv4_access_rule'
     
-    def __init__(self, **kwargs):
-        self.name = None
+    def __init__(self, meta=None, **kwargs):
+        self.meta = meta
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
     
+    @property
+    def name(self):
+        if self.meta:
+            return self.meta.name
+        
+    @property
+    def href(self):
+        if self.meta:
+            return self.meta.href
+        
     def create(self, name, sources, destinations, services, action='', 
                is_disabled=False):
         """ Create a new rule
         
+            for policy in describe_fw_policies():
+                if policy.name == 'Datacenter Policy':
+                    pol = policy.load()
+                    pol.fw_ipv4_access_rules.create('smcpython', 'any', 'any', 'any')
+                
         Sources and Destinations can be one of any valid network element types defined
         in :py:class:smc.elements.element`. 
         
@@ -154,15 +123,134 @@ class IPv4Rule(object):
                 
         return SMCElement(href=self.href,
                           json=rule_values).create()
-                          
+    
+    def add_after(self):
+        pass
+    
+    def add_before(self):
+        pass
+    
+    def describe(self):
+        return search.element_by_href_as_json(self.href)
+    
+    def delete(self):
+        return SMCElement(href=self.href).delete()
+    
+    def all(self):
+        """
+        Get all IPv4Rules for this policy
+        
+        for rule in pol.fw_ipv4_access_rules.all():
+            print rule.describe()
+            
+        :return list `IPv4Rule`
+        """
+        rule_lst = search.element_by_href_as_json(self.href)
+        rules=[] 
+        for rule in rule_lst:
+            rules.append(IPv4Rule(meta=Meta(**rule)))
+        return rules
+                      
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 
-                                'name={}'.format(self.name))
+        return "%s(%r)" % (self.__class__, 'name={}'
+                           .format(self.name))
         
         
 class IPv4NATRule(object):
-    def __init__(self):
+    """
+    Manipulate NAT Rules for relevant policy types.
+    
+    For example, adding a NAT rule for a layer 3 fw policy::
+    
+        for policy in describe_fw_policies():
+            if policy.name == 'Datacenter Policy':
+                pol = policy.load()
+                pol.fw_ipv4_nat_rules.create(name='mynatrule', 
+                                             sources='any', 
+                                             destinations='any', 
+                                             services='any',
+                                             dynamic_src_nat='10.0.0.245')
+    """                                         
+    def __init__(self, meta=None, **kwargs):
+        self.meta = meta
+    
+    @property
+    def href(self):
+        if self.meta:
+            return self.meta.href
+     
+    def create(self, name, sources, destinations, services, 
+               dynamic_src_nat=None, max_port=65535, min_port=1024, 
+               is_disabled=False):
+        """
+        Create a NAT rule
+        
+        :param str name: name of NAT rule
+        :param list sources: list of source href's
+        :param list destinations: list of destination href's
+        :param list services: list of service href's
+        :param str dynamic_src_nat: ip of dynamic source nat address
+        :param int max_port: max port number for PAT
+        :param int min_port: min port number for PAT
+        :param boolean is_disabled: whether to disable rule or not
+        :return: SMCResult
+        """
+        rule_values = { 
+                'name': name,
+                'sources': {'src': []},
+                'destinations': {'dst': []},
+                'services': {'service': []},
+                'is_disabled': is_disabled }
+        
+        if 'any' in sources:
+            rule_values.update(sources={'any': True})
+        else:
+            rule_values.update(sources={'src': sources})
+        
+        if 'any' in destinations:
+            rule_values.update(destinations={'any': True})
+        else:
+            rule_values.update(destinations={'dst': destinations})
+            
+        if 'any' in services:
+            rule_values.update(services={'any': True})
+        else:
+            rule_values.update(services={'service': services})
+            
+        if dynamic_src_nat:
+            dyn_nat = {'options': {'dynamic_src_nat':
+                                   {'automatic_proxy': True,
+                                    'translation_values':
+                                        [{'ip_descriptor': dynamic_src_nat,
+                                          'max_port': max_port,
+                                          'min_port': min_port}]}}}
+            rule_values.update(dyn_nat)
+        return SMCElement(href=self.href, json=rule_values).create()
+
+    def describe(self):
+        return search.element_by_href_as_json(self.href) 
+
+    def add_before(self):
         pass
+    
+    def add_after(self):
+        pass
+          
+    def all(self):
+        """
+        Get all IPv4Rules for this policy
+        
+        for rule in pol.fw_ipv4_access_rules.all():
+            print rule.describe()
+            
+        :return list `IPv4Rule`
+        """
+        rule_lst = search.element_by_href_as_json(self.href)
+        rules=[] 
+        for rule in rule_lst:
+            rules.append(IPv4NATRule(meta=Meta(**rule)))
+        return rules
+    
         
 class IPv6Rule(object):
     def __init__(self):

@@ -7,7 +7,7 @@ from smc.elements.util import find_link_by_name
 from smc.api.exceptions import CreateEngineFailed, LoadEngineFailed,\
     UnsupportedEngineFeature, UnsupportedInterfaceType
 from smc.elements.vpn import InternalGateway
-from smc.api.common import SMCRequest as request
+from smc.elements.helpers import domain_helper
 
 class Engine(object):
     """
@@ -107,20 +107,21 @@ class Engine(object):
         is set upon load either via collection.describe_* function or directly.
         """
         if not self.meta:
-            self.meta = Meta(**search.element_info_as_json(self.name))
+            result = search.element_info_as_json(self.name)
+            if result:
+                self.meta = Meta(**result)
+            else:
+                raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is " 
+                                        "correct and the engine exists." % self.name) 
         result = search.element_by_href_as_smcresult(self.meta.href)
-        if result:
-            self.json = result.json
-            self.nodes = []
-            for node in self.json.get('nodes'):
-                for node_type, data in node.iteritems():
-                    new_node = Node(node_type, data)
-                    self.nodes.append(new_node)
-            return self
-        else:
-            raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is correct"
-                               " and the engine exists." % self.name)
-    
+        self.json = result.json
+        self.nodes = []
+        for node in self.json.get('nodes'):
+            for node_type, data in node.iteritems():
+                new_node = Node(node_type, data)
+                self.nodes.append(new_node)
+        return self
+
     @property
     def etag(self):
         if self.meta:
@@ -179,9 +180,7 @@ class Engine(object):
                 self.json.update({k: v})
         return SMCElement(href=self.href, json=self.json,
                           etag=self.etag).update()
-        #return request(href=self.href, json=self.json,
-        #               etag=self.etag).update()
-    
+
     def node(self):
         """ Return node/s references for this engine. For a cluster this will
         contain multiple entries. 
@@ -191,9 +190,7 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('nodes', self.link))
-        #href=find_link_by_name('nodes', self.link)
-        #return request(href=href).as_json()
-        
+  
     def alias_resolving(self):
         """ Alias definitions defined for this engine 
         Aliases can be used in rules to simplify multiple object creation
@@ -203,9 +200,7 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('alias_resolving', self.link))
-        #href=find_link_by_name('alias_resolving', self.link)
-        #return request(href=href).as_json() 
-    
+       
     def blacklist(self, src, dst, duration=3600):
         """ Add blacklist entry to engine node by name
     
@@ -215,8 +210,6 @@ class Engine(object):
         :param int duration: how long to blacklist in seconds
         :return: SMCResult (href attr set with blacklist entry)
         """
-        #return request(href=find_link_by_name('blacklist', self.link),
-        #               json=Blacklist(src, dst, duration).json).create()
         return SMCElement(href=find_link_by_name('blacklist', self.link),
                           json=Blacklist(src, dst, duration).json).create()
     
@@ -226,8 +219,6 @@ class Engine(object):
         :method: DELETE
         :return: SMCResult (msg attribute set if failure)
         """
-        #href=find_link_by_name('flush_blacklist', self.link)
-        #return request(href=href).delete()
         return common_api.delete(find_link_by_name('flush_blacklist', self.link))
     
     def add_route(self, gateway, network):
@@ -243,10 +234,6 @@ class Engine(object):
         :param str network: network address in cidr format
         :return: SMCResult
         """
-        #href=find_link_by_name('add_route', self.link)
-        #return request(href=href,
-        #               params={'gateway': gateway, 
-        #                       'network': network}).create()
         return SMCElement(
                     href=find_link_by_name('add_route', self.link),
                     params={'gateway': gateway, 
@@ -260,9 +247,7 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('routing', self.link))
-        #href=find_link_by_name('routing', self.link)
-        #return request(href=href).as_json() 
-    
+       
     def routing_monitoring(self):
         """ Return route information for the engine, including gateway, networks
         and type of route (dynamic, static)
@@ -282,8 +267,7 @@ class Engine(object):
         href = find_link_by_name('contact_addresses', self.link)
         if href:
             return search.element_by_href_as_json(href)
-        
-                        
+                              
     def antispoofing(self):
         """ Antispoofing interface information. By default is based on routing
         but can be modified in special cases
@@ -1252,6 +1236,7 @@ class MasterEngine(object):
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'.format(result.msg))
 
+'''
 class AWSLayer3Firewall(object):
     """
     Create AWSLayer3Firewall in SMC. This is a Layer3Firewall instance that uses
@@ -1299,19 +1284,7 @@ class AWSLayer3Firewall(object):
             }]   
         """
         new_interfaces = []
-        '''
-        for interface in interfaces:
-            if interface.get('interface_id') == 0:
-                print "ip: {}, netmask: {}, id: {}".format(interface.get('address'),
-                                                           interface.get('network_value'),
-                                                           interface.get('interface_id'))
-                route = ipaddress.ip_network(u'{}'.format(interface.get('network_value')))
-                print "Create default route: %s" % str(list(route)[1])
-            else:
-                print "ip: {}, netmask: {}, id: {}".format(interface.get('address'),
-                                                           interface.get('network_value'),
-                                                           interface.get('interface_id'))
-        '''
+
         dhcp_physical = PhysicalInterface()
         dhcp_physical.add_dhcp_interface(dynamic_interface,
                                          dynamic_index, primary_mgt=True)
@@ -1347,7 +1320,8 @@ class AWSLayer3Firewall(object):
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'.format(result.msg))
-
+'''
+            
 class VirtualResource(object):
     """
     A Virtual Resource is a container placeholder for a virtual engine
@@ -1401,8 +1375,7 @@ class VirtualResource(object):
         instance
         :return: SMCResult
         """
-        allocated_domain = search.element_href_use_filter(\
-                                        domain, 'admin_domain')
+        allocated_domain = domain_helper(domain)
         json = {'name': name,
                 'connection_limit': connection_limit,
                 'show_master_nic': show_master_nic,

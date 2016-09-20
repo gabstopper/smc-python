@@ -93,6 +93,20 @@ def element_info_as_json(name):
         element = fetch_href_by_name(name)
         if element.json:
             return element.json.pop()
+        
+def element_info_as_json_with_filter(name, _filter):
+    """
+    Top level json meta data (href, name, type) for element
+    
+    :param str name: name of element
+    :param str _filter: filter of entry point
+    :return dict if found, otherwise None
+    """
+    if name and _filter:
+        #element = fetch_by_name_and_filter(name, _filter)
+        element = fetch_href_by_name(name, filter_context=_filter)
+        if element.json:
+            return element.json.pop()
        
 def element_href_use_wildcard(name):
     """ Get element href using a wildcard rather than matching only on the name field

@@ -42,11 +42,8 @@ import smc.actions.search as search
 import smc.api.common
 from smc.elements.util import find_link_by_name
 from smc.api.exceptions import SMCException, CreatePolicyFailed
-from smc.elements.element import SMCElement
-import smc.elements.collection
-#from smc.elements import collections
-#import smc.elements.collection as collections
-from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule, Rule
+from smc.elements.element import SMCElement, Meta
+from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule
 
 class Policy(object):
     """ 
@@ -74,10 +71,8 @@ class Policy(object):
         """
         base_policy = search.element_info_as_json(self.name)
         if base_policy:
-            policy_cfg = search.element_by_href_as_json(base_policy.get('href'))
-            if policy_cfg:
-                for k, v in policy_cfg.iteritems():
-                    setattr(self, k, v)
+            self.json = search.element_by_href_as_json(base_policy.get('href'))
+            return self
         else:
             raise SMCException("Policy does not exist: %s" % self.name)
         return self            
@@ -193,10 +188,17 @@ class FirewallPolicy(Policy):
     :ivar file_filtering_policy: mapped file filtering policy
     :ivar inspection_policy: mapping inspection policy
     
+    Instance Resources:
+    
+    :ivar fw_ipv4_access_rules: :py:class:`IPv4Rule` reference
+    :ivar fw_ipv4_nat_rules: :py:class:`IPv4NATRule` reference
+    :ivar fw_ipv6_access_rules: :py:class:`IPv6Rule` reference
+    :ivar fw_ipv6_nat_rules: :py:class:`IPv6NATRule` reference
+    
     :param name: name of firewall policy
     :return: self
     """
-    policy_type = 'fw_policy'
+    typeof = 'fw_policy'
     
     def __init__(self, name, meta=None):
         Policy.__init__(self, name)
@@ -222,29 +224,31 @@ class FirewallPolicy(Policy):
         
         This policy will then inherit the Inspection and File Filtering
         policy from that template.
-        Existing policies and templates are retrievable from search methods, 
+        Existing policies and templates are retrievable from describe methods, 
         such as::
         
-            smc.search.fw_template_policies(policy=None)
+            import smc.elements.collection
+            for policy in describe_fw_policies():
+                mypolicy = policy.load()
+                
+        Find the FW template href for a rule by using smc.elements.collection::
+        
+            for template in describe_fw_template_policies():
+                print template
+                ....
         
         :mathod: POST
         :param str name: name of policy
-        :param str template: name of the FW template to base policy on
+        :param str template: href of the FW template to base policy on
         :return: SMCResult with href attribute set with location of new policy
         
         To use after successful creation, call::
         
             FirewallPolicy('newpolicy').load()
         """
-        #template_href = collections.describe_fw_template_policies(name=[template])
-        
-        template_href = smc.elements.collection.describe_fw_template_policies(name=[template])
-        
-        if not template_href:
-            raise CreatePolicyFailed('Cannot find fw policy template: {}'.format(template))
         policy = {'name': name,
-                  'template': template_href[0].href}
-        policy_href = search.element_entry_point('fw_policy')
+                  'template': template}
+        policy_href = search.element_entry_point(cls.typeof)
         
         result = SMCElement(href=policy_href, json=policy).create()
         if result.href:
@@ -256,56 +260,70 @@ class FirewallPolicy(Policy):
     @property
     def fw_ipv4_access_rules(self):
         """
-        Return list of Rule elements
-        
-        :return: list :py:class:`Rule`
-        """
-        rule_lst = search.element_by_href_as_json(
-                        find_link_by_name('fw_ipv4_access_rules', self.link))
-        rules=[] 
-        for rule in rule_lst:
-            rules.append(Rule(**rule))
-        return rules
-    
-    @property
-    def fw_ipv4_nat_rules(self):
-        return find_link_by_name('fw_ipv4_nat_rules', self.link)
-        
-    @property
-    def fw_ipv6_access_rules(self):
-        return find_link_by_name('fw_ipv6_access_rules', self.link)
-    
-    @property
-    def fw_ipv6_nat_rules(self):
-        return find_link_by_name('fw_ipv6_nat_rules', self.link)  
-    
-    @property
-    def ipv4_rule(self):
-        """
-        Access to IPv4Rule object for creating a rule. This will pass in
-        the href for the rule location on this policy and create will be
-        called in the rule
+        IPv4 rule entry point
         
         :return: :py:class:`IPv4Rule`
         """
-        return IPv4Rule(
-                href=find_link_by_name('fw_ipv4_access_rules', self.link))
+        href=find_link_by_name('fw_ipv4_access_rules', self.link)
+        return IPv4Rule(meta=Meta(
+                            name=None, href=href, type=self.typeof))
+
+    @property
+    def fw_ipv4_nat_rules(self):
+        """
+        IPv4NAT Rule entry point
+        
+        :return: :py:class: `IPv4NATRule`
+        """
+        href=find_link_by_name('fw_ipv4_nat_rules', self.link)
+        return IPv4NATRule(meta=Meta(
+                            name=None, href=href, type=self.typeof))
+        
+    @property
+    def fw_ipv6_access_rules(self):
+        """
+        IPv6 Rule entry point
+        
+        :return: :py:class: `IPv6Rule`
+        """
+        href=find_link_by_name('fw_ipv6_access_rules', self.link)
+        return IPv6Rule(meta=Meta(
+                            name=None, href=href, type=self.typeof))
     
     @property
-    def ipv4_nat_rule(self):
-        return IPv4NATRule()
-    
-    @property
-    def ipv6_rule(self):
-        return IPv6Rule()
-    
-    @property
-    def ipv6_nat_rule(self):
-        return IPv6NATRule()
+    def fw_ipv6_nat_rules(self):
+        """
+        IPv6NAT Rule entry point
+        
+        :return: :py:class:`IPv6NATRule`
+        """
+        href=find_link_by_name('fw_ipv6_nat_rules', self.link)
+        return IPv6NATRule(meta=Meta(
+                            name=None, href=href, type=self.typeof)) 
     
     @property
     def href(self):
         return find_link_by_name('self', self.link)
+    
+    @property
+    def link(self):
+        if hasattr(self, 'json'):
+            return self.json.get('link')
+    
+    @property
+    def file_filtering_policy(self):
+        return search.element_by_href_as_json(
+                    self.json.get('file_filtering_policy')).get('name')
+    
+    @property
+    def inspection_policy(self):
+        return search.element_by_href_as_json(
+                    self.json.get('inspection_policy')).get('name')
+    
+    @property
+    def template(self):
+        return search.element_by_href_as_json(
+                    self.json.get('template')).get('name')
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, "name={}"\
@@ -328,12 +346,13 @@ class InspectionPolicy(Policy):
                            .format(self.name))
         
 class FileFilteringPolicy(Policy):
-    """ The File Filtering Policy references a specific file based policy for doing 
-    additional inspection based on file types. Use the policy parameters to specify how
-    certain files are treated by either threat intelligence feeds, sandbox or by local AV
-    scanning. You can also use this policy to disable threat prevention based on specific
-    files.
+    """ 
+    The File Filtering Policy references a specific file based policy for 
+    doing additional inspection based on file types. Use the policy parameters 
+    to specify how certain files are treated by either threat intelligence feeds,
+    sandbox or by local AV scanning. You can also use this policy to disable 
+    threat prevention based on specific files.
     """
     def __init__(self, name):
         Policy.__init__(self, name)
-        print "File Filtering Policy"
+        

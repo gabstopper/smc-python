@@ -73,14 +73,14 @@ Resources
 Resources are specific areas within the smc-python API that require 'load' actions to retrieve the 
 configuration data and encapsulate specific methods based on the element type. 
 For example, to perform actions against a specific engine within SMC, you must first identify the engine and
-perform load the configuration:
+load the configuration:
 
 .. code-block:: python
 
    engine = Engine('myengine').load()
    
 Once the engine is loaded, all methods for that engine and engine nodes are provided in the resulting 
-engine reference.
+engine references.
 
 A list of current resources are:
 
@@ -88,6 +88,8 @@ A list of current resources are:
 * FirewallPolicy: configuration of firewall policies; :py:class:`smc.elements.policy.FirewallPolicy`
 * VPNPolicy: VPN Policy specific actions; :py:class:`smc.elements.vpn.VPNPolicy`
 * External Gateway: VPN external gateway actions; :py:class:`smc.elements.vpn.ExternalGateway`
+* System: System level modifications such as updates, patches; :py:class:`smc.elements.system`
+* Servers: Management and Log Server configurations; :py:class:`smc.elements.servers`
 
 Much of the functionality is encapsulated into these top level resources. For example, after loading 
 a VPNPolicy, you can add external endpoints (for External Gateways), add VPN Sites, enable/disable sites, etc.
@@ -100,15 +102,14 @@ specific SMC element by type :py:mod:`smc.elements.collection`
 Some collection types have additional filters that can be used to get more specific 
 results.
 
-Each collection returns a :py:class:`smc.elements.collection.Element` with 3 attributes
-set:
+Each collection returns meta data for each element type consisting of 3 attributes:
 
-* name (list): name of element
+* name: name of element
 * type: type of element
 * href: href to location of element
 
-The Element returned will not have the full element details but will provide a linkage to 
-retrieving them.
+The class container returned will not have the full element details but will provide a 
+linkage to retrieving them.
 
 To search for all host objects:
 
@@ -140,14 +141,21 @@ by other configurable areas of the system such as policy, routing, VPN, etc.
 Creating elements with smc-python can be done for all of the common element types:
 
 * Hosts
-* IP Range
+* AddressRange
 * Networks
 * Routers
 * Groups
+* DomainName
+* Zone
+* LogicalInterface
 * TCPService
 * UDPService
+* IPService
+* EthernetService
+* ServiceGroup
 * TCPServiceGroup
 * UDPServiceGroup
+* IPServiceGroup
 * ICMPService
 * ICMPv6Service
 
@@ -378,6 +386,7 @@ The supported physical interface types available are:
 * Capture Interface (IPS / Layer2 Firewall)
 * Cluster Virtual Interface 
 * Virtual Physical Interface (used for Layer 3 Virtual Engines)
+* Tunnel Interface
 
 The distinction is subtle but straightforward. A single node interface is used on a single layer 3 firewall
 instance and represents a unique interface with dedicated IP Address.
@@ -576,11 +585,11 @@ Example of changing the IP address of an existing single node interface (for lay
    engine = Node('myfirewall').load()
    for interface in engine.interface:
      if interface.name == 'Interface 2':
-       my_interface = interface.describe_interface()
+       my_interface = interface.describe()
        my_interface.modify_attribute({zone_ref:'My New Zone'})
        
 .. note:: Key/value pairs can be viewed by viewing the output of
-          interface.describe_interface()
+          interface.describe()
 
 Adding routes
 +++++++++++++
@@ -612,11 +621,9 @@ Example of attempting an auto-fetch and falling back to auto binding a dynamic l
    
    engine = Engine('myvirtualfw').load()
    for node in engine:
-     result = engine.fetch_license() #try to find POS
-     if result.msg:
-       print result.msg 	#print fail message
-       if not engine.bind_license().msg:
-          print "Success with auto binding of license"
+     result = engine.bind_license() #try to find POS, then dynamic license
+     if not result.msg:
+       print "Success with auto binding of license"
 
 Controlling engines
 -------------------
@@ -682,7 +689,15 @@ To create a new policy:
 
 .. code-block:: python
 
-   FirewallPolicy.create('newpolicy', 'layer3_fw_template')
+   FirewallPolicy.create('newpolicy', 'template=href_to_template')
+   
+Getting the template is easiest through the collection.describe_* methods
+
+.. code-block:: python
+
+   import smc.elements.collection
+   for template in describe_fw_template_policies():
+     print template.name, template.href
    
 To load an existing policy type:
 
@@ -704,6 +719,21 @@ Example rule creation:
    policy.save()
 
 See :py:mod:`smc.examples.firewall_policy` for a full example 
+
+Create a NAT rule for a firewall policy using source NAT (outbound NAT example):
+
+.. code-block:: python
+
+   for policy in describe_fw_policies():
+     if policy.name == 'Datacenter Policy':
+       pol = policy.load()
+       pol.fw_ipv4_nat_rules.create(name='mynatrule', 
+                                    sources='any', 
+                                    destinations='any', 
+                                    services='any',
+                                    dynamic_src_nat='10.0.0.245')
+                                    
+For additional NAT related options, see: :py:class:`smc.elements.rule.IPv4NATRule`
 
 VPN Policy
 ----------
@@ -727,7 +757,7 @@ After creating, add to the external gateway
 .. code-block:: python
 
    external_endpoint = ExternalEndpoint.create(name='myendpoint', 
-                                                address='2.2.2.2')
+                                               address='2.2.2.2')
    external_gateway.add_external_endpoint(external_endpoint)
     
 Lastly, 'sites' need to be configured that identify the network/s on the
@@ -786,8 +816,7 @@ To modify after creation by setting a password and making a superuser:
 
    admin = AdminUser.modify('administrator')
    admin.change_password('mynewpassword')
-   admin.json['superuser'] = True
-   admin.update()
+   admin.modify_attribute(superuser=True)
    admin.enable_disable() #enable or disable account
     
 Search
@@ -860,7 +889,6 @@ Logging
 The smc-python API uses python logging for INFO, ERROR and DEBUG logging levels. If this is required for
 longer term logging, add the following to your main class:
 
-
 .. code-block:: python
 
    import logging
@@ -870,3 +898,12 @@ longer term logging, add the following to your main class:
 .. note:: This is a recommended setting initially as it enables detailed logging of each call as it is
 		  processed through the API. It also includes the backend web based calls initiated by the 
 		  requests module.
+
+If you simply require stream logging to console for scripts, from your script import the smc module
+set_stream_logger, debug level, and optional format string conforming to the logging module:
+
+.. code-block:: python
+
+   from smc import set_stream_logger
+   set_stream_logger(level=logging.DEBUG, format_string=None)
+   

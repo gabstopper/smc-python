@@ -299,12 +299,10 @@ FileFilteringPolicy
    :members:
    :show-inheritance:
 
-Rule
-----
+Rules
+-----
 
 .. automodule:: smc.elements.rule
-   :members: Rule
-   :show-inheritance:
 
 IPv4Rule
 ++++++++

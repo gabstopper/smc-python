@@ -37,13 +37,13 @@ class InternalGateway(object):
         :return: SMCResult
         """
         for k, v in kwargs.iteritems():
-            setattr(self, k, v) 
+            setattr(self, k, v)
         return SMCElement(href=self.href, json=vars(self),
                           etag=self.etag).update()
     
     @property
     def etag(self):
-        return search.element_by_href_as_smcresult(self.href)
+        return search.element_by_href_as_smcresult(self.href).etag
     
     @property
     def href(self):
@@ -502,9 +502,10 @@ class VPNPolicy(object):
     """
     typeof = 'vpn'
 
-    def __init__(self, name, href=None, **kwargs):
+    def __init__(self, name, meta=None, **kwargs):
         self.name = name
-        self.href = href
+        #self.href = href
+        self.meta = meta
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
 
@@ -537,23 +538,21 @@ class VPNPolicy(object):
         
         :return: VPNPolicy
         """
-        try:
-            result = search.element_by_href_as_json(self.href)
-        except AttributeError:
-            result = search.element_as_json_with_filter(self.name, self.typeof)
-        if result:
-            self.json = {}
-            for k, v in result.iteritems():
-                self.json.update({k: v})
-            return self
-        else:
-            raise LoadPolicyFailed('Failed to load VPN policy, please ensure the policy exists')
+        if not self.meta:
+            result = search.element_info_as_json(self.name)
+            if result:
+                self.meta = Meta(**result)
+            else:
+                raise LoadPolicyFailed('Failed to load VPN policy, please ensure the policy exists.')
+        result = search.element_by_href_as_smcresult(self.meta.href)
+        self.json = result.json
+        return self    
     
     @property
     def link(self):
-        try:
+        if hasattr(self, 'json'):
             return self.json.get('link')
-        except AttributeError:
+        else:
             raise AttributeError("You must load the VPN Policy before accessing resources.")
     
     @property
@@ -667,5 +666,5 @@ class VPNPolicy(object):
         return vars(self)
 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'policy={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
                            .format(self.name))       

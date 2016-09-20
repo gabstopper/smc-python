@@ -727,21 +727,6 @@ class PhysicalInterface(object):
             for _k, v in interface.iteritems():
                 v.update(kwargs)
 
-    def all(self):
-        """
-        Return all meta information for physical interfaces on this engine.
-        This provides a simple mechanism to obtain the correct interface in case
-        a modification is required::
-        
-            for interface in engine.physical_interface.all():
-                if interface.name.startswith('Interface 0'):
-                    print interface.describe()
-        """
-        interfaces=[]
-        for intf in search.element_by_href_as_json(self.meta.href):
-            interfaces.append(PhysicalInterface(meta=Meta(**intf)))
-        return interfaces
-
     @lazy_loader
     def describe(self):
         """
@@ -776,6 +761,21 @@ class PhysicalInterface(object):
         result = search.element_by_href_as_smcresult(self.href)
         if result:
             self.data.update(**result.json)
+
+    def all(self):
+        """
+        Return all meta information for physical interfaces on this engine.
+        This provides a simple mechanism to obtain the correct interface in case
+        a modification is required::
+        
+            for interface in engine.physical_interface.all():
+                if interface.name.startswith('Interface 0'):
+                    print interface.describe()
+        """
+        interfaces=[]
+        for intf in search.element_by_href_as_json(self.meta.href):
+            interfaces.append(PhysicalInterface(meta=Meta(**intf)))
+        return interfaces
 
     def _make(self):
         """

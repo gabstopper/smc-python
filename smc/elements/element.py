@@ -13,7 +13,7 @@ See SMCElement for more details:
 import collections
 import smc.actions.search as search
 import smc.api.common
-from smc.api.exceptions import SMCOperationFailure
+from smc.api.exceptions import SMCOperationFailure, ElementNotFound
 from smc.elements.util import find_link_by_name
 
 Meta = collections.namedtuple("Meta", ["name", "href", "type"])
@@ -56,6 +56,9 @@ class SMCElement(object):
     def update(self):
         return smc.api.common.update(self)
     
+    def delete(self):
+        return smc.api.common.delete(self.href)
+
     def describe(self):
         """
         Return the json representation of the SMCElement. Useful for
@@ -581,7 +584,6 @@ class AdminUser(SMCElement):
         SMCElement.__init__(self)
         self.name = name
         self.meta = meta
-        self.href = href
         engines = []
         if engine_target:
             engines.extend(engine_target)
@@ -597,17 +599,14 @@ class AdminUser(SMCElement):
         Load Admin by name
         """
         if not self.meta:
-            self.meta = Meta(**search.element_info_as_json(self.name))
+            result = search.element_info_as_json_with_filter(self.name, self.typeof)
+            if result:
+                self.meta = Meta(**result)
+            else:
+                raise ElementNotFound("Admin name: {} is not found, cannot modify."
+                                      .format(self.name))
         result = search.element_by_href_as_smcresult(self.meta.href)
-        if result:
-            self.json = result.json
-        return self
-    
-        result = search.element_as_smcresult_use_filter(
-                                            self.name, self.typeof)
-        self.etag = result.etag
-        for k, v in result.json.iteritems():
-            self.json.update({k: v})
+        self.json = result.json
         return self
  
     @property

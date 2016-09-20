@@ -4,6 +4,7 @@ Module that represents server based configurations
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
 from smc.elements.element import SMCElement, Meta
+from smc.api.exceptions import ElementNotFound
 
 class ManagementServer(object):
     """
@@ -26,10 +27,14 @@ class ManagementServer(object):
     
     def load(self):
         if not self.meta:
-            self.meta = Meta(**search.element_info_as_json(self.name))
+            result = search.element_info_as_json(self.name)
+            if result:
+                self.meta = Meta(**result)
+            else:
+                raise ElementNotFound("Cannot find Management Server: {}, cannot load."
+                                      .format(self.name))
         result = search.element_by_href_as_smcresult(self.meta.href)
-        if result:
-            self.json = result.json
+        self.json = result.json
         return self
     
     @property
@@ -106,10 +111,14 @@ class LogServer(object):
     
     def load(self):
         if not self.meta:
-            self.meta = Meta(**search.element_info_as_json(self.name))
+            result = search.element_info_as_json(self.name)
+            if result:
+                self.meta = Meta(**result)
+            else:
+                raise ElementNotFound("Cannot find Log Server: {}, cannot load."
+                                      .format(self.name))
         result = search.element_by_href_as_smcresult(self.meta.href)
-        if result:
-            self.json = result.json
+        self.json = result.json
         return self
     
     @property

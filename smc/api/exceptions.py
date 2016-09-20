@@ -115,6 +115,14 @@ class CreateElementFailed(SMCException):
     """
     pass
 
+class ElementNotFound(SMCException):
+    """
+    Generic exception when an attempt is made to load an element 
+    that is not found. This is only relavant for elements that 
+    require the .load() method
+    """
+    pass
+
 class UnsupportedEntryPoint(SMCException):
     """
     An entry point was specified that was not found in this API

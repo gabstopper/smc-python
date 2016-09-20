@@ -32,15 +32,15 @@ if __name__ == '__main__':
     """
     View a metadata version of each configured rule
     """
-    for rule in policy.fw_ipv4_access_rules:
-            print rule
+    for rule in policy.fw_ipv4_access_rules.all():
+        print rule.name
             
     """
     View details of the rule/s (this can be resource intensive depending on
     how many rules are configured
     """
-    for rule in policy.fw_ipv4_access_rules:
-            print rule.describe_rule()
+    for rule in policy.fw_ipv4_access_rules.all():
+        print rule.describe()
     
     """
     Open the policy for editing, create a rule, and save the policy
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     """
     Delete a rule by name (comment this out to verify rule creation)
     """
-    for rule in policy.fw_ipv4_access_rules:
+    for rule in policy.fw_ipv4_access_rules.all():
         if rule.name == 'myrule':
             rule.delete()
             
