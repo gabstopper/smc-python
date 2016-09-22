@@ -1,9 +1,10 @@
 """ 
 Element module holding logic to add network elements to SMC. 
-All element's are a subclass of SMCElement (is-a). The create() function for each
-element type class will generate the proper json for the given element type and returning that
-element. The results can then be sent to the SMC through the :mod:`smc.api.common.create`. The
-result will be the href for the newly created object.
+Subclasses of SMCElement are objects that are individually added to the
+SMC and used in other configurations. For example, Host objects would be
+added and used in policies, NAT rules, etc. 
+SMCElement base class is generic and more like a dispatcher class that uses 
+CRUD operations to add, remove or modify elements. 
 
 See SMCElement for more details:
  
@@ -13,8 +14,6 @@ See SMCElement for more details:
 import collections
 import smc.actions.search as search
 import smc.api.common
-from smc.api.exceptions import SMCOperationFailure, ElementNotFound
-from smc.elements.util import find_link_by_name
 
 Meta = collections.namedtuple("Meta", ["name", "href", "type"])
     
@@ -50,7 +49,6 @@ class SMCElement(object):
             if hasattr(self, 'typeof'):
                 #retrieve href from class attribute if available
                 self.href = search.element_entry_point(self.typeof)
-        #return getattr(smc.api.common, 'create')(self)
         return smc.api.common.create(self)
     
     def update(self):
@@ -505,15 +503,24 @@ class SecurityGroup(SMCElement):
     pass
 
 class Country(SMCElement):
+    """
+    .. note:: Country requires SMC API version >= 6.1
+    """
     pass
 
 class URLListApplication(SMCElement):
     pass
 
 class IPListGroup(SMCElement):
+    """
+    .. note:: IPListGroup requires SMC API version >= 6.1
+    """
     pass
 
 class IPList(SMCElement):
+    """
+    .. note:: IPList requires SMC API version >= 6.1
+    """
     pass
     
 class Zone(SMCElement):
@@ -551,152 +558,3 @@ class LogicalInterface(SMCElement):
         comment = comment if comment else ''
         self.json = {'name': name,
                      'comment': comment }
-
-class AdminUser(SMCElement):
-    """ Represents an Adminitrator account on the SMC
-    Use the constructor to create the user. 
-    
-    :param name: name of admin
-    :param boolean local_admin: should be local admin on specified engines
-    :param boolean allow_sudo: allow sudo on specified engines
-    :param boolean superuser: is a super user (no restrictions) in SMC
-    :param admin_domain: reference to admin domain, shared by default
-    :param list engine_target: ref to engines for local admin access
-    
-    Create an Admin::
-        
-        admin = AdminUser(name='dlepage', superuser=True).create()
-        
-    If modifications are required after you can load the admin and
-    make changes::
-    
-        for x in collection.describe_admin_users():
-            if x.name == 'dlepage':
-                admin = x.load()
-                admin.change_password('mynewpassword1')
-                admin.enable_disable()
-    """
-    typeof = 'admin_user'
-    
-    def __init__(self, name, local_admin=False, allow_sudo=False, 
-                 superuser=False, admin_domain=None, enabled=True,
-                 engine_target=None, href=None, meta=None, **kwargs):
-        SMCElement.__init__(self)
-        self.name = name
-        self.meta = meta
-        engines = []
-        if engine_target:
-            engines.extend(engine_target)
-        self.json = {'name': name,
-                     'enabled': enabled,
-                     'allow_sudo': allow_sudo,
-                     'engine_target': engines,
-                     'local_admin': local_admin,
-                     'superuser': superuser }
-    
-    def load(self):
-        """
-        Load Admin by name
-        """
-        if not self.meta:
-            result = search.element_info_as_json_with_filter(self.name, self.typeof)
-            if result:
-                self.meta = Meta(**result)
-            else:
-                raise ElementNotFound("Admin name: {} is not found, cannot modify."
-                                      .format(self.name))
-        result = search.element_by_href_as_smcresult(self.meta.href)
-        self.json = result.json
-        return self
- 
-    @property
-    def link(self):
-        return self.json.get('link')
-
-    def change_password(self, password):
-        """ Change admin password 
-        
-        :method: PUT
-        :param str password: new password
-        :return: SMCResult
-        """
-        self.href = find_link_by_name('change_password', self.link)
-        self.params = {'password': password}
-        return self.update()
-           
-    def change_engine_password(self, password):
-        """ Change Engine password for engines on allowed
-        list.
-        
-        :method: PUT
-        :param str password: password for engine level
-        :return: SMCResult
-        """
-        self.href = find_link_by_name('change_engine_password', self.link)
-        self.params = {'password': password}
-        pass
-    
-    def enable_disable(self):
-        """ Toggle enable and disable of administrator account
-        
-        :method: PUT
-        :return: SMCResult
-        """
-        self.href = find_link_by_name('enable_disable', self.link)
-        return self.update()
-        
-    def export(self, filename='admin.zip'): #TODO: This fails, SMC error
-        """ Export the contents of this admin
-        
-        :method: POST
-        :param str filename: Name of file to export to
-        :return: SMCResult
-        """
-        self.href = find_link_by_name('export', self.link)
-        self.params = {}
-        element = self.create()
-        try:
-            href = next(smc.api.common.async_handler(
-                                            element.json.get('follower'), 
-                                            display_msg=False))    
-        except SMCOperationFailure, e:
-            return e.smcresult
-        else:
-            return smc.api.common.fetch_content_as_file(href, filename)
-            
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, "name={}".format(self.name)) 
-    
-class Blacklist(SMCElement):
-    """ Add a blacklist entry by source / destination
-    A blacklist can be added directly from the engine node, or from
-    the system context. If submitting from the system context, it becomes
-    a global blacklist.
-    
-    :param src: source address, with cidr, i.e. 10.10.10.10/32
-    :param dst: destination address with cidr
-    :param int duration: length of time to blacklist
-    """
-    def __init__(self, src, dst, duration=3600, name=None):
-        SMCElement.__init__(self)
-        self.json = {'name': name,
-                     'duration': duration,
-                     'end_point1': {'name': '', 'address_mode': 'address',
-                                    'ip_network': src},
-                     'end_point2': {'name': '', 'address_mode': 'address',
-                                    'ip_network': dst}}
-
-class ContactAddress(SMCElement):
-    """
-    Contact Addresses are used to by Locations to identify the IP address/es 
-    assigned to the location. This identifies how an engine, SMC, Log Server, 
-    or any element can be contacted when behind a NAT connection.
-    
-    :param list addresses: list of IP addresses for contact address
-    :param str location: location href to map this contact address to
-    """
-    def __init__(self, addresses, location):
-        SMCElement.__init__(self)
-        assert(isinstance(addresses, list))
-        self.json = {'addresses': addresses,
-                     'location': location }

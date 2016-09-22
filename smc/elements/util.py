@@ -1,8 +1,3 @@
-'''
-Created on Sep 16, 2016
-
-@author: davidlepage
-'''
 
 """
 Temp lazy loader definition to check for loaded json

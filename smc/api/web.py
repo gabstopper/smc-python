@@ -187,7 +187,8 @@ class SMCResult(object):
     """
     SMCResult will store the return data for operations performed against the
     SMC API. If the function returns an SMCResult, the following attributes are
-    set.
+    set. Note: SMC API will return a list if searches are done and a dict if the
+    attempt is made to get the element directly from href
     
     Instance attributes:
     
@@ -203,7 +204,7 @@ class SMCResult(object):
         self.content = None
         self.msg = msg
         self.code = None
-        self.json = self.extract(respobj) #: list
+        self.json = self.extract(respobj) #: list or dict
 
     def extract(self, response):
         if response:

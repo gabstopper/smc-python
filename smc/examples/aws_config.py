@@ -54,6 +54,7 @@ Install boto3 and pyyaml via pip::
     pip install boto3
     pip install pyyaml
 '''
+import sys
 import re
 import time
 import ipaddress
@@ -416,7 +417,7 @@ class NGFWConfiguration(object):
         self.default_nat = default_nat
         self.antivirus = antivirus
         self.gti = gti
-        self.location = location
+        self.location_ref = location
         self.vpn_role = vpn_role
         self.vpn_policy = vpn_policy
         self.firewall_policy = firewall_policy
@@ -443,7 +444,8 @@ class NGFWConfiguration(object):
                                                reverse_connection=self.reverse_connection, 
                                                default_nat=self.default_nat,
                                                enable_antivirus=self.antivirus,
-                                               enable_gti=self.gti)
+                                               enable_gti=self.gti,
+                                               location_ref=location_helper(self.location_ref))
                 engine.add_route(default_gateway, '0.0.0.0/0')
             else:
                 engine.physical_interface.add_single_node_interface(interface_id, 
@@ -481,8 +483,9 @@ class NGFWConfiguration(object):
         """
         for interface in self.engine.interface.all():
             if interface.name == 'Interface 0':
-                location = location_helper('Default')
-                interface.add_contact_address(elastic_ip, location, self.engine.etag)
+                interface.add_contact_address(elastic_ip, 
+                                              location_helper(self.location_ref),
+                                              self.engine.etag)
  
     def initial_contact(self):
         """
@@ -703,6 +706,10 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--nolog', action='store_true', help='disable logging to console')
     args = parser.parse_args()
     
+    if len(sys.argv[1:]) == 0:
+        parser.print_help()
+        parser.exit()
+        
     if args.nolog:
         logger.setLevel(logging.ERROR)
     else:

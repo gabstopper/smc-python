@@ -80,7 +80,8 @@ Both will work, however the first option will only find items starting with TOR*
 the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 """
 from smc import session
-from smc.elements.element import SMCElement, AdminUser, Meta
+from smc.elements.element import SMCElement, Meta
+from smc.elements.user import AdminUser
 from smc.elements.engines import Engine
 from smc.elements.vpn import ExternalGateway, VPNPolicy
 from smc.api.common import fetch_json_by_href, fetch_href_by_name

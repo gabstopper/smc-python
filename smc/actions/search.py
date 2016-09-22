@@ -2,7 +2,9 @@
 Search module provides convenience methods for retrieving specific data from 
 the SMC. Each method will return data in a certain way with different inputs.
 All methods are using :mod:`smc.api.common` methods which wrap any exceptions
-and if there are no results, each method would return None
+and if there are no results, most functions return either None or empty list,
+depending on the data content retrieved. See each function documentation for 
+most information.
 
 Example of retrieving an SMC element by name, as json::
 
@@ -26,7 +28,6 @@ from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
 from smc import session
 
 logger = logging.getLogger(__name__)
-
 
 def element(name):
     """ Convenience method to get element href by name
@@ -86,14 +87,23 @@ def element_info_as_json(name):
     This is the base level search that returns basic object info
     including the href to find the full data
     
-    :param name: name of element
+    #TODO: This can be problematic - if an engine name has a similar name
+    to an object, i.e. engine name is 'mcafee' and a host object is 'mcafee2',
+    and the user doesn't get the engine name correct, or uses a wildcard for the
+    name (i.e. mcafee*), it's possible this may return multiple results as the 
+    query does not use a type filter. This will then pop only one value off of the list 
+    which might be the wrong value type. Created element_meta_as_json 
+    function as an alternative. Having a filter context for engine types would be useful
+    
+    :param str name: name of element
+    :param list filter_lst: list to filter from in the event of multiple results
     :return: json representation of top level element (multiple attributes), else None
     """   
     if name:
         element = fetch_href_by_name(name)
         if element.json:
             return element.json.pop()
-        
+            
 def element_info_as_json_with_filter(name, _filter):
     """
     Top level json meta data (href, name, type) for element
@@ -103,7 +113,6 @@ def element_info_as_json_with_filter(name, _filter):
     :return dict if found, otherwise None
     """
     if name and _filter:
-        #element = fetch_by_name_and_filter(name, _filter)
         element = fetch_href_by_name(name, filter_context=_filter)
         if element.json:
             return element.json.pop()
@@ -113,12 +122,11 @@ def element_href_use_wildcard(name):
     This will likely return multiple results
     
     :param name: name of element
-    :return: list of matched elements, else None
+    :return: list of matched elements
     """
     if name:
         element = fetch_href_by_name(name, exact_match=False)
-        if element.json:
-            return element.json  #list
+        return element.json
   
 def element_href_use_filter(name, _filter):
     """ Get element href using filter 
@@ -130,7 +138,6 @@ def element_href_use_filter(name, _filter):
     :return: element href (if found), else None
     """
     if name and _filter:
-        #element = fetch_by_name_and_filter(name, _filter)
         element = fetch_href_by_name(name, filter_context=_filter)
         if element.json:
             return element.json.pop().get('href')
@@ -250,15 +257,6 @@ def search_duplicate():
     :return: list of dict items holding href,type and name
     """
     return element_by_href_as_json(fetch_entry_point('search_duplicate'))
-         
-def get_routing_node(name):
-    """ Get the json routing node for name """
-    if name:
-        node = element_as_json(name)
-        if node:
-            route_link = next(item for item in node.get('link') if item.get('rel') == 'routing')   
-            routing_orig = element_by_href_as_json(route_link.get('href'))
-            return routing_orig
 
 def get_first_log_server():
     """ Convenience method to return the first log server match in

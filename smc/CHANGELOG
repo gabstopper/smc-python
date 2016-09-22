@@ -1,0 +1,5 @@
+$version 0.3.1
+Initial release leveraging contact addresses and locations with ability to support SMC 6.1
+Fix issue related to loading an engine when using the wrong engine name but still matching on non-engine type elements
+Management and Log Server objects with contact addresses
+Expose sub-interface view for physical interfaces

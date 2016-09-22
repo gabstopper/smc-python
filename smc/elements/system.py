@@ -10,7 +10,8 @@ To load the configuration for system, do::
 """
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.elements.element import SMCElement, Blacklist
+from smc.elements.element import SMCElement
+from smc.elements.other import Blacklist
 import smc.api.common as common_api
 from smc.api.exceptions import SMCException
 
@@ -112,10 +113,10 @@ class System(object):
         :param dst: destination of blacklist entry
         :return: SMCResult
         """
-        element = Blacklist(src, dst, duration)
-        element.href = find_link_by_name('blacklist', self.link)
-        return element.create()
-        
+        return SMCElement(
+                    href=find_link_by_name('blacklist', self.link),
+                    json=vars(Blacklist(src, dst, duration))).create()
+
     def licenses(self):
         """ List of all engine related licenses
         This will provide details related to whether the license is bound,

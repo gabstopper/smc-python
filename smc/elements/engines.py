@@ -1,4 +1,5 @@
-from smc.elements.element import SMCElement, Blacklist, Meta
+from smc.elements.element import SMCElement, Meta
+from smc.elements.other import Blacklist
 from smc.elements.interfaces import VirtualPhysicalInterface, PhysicalInterface, Interface,\
     TunnelInterface
 import smc.actions.search as search
@@ -8,6 +9,7 @@ from smc.api.exceptions import CreateEngineFailed, LoadEngineFailed,\
     UnsupportedEngineFeature, UnsupportedInterfaceType
 from smc.elements.vpn import InternalGateway
 from smc.elements.helpers import domain_helper
+
 
 class Engine(object):
     """
@@ -40,7 +42,7 @@ class Engine(object):
                nodes=1, log_server_ref=None, 
                domain_server_address=None,
                enable_antivirus=False, enable_gti=False,
-               default_nat=False):
+               default_nat=False, location_ref=None):
         """
         Create will return the engine configuration as a dict that is a 
         representation of the engine. The creating class will also add 
@@ -87,7 +89,10 @@ class Engine(object):
         if default_nat:
             nat = {'default_nat': True}
             base_cfg.update(nat)
-
+        if location_ref:
+            location = {'location_ref': location_ref}
+            base_cfg.update(location)
+        
         return base_cfg
           
     def load(self):
@@ -111,17 +116,21 @@ class Engine(object):
             if result:
                 self.meta = Meta(**result)
             else:
-                raise LoadEngineFailed("Cannot load engine name: %s, please ensure the name is " 
-                                        "correct and the engine exists." % self.name) 
-        result = search.element_by_href_as_smcresult(self.meta.href)
-        self.json = result.json
-        self.nodes = []
-        for node in self.json.get('nodes'):
-            for node_type, data in node.iteritems():
-                new_node = Node(node_type, data)
-                self.nodes.append(new_node)
-        return self
-
+                raise LoadEngineFailed("Cannot load engine name: {}, please ensure the name is " 
+                                        "correct and the engine exists.".format(self.name)) 
+        result = search.element_by_href_as_json(self.meta.href)
+        if result.get('nodes'):
+            self.json = result
+            self.nodes = []
+            for node in self.json.get('nodes'):
+                for node_type, data in node.iteritems():
+                    new_node = Node(node_type, data)
+                    self.nodes.append(new_node)
+            return self
+        else:
+            raise LoadEngineFailed("Cannot load engine name: {}, please ensure the name is " 
+                                    "correct. An element was returned but was of type: {}"
+                                    .format(self.name, self.meta.type))
     @property
     def etag(self):
         if self.meta:
@@ -211,7 +220,7 @@ class Engine(object):
         :return: SMCResult (href attr set with blacklist entry)
         """
         return SMCElement(href=find_link_by_name('blacklist', self.link),
-                          json=Blacklist(src, dst, duration).json).create()
+                          json=vars(Blacklist(src, dst, duration))).create()
     
     def blacklist_flush(self):
         """ Flush entire blacklist for node name
@@ -257,16 +266,6 @@ class Engine(object):
         """
         return search.element_by_href_as_json(
                         find_link_by_name('routing_monitoring', self.link))
-    
-    def contact_addresses(self):
-        """ Need to add check on API version, this is only supported with v6.1,
-        maybe just throw an UnsupportedVersionException
-        
-        :method: GET
-        """
-        href = find_link_by_name('contact_addresses', self.link)
-        if href:
-            return search.element_by_href_as_json(href)
                               
     def antispoofing(self):
         """ Antispoofing interface information. By default is based on routing
@@ -344,6 +343,7 @@ class Engine(object):
         :return: :py:class:`smc.elements.interfaces.PhysicalInterface`
         """
         href = find_link_by_name('physical_interface', self.link)
+        print "called phys int"
         if not href: #not supported by virtual engines
             raise UnsupportedInterfaceType('Engine type: {} does not support the '
                                            'physical interface type'\
@@ -847,7 +847,8 @@ class Layer3Firewall(object):
                default_nat=False,
                reverse_connection=False,
                domain_server_address=None, zone_ref=None,
-               enable_antivirus=False, enable_gti=False):
+               enable_antivirus=False, enable_gti=False,
+               location_ref=None):
         """ 
         Create a single layer 3 firewall with management interface and DNS
         
@@ -862,6 +863,7 @@ class Layer3Firewall(object):
         :param boolean default_nat: (optional) Whether to enable default NAT for outbound
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :param str location_ref: location href for engine if needed to contact SMC behind NAT
         :return: :py:class:`smc.elements.engine.Engine`
         :raises: :py:class:`smc.api.web.CreateEngineFailed`: Failure to create with reason
         """
@@ -881,7 +883,8 @@ class Layer3Firewall(object):
                                log_server_ref=log_server_ref,
                                nodes=1, enable_gti=enable_gti,
                                enable_antivirus=enable_antivirus,
-                               default_nat=default_nat)
+                               default_nat=default_nat,
+                               location_ref=location_ref)
        
         href = search.element_entry_point('single_fw')
         result = SMCElement(href=href, json=engine).create()

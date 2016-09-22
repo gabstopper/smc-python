@@ -4,6 +4,7 @@ Module that represents server based configurations
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
 from smc.elements.element import SMCElement, Meta
+from smc.elements.helpers import location_helper
 from smc.api.exceptions import ElementNotFound
 
 class ManagementServer(object):
@@ -71,7 +72,7 @@ class ManagementServer(object):
         return search.element_by_href_as_json(
                     find_link_by_name('contact_addresses', self.link))
 
-    def add_contact_address(self, contact_address):
+    def add_contact_address(self, contact_address, location):
         """
         Add a contact address to this management server::
         
@@ -84,7 +85,11 @@ class ManagementServer(object):
         :param contact_address: ContactAddress element
         :return: SMCResult
         """
-        addresses = _add_contact_address(self.contact_addresses(), contact_address)
+        addresses = _add_contact_address(self.contact_addresses(), 
+                                         contact_address=contact_address, 
+                                         location=location)
+        from pprint import pprint
+        pprint(addresses)
         return SMCElement(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
@@ -149,7 +154,7 @@ class LogServer(object):
         return search.element_by_href_as_json(
                         find_link_by_name('contact_addresses', self.link))
     
-    def add_contact_address(self, contact_address):
+    def add_contact_address(self, contact_address, location):
         """
         Add a contact address to the Log Server::
         
@@ -162,7 +167,9 @@ class LogServer(object):
         :param contact_address: ContactAddress element
         :return: SMCResult
         """
-        addresses = _add_contact_address(self.contact_addresses(), contact_address)
+        addresses = _add_contact_address(self.contact_addresses(), 
+                                         contact_address=contact_address,
+                                         location=location)
         return SMCElement(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
@@ -171,11 +178,20 @@ class LogServer(object):
         return "%s(%r)" % (self.__class__.__name__, 'name={}'\
                            .format(self.name))
         
-def _add_contact_address(addresses, contact_address):
+def _add_contact_address(addresses, contact_address, location):
+    """
+    :param addresses: existing contact addresses, if any
+    :param contact_address
+    :param location: location
+    """
+    location_ref = location_helper(location)
+    addr = {'addresses': [contact_address],
+            'location_ref': location_ref}
+    
     if addresses:
-        addresses.get('multi_contact_addresses').append(contact_address.json)
+        addresses.get('multi_contact_addresses').append(addr)
     else:
         addresses = {'multi_contact_addresses':[]}
-        addresses.get('multi_contact_addresses').append(contact_address.json)
+        addresses.get('multi_contact_addresses').append(addr)
     return addresses
             

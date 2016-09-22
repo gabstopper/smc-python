@@ -33,12 +33,7 @@ class IPv4Rule(object):
     
     Attributes:
     
-    :ivar name
-    :ivar is_disabled: True|False
-    :ivar destinations
-    :ivar sources
-    :ivar services
-    :ivar action  
+    :ivar name: name of rule
     """
     typeof = 'fw_ipv4_access_rule'
     
@@ -61,21 +56,25 @@ class IPv4Rule(object):
                is_disabled=False):
         """ Create a new rule
         
+        Access the policy required, load the configuration and add a rule::
+        
             for policy in describe_fw_policies():
                 if policy.name == 'Datacenter Policy':
                     pol = policy.load()
                     pol.fw_ipv4_access_rules.create('smcpython', 'any', 'any', 'any')
                 
         Sources and Destinations can be one of any valid network element types defined
-        in :py:class:smc.elements.element`. 
+        in :py:class:smc.elements.element`.
         
-        source=['http://1.1.1.1:8082/elements/network/myelement',
-                'http://1.1.1.1:8082/elements/host/myhost'], etc
+        Source entries by href:: 
         
-        Services have a similar syntax, provide a list of the href's for the services:
+            source=['http://1.1.1.1:8082/elements/network/myelement',
+                    'http://1.1.1.1:8082/elements/host/myhost'], etc
         
-        services=['http://1.1.1.1/8082/elements/tcp_service/mytcpservice',
-                  'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
+        Services have a similar syntax, provide a list of the href's for the services::
+        
+            services=['http://1.1.1.1/8082/elements/tcp_service/mytcpservice',
+                      'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
         
         You can obtain the href for the network and service elements by using the 
         :py:mod:`smc.elements.collection` describe functions such as::
@@ -86,7 +85,7 @@ class IPv4Rule(object):
         Sources / Destinations and Services can also take the string value 'any' to
         allow all. For example::
         
-            sources=['any']
+            sources='any'
             
         :param name: name of rule
         :param list source: source/s for rule, names will be looked up to find href
@@ -138,12 +137,12 @@ class IPv4Rule(object):
     
     def all(self):
         """
-        Get all IPv4Rules for this policy
+        Get all IPv4Rules for this policy::
         
-        for rule in pol.fw_ipv4_access_rules.all():
-            print rule.describe()
+            for rule in pol.fw_ipv4_access_rules.all():
+                print rule.describe()
             
-        :return list `IPv4Rule`
+        :return: list `IPv4Rule`
         """
         rule_lst = search.element_by_href_as_json(self.href)
         rules=[] 

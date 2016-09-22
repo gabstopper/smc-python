@@ -3,7 +3,7 @@ Helper functions to retrieve various elements that may be required by specific
 constructors.
 """
 import smc.actions.search as search
-from smc.elements.element import Zone, LogicalInterface, Location
+from element import Zone, LogicalInterface, Location
       
 def location_helper(name):
     """

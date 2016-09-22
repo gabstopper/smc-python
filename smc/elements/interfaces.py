@@ -1,7 +1,8 @@
-from copy import deepcopy
+from copy import copy
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name, lazy_loader
 from smc.elements.element import SMCElement, Meta
+from smc.elements.helpers import location_helper
 
 class NodeInterface(object):
     """
@@ -39,7 +40,7 @@ class NodeInterface(object):
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
-                           .format(self.interface_id))
+                           .format(self.nicid))
         
 class SingleNodeInterface(object):
     """
@@ -77,7 +78,7 @@ class SingleNodeInterface(object):
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
-                           .format(self.interface_id))
+                           .format(self.nicid))
         
 class ClusterVirtualInterface(object):
     """
@@ -108,7 +109,7 @@ class ClusterVirtualInterface(object):
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
-                           .format(self.interface_id))
+                           .format(self.nicid))
 
 class InlineInterface(object):
     """
@@ -152,7 +153,7 @@ class InlineInterface(object):
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
-                           .format(self.interface_id))
+                           .format(self.nicid))
 
 class CaptureInterface(object):
     """ 
@@ -180,7 +181,7 @@ class CaptureInterface(object):
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
-                           .format(self.interface_id))
+                           .format(self.nicid))
 
 class DHCPInterface(object):
     """
@@ -220,7 +221,7 @@ class DHCPInterface(object):
     
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
-                           .format(self.interface_id))
+                           .format(self.nicid))
             
 class VlanInterface(object):
     """ 
@@ -668,7 +669,7 @@ class PhysicalInterface(object):
         inline_intf = InlineInterface(interface_id, 
                                       logical_interface_ref,
                                       zone_ref=zone_ref_intf2)
-        copied_intf = deepcopy(inline_intf) #copy as ref data will change
+        copied_intf = copy(inline_intf)
         inline_intf.add_vlan(vlan_id)
         #add embedded inline interface to physical interface vlanInterfaces list
         vlan.interfaces.append({InlineInterface.typeof: vars(inline_intf)})
@@ -682,35 +683,43 @@ class PhysicalInterface(object):
     def add_contact_address(self, address, location, engine_etag):
         """
         Add a contact address to this physical interface
+        This will currently only add a default contact address to the
+        engine. If the engine has a location set, this will be added to
+        the contact address json as it is required.
         
         :param address: ip address of contact address
-        :param locatino: location ref for contact address
+        :param location: location ref for ENGINE contact address
         :param engine_etag: etag for engine, required for update
         
         You can obtain the engine_etag after loading the engine and by
         the etag property. 
         If the contact address should be the default contact address, you
-        can obtain that using location_helper('Default')::
+        can obtain that using location_helper. Assuming the engine has a 
+        location set of 'Internet'::
         
             for interface in self.engine.interface.all():
                 if interface.name == 'Interface 0':
-                    location = location_helper('Default')
+                    location = location_helper('Internet')
                     interface.add_contact_address(elastic_ip, location, self.engine.etag)
         """
         href = find_link_by_name('contact_addresses', self.data.get('link'))
-        existing = search.element_by_href_as_json(href)        
+        existing = search.element_by_href_as_json(href)
+        print "Interface object: %s" % self.sub_interface()        
         if existing:
             existing.get('contact_addresses').append({'address': address,
                                                       'dynamic': False, 
-                                                      'location': location})
+                                                      'location_ref': location})
         else:
+            interface = self.sub_interface() 
             existing = {'contact_addresses': [{'address': address,
                                                'dynamic': False, 
-                                               'location': location}]}
+                                               'location_ref': location_helper('Default')},
+                                              {'address': interface.address,
+                                               'dynamic': False,
+                                               'location_ref': location}]}
         return SMCElement(href=href, json=existing, 
                           etag=engine_etag).update()
     
-    @property
     @lazy_loader
     def contact_addresses(self):
         return search.element_by_href_as_json(
@@ -737,16 +746,6 @@ class PhysicalInterface(object):
                     pprint(intf.describe())
         """
         return self.data
-    
-    @property
-    def href(self):
-        if self.meta:
-            return self.meta.href
-    
-    @property
-    def name(self):
-        if self.meta:
-            return self.meta.name
     
     def load(self):
         """
@@ -777,6 +776,32 @@ class PhysicalInterface(object):
             interfaces.append(PhysicalInterface(meta=Meta(**intf)))
         return interfaces
 
+    @lazy_loader
+    def sub_interface(self):
+        """
+        Get the sub interface (single node interface, node interface, etc) for this
+        physical interface as an object. Attributes can be changed or accessed more
+        easily
+        """
+        for interface in self.data.get('interfaces'):
+            if SingleNodeInterface.typeof in interface:
+                intf = SingleNodeInterface(**interface.get(SingleNodeInterface.typeof))
+            elif NodeInterface.typeof in interface:
+                intf = NodeInterface(**interface.get(NodeInterface.typeof))
+            elif ClusterVirtualInterface.typeof in interface:
+                intf = ClusterVirtualInterface(**interface.get(ClusterVirtualInterface.typeof))
+        return intf
+    
+    @property
+    def href(self):
+        if self.meta:
+            return self.meta.href
+    
+    @property
+    def name(self):
+        if self.meta:
+            return self.meta.name
+            
     def _make(self):
         """
         If callback attribute doesn't exist, this is because an Engine is 

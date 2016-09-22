@@ -27,11 +27,11 @@ Included are a variety of test example scripts that leverage the API to do vario
 Before any commands are run, you must obtain a login session. Once commands are complete, call smc.logout() to remove the active session.
 
 ```python
-import smc.api.web
+from smc import session
 
-smc.api.web.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+session.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
 ....do stuff....
-smc.api.web.logout()
+session.logout()
 ```
 
 Once a valid session is obtained, it will be re-used for each operation performed. 
