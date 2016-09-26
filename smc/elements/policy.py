@@ -39,11 +39,11 @@ Example rule deletion::
 
 from abc import ABCMeta, abstractmethod
 import smc.actions.search as search
-import smc.api.common
 from smc.elements.util import find_link_by_name
-from smc.api.exceptions import SMCException, CreatePolicyFailed
+from smc.api.exceptions import SMCException, CreatePolicyFailed, TaskRunFailed
 from smc.elements.element import SMCElement, Meta
 from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule
+from smc.actions.tasks import task_handler, Task
 
 class Policy(object):
     """ 
@@ -116,11 +116,11 @@ class Policy(object):
         element = SMCElement(
                     href=find_link_by_name('upload', self.link),
                     params={'filter': device}).create()
-        if not element.msg:
-            return smc.api.common.async_handler(element.json.get('follower'), 
-                                                wait_for_finish=wait_for_finish)
-        else: 
-            return [element]
+        if not element.json:
+            raise TaskRunFailed("Upload task failed with message: {}"
+                                .format(element.msg))
+        return task_handler(Task(**element.json), 
+                            wait_for_finish=wait_for_finish)
 
     def open(self):
         """ 
@@ -152,7 +152,7 @@ class Policy(object):
         return SMCElement(
                 href=find_link_by_name('force_unlock', self.link)).create()
 
-    def export(self, wait_for_finish=True, filename='policy_export.zip'):
+    def export(self, filename='policy_export.zip',wait_for_finish=True):
         """ Export the policy
         
         :method: POST
@@ -160,17 +160,16 @@ class Policy(object):
         :param filename: specifying the filename indicates export should be downloaded
         :return: None if success and file downloaded indicated. SMCResult with msg attr
                  set upon failure
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
         element = SMCElement(
                     href=find_link_by_name('export', self.link)).create()
-        if not element.msg: #no error
-            href = next(smc.api.common.async_handler(element.json.get('follower'), 
-                                                         display_msg=False))
-                    
-            return smc.api.common.fetch_content_as_file(href, filename)
-        else: 
-            return [element]
-                
+        
+        task = task_handler(Task(**element.json), 
+                            wait_for_finish=wait_for_finish, 
+                            filename=filename)
+        return task
+    
     def search_rule(self, parameter):
         pass
 

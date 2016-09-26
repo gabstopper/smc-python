@@ -55,7 +55,6 @@ Install boto3 and pyyaml via pip::
     pip install pyyaml
 '''
 import sys
-import re
 import time
 import ipaddress
 import logging
@@ -63,14 +62,15 @@ import yaml
 import boto3
 import botocore
 from smc import session
-from smc.elements.engines import Layer3Firewall
+from smc.core.engines import Layer3Firewall
 from smc.elements import collection
-from smc.api.exceptions import CreateEngineFailed
+from smc.api.exceptions import CreateEngineFailed, TaskRunFailed, LicenseError,\
+    NodeCommandFailed
 from smc.elements.helpers import location_helper
+from smc.elements.other import ContactAddress
+from smc.actions.tasks import TaskMonitor
 #from smc import set_stream_logger
 #set_stream_logger()
-
-smc_public_ip = '73.88.56.153'  #Hack initial_contact file; Locations are not configurable via SMC API
             
 class VpcConfiguration(object):
     """ 
@@ -411,6 +411,7 @@ class NGFWConfiguration(object):
                  firewall_policy=None, vpn_policy=None,
                  vpn_role='central', reverse_connection=False, 
                  **kwargs):
+        self.task = None
         self.engine = None
         self.name = name
         self.dns = dns if dns else []
@@ -470,9 +471,14 @@ class NGFWConfiguration(object):
         :return: None
         """
         if self.firewall_policy:
-            self.engine.upload('{}'.format(self.firewall_policy), 
-                               wait_for_finish=False)
-            logger.info("Queued firewall policy: {}".format(self.firewall_policy))
+            try:
+                self.task = next(self.engine.upload(
+                                        '{}'.format(self.firewall_policy)))
+            except TaskRunFailed, e:
+                logger.error("Firewall policy: {} was not successfully bound. "
+                             "This will require manual intervention to push "
+                             "policy from the SMC.Message: {}"
+                             .format(self.firewall_policy, e))
         
     def add_contact_address(self, elastic_ip):
         """
@@ -483,8 +489,8 @@ class NGFWConfiguration(object):
         """
         for interface in self.engine.interface.all():
             if interface.name == 'Interface 0':
-                interface.add_contact_address(elastic_ip, 
-                                              location_helper(self.location_ref),
+                contact_address = ContactAddress(elastic_ip, location='Default')
+                interface.add_contact_address(contact_address,
                                               self.engine.etag)
  
     def initial_contact(self):
@@ -494,18 +500,15 @@ class NGFWConfiguration(object):
         :return: text content for userdata
         """
         for node in self.engine.nodes:
-            result = node.bind_license()
-            if result.msg:
-                logger.error("License bind failed with message: {}. You may have to resolve before"
-                             "policy installation is successful"
-                             .format(result.msg))
-            content = node.initial_contact(enable_ssh=True)
-        
-        if 'smc_public_ip' in globals():
-            return re.sub(r"management-address string (.+)", "management-address string " + \
-                          smc_public_ip, content)
-        else:
-            return content
+            try:
+                userdata = node.initial_contact(enable_ssh=True)
+                node.bind_license()
+            except (LicenseError, NodeCommandFailed) as e:
+                logger.error("Error during initial contact process: {}. "
+                             "You will have to resolve and manually push "
+                             "policy to complete installation."
+                             .format(e))
+            return userdata
    
     def associate_vpn_policy(self):
         """
@@ -517,6 +520,7 @@ class NGFWConfiguration(object):
         :param str gateway: central|satellite
         :return: None
         """
+        success=False
         if self.vpn_policy: 
             for policy in collection.describe_vpn_policies():
                 if policy.name.startswith(self.vpn_policy):
@@ -528,13 +532,17 @@ class NGFWConfiguration(object):
                         vpn.add_satellite_gateway(self.engine.internal_gateway.href)
                     vpn.save()
                     vpn.close()
+                    success=True
                     break
-    
+        if not success:
+            logger.error("VPN policy: {} specified was not successfully bound. "
+                         "This will require manual intervention to push policy from "
+                         "the SMC.".format(self.vpn_policy))
+            
     def monitor_status(self, step=10):
         """
-        Monitor NGFW initialization. Status will start as 'Declared' and move to
-        'Configured' once initial contact has been made. After policy upload, status
-        will move to 'Installed'. Once the FW reports 'Online' status, function returns
+        Monitor NGFW initialization. See :py:class:`smc.core.node.NodeStatus` for
+        more information on statuses or attributes to monitor/
         
         :param step: sleep interval
         """
@@ -543,21 +551,19 @@ class NGFWConfiguration(object):
         try:
             while True:
                 for node in self.engine.nodes:
-                    status = node.status()
-                    if status:
-                        current_status = status.get('status')
-                        if current_status != desired_status:
-                            logger.info("Status: {}, Config Status: {}, State: {}"
-                                        .format(current_status, 
-                                                status.get('configuration_status'), 
-                                                status.get('state')))
-                        else:
-                            logger.info("NGFW Status: {}, Installed Policy: {}, State: {}, "
-                                        "Version: {}".format(status.get('status'), 
-                                                             status.get('installed_policy'),
-                                                             status.get('state'), 
-                                                             status.get('version')))
-                            return
+                    current = node.status()
+                    if current.status != desired_status:
+                        logger.info("status: {}, config status: {}, state: {}"
+                                    .format(current.status, 
+                                            current.configuration_status,
+                                            current.state))
+                    else:
+                        logger.info("Initialization complete. Installed policy: {}, "
+                                    "Version: {}, State: {}"
+                                    .format(current.installed_policy,
+                                            current.version,
+                                            current.state))
+                        return           
                 time.sleep(step)
         except KeyboardInterrupt:
             pass
@@ -825,6 +831,11 @@ if __name__ == '__main__':
                     "ssh -i {}.pem aws@{}".format(instance.key_name, vpc.elastic_ip))
 
         start_time = time.time()
+        
+        if ngfw.task:
+            for message in TaskMonitor(ngfw.task).watch():
+                logger.info(message)
+            
         ngfw.monitor_status()
         print("--- %s seconds ---" % (time.time() - start_time))
                   

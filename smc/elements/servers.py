@@ -88,8 +88,6 @@ class ManagementServer(object):
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address, 
                                          location=location)
-        from pprint import pprint
-        pprint(addresses)
         return SMCElement(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()

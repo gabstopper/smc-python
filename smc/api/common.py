@@ -7,7 +7,6 @@ more common interface to the responses received
 
 import re
 import logging
-import smc.actions.search
 from smc import session
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
@@ -146,6 +145,7 @@ def fetch_content_as_file(href, filename, stream=True):
                                              stream=stream)
     except IOError, ioe:
         logger.error("IO Error received with msg: %s" % ioe)
+        raise
     else:
         return result
 
@@ -256,44 +256,3 @@ def fetch_json_by_href(href):
                 raise
             logger.debug(result)
             return result
-
-
-def async_handler(follower_href, wait_for_finish=True,  
-                  display_msg=True, sleep=3):
-    """ Handles asynchronous operations called on engine or node levels
-    
-    :method: POST
-    :param follower_href: The follower href to monitor for this task
-    :param wait_for_finish: whether to wait for it to finish or not
-    :param display_msg: whether to return display messages or not
-    :raises: SMCOperationFailure, if failure reported from SMC
-    
-    If wait_for_finish is False, the generator will yield the follower 
-    href only. If true, will return messages as they arrive and location 
-    to the result after complete.
-    To obtain messages as they arrive, call the async method in a for loop::
-    
-        for msg in engine.export():
-            print msg
-    """
-    if wait_for_finish:
-        import time
-        last_msg = ''
-        while True:
-            status = smc.actions.search.element_by_href_as_json(follower_href)
-            msg = status.get('last_message')
-            if display_msg:
-                if msg != last_msg and msg is not None:
-                    yield re.sub(clean_html,'', msg)
-                    last_msg = msg
-            if status.get('success') == True:
-                for link in status.get('link'):
-                    if link.get('rel') == 'result':
-                        yield link.get('href')
-                break
-            elif status.get('in_progress') == False and \
-                    status.get('success') == False: #fails with SMC msg
-                raise SMCOperationFailure(msg=status.get('last_message'))
-            time.sleep(sleep)
-    else:
-        yield follower_href

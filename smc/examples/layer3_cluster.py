@@ -34,7 +34,7 @@ line below and set the logging level (recommend ERROR unless troubleshooting)::
 """
 
 from smc import session
-from smc.elements.engines import FirewallCluster
+from smc.core.engines import FirewallCluster
 from smc.elements.helpers import zone_helper
 
 import logging

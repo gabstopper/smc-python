@@ -29,7 +29,7 @@ from smc import session
 from collections import OrderedDict
 import smc.actions.search
 import smc.elements.element
-from smc.elements.engines import Layer3VirtualEngine, Engine
+from smc.core.engines import Layer3VirtualEngine, Engine
 
 import logging
 from smc.api.exceptions import SMCException

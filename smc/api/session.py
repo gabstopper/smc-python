@@ -1,8 +1,6 @@
-'''
-Created on Aug 14, 2016
-
-@author: davidlepage
-'''
+"""
+Session module for tracking existing connection state to SMC
+"""
 import json
 import requests
 import logging
@@ -24,14 +22,17 @@ class Session(object):
 
     @property
     def api_version(self):
+        """ API Version """
         return self.cache.api_version
     
     @property
     def session(self):
+        """ Session for this interpreter """
         return self._session
 
     @property
     def session_id(self):
+        """ Session ID representation """
         return self.session.cookies
 
     @property
@@ -48,10 +49,12 @@ class Session(object):
 
     @property
     def url(self):
+        """ SMC URL """
         return self._url
     
     @property
     def api_key(self):
+        """ SMC Client API key """
         return self._api_key
     
     @property
@@ -66,7 +69,7 @@ class Session(object):
         
         An example login and logout session::
         
-            from smc.qpi.session import session   
+            from smc import session   
             session.login(url='http://1.1.1.1:8082', api_key='SomeSMCG3ener@t3dPwd')
             .....do stuff.....
             session.logout()
@@ -180,7 +183,7 @@ class SessionCache(object):
         Call get_all_entry_points to find all available entry points
         :param verb: top level entry point into SMC api
         :return dict of entry point specified
-        :raises Exception if no entry points are found.
+        :raises: Exception if no entry points are found.
         That would mean no login has occurred
         """
         if self.api_entry:

@@ -82,8 +82,9 @@ the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 from smc import session
 from smc.elements.element import SMCElement, Meta
 from smc.elements.user import AdminUser
-from smc.elements.engines import Engine
+from smc.core.engines import Engine
 from smc.elements.vpn import ExternalGateway, VPNPolicy
+from smc.elements.system import System
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
 from smc.elements.servers import ManagementServer, LogServer
 from smc.elements.policy import FirewallPolicy
@@ -199,7 +200,7 @@ def describe_single_fws(name=None, exact_match=True):
     """
     Describe Single Layer 3 Firewalls
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('single_fw', name, exact_match, klazz=Engine)
     
@@ -207,7 +208,7 @@ def describe_fw_clusters(name=None, exact_match=True):
     """
     Describe Layer 3 FW Clusters
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('fw_cluster', name, exact_match, klazz=Engine)
         
@@ -215,7 +216,7 @@ def describe_single_layer2_fws(name=None, exact_match=True):
     """
     Describe Single Layer 2 Firewalls
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('single_layer2', name, exact_match, klazz=Engine)
     
@@ -223,7 +224,7 @@ def describe_layer2_clusters(name=None, exact_match=True):
     """
     Describe Layer 2 Firewall Clusters
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('layer2_cluster', name, exact_match, klazz=Engine)
     
@@ -231,7 +232,7 @@ def describe_single_ips(name=None, exact_match=True):
     """
     Describe Single IPS engines
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('single_ips', name, exact_match, klazz=Engine)
     
@@ -239,7 +240,7 @@ def describe_ips_clusters(name=None, exact_match=True):
     """
     Describe IPS engine clusters
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('ips_cluster', name, exact_match, klazz=Engine)
     
@@ -247,7 +248,7 @@ def describe_master_engines(name=None, exact_match=True):
     """
     Describe Master Engines
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('master_engine', name, exact_match, klazz=Engine)
     
@@ -265,7 +266,7 @@ def describe_virtual_fws(name=None, exact_match=True):
                 for node in engine.nodes:
                     node.appliance_status()
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('virtual_fw', name, exact_match, klazz=Engine)
     
@@ -273,7 +274,7 @@ def describe_virtual_ips(name=None, exact_match=True):
     """
     Describe Virtual IPS engines
     
-    :return: list :py:class:`smc.elements.engines.Engine`
+    :return: list :py:class:`smc.core.engines.Engine`
     """
     return generic_list_builder('virtual_ips', name, exact_match, klazz=Engine)
 
@@ -304,6 +305,24 @@ def describe_locations(name=None, exact_match=False):
     :return: list :py:class:`smc.elements.element.SMCElement`
     """
     return generic_list_builder('location')
+
+def describe_update_packages():
+    """
+    Show all available update packages on SMC
+    
+    :return list :py:class:`smc.elements.system.UpdatePackage`
+    """
+    system = System().load()
+    return system.update_package()
+
+def describe_engine_upgrades():
+    """
+    Show all engine level upgrades available
+    
+    :return list :py:class:`smc.elements.system.EngineUpgrade`
+    """
+    system = System().load()
+    return system.engine_upgrade()    
 
 """
 Domains
@@ -635,6 +654,9 @@ def describe_client_gateways(name=None, exact_match=True):
     :return: list :py:class:`smc.elements.element.SMCElement`
     """
     return generic_list_builder('client_gateway', name, exact_match)
+
+def describe_vpn_certificate_authority(name=None, exact_match=True):
+    return generic_list_builder('vpn_certificate_authority', name, exact_match)
   
 def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
     """

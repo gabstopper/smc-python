@@ -5,11 +5,12 @@ You can create an Admin User, enable superuser, enable/disable the account,
 assign local access to engines, and change the account password for SMC or
 engine access.
 """
-import smc.api.common
+import smc.api.common as common_api
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.api.exceptions import ElementNotFound, SMCOperationFailure
+from smc.api.exceptions import ElementNotFound, TaskRunFailed
 from smc.elements.element import SMCElement, Meta
+from smc.actions.tasks import task_handler, Task
 
 
 class AdminUser(SMCElement):
@@ -105,25 +106,23 @@ class AdminUser(SMCElement):
         self.href = find_link_by_name('enable_disable', self.link)
         return self.update()
         
-    def export(self, filename='admin.zip'): #TODO: This fails, SMC error
+    def export(self, filename='admin.zip', wait_for_finish=False):
         """ Export the contents of this admin
         
         :method: POST
         :param str filename: Name of file to export to
         :return: SMCResult
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
         self.href = find_link_by_name('export', self.link)
         self.params = {}
         element = self.create()
-        try:
-            href = next(smc.api.common.async_handler(
-                                            element.json.get('follower'), 
-                                            display_msg=False))    
-        except SMCOperationFailure, e:
-            return e.smcresult
-        else:
-            return smc.api.common.fetch_content_as_file(href, filename)
-            
+       
+        task = task_handler(Task(**element.json), 
+                            wait_for_finish=wait_for_finish,
+                            filename=filename)
+        return task
+
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, "name={}".format(self.name)) 
     

@@ -3,3 +3,9 @@ Initial release leveraging contact addresses and locations with ability to suppo
 Fix issue related to loading an engine when using the wrong engine name but still matching on non-engine type elements
 Management and Log Server objects with contact addresses
 Expose sub-interface view for physical interfaces
+
+$version 0.3.2
+Add VPNCertificate, Alias, Snapshot
+Exceptions around node and engine actions
+Moved engine/node/engines to smc.core.engine, smc.core.node, smc.core.engines
+Fix timeout on session constructor to backend requests

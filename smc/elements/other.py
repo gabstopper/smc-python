@@ -40,7 +40,7 @@ class ContactAddress(object):
     :param str location: location href to map this contact address to
     """
     def __init__(self, address, location, dynamic=False):
-        self.location = location_helper(location)
-        self.contact_addresses = {'address': address,
+        location_ref = location_helper(location)
+        self.contact_addresses = [{'address': address,
                                   'dynamic': dynamic,
-                                  'location_ref': self.location}
+                                  'location_ref': location_ref}]

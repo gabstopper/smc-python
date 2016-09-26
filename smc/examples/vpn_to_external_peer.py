@@ -10,7 +10,7 @@ network.
 """
 from smc import session
 from smc.elements.element import Network
-from smc.elements.engines import Engine
+from smc.core.engines import Engine
 from smc.elements.vpn import ExternalGateway, ExternalEndpoint, VPNPolicy
 
 if __name__ == '__main__':

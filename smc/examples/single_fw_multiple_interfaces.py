@@ -7,7 +7,7 @@ be queued and kick off once the contact is complete.
 Generate the initial contact information for sg-reconfigure on the virtual or appliance.
 """
 from smc import session
-from smc.elements.engines import Layer3Firewall
+from smc.core.engines import Layer3Firewall
 
 if __name__ == '__main__':
     session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')

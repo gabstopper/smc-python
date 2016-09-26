@@ -110,7 +110,7 @@ def element_info_as_json_with_filter(name, _filter):
     
     :param str name: name of element
     :param str _filter: filter of entry point
-    :return dict if found, otherwise None
+    :return: dict if found, otherwise None
     """
     if name and _filter:
         element = fetch_href_by_name(name, filter_context=_filter)

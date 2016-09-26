@@ -2,7 +2,6 @@ from copy import copy
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name, lazy_loader
 from smc.elements.element import SMCElement, Meta
-from smc.elements.helpers import location_helper
 
 class NodeInterface(object):
     """
@@ -39,7 +38,7 @@ class NodeInterface(object):
             setattr(self, k, v)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'
                            .format(self.nicid))
         
 class SingleNodeInterface(object):
@@ -77,7 +76,7 @@ class SingleNodeInterface(object):
             setattr(self, k, v)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'
                            .format(self.nicid))
         
 class ClusterVirtualInterface(object):
@@ -108,7 +107,7 @@ class ClusterVirtualInterface(object):
             setattr(self, k, v)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'
                            .format(self.nicid))
 
 class InlineInterface(object):
@@ -152,7 +151,7 @@ class InlineInterface(object):
             setattr(self, k, v)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'
                            .format(self.nicid))
 
 class CaptureInterface(object):
@@ -164,7 +163,7 @@ class CaptureInterface(object):
     
     :param int interfaceid: the interface id
     :param str logical_ref: logical interface reference, must be unique from 
-    inline intfs
+           inline intfs
     """
     typeof = 'capture_interface'
     
@@ -180,7 +179,7 @@ class CaptureInterface(object):
             setattr(self, k, v)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'
                            .format(self.nicid))
 
 class DHCPInterface(object):
@@ -194,10 +193,10 @@ class DHCPInterface(object):
     with.
     
     .. note:: When the DHCP interface will be the primary mgt interface, you must
-    create a secondary physical interface and set auth_request=True. 
+              create a secondary physical interface and set auth_request=True. 
     
     :param interface_id: interface to use for DHCP
-    :param dynamic_index: DHCP index (when using multiple DHCP interfaces 
+    :param dynamic_index: DHCP index (when using multiple DHCP interfaces)
     """
     typeof = 'single_node_interface'
     
@@ -220,7 +219,7 @@ class DHCPInterface(object):
             setattr(self, k, v)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'interface_id={}'
                            .format(self.nicid))
             
 class VlanInterface(object):
@@ -368,6 +367,7 @@ class TunnelInterface(object):
             for x in engine.tunnel_interface.all():
                 if x.name.endswith('2000'):
                     print x.describe()
+
         """
         interfaces=[]
         for intf in search.element_by_href_as_json(self.href):
@@ -382,11 +382,12 @@ class TunnelInterface(object):
             for intf in engine.physical_interface.all():
                 if intf.name.startswith('Interface 0'):
                     pprint(intf.describe())
+
         """
         return self.data
             
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.meta.name))
 
 class PhysicalInterface(object):
@@ -437,7 +438,7 @@ class PhysicalInterface(object):
         :return: SMCResult
         """
         self.data.update(interface_id=interface_id)
-        return self._make()
+        return self._update()
           
     def add_single_node_interface(self, interface_id, address, network_value, 
                                   zone_ref=None, is_mgmt=False, **kwargs):
@@ -451,7 +452,7 @@ class PhysicalInterface(object):
         :param boolean is_mgmt: should management be enabled
         :return: SMCResult
         
-        See :py:class:`SingleNodeInterface` for more information 
+        See :py:class:`SingleNodeInterface` for more information
         """
         intf = SingleNodeInterface(interface_id, address, network_value, **kwargs)
         if is_mgmt:
@@ -460,7 +461,7 @@ class PhysicalInterface(object):
         self.data.update(interface_id=interface_id,
                          interfaces=[{SingleNodeInterface.typeof: vars(intf)}],
                          zone_ref=zone_ref)
-        return self._make()
+        return self._update()
  
     def add_node_interface(self, interface_id, address, network_value,
                            zone_ref=None, nodeid=1, is_mgmt=False, **kwargs):
@@ -484,7 +485,7 @@ class PhysicalInterface(object):
         self.data.update(interface_id=interface_id, 
                          interfaces=[{NodeInterface.typeof: vars(intf)}],
                          zone_ref=zone_ref)
-        return self._make()
+        return self._update()
    
     def add_capture_interface(self, interface_id, logical_interface_ref, 
                               zone_ref=None, **kwargs):
@@ -502,7 +503,7 @@ class PhysicalInterface(object):
         self.data.update(interface_id=interface_id,
                          interfaces=[{CaptureInterface.typeof: vars(intf)}],
                          zone_ref=zone_ref)
-        return self._make()
+        return self._update()
         
     def add_inline_interface(self, interface_id, logical_interface_ref, 
                              zone_ref_intf1=None,
@@ -524,7 +525,7 @@ class PhysicalInterface(object):
         self.data.update(interface_id=interface_id.split('-')[0],
                          interfaces=[{InlineInterface.typeof: vars(inline_intf)}],
                          zone_ref=zone_ref_intf1)
-        return self._make()
+        return self._update()
     
     def add_dhcp_interface(self, interface_id, dynamic_index, 
                            primary_mgt=False, zone_ref=None, nodeid=1):
@@ -550,7 +551,7 @@ class PhysicalInterface(object):
         self.data.update(interface_id=interface_id,
                          interfaces=[{DHCPInterface.typeof: vars(dhcp)}],
                          zone_ref=zone_ref)
-        return self._make()
+        return self._update()
     
     def add_cluster_virtual_interface(self, interface_id, cluster_virtual, 
                                       cluster_mask, 
@@ -601,7 +602,7 @@ class PhysicalInterface(object):
         self.data.update(interface_id=interface_id,
                          interfaces=interfaces,
                          zone_ref=zone_ref)
-        return self._make()
+        return self._update()
           
     def add_vlan_to_single_node_interface(self, interface_id, address, 
                                           network_value, vlan_id, 
@@ -624,7 +625,7 @@ class PhysicalInterface(object):
         vlan.interfaces.append({SingleNodeInterface.typeof: vars(node)})
         self.data.update(interface_id=interface_id,
                          vlanInterfaces=[vars(vlan)])
-        return self._make()
+        return self._update()
     
     def add_vlan_to_node_interface(self, interface_id, vlan_id, 
                                    virtual_mapping=None, virtual_resource_name=None,
@@ -646,7 +647,7 @@ class PhysicalInterface(object):
                              zone_ref)
         self.data.update(interface_id=interface_id,
                          vlanInterfaces=[vars(vlan)])
-        return self._make()
+        return self._update()
         
     def add_vlan_to_inline_interface(self, interface_id, vlan_id, 
                                      logical_interface_ref=None,
@@ -677,18 +678,17 @@ class PhysicalInterface(object):
         self.data.update(interfaces=[{InlineInterface.typeof: vars(copied_intf)}],
                          vlanInterfaces=[vars(vlan)],
                          interface_id=first_intf)
-        return self._make()
+        return self._update()
     
     @lazy_loader
-    def add_contact_address(self, address, location, engine_etag):
+    def add_contact_address(self, contact_address, engine_etag):
         """
         Add a contact address to this physical interface
         This will currently only add a default contact address to the
         engine. If the engine has a location set, this will be added to
         the contact address json as it is required.
         
-        :param address: ip address of contact address
-        :param location: location ref for ENGINE contact address
+        :param contact_address: :py:class:`smc.elements.other.ContactAddress`
         :param engine_etag: etag for engine, required for update
         
         You can obtain the engine_etag after loading the engine and by
@@ -697,26 +697,21 @@ class PhysicalInterface(object):
         can obtain that using location_helper. Assuming the engine has a 
         location set of 'Internet'::
         
+            engine = Engine('testfw').load()
             for interface in self.engine.interface.all():
                 if interface.name == 'Interface 0':
-                    location = location_helper('Internet')
-                    interface.add_contact_address(elastic_ip, location, self.engine.etag)
+                    contact_address = ContactAddress('53.2.4.3', 'Default')
+                    interface.add_contact_address(contact_address, engine.etag)
+        
         """
         href = find_link_by_name('contact_addresses', self.data.get('link'))
-        existing = search.element_by_href_as_json(href)
-        print "Interface object: %s" % self.sub_interface()        
+        existing = search.element_by_href_as_json(href)     
         if existing:
-            existing.get('contact_addresses').append({'address': address,
-                                                      'dynamic': False, 
-                                                      'location_ref': location})
+            existing.get('contact_addresses').append(
+                                    vars(contact_address).get('contact_addresses')[0])
         else:
-            interface = self.sub_interface() 
-            existing = {'contact_addresses': [{'address': address,
-                                               'dynamic': False, 
-                                               'location_ref': location_helper('Default')},
-                                              {'address': interface.address,
-                                               'dynamic': False,
-                                               'location_ref': location}]}
+            existing = vars(contact_address)
+    
         return SMCElement(href=href, json=existing, 
                           etag=engine_etag).update()
     
@@ -757,9 +752,9 @@ class PhysicalInterface(object):
         
         :return: None
         """
-        result = search.element_by_href_as_smcresult(self.href)
+        result = search.element_by_href_as_json(self.href)
         if result:
-            self.data.update(**result.json)
+            self.data.update(**result)
 
     def all(self):
         """
@@ -783,6 +778,7 @@ class PhysicalInterface(object):
         physical interface as an object. Attributes can be changed or accessed more
         easily
         """
+        intf = None
         for interface in self.data.get('interfaces'):
             if SingleNodeInterface.typeof in interface:
                 intf = SingleNodeInterface(**interface.get(SingleNodeInterface.typeof))
@@ -790,6 +786,10 @@ class PhysicalInterface(object):
                 intf = NodeInterface(**interface.get(NodeInterface.typeof))
             elif ClusterVirtualInterface.typeof in interface:
                 intf = ClusterVirtualInterface(**interface.get(ClusterVirtualInterface.typeof))
+            elif InlineInterface.typeof in interface:
+                intf = InlineInterface(**interface.get(InlineInterface.typeof))
+            elif CaptureInterface.typeof in interface:
+                intf = CaptureInterface(**interface.get(CaptureInterface.typeof))
         return intf
     
     @property
@@ -801,24 +801,30 @@ class PhysicalInterface(object):
     def name(self):
         if self.meta:
             return self.meta.name
-            
-    def _make(self):
+    
+    def _load(self):
+        result = search.element_by_href_as_json(self.href)
+        if result:
+            self.data.update(**result)
+                    
+    def _update(self):
         """
-        If callback attribute doesn't exist, this is because an Engine is 
-        being created. The callback should be an SMCElement used to 
-        reference the http href for submitting the json. For engines being 
-        created, the engine json is compiled directly. This should only 
-        execute in the try block when the engine is already in context and 
-        operator is adding more interfaces by accessing the property 
-        :py:class:`smc.elements.engines.Engine.physical_interface`
+        If metadata doesn't exist, this is because an Engine is 
+        being created which will make this a no-op and just give
+        access to the interface json stored in the data attribute
+        
+        :py:class:`smc.core.engines.Engine.physical_interface`
         """
         if self.href:
             #called from within engine context
             return SMCElement(href=self.href, json=self.data).create()
-        #else don't add, just build json
+        #else don't add, just update data attribute
+    
+    #def __getattr__(self, value):
+    #    raise AttributeError("You must first load the engine to access resources!")
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.meta.name))
         
 class VirtualPhysicalInterface(PhysicalInterface):
@@ -892,5 +898,5 @@ class Interface(object):
         return interfaces
            
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.name))

@@ -6,6 +6,7 @@ Dependencies:
 * Python 2.7.x (Windows or *nix)
 * smc-python: https://github.com/gabstopper/smc-python.git
 * requests python library (will be automatically installed if python host has internet access)
+* ipaddress 
 
 Prequisities:
 
@@ -48,13 +49,12 @@ import re
 import ipaddress
 import logging
 from smc import session
-from smc.elements.engines import Engine
-
+from smc.core.engine import Engine 
 logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 
 filename = '/Users/davidlepage/statis routes.txt'
-firewall = 'stonesoftfw'
+firewall = 'mcafee2'
 
 if __name__ == '__main__':
 

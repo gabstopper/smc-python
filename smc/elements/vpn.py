@@ -1,10 +1,9 @@
 from smc.elements.element import SMCElement, Meta
 import smc.actions.search as search
 from smc.api.exceptions import SMCException, LoadPolicyFailed, CreatePolicyFailed,\
-    CreateElementFailed
+    CreateElementFailed, CertificateError
 from smc.elements.util import find_link_by_name
-
-                                                       
+                                                      
 class InternalGateway(object):
     """ 
     InternalGateway represents the engine side VPN configuration
@@ -66,7 +65,7 @@ class InternalGateway(object):
         :return: :py:class:`smc.elements.vpn.VPNSite`
         """
         href = find_link_by_name('vpn_site', self.link)
-        return VPNSite(meta=Meta(name=None, href=href, type='vpn_site'))
+        return VPNSite(meta=Meta(href=href))
     
     @property
     def internal_endpoint(self):
@@ -82,11 +81,12 @@ class InternalGateway(object):
         :return: list :py:class:`smc.elements.vpn.InternalEndpoint`
         """
         href = find_link_by_name('internal_endpoint', self.link)
-        return InternalEndpoint(meta=Meta(name=None, href=href, type='internal_endpoint'))
+        return InternalEndpoint(meta=Meta(href=href))
     
     def gateway_certificate(self):
         """
         :method: GET
+        :return: list
         """
         return search.element_by_href_as_json(
                 find_link_by_name('gateway_certificate', self.link))
@@ -94,17 +94,26 @@ class InternalGateway(object):
     def gateway_certificate_request(self):
         """
         :method: GET
+        :return list
         """
         return search.element_by_href_as_json(
                 find_link_by_name('gateway_certificate_request', self.link))    
     
-    #TODO: Test
-    def generate_certificate(self):
+    def generate_certificate(self, certificate_request):
         """
+        Generate an internal gateway certificate used for VPN on this engine.
+        Certificate request should be an instance of VPNCertificate.
+    
         :method: POST
+        :param VPNCertificate certificate_request: cert request details
+        :return: None
+        :raises: 
         """
-        return SMCElement(
-                href=find_link_by_name('generate_certificate', self.link)).create()
+        result = SMCElement(
+                    href=find_link_by_name('generate_certificate', self.link),
+                    json=vars(certificate_request)).create()
+        if result.msg:
+            raise CertificateError(result.msg)
     
     def describe(self):
         """
@@ -115,7 +124,7 @@ class InternalGateway(object):
         return vars(self)
                     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.name))
 
 class InternalEndpoint(object):
@@ -146,13 +155,11 @@ class InternalEndpoint(object):
     
     @property
     def name(self):
-        if self.meta:
-            return self.meta.name
+        return self.meta.name
         
     @property
     def href(self):
-        if self.meta:
-            return self.meta.href
+        return self.meta.href
   
     @property
     def etag(self):
@@ -194,7 +201,7 @@ class InternalEndpoint(object):
         return gateways
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.name))
         
 class ExternalGateway(object):
@@ -264,8 +271,7 @@ class ExternalGateway(object):
     
     @property
     def href(self):
-        if self.meta:
-            return self.meta.href
+        return self.meta.href
         
     @property
     def link(self):
@@ -310,7 +316,7 @@ class ExternalGateway(object):
         pass
 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.name))
 
 class ExternalEndpoint(object):
@@ -351,13 +357,11 @@ class ExternalEndpoint(object):
 
     @property
     def name(self):
-        if self.meta:
-            return self.meta.name
+        return self.meta.name
 
     @property
     def href(self):
-        if self.meta:
-            return self.meta.href
+        return self.meta.href
 
     def modify_attribute(self, **kwargs):
         """
@@ -395,7 +399,7 @@ class ExternalEndpoint(object):
         return endpoints
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.meta.name))
         
 class VPNSite(object):
@@ -425,13 +429,11 @@ class VPNSite(object):
  
     @property
     def name(self):
-        if self.meta:
-            return self.meta.name
+        return self.meta.name
         
     @property
     def href(self):
-        if self.meta:
-            return self.meta.href
+        return self.meta.href
 
     def create(self, name, site_element):
         """
@@ -477,7 +479,7 @@ class VPNSite(object):
         return sites
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
+        return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.name))
 
 class VPNProfile(object):
@@ -504,7 +506,6 @@ class VPNPolicy(object):
 
     def __init__(self, name, meta=None, **kwargs):
         self.name = name
-        #self.href = href
         self.meta = meta
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
@@ -634,7 +635,7 @@ class VPNPolicy(object):
         
         :param gateway: href for internal gateway. If this is another 
                SMC managed gateway, you can retrieve the href after loading the
-               engine. See :py:class:`smc.elements.engines.Engine.internal_gateway`
+               engine. See :py:class:`smc.core.engines.Engine.internal_gateway`
                
         :return: SMCResult
         """
@@ -667,4 +668,57 @@ class VPNPolicy(object):
 
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'name={}'\
-                           .format(self.name))       
+                           .format(self.name))
+
+class VPNCertificate(object):
+    def __init__(self, organization, common_name, public_key_algorithm="dsa",
+                 signature_algorithm="rsa_sha_256", public_key_length=2048, 
+                 country=None, organization_unit=None, state_province=None, 
+                 locality=None, certificate_authority_href=None):
+        """
+        Create a new VPN Certificate for an internal gateway
+        
+        :param str country: Country code (2 characters), will be used for for 
+               subject name creation
+        :param str locality: will be used for for subject name creation
+        :param str organization: will be used subject name creation
+        :param str common_name: will be used for for subject name creation
+        :param str signature_algorithm: The signature algorithm used
+               Can be one of the following:
+               "dsa_sha_1" | "dsa_sha_224" | "dsa_rsa_256" | "rsa_md5" | "rsa_sha_1" |
+               "rsa_sha_256" | "rsa_sha_384" | "rsa_sha_512" | "ecdsa_sha_1" | 
+               "ecdsa_sha_256" | "ecdsa_sha_384" | "ecdsa_sha_512"
+        :param str public_key_algorithm: The public key algorithm used
+               Can be one of the following:
+               "dsa" | "rsa" | "ecdsa"
+        :param int public_key_length: Length in bits of the public key 
+               (some restrictions may apply based on specified settings)
+        :param str organization_unit: will be used for subject name creation
+        :param str state_province: will be used for for subject name creation
+        :param str certificate_authority_ref: Reference to the internal certificate 
+               authority that will be used for self signing the generated certificate 
+               request.
+            
+        Example of creating a certificate for a specific VPN internal gateway::
+           
+            cert = VPNCertificate(organization='myorg', common_name='amazon-fw')
+            engine = Engine('myengine').load()
+            engine.internal_gateway.generate_certificate(cert)      
+        """
+        self.country = country
+        self.locality = locality
+        self.organization = organization
+        self.common_name = common_name
+        self.signature_algorithm = signature_algorithm
+        self.public_key_algorithm = public_key_algorithm
+        self.public_key_length = public_key_length
+        self.organization_unit = organization_unit
+        self.state_province = state_province
+        self.certificate_authority_href = certificate_authority_href
+        if not self.certificate_authority_href:
+            self.default_certificate_authority()
+    
+    def default_certificate_authority(self):
+        authorities = search.all_elements_by_type('vpn_certificate_authority')
+        for authority in authorities:
+            self.certificate_authority_href = authority.get('href')    

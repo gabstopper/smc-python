@@ -14,6 +14,7 @@ from smc.elements.element import SMCElement
 from smc.elements.other import Blacklist
 import smc.api.common as common_api
 from smc.api.exceptions import SMCException
+from smc.actions.tasks import task_handler, Task
 
 class System(object):
     """
@@ -165,7 +166,8 @@ class System(object):
         return search.element_by_href_as_json(
                         find_link_by_name('references_by_element', self.link))
         
-    def export_elements(self, type_of=None, filename='export_elements.zip'):
+    def export_elements(self, filename='export_elements.zip', typeof='all',
+                        wait_for_finish=False):
         """
         Export elements from SMC.
         
@@ -176,23 +178,35 @@ class System(object):
         
         :param type: type of element
         :param filename: Name of file for export
+        :return: SMCResult
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
+        valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
+        if not typeof in valid_types:
+            typeof = 'all'
         params = {'recursive': True,
-                  'type': type_of}
+                  'type': typeof}
         element = SMCElement(href=find_link_by_name('export_elements', self.link),
                              params=params).create()
-        if not element.msg:
-            href = next(common_api.async_handler(element.json.get('follower'), 
-                                                 display_msg=False))     
-        else:
-            return element
-        
-        return common_api.fetch_content_as_file(href, filename)
-        
+    
+        task = task_handler(Task(**element.json), 
+                            wait_for_finish=wait_for_finish, 
+                            filename=filename)
+        return task
+
     def import_elements(self):
         print "POST import elements"
 
+    def certificate_authority(self):
+        return search.element_by_href_as_json(
+                        href=find_link_by_name('certificate_authority', self.link))
+    
+    def unlicensed_components(self):
+        raise NotImplementedError
 
+    def snapshot(self):
+        raise NotImplementedError
+                
 class EngineUpgrade(object):
     """
     Engine Upgrade package management
@@ -225,8 +239,11 @@ class EngineUpgrade(object):
         if download_link:
             result = SMCElement(
                     href=download_link).create()
-            return common_api.async_handler(result.json.get('follower'), 
-                                        wait_for_finish, sleep)
+                    
+            task = task_handler(Task(**result.json), 
+                                wait_for_finish=wait_for_finish, 
+                                sleep=sleep)
+            return task
         else:
             return ['Package cannot be downloaded, package state: {}'.format(\
                                                                     self.state)]
@@ -254,7 +271,7 @@ class UpdatePackage(object):
         for package in system.update_package():
             if package.name == 'Update Package 788':
                 pprint(package.package_info())
-                for msg in package.download():
+                for msg in package.download(wait_for_finish=True):
                     print msg
                 package.activate()
                         
@@ -272,18 +289,18 @@ class UpdatePackage(object):
         :param boolean wait_for_finish: whether to wait for completion
         :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: Generator messages or final href of follower resource
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
         pkg = self.package_info()
         download_link = find_link_by_name('download', pkg.get('link'))
         if download_link:
             result = SMCElement(
                     href=download_link).create()
-            return common_api.async_handler(result.json.get('follower'), 
-                                            wait_for_finish, sleep)
-        else:
-            return ['Download not possible, package state: {}'.format(
-                                                            self.state)]
-    
+            task = task_handler(Task(**result.json), 
+                                wait_for_finish=wait_for_finish, 
+                                sleep=sleep)
+            return task
+
     def activate(self, wait_for_finish=False, sleep=3):
         """
         Activate this package on the SMC
@@ -292,18 +309,17 @@ class UpdatePackage(object):
         for update messages
         :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: Update messages or final URI for follower link
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
         pkg = self.package_info()
         activate_link = find_link_by_name('activate', pkg.get('link'))
-        print "Activate link: %s" % activate_link
         if activate_link:
             result = SMCElement(href=activate_link).create()
-            return common_api.async_handler(result.json.get('follower'), 
-                                            wait_for_finish, sleep)
-        else:
-            return ['Activate not possible, package state is: {}'.format(\
-                                                                self.state)]
-    
+            task = task_handler(Task(**result.json), 
+                                wait_for_finish=wait_for_finish, 
+                                sleep=sleep)
+            return task
+
     def package_info(self):
         """
         Retrieve json view of package info

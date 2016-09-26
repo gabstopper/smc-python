@@ -11,12 +11,14 @@ See SMCElement for more details:
 :class:`smc.elements.element.SMCElement` for more details.
 
 """
-import collections
+from collections import namedtuple
 import smc.actions.search as search
 import smc.api.common
 
-Meta = collections.namedtuple("Meta", ["name", "href", "type"])
-    
+class Meta(namedtuple('Meta', 'name href type')):
+    def __new__(cls, href, name=None, type=None): # @ReservedAssignment
+        return super(Meta, cls).__new__(cls, name, href, type)
+
 class SMCElement(object):
     """ 
     SMCElement represents the data structure for sending data to

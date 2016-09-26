@@ -82,6 +82,14 @@ class SMCOperationFailure(SMCException):
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
 
+class CertificateError(SMCException):
+    """
+    Related to certificate based operations like requests, signing, or
+    creation. For example, engines that are not initialized can not respond
+    to certificate creation requests and SMC API will return an error.
+    """
+    pass
+
 class CreateEngineFailed(SMCException):
     """ 
     Thrown when a POST operation returns with a failed response.
@@ -148,5 +156,40 @@ class UnsupportedInterfaceType(SMCException):
     do not support Capture or Inline Interfaces. This exception will be thrown
     when an attempt is made to enumerate interfaces for an engine type missing
     a reference to an unsupported interface type
+    """
+    pass
+
+class TaskRunFailed(SMCException):
+    """
+    When running tasks such as policy upload, refresh policy, etc, if the result
+    from SMC is a failure, possibly due to an incorrect input (i.e. missing policy),
+    then this exception will be thrown
+    """
+    pass
+
+class LicenseError(SMCException):
+    """
+    Thrown when operations to perform Node specific license related operations such as 
+    bind license, fetch license or cancel license fail.
+    For node licensing specific actions, see:
+    :py:class: `smc.core.node.Node`
+    """
+    pass
+
+class NodeCommandFailed(SMCException):
+    """
+    Each engine node will have multiple commands that can be executed such as go online,
+    go offline, go standby, locking, etc. When these commands fail, this exception will
+    be thrown and wrap the SMC API response.
+    For all node specific command actions, see:
+    :py:class: `smc.core.node.Node`
+    """
+    pass
+
+class EngineCommandFailed(SMCException):
+    """
+    Engines will have some commands that are specifically executed such as adding 
+    blacklist entries, flushing blacklist or adding routes. This exception will be
+    thrown if the SMC API responds with any sort of error and wrap the response
     """
     pass

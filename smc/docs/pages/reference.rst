@@ -141,67 +141,61 @@ LogicalInterface
    :members:
    :show-inheritance:
 
-AdminUser
-+++++++++
+Engine
+------
 
-.. autoclass:: AdminUser
+.. automodule:: smc.core.engine
    :members:
 
+Node
+----
+
+.. automodule:: smc.core.node
+   :members: Node
+   :exclude-members: create
+      
 Engines
 -------
 
-.. automodule:: smc.elements.engines
-    :undoc-members:
-    :show-inheritance:
-
-Engine
-++++++
-
-.. autoclass:: Engine
+.. automodule:: smc.core.engines
    :members:
-   :show-inheritance:
-   
-Node
-++++
-
-.. autoclass:: Node
-   :members: 
-   :show-inheritance:
-
-Layer3Firewall
-++++++++++++++
-
-.. autoclass:: Layer3Firewall
-   :members:
-   :show-inheritance:
-
-Layer2Firewall
-++++++++++++++
-
-.. autoclass:: Layer2Firewall
-   :members:
-   :show-inheritance:
-
-Layer3VirtualEngine
-+++++++++++++++++++
-
-.. autoclass:: Layer3VirtualEngine
-   :members:
-   :show-inheritance:
-
-FirewallCluster
-+++++++++++++++
-
-.. autoclass:: FirewallCluster
-   :members:
-   :show-inheritance:
+   :undoc-members:
 
 IPS
 +++
 
 .. autoclass:: IPS
    :members:
-   :show-inheritance:
+
+Layer3Firewall
+++++++++++++++
+
+.. autoclass:: Layer3Firewall
+   :members:
+   
+Layer2Firewall
+++++++++++++++
+
+.. autoclass:: Layer2Firewall
+   :members:
+
+Layer3VirtualEngine
++++++++++++++++++++
+
+.. autoclass:: Layer3VirtualEngine
+   :members:
+
+FirewallCluster
++++++++++++++++
+
+.. autoclass:: FirewallCluster
+   :members:
+
+MasterEngine
+++++++++++++
+
+.. autoclass:: MasterEngine
+   :members:
 
 Interfaces
 ----------
@@ -216,36 +210,31 @@ Physical Interface
 
 .. autoclass:: PhysicalInterface
    :members:
-   :show-inheritance:
 
 SingleNodeInterface
 +++++++++++++++++++
 
 .. autoclass:: SingleNodeInterface
    :members:
-   :show-inheritance:
 
 NodeInterface
 +++++++++++++
 
 .. autoclass:: NodeInterface
    :members:
-   :show-inheritance:
-
+  
 InlineInterface
 +++++++++++++++
 
 .. autoclass:: InlineInterface
    :members:
-   :show-inheritance:
-
+  
 CaptureInterface
 ++++++++++++++++
 
 .. autoclass:: CaptureInterface
    :members:
-   :show-inheritance:
-
+  
 VlanInterface
 +++++++++++++
 
@@ -269,6 +258,7 @@ VirtualPhysicalInterface
 
 .. autoclass:: VirtualPhysicalInterface
    :members:
+   :show-inheritance:
 
 Policy
 ------
@@ -318,11 +308,17 @@ IPv4NATRule
    :members:
    :show-inheritance:
 
-VPNPolicy
----------
+VPN
+---
 
 .. automodule:: smc.elements.vpn
-   :members: VPNPolicy
+   :members: 
+ 
+VPNPolicy
++++++++++
+
+.. autoclass:: VPNPolicy
+   :members: 
 
 InternalGateway
 +++++++++++++++
@@ -354,10 +350,23 @@ VPNSite
 .. autoclass:: VPNSite
    :members:
 
+VPNCertificate
+++++++++++++++
+
+.. autoclass:: VPNCertificate
+   :members:
+ 
+Users
+-----
+
+.. automodule:: smc.elements.user
+   :members: AdminUser
+
 Collection
 ----------
 
 .. automodule:: smc.elements.collection
+   :members:
  
 Search
 ------
@@ -365,22 +374,27 @@ Search
 .. automodule:: smc.actions.search
    :members:
 
+Tasks
+-----
+
+.. automodule:: smc.actions.tasks
+   :members: TaskMonitor, TaskDownload
+   
 Session
 -------
 
-.. automodule:: smc.api.web
-    :members: SMCConnectionError, SMCException, SMCResult
-    :undoc-members:
-    :show-inheritance:
-
-.. autoclass:: SMCAPIConnection
-   :members: login, logout
+.. automodule:: smc.api.session
+.. autoclass:: Session
+   :members: login, logout, api_version, url, api_key, session, session_id
 
 System
 ------
 
 .. automodule:: smc.elements.system
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
+Exceptions
+----------
+
+.. automodule:: smc.api.exceptions
+   :members:
+   :show-inheritance:

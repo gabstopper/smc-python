@@ -18,27 +18,16 @@ In order to view error messages, do the following in your calling script::
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s: %(message)s')
     
 """
-
 import logging
 import smc.elements.element
 import smc.actions.search
-from smc.elements.element import logical_intf_helper, \
-    TCPService, EthernetService, ICMPService, ICMPIPv6Service, ServiceGroup,\
-    TCPServiceGroup, UDPServiceGroup, UDPService, IPServiceGroup, IPService, Host, \
-    AdminUser, zone_helper, SMCElement
-import smc.api.web
-from smc.elements.engines import Node, Layer3Firewall, Layer2Firewall, IPS, Layer3VirtualEngine, FirewallCluster,\
-    MasterEngine, AWSLayer3Firewall, Engine, VirtualResource
-    
-from smc.api.web import SMCResult
-from smc.api.exceptions import SMCException
-from smc.elements.interfaces import VlanInterface, PhysicalInterface, TunnelInterface, NodeInterface,\
-    SingleNodeInterface
-from smc.elements.vpn import VPNPolicy, ExternalGateway, ExternalEndpoint, VPNProfile
-from smc.elements.collections import describe_fw_policies,\
-    describe_address_ranges, describe_vpn_profiles, describe_networks,\
-    describe_hosts, describe_external_gateways, describe_virtual_fws
-
+from smc.core.engines import Layer3Firewall, Layer2Firewall, IPS
+from smc.elements.helpers import logical_intf_helper
+from smc.core.interfaces import PhysicalInterface
+from smc.api.exceptions import SMCException, NodeCommandFailed
+from smc.elements.collection import describe_vpn_certificate_authority
+from smc.elements.vpn import VPNCertificate
+from smc.elements.element import SMCElement
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +186,7 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
                         logical_interface=logical_intf_helper(logical_interface),
                         domain_server_address=dns)
     return result
-   
+
 def l3interface(name, ipaddress, ip_network, interfaceid):
     """ Add L3 interface for single FW
        
@@ -251,7 +240,7 @@ def l2interface(name, interface_id, logical_interface_ref='default_eth', zone=No
 
 def capture_interface(name, interface_id, logical_interface_ref='default_eth', zone=None):
     try:
-        engine = Node(name).load()
+        engine = Engine(name).load()
               
         physical = PhysicalInterface(interface_id)
         physical.add_capture_interface(logical_intf_helper(logical_interface_ref), 
@@ -276,7 +265,7 @@ def l3route(name, gateway, ip_network):
     :return: href upon success otherwise None
     """
     try:
-        engine = Node(name).load()
+        engine = Engine(name).load()
         return engine.add_route(gateway, ip_network)
 
     except SMCException, e:
@@ -292,7 +281,7 @@ def blacklist(name, src, dst, duration=3600):
     :return: href, or None
     """
     try:
-        engine = Node(name).load()
+        engine = Engine(name).load()
         return engine.blacklist(src, dst, duration)
     
     except SMCException, e:
@@ -305,18 +294,18 @@ def blacklist_flush(name):
     :return: None, or message if failure
     """
     try:
-        engine = Node(name).load()
+        engine = Engine(name).load()
         print engine.blacklist_flush()
     
     except SMCException, e:
         logger.error("Exception during blacklist: %s" % e)
             
 def bind_license(name):
-    engine = Node(name).load()
+    engine = Engine(name).load()
     return engine.bind_license()
     
 def unbind_license(name):
-    engine = Node(name).load()
+    engine = Engine(name).load()
     return engine.unbind_license()
          
 def cluster_fw(data):
@@ -333,18 +322,6 @@ def virtual_ips(data):
     
 def virtual_fw(data):
     pass
-
-def menu(list, question):
-    while True:
-        print question
-        for entry in list:
-            print(1 + list.index(entry)),
-            print(") " + entry.name)
-        
-        try:
-            return list[input()-1]
-        except IndexError:
-            print "Invalid choice. Try again."
                 
 if __name__ == '__main__':
     #smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001', timeout=60)
@@ -352,10 +329,11 @@ if __name__ == '__main__':
     logging.getLogger()
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
     
-    from smc.api.session import session
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=60)
-    import smc.elements.collections as collections
-    import smc.actions.remove
+    from smc import session
+    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=60)
+    session.login(url='http://172.18.1.25:8082', api_key='QPBePSuZzEKouQzBjHr30001', timeout=120)
+    
+    
     from pprint import pprint
     import time
     start_time = time.time()
@@ -366,19 +344,165 @@ if __name__ == '__main__':
     #print policy.ipv4_rule.create('erika6 rule', ['any'], ['any'], ['any'], 'allow')
     #for rule in policy.ipv4_rule.ipv4_rules:
     #    print "rule: %s" % rule
+    from smc.elements.other import ContactAddress
+    from smc.elements.user import AdminUser
+    from smc.core.engine import Engine
+    from smc.actions import search
+    
+    engine = Engine('i-*').load()
+    
+    #engine.rename('kooky')
+    #print engine.node()
+    
+    #pprint(search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/single_fw/684/firewall_node/685/certificate_info'))    
+    #print engine.internal_gateway.generate_certificate(cert)
+    
+    #organization, common_name, signature_algorithm,
+    #             public_key_algorithm, public_key_length=2056, country=None,
+    #             organization_unit=None, state_province=None, locality=None,
+    #             certificate_authority_ref=None
+                 
+    #pprint(search.element_entry_point('vpn_certificate_authority'))
+    #pprint(search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/vpn_certificate_authority'))
+    #print engine.internal_gateway.gateway_certificate_request()
+    #print engine.internal_gateway.generate_certificate()
+    
+    #pprint(engine.antispoofing())
+    #for interface in engine.physical_interface.all():
+    #    print interface.describe()
 
+    
+    #for msg in engine.refresh():
+    #    print msg
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/single_fw/719/snapshot/18'))
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/single_fw/719/snapshot/18/content'))
+    '''
+    pprint(engine.node())
+    for node in engine.nodes:
+        status = node.appliance_status()
+        pprint(status)
+    '''
+                    
+    #for domain in collection.describe_admin_domains():
+    #    pprint(vars(domain))
+    #    pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/admin_domain/1'))
+    
+    
+    #engine = Engine('mcafee').load()
+    #pprint(engine.json)
+    
+    #print "mcafee2: %s" % smc.actions.search.element_info_as_json('mcafee')
+    
+    #print smc.actions.search.element_meta_as_json('mcafee', ['single_fw'])
+    #pprint(smc.actions.search.element_meta_use_wildcard_check_lst('mcafee', ['single_fw2']))
+    
+    
+    #href = smc.actions.search.element_href('sg_vm')
+
+    #from smc.api.common import fetch_href_by_name
+    #pprint(fetch_href_by_name('mcafee', exact_match=False).json)
+    
+    #pprint(smc.actions.search.element_info_as_json('mcafee2'))
+    
+    '''    
+    for interface in engine.interface.all():
+        if interface.name == 'Interface 0':
+            #interface.add_contact_address('52.206.156.102', location_helper('Internet'), engine.etag)
+            #interface.add_contact_address('123.123.123.123', location_helper('DMZ'), engine.etag)
+            #pprint(interface.contact_addresses)
+            #interface._sub_interface()
+            print interface.sub_interface()
+    '''
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/address_range/0'))
+   
+    #vpn = VPNPolicy('Amazon*').load()
+    #pprint(vpn.describe())
+    #request = SMCRequest(href='http://172.18.1.25:8082/elements/blah', json={})
+    #result = getattr(smc.api.common, 'create')(request)
+    #result = getattr(request, 'create')()
+    #print result
+    
+            #pprint(x.describe())
+    '''
+    for gw in engine.internal_gateway.internal_endpoint.all():
+        if gw.name == '12.12.12.12':
+            gw.modify_attribute(enabled=True)
+   
+    for policy in describe_vpn_policies():
+        vpn = policy.load()
+        vpn.open()
+        vpn.add_central_gateway(engine.internal_gateway.href)
+        vpn.save()
+        vpn.close()
+    '''
+    #pprint(vars(engine))
+    #for intf in engine.interface.all():
+    #    if intf.name == 'Interface 0':
+    #        intf.add_contact_address('33.33.33.33', 'http://172.18.1.25:8082/6.1/elements/location/3')
+    
+    ###CONTACT ADDRESS ON INTERFACE
+    '''
+    for loc in describe_locations():
+        if loc.name == 'mydmz':
+            location=loc.href
+            
+    for x in engine.interface.all():
+        if x.name == 'Interface 0':
+            print "Adding to href : %s" % loc.href
+            x.add_contact_address('2.2.2.2', location, engine.etag)
+    '''
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/ip_list/12/ip_address_list'))
+    #print fetch_content_as_file(href='http://172.18.1.25:8082/6.1/elements/ip_list/12/ip_address_list',
+    #                            filename='iplist.zip')
+    
+    
     """@type engine: Node""" #aws-02 node 1
-    #engine = Engine('i-cc9e5bcd (us-east-1a)').load()
+    #engine = Engine('elyse').load()
+    #pprint(engine.json)
+    #for intf in engine.interface.all():
+    #    if intf.name == 'Interface 0':
+    #        pprint(intf.describe())
+    #        intf.add_contact_address('5.5.5.5', location_helper('dmz'))
+    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/single_fw/687/physical_interface/2/interface/2/contact_addresses'))
+   
+    #smc.actions.remove.element('elyse')
     
-    
-    engine = Engine('bo').load()
-    pprint(vars(engine))
-    
-    for x in engine.interface:
-        print x
+    #tunnel = TunnelInterface()
+    #tunnel.add_cluster_virtual_interface(5000, '52.52.52.52', '52.52.52.0/24')
+    #print SMCElement(href='http://172.18.1.150:8082/6.0/elements/fw_cluster/116/tunnel_interface',
+    #                 json=tunnel.data).create()
+    #Works for single node - 
+    #tunnel.add_single_node_interface(1005, '10.10.10.5', '10.10.10.0/24')
+    #pprint(tunnel.data)
+    #print SMCElement(href='http://172.18.1.150:8082/6.0/elements/single_fw/7664/tunnel_interface',
+    #                 json=tunnel.data).create()
+         
+    '''
+    for x in collection.describe_vpn_policies():
+        if x.name.startswith('testpolicy'):
+            vpn = x.load()
+            print vpn.describe()
+            vpn.open()
+            vpn.add_central_gateway(engine.internal_gateway.href)
+            vpn.save()
+            vpn.close()
+    '''
+    #engine = Engine('awsfw').load()
     
     '''
-    for gw in collections.describe_external_gateways():
+    for x in collection.describe_vpn_policies():
+        if x.name.startswith('Amazon'):
+            vpn = x.load()
+            vpn.open()
+            pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/vpn/76/gateway_tree_nodes/central'))
+            pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.150:8082/6.0/elements/vpn/76/gateway_tree_nodes/central/1884'))
+            vpn.validate()
+            vpn.close()
+    '''
+    #pprint(engine.json)
+    
+    '''
+    for gw in collection.describe_external_gateways():
         if gw.name == 'externalgw':
             g = gw.load()
             pprint(vars(g))
@@ -426,7 +550,7 @@ if __name__ == '__main__':
     #    pprint(vars(site))
    
    
-    #pprint(collections.describe_sub_ipv6_fw_policies())
+    #pprint(collection.describe_sub_ipv6_fw_policies())
     
 
     #for host in describe_hosts(name=['duh']):

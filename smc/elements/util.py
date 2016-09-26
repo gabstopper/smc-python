@@ -1,9 +1,4 @@
 
-"""
-Temp lazy loader definition to check for loaded json
-in classes that require it be loaded before specific 
-operations are run
-"""
 def lazy_loader(f):
     def deco(self, *args, **kwargs):
         #Need the full json for element
@@ -12,18 +7,30 @@ def lazy_loader(f):
         return f(self, *args, **kwargs)
     return deco
 
-"""
-Utility method to find the reference link based on 
-the link name and provided the list of link references
-provided by the SMC API
-
-:param link_name: name of link
-:param list linklist: list of references
-:return fully qualified href
-"""
-def find_link_by_name(link_name, linklist):
+def save_to_file(filename, content):
+    """
+    Save content to file. Used by node initial contact but
+    can be used anywhere.
+    
+    :param str filename: name of file to save to
+    :param str content: content to save
+    :return: None
+    :raises: IOError
     """ 
-    Find the href based on SMC API return rel
+    import os.path
+    path = os.path.abspath(filename)
+    with open(path, "w") as text_file:
+        text_file.write("{}".format(content))
+
+def find_link_by_name(link_name, linklist):
+    """
+    Utility method to find the reference link based on 
+    the link name and provided the list of link references
+    provided by the SMC API
+    
+    :param link_name: name of link
+    :param list linklist: list of references
+    :return fully qualified href
     """
     for entry in linklist:
         if entry.get('rel') == link_name:

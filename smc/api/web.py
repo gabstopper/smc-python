@@ -28,7 +28,8 @@ class SMCAPIConnection(object):
     """
     def __init__(self, session):
         self._session = session
-    
+        self.timeout = self._session.timeout
+      
     @property
     def session(self):
         return self._session.session
@@ -52,10 +53,13 @@ class SMCAPIConnection(object):
                     r = self.session.get(href, params=params, 
                                          stream=True)
                     if r.status_code == 200:
-                        logger.debug("Streaming to file... Content length: %s", len(r.content))
+                        logger.debug("Headers returned: {}".format(r.headers))
+                        logger.debug("Streaming to file... Content length: {}"
+                                     .format(len(r.content)))
                         try:
                             path = os.path.abspath(filename)
-                            logger.debug("Operation: %s, saving to file: %s", href, path)
+                            logger.debug("Operation: {}, saving to file: {}"
+                                         .format(href, path))
                             with open(path, "wb") as handle:
                                 for data in r.iter_content():
                                     handle.write(data)
@@ -64,7 +68,7 @@ class SMCAPIConnection(object):
                     result = SMCResult(r)
                     result.content = path
                     return result
-                r = self.session.get(href, params=params, timeout=15)               
+                r = self.session.get(href, params=params, timeout=self.timeout)               
                 if r.status_code == 200:
                     logger.debug("HTTP get result: %s", r.text)
                     return SMCResult(r)
@@ -204,7 +208,7 @@ class SMCResult(object):
         self.content = None
         self.msg = msg
         self.code = None
-        self.json = self.extract(respobj) #: list or dict
+        self.json = self.extract(respobj) # list or dict
 
     def extract(self, response):
         if response:
