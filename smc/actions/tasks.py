@@ -1,10 +1,9 @@
 import time
 import re    
 import smc.actions.search as search
-from smc.api.common import fetch_content_as_file
+from smc.api.common import SMCRequest
 from smc.elements.util import find_link_by_name
 from smc.api.exceptions import TaskRunFailed
-from smc.elements.element import SMCElement
 
 clean_html = re.compile(r'<.*?>')
 
@@ -35,10 +34,10 @@ class Task(object):
     @property
     def result(self):
         return find_link_by_name('result', self.link)
-    
+
     @property
     def abort(self):
-        return SMCElement(
+        return SMCRequest(
                     href=find_link_by_name('abort', self.link)).delete()
 
     def __getattr__(self, value):
@@ -69,7 +68,7 @@ class TaskMonitor(object):
     def watch(self):
         return task_handler(Task(follower=self.follower),
                             wait_for_finish=True,
-                            sleep = self.sleep)
+                            sleep=self.sleep)
 
 class TaskDownload(object):
     """
@@ -80,7 +79,7 @@ class TaskDownload(object):
     
     :param str result: follower result link
     :param str filename: filename provided
-    :return: SMCResult
+    :return: :py:class:`smc.api.web.SMCResult`
     :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
     """
     def __init__(self, result, filename):
@@ -89,8 +88,8 @@ class TaskDownload(object):
     
     def run(self):
         try:
-            return fetch_content_as_file(self.result, 
-                                         self.filename)
+            return SMCRequest(href=self.result,
+                              filename=self.filename).read()
         except IOError, io:
             raise TaskRunFailed("Export task failed with message: {}"
                                 .format(io))

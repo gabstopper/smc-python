@@ -10,11 +10,10 @@ To load the configuration for system, do::
 """
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.elements.element import SMCElement
 from smc.elements.other import Blacklist
-import smc.api.common as common_api
 from smc.api.exceptions import SMCException
 from smc.actions.tasks import task_handler, Task
+from smc.api.common import SMCRequest
 
 class System(object):
     """
@@ -24,7 +23,6 @@ class System(object):
     :ivar smc_version: version of SMC
     :ivar smc_time: SMC time
     :ivar last_activated_package: latest update package installed
-    :ivar empty_trash_bin: empty trash on SMC
     """
     def __init__(self):
         self.link = []
@@ -56,10 +54,10 @@ class System(object):
         return search.element_by_href_as_json(
                 find_link_by_name('last_activated_package', self.link)).get('value')
     
-    @property    
     def empty_trash_bin(self):
         """ Empty system level trash bin """
-        return common_api.delete(find_link_by_name('empty_trash_bin', self.link))
+        href = find_link_by_name('empty_trash_bin', self.link)
+        return SMCRequest(href=href).delete()
     
     #@property
     def update_package(self):
@@ -112,9 +110,9 @@ class System(object):
         
         :param src: source of the entry
         :param dst: destination of blacklist entry
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
-        return SMCElement(
+        return SMCRequest(
                     href=find_link_by_name('blacklist', self.link),
                     json=vars(Blacklist(src, dst, duration))).create()
 
@@ -178,7 +176,7 @@ class System(object):
         
         :param type: type of element
         :param filename: Name of file for export
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
         valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
@@ -186,7 +184,7 @@ class System(object):
             typeof = 'all'
         params = {'recursive': True,
                   'type': typeof}
-        element = SMCElement(href=find_link_by_name('export_elements', self.link),
+        element = SMCRequest(href=find_link_by_name('export_elements', self.link),
                              params=params).create()
     
         task = task_handler(Task(**element.json), 
@@ -237,7 +235,7 @@ class EngineUpgrade(object):
         pkg = self.package_info()
         download_link = find_link_by_name('download', pkg.get('link'))
         if download_link:
-            result = SMCElement(
+            result = SMCRequest(
                     href=download_link).create()
                     
             task = task_handler(Task(**result.json), 
@@ -294,7 +292,7 @@ class UpdatePackage(object):
         pkg = self.package_info()
         download_link = find_link_by_name('download', pkg.get('link'))
         if download_link:
-            result = SMCElement(
+            result = SMCRequest(
                     href=download_link).create()
             task = task_handler(Task(**result.json), 
                                 wait_for_finish=wait_for_finish, 
@@ -314,7 +312,7 @@ class UpdatePackage(object):
         pkg = self.package_info()
         activate_link = find_link_by_name('activate', pkg.get('link'))
         if activate_link:
-            result = SMCElement(href=activate_link).create()
+            result = SMCRequest(href=activate_link).create()
             task = task_handler(Task(**result.json), 
                                 wait_for_finish=wait_for_finish, 
                                 sleep=sleep)

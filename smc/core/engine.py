@@ -1,7 +1,6 @@
 import smc.actions.search as search
-import smc.api.common as common_api
 from smc.elements.helpers import domain_helper
-from smc.elements.element import SMCElement, Meta
+from smc.elements.element import Meta
 from smc.elements.util import find_link_by_name
 from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
@@ -12,8 +11,10 @@ from smc.core.interfaces import PhysicalInterface, Interface,\
 from smc.actions.tasks import task_handler, Task
 from smc.elements.vpn import InternalGateway
 from smc.elements.other import Blacklist
+from smc.api.common import SMCRequest
+from smc.elements.mixins import ModifiableMixin
 
-class Engine(object):
+class Engine(ModifiableMixin):
     """
     Instance attributes:
     
@@ -27,12 +28,20 @@ class Engine(object):
     
     Instance resources:
     
-    :ivar list nodes: (Node) nodes associated with this engine
-    :ivar interface: (Interface) interfaces for this engine
-    :ivar internal_gateway: (InternalGateway) engine level VPN settings
-    :ivar virtual_resource: (VirtualResource) for engine, only relavant to Master Engine
-    :ivar physical_interface: (PhysicalInterface) access to physical interface settings
-    :ivar tunnel_interface: (TunnelInterface) retrieve or create tunnel interfaces
+    :ivar list nodes: :py:class:`smc.core.node.Node` nodes associated with 
+          this engine
+    :ivar interface: :py:class:`smc.core.interfaces.Interface` interfaces 
+          for this engine
+    :ivar internal_gateway: :py:class:`smc.elements.vpn.InternalGateway` engine 
+          level VPN settings
+    :ivar virtual_resource: :py:class:`smc.core.engine.VirtualResource` for engine, 
+          only relavant to Master Engine
+    :ivar physical_interface: :py:class:`smc.core.interfaces.PhysicalInterface` 
+          access to physical interface settings
+    :ivar tunnel_interface: :py:class:`smc.core.interfaces.TunnelInterface` 
+          retrieve or create tunnel interfaces
+    :ivar snapshots: :py:class:`smc.core.engine.Snapshot` engine level policy snapshots
+    
     
     """
     def __init__(self, name, meta=None, **kwargs):
@@ -49,7 +58,7 @@ class Engine(object):
         """
         Create will return the engine configuration as a dict that is a 
         representation of the engine. The creating class will also add 
-        engine specific requirements before adding it to an SMCElement
+        engine specific requirements before constructing an SMCRequest
         and sending to SMC (which will serialize the dict to json).
         
         :param name: name of engine
@@ -114,23 +123,35 @@ class Engine(object):
         Call this to reload settings, useful if changes are made and new 
         configuration references or updated attributes are needed.
         """
-        if not self.meta:
-            result = search.element_info_as_json(self.name)
-            if result:
-                self.meta = Meta(**result)
+        try:
+            if not self.meta:
+                result = search.element_info_as_json(self.name)
+                if result and len(result) == 1:
+                    self.meta = Meta(**result[0])
+                else: #error
+                    if result:
+                        names = [name.get('name') for name in result 
+                                 if name.get('name')]
+                    else:
+                        names = []
+                    raise LoadEngineFailed('Cannot load engine name: {}, ensure the '
+                                           'name is correct and that the engine exists. '
+                                           'Search returned: {}'
+                                           .format(self.name, names))
+            result = search.element_by_href_as_json(self.meta.href)
+            if result.get('nodes'):
+                self.json = result
+                return self
             else:
-                raise LoadEngineFailed("Cannot load engine name: {}, please ensure the name is " 
-                                        "correct and the engine exists.".format(self.name)) 
-        result = search.element_by_href_as_json(self.meta.href)
-        if result.get('nodes'):
-            self.json = result
-            return self
-        else:
-            raise LoadEngineFailed("Cannot load engine name: {}, please ensure the name is " 
-                                   "correct. An element was returned but was of type: {}"
-                                   .format(self.name, self.meta.type))
+                raise LoadEngineFailed('Cannot load engine name: {}, please ensure the name ' 
+                                       'is correct. An element was returned but was of type: '
+                                       '{}'.format(self.name, self.meta.type))
+        except LoadEngineFailed:
+            raise
+
     @property
     def etag(self):
+        #Need if making interface changes. ETag comes from engine level
         return search.element_by_href_as_smcresult(self.meta.href).etag
     
     @property
@@ -145,7 +166,7 @@ class Engine(object):
     def node_type(self):
         """
         Return the node types for this engine. Each engine will have
-        only one node type
+        only one node type so just return on the first one
         
         :return: str node type
         """
@@ -173,27 +194,6 @@ class Engine(object):
         for node in self.nodes:
             node.modify_attribute(name='{} node {}'.format(name, node.nodeid))
     
-    def modify_attribute(self, **kwargs):
-        """
-        Modify a top level engine attribute. This is limited to key/value pairs
-        that have single values, or where the value is a dict::
-            
-            engine.modify_attribute(passive_discard_mode=False)
-            engine.modify_attribute(antivirus={'antivirus_enabled':True, 
-                                               'virus_log_level':'stored'})
-            engine.modify_attribute(gti_settings={'file_reputation_context': 
-                                                  'gti_cloud_only'})
-
-        :param kwargs: (key=value)
-        """
-        for k, v in kwargs.iteritems():
-            if isinstance(self.json.get(k), dict):
-                self.json[k].update(v)
-            else: #single key/value
-                self.json.update({k: v})
-        return SMCElement(href=self.href, json=self.json,
-                          etag=self.etag).update()
-
     @property
     def nodes(self):
         """
@@ -206,11 +206,20 @@ class Engine(object):
                             find_link_by_name('nodes', self.link))
         node_list=[]
         for node in nodes:
-            node_list.append(Node(
-                            node.get('type'), 
-                            search.element_by_href_as_json(node.get('href'))))
+            node_list.append(Node(meta=Meta(**node)))
         return node_list
 
+    def permissions(self):
+        """
+        Retrieve the permissions for this engine instance.
+        """
+        result = search.element_by_href_as_json(
+                        find_link_by_name('permissions', self.link))
+        if not result:
+            raise UnsupportedEngineFeature('Engine permissions are only supported '
+                                           'when using SMC API version 6.1 and newer.')
+        return result
+    
     def alias_resolving(self):
         """ 
         Alias definitions defined for this engine 
@@ -237,7 +246,7 @@ class Engine(object):
         :return: None
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        result = SMCElement(href=find_link_by_name('blacklist', self.link),
+        result = SMCRequest(href=find_link_by_name('blacklist', self.link),
                             json=vars(Blacklist(src, dst, duration))).create()
         if result.msg:
             raise EngineCommandFailed(result.msg)
@@ -251,7 +260,7 @@ class Engine(object):
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         href = find_link_by_name('flush_blacklist', self.link)
-        result = SMCElement(href=href).delete()
+        result = SMCRequest(href=href).delete()
         if result.msg:
             raise EngineCommandFailed(result.msg)
     
@@ -267,9 +276,9 @@ class Engine(object):
         :method: POST
         :param str gateway: gateway of an existing interface
         :param str network: network address in cidr format
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
-        return SMCElement(
+        return SMCRequest(
                     href=find_link_by_name('add_route', self.link),
                     params={'gateway': gateway, 
                             'network': network}).create()
@@ -329,8 +338,7 @@ class Engine(object):
                                            'gateway for VPN, engine type: {}'\
                                            .format(self.node_type))
         for gw in result:
-            igw = InternalGateway(
-                        **search.element_by_href_as_json(gw.get('href')))
+            igw = InternalGateway(meta=Meta(**gw))
         return igw
 
     @property
@@ -479,7 +487,7 @@ class Engine(object):
         :return: generator yielding updates on progress
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
-        element = SMCElement(
+        element = SMCRequest(
                     href=find_link_by_name('refresh', self.link)).create()
         if not element.json:
             raise TaskRunFailed(element.msg)
@@ -506,7 +514,7 @@ class Engine(object):
         :return: generator yielding updates on progress
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
-        element = SMCElement(
+        element = SMCRequest(
                     href=find_link_by_name('upload', self.link),
                     params={'filter': policy}).create()
         if not element.json: #policy not found
@@ -524,9 +532,8 @@ class Engine(object):
         :return: None
         """
         href = find_link_by_name('generate_snapshot', self.link)
-        return common_api.fetch_content_as_file(href, filename=filename)
+        return SMCRequest(href=href, filename=filename).read()
     
-    @property
     def snapshots(self):
         """ References to policy based snapshots for this engine, including
         the date the snapshot was made
@@ -548,10 +555,10 @@ class Engine(object):
         
         :mathod: POST
         :param str filename: if set, the export will download the file. 
-        :return: SMCResult, content attribute will have file path downloaded
+        :return: generator yielding updates on progress
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
-        element = SMCElement(
+        element = SMCRequest(
                     href=find_link_by_name('export', self.link),
                     params={'filter': self.name}).create()
        
@@ -564,9 +571,8 @@ class Engine(object):
         raise AttributeError("You must first load the engine to access resources!")
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'
-                           .format(self.name))
-        
+        return '{0}(name={1})'.format(self.__class__.__name__, self.name)
+       
 class VirtualResource(object):
     """
     A Virtual Resource is a container placeholder for a virtual engine
@@ -612,10 +618,10 @@ class VirtualResource(object):
         :param int vfw_id: virtual fw identifier
         :param str domain: name of domain to install, (default Shared)
         :param boolean show_master_nic: whether to show the master engine NIC ID's
-        in the virtual instance
+               in the virtual instance
         :param int connection_limit: whether to limit number of connections for this 
-        instance
-        :return: SMCResult
+               instance
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         allocated_domain = domain_helper(domain)
         json = {'name': name,
@@ -623,8 +629,8 @@ class VirtualResource(object):
                 'show_master_nic': show_master_nic,
                 'vfw_id': vfw_id,
                 'allocated_domain_ref': allocated_domain}
-
-        return SMCElement(href=self.href, json=json).create()
+       
+        return SMCRequest(href=self.href, json=json).create()
       
     def describe(self):
         """
@@ -650,9 +656,9 @@ class VirtualResource(object):
         return resources
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'
-                           .format(self.name))
-        
+        return '{0}(name={1})'.format(self.__class__.__name__,
+                                      self.name)
+
 class Snapshot(object):
     """
     Policy snapshots currently held on the SMC. You can retrieve all
@@ -668,6 +674,8 @@ class Snapshot(object):
                 snapshot.download()
                 
     Snapshot filename will be snapshot.name.zip if not specified.
+    
+    :ivar name: name of snapshot
     """
     def __init__(self, **kwargs):
         for k, v in kwargs.iteritems():
@@ -678,7 +686,7 @@ class Snapshot(object):
         Download snapshot to filename
         
         :param str filename: fully qualified path including filename .zip
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         if not filename:
@@ -686,8 +694,7 @@ class Snapshot(object):
         snapshot = self.describe()
         href = find_link_by_name('content', snapshot.get('link'))
         try:
-            return common_api.fetch_content_as_file(href, 
-                                                    filename=filename)
+            return SMCRequest(href=href, filename=filename).read()
         except IOError, e:
             raise EngineCommandFailed("Snapshot download failed: {}"
                                       .format(e))
@@ -700,14 +707,16 @@ class Snapshot(object):
         return search.element_by_href_as_json(self.href)  
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'
-                           .format(self.name))
+        return '{0}(name={1})'.format(self.__class__.__name__, 
+                                      self.name)
         
 class Alias(object):
     """
     Aliases are specific to an engine instance and are typically 
     used as rule elements. They are intended to have a different value
     based on the engine that the alias is applied to. 
+    
+    :ivar name: name of alias
     """
     def __init__(self, **kwargs):
         self.name = None
@@ -722,5 +731,5 @@ class Alias(object):
         
     def __repr__(self):
         self.name = self.describe().get('name')
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'
-                           .format(self.name))
+        return '{0}(name={1})'.format(self.__class__.__name__, 
+                                      self.name)

@@ -6,7 +6,6 @@ Dependencies:
 * Python 2.7.x (Windows or *nix)
 * smc-python: https://github.com/gabstopper/smc-python.git
 * requests python library (will be automatically installed if python host has internet access)
-* ipaddress 
 
 Prequisities:
 
@@ -46,7 +45,6 @@ route add route=10.6.4.0/255.255.255.0 gateway=10.12.127.33 distance=1 descripti
 
 """
 import re
-import ipaddress
 import logging
 from smc import session
 from smc.core.engine import Engine 
@@ -55,6 +53,12 @@ logging.getLogger()
 
 filename = '/Users/davidlepage/statis routes.txt'
 firewall = 'mcafee2'
+
+def mask_convertor(network_and_netmask):
+    netmask = network_and_netmask.split('/')   
+    cidr = sum([bin(int(x)).count('1') for x in netmask.pop().split('.')])
+    netmask.append(str(cidr))
+    return '/'.join(netmask)
 
 if __name__ == '__main__':
 
@@ -66,8 +70,7 @@ if __name__ == '__main__':
     with open(filename) as f:
         for line in f:
             for match in re.finditer('route=(.*) gateway=(.*) distance.*?', line, re.S):
-                #make unicode (python 2.x)
-                network = ipaddress.ip_network(u'{}'.format(match.group(1)))
+                network = mask_convertor(match.group(1))
                 gateway = match.group(2)
                 print "Adding route to network: {}, via gateway: {}".format(\
                                             network, gateway)

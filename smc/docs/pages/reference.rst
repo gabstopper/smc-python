@@ -127,6 +127,14 @@ IPServiceGroup
    :members:
    :show-inheritance:
 
+IPList
+++++++
+
+.. autoclass:: IPList
+   :members:
+   :exclude-members: create
+   :show-inheritance:
+
 Zone
 ++++
 
@@ -200,10 +208,8 @@ MasterEngine
 Interfaces
 ----------
 
-.. automodule:: smc.elements.interfaces
+.. automodule:: smc.core.interfaces
     :members:
-    :undoc-members:
-    :show-inheritance:
 
 Physical Interface
 ++++++++++++++++++

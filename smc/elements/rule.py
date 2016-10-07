@@ -19,7 +19,8 @@ parameters required. However, each class will have a property to refer to a rule
 object for creation.
 """
 import smc.actions.search as search
-from smc.elements.element import SMCElement, Meta
+from smc.elements.element import Meta
+from smc.api.common import SMCRequest
 
 class IPv4Rule(object):
     """ 
@@ -92,7 +93,7 @@ class IPv4Rule(object):
         :param list destination: destinations, names will be looked up to find href
         :param list service: service/s, names will be looked up to find href
         :param str action: allow|continue|discard|refuse|use vpn
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         rule_values = { 
                 'name': name,
@@ -119,8 +120,8 @@ class IPv4Rule(object):
             rule_values.update(services={'any': True})
         else:
             rule_values.update(services={'service': services})
-                
-        return SMCElement(href=self.href,
+
+        return SMCRequest(href=self.href,
                           json=rule_values).create()
     
     def add_after(self):
@@ -133,7 +134,7 @@ class IPv4Rule(object):
         return search.element_by_href_as_json(self.href)
     
     def delete(self):
-        return SMCElement(href=self.href).delete()
+        return SMCRequest(href=self.href).delete()
     
     def all(self):
         """
@@ -192,7 +193,7 @@ class IPv4NATRule(object):
         :param int max_port: max port number for PAT
         :param int min_port: min port number for PAT
         :param boolean is_disabled: whether to disable rule or not
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         rule_values = { 
                 'name': name,
@@ -224,7 +225,7 @@ class IPv4NATRule(object):
                                           'max_port': max_port,
                                           'min_port': min_port}]}}}
             rule_values.update(dyn_nat)
-        return SMCElement(href=self.href, json=rule_values).create()
+        return SMCRequest(href=self.href, json=rule_values).create()
 
     def describe(self):
         return search.element_by_href_as_json(self.href) 

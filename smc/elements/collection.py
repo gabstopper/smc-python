@@ -80,7 +80,7 @@ Both will work, however the first option will only find items starting with TOR*
 the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 """
 from smc import session
-from smc.elements.element import SMCElement, Meta
+from smc.elements.element import SMCElement, Meta, IPList
 from smc.elements.user import AdminUser
 from smc.core.engines import Engine
 from smc.elements.vpn import ExternalGateway, VPNPolicy
@@ -331,10 +331,13 @@ def describe_admin_domains(name=None, exact_match=True):
     return generic_list_builder('admin_domain', name, exact_match)
 
 """
-Admins
+Administration
 """
 def describe_admin_users(name=None, exact_match=True):
     return generic_list_builder('admin_user', name, exact_match, AdminUser)
+
+def describe_access_control_lists(name=None, exact_match=True):
+    return generic_list_builder('access_control_list', name, exact_match)
 
 """
 Interface Elements
@@ -586,13 +589,19 @@ def describe_ip_lists(name=None, exact_match=True):
     :param exact_match: Do exact match against name field (default True)
     :return: list :py:class:`smc.elements.element.SMCElement`
     """
-    return generic_list_builder('ip_list', name, exact_match)
+    if session.api_version >= 6.1:
+        return generic_list_builder('ip_list', name, exact_match, IPList)
+    else:
+        return []
 
 def describe_countries(name=None, exact_match=True):
     """
     Describe countries
     """
-    return generic_list_builder('country', name, exact_match)
+    if session.api_version >= 6.1:
+        return generic_list_builder('country', name, exact_match)
+    else:
+        return []
 
 """
 VPN Elements
@@ -656,6 +665,11 @@ def describe_client_gateways(name=None, exact_match=True):
     return generic_list_builder('client_gateway', name, exact_match)
 
 def describe_vpn_certificate_authority(name=None, exact_match=True):
+    """
+    Return VPN certificate authority used for internal gateway's
+    
+    :return: list :py:class:`smc.elements.element.SMCElement`
+    """
     return generic_list_builder('vpn_certificate_authority', name, exact_match)
   
 def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
@@ -666,6 +680,9 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
     name=None, meta=None. This is because some top level classes require name.
     If the resource does not have a top level api entry point, it will be
     referenced by the linked resource using meta only.
+    
+    Before the META data is returned, the dict values are encoded to utf-8 to
+    support unicode chars.
     
     :param list name: Name of host object (optional)
     :param exact_match: Do exact match against name field (default True)
@@ -686,5 +703,6 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
             for item in fetch_href_by_name(element, 
                                            filter_context=typeof, 
                                            exact_match=exact_match).json:
-                result.append(klazz(**item))
+                result.append(klazz(name=item.get('name'),
+                                    meta=Meta(**item)))
     return result

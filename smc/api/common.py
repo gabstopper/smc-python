@@ -1,162 +1,111 @@
 """
-Proxy helper module to wrap CRUD operations and catch exceptions
+Middle tier helper module to wrap CRUD operations and catch exceptions
 
-Although the native http_get, http_post, etc can be called, this provides a 
-more common interface to the responses received
+SMCRequest is the general data structure that is sent to the send_request
+method in smc.api.web.SMCConnection to submit the data to the SMC. 
 """
 
-import re
 import logging
 from smc import session
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
-clean_html = re.compile(r'<.*?>')
-
 logger = logging.getLogger(__name__)
 
-class SMCRequest(object):
+def method(method):
+    def _method(f):
+        def wrapper(self, *args):
+            setattr(self, '_method', method)
+            return f(self, *args)
+        return wrapper
+    return _method
+    
+class RequestHandler(object):
     def __init__(self, **kwargs):
-        self.filename = None
-        self.headers = None
-        self.params = None
-        self.href = None
-        self.etag = None
-        self.json = None
+        self._method = None
+        self.files = None
+        self.headers = {'content-type': 'application/json',
+                        'accept': 'application/json'}
+    
+    @property
+    def method(self):
+        return self._method
+    
+    def _make_request(self):
+        err = None
+        try:
+            if self.method == 'GET':
+                if not self.href:
+                    self.href = session.cache.get_entry_href('elements')
+            result = session.connection.send_request(self.method, self)
+        
+        except SMCOperationFailure, e:
+            result = e.smcresult
+        except SMCConnectionError, e:
+            err = e
+        except IOError, e:
+            err = e
+        finally:
+            if err:
+                raise
+            logger.debug(result)
+            return result
+
+class SMCRequest(RequestHandler):
+    """
+    SMCRequest represents the data structure that will be submitted to the web
+    layer for submission to the SMC API.
+    
+    :param str href: href for request, required by all methods
+    :param dict json: json to submit, required by create, update
+    :param dict params: query string parameters
+    :param str filename: name of file for download, optional for create
+    :param str etag: etag of element, required for update 
+    """
+    def __init__(self, href=None, json=None, params=None, filename=None,
+                 etag=None, **kwargs):
+        RequestHandler.__init__(self)
+        #: Filename if a file download is requested
+        self.filename = filename
+        #: dictionary of query parameters
+        self.params = params
+        #: href for this request
+        self.href = href
+        #: ETag for PUT request modifications 
+        self.etag = etag
+        #: JSON data to send in request
+        self.json = {} if json is None else json
 
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
-    
+
+    @method('POST')
     def create(self):
-        return create(self)
-        
+        return self._make_request()
+    
+    @method('DELETE')    
     def delete(self):
-        return delete(self.href)
+        return self._make_request()
     
+    @method('PUT')
     def update(self):
-        return update(self)
+        return self._make_request()
 
-    def as_json(self):
-        element = fetch_json_by_href(self.href)
-        if element:
-            return element.json
+    @method('GET')
+    def read(self):
+        return self._make_request()
         
-    def as_file(self):
-        return fetch_content_as_file(self.href, self.filename, 
-                                     stream=True)
-
-    
-def create(element):
-    """ 
-    Create element on SMC
-    
-    :method: POST
-    Element must have the following attributes:
-    
-    :param href: href of resource location
-    :param json: json of profile to upload
-    :param params: optional uri params
-    :return: SMCResult
-    """
-    if element:
-        err = None
-        try:
-            result = session.connection.http_post(element.href,
-                                                  element.json, 
-                                                  element.params)
-        except SMCOperationFailure, e:
-            result = e.smcresult
-        except SMCConnectionError, e:
-            err = e
-        except TypeError, e:
-            err = e
-        finally:
-            if err:
-                raise
-            logger.debug(result)
-            return result
-
-def update(element):
-    """ 
-    Update element on SMC
-    
-    :method: PUT
-    Element must have the following attributes:
-    
-    :param href: href of location of resource
-    :param json: modified json data to update
-    :param etag: etag for resource
-    :param params: additional URI parameters, optional
-    :return: SMCResult
-    """
-    if element:
-        err = None
-        try: 
-            result = session.connection.http_put(element.href,
-                                                 element.json, 
-                                                 element.etag, 
-                                                 element.params)
-        except SMCOperationFailure, e:
-            result = e.smcresult
-        except SMCConnectionError, e:
-            err = e
-        except TypeError, e:
-            err = e
-        finally:
-            if err:
-                raise
-            logger.debug(result)
-            return result
-
-def delete(href):
-    """
-    Delete element on SMC
-    
-    :method: DELETE
-    :param href: item reference to delete
-    :return: SMCResult
-    """
-    if href:
-        connect_err = None
-        try:
-            result = session.connection.http_delete(href)
-        except SMCOperationFailure, e:
-            result = e.smcresult
-        except SMCConnectionError, e:
-            connect_err = e
-        finally:
-            if connect_err:
-                raise
-            logger.debug(result)
-            return result
-
-def fetch_content_as_file(href, filename, stream=True):
-    """ Used for fetching data from the SMC. 
-    Element must have the following attributes:
-    
-    :method: GET
-    :param href: href location for task file download
-    :param filename: name or path of file to save locally
-    :return: SMCResult with content attr holding file location or msg on fail
-    :raises: SMCException, IOError
-    """
-    try:
-        result = session.connection.http_get(href,
-                                             filename=filename,
-                                             stream=stream)
-    except IOError, ioe:
-        logger.error("IO Error received with msg: %s" % ioe)
-        raise
-    else:
-        return result
-
+    def __repr__(self):
+        return '<SMCRequest [%s]>' % (self.method)
+        
 def fetch_entry_point(name):
     """ 
-    Get the entry point href based on the input name
-    
+    Get the entry point href based on the input name. Entry points are
+    cached during the connection and can be accessed through the session
+    by calling session.cache.get_all_entry_points()
+
     :method: GET
-    :param name: valid element entry point, i.e. 'host', 'iprange', etc
-    smc.api.web.get_all_entry_points caches the entry points after login
-    :return: SMCResult
+    :param str name: valid element entry point, i.e. 'host', 'iprange', etc
+    :return: :py:class:`smc.api.web.SMCResult`
     """
     try:
         entry_href = session.cache.get_entry_href(name) #from entry point cache
@@ -170,42 +119,37 @@ def fetch_entry_point(name):
     except SMCConnectionError, e:
         raise
 
-def fetch_href_by_name(name, 
-                       filter_context=None, 
+def fetch_href_by_name(name,
+                       filter_context=None,
                        exact_match=True,
                        domain=None):
     """
+    Find the element based on name and optional filters. By default, the
+    name provided uses the standard filter query. Additional filters can
+    be used based on supported collections in the SMC API. This is generally
+    not called directly, rather it is easier to use wrapper search utilities 
+    in :py:mod:`smc.actions.search`
+    
     :method: GET
-    :param name: element name
-    :param filter_context: further filter request, i.e. 'host', 'group', 'single_fw'
-    :param exact_match: Do an exact match by name, note this still can return multiple entries
-    :param domain: specify domain in which to query
-    :return: SMCResult
+    :param str name: element name, can use * as wildcard
+    :param str filter_context: further filter request, i.e. 'host', 'group', 'single_fw'
+    :param boolean exact_match: Do an exact match by name, note this still can return multiple entries
+    :param str domain: specify domain in which to query
+    :return: :py:class:`smc.api.web.SMCResult`
     """
-    if name:
-        connect_err = None
-        try:
-            entry_href = session.cache.get_entry_href('elements')
-            result = session.connection.http_get(entry_href, {'filter': name,
-                                                              'filter_context':filter_context,
-                                                              'exact_match': exact_match})
-            if result.json:
-                if len(result.json) > 1:
-                    result.msg = "More than one search result found. Try using a filter based on element type"
-                else:
-                    result.href = result.json[0].get('href')
-            else:
-                result.msg = "No results found for: %s" % name                  
-        
-        except SMCOperationFailure, e:
-            result = e.smcresult
-        except SMCConnectionError, e:
-            connect_err = e
-        finally:
-            if connect_err:
-                raise
-            logger.debug(result)
-            return result
+    result = SMCRequest(params={'filter': name,
+                                'filter_context':filter_context,
+                                'exact_match': exact_match}).read()
+    if result.json:
+        if len(result.json) > 1:
+            result.msg = "More than one search result found. Try using a filter "\
+                            "based on element type"
+        else:
+            result.href = result.json[0].get('href')
+    else:
+        if not result.msg:
+            result.msg = "No results found for: {}".format(name)
+    return result
 
 def fetch_json_by_name(name):
     """ 
@@ -214,45 +158,26 @@ def fetch_json_by_name(name):
     second query to obtain the element json
     
     :method: GET
-    :param name: element name
-    :return: SMCResult
+    :param str name: element name
+    :return: :py:class:`smc.api.web.SMCResult`
     """
-    if name:
-        connect_err = None
-        try:
-            result = fetch_href_by_name(name)
-            if result.href:
-                result = fetch_json_by_href(result.href)
-                #else element not found
-        except SMCOperationFailure, e:
-            result = e.smcresult
-        except SMCConnectionError, e:
-            connect_err = e
-        finally:
-            if connect_err:
-                raise
-            return result
-    
-def fetch_json_by_href(href):
+    result = fetch_href_by_name(name)
+    if result.href:
+        result = fetch_json_by_href(result.href)
+    return result
+
+def fetch_json_by_href(href, params=None):
     """ 
-    Fetch json for element by using href
+    Fetch json for element by using href. Params should be key/value
+    pairs. For example {'filter': 'myfilter'}
     
     :method: GET
-    :param href: href of the element
-    :return: SMCResult
+    :param str href: href of the element
+    :params dict params: optional search query parameters
+    :return: :py:class:`smc.api.web.SMCResult`
     """
-    if href:
-        connect_err = None
-        try:
-            result = session.connection.http_get(href)
-            if result:
-                result.href = href
-        except SMCOperationFailure, e:
-            result = e.smcresult
-        except SMCConnectionError, e:
-            connect_err = e
-        finally:
-            if connect_err:
-                raise
-            logger.debug(result)
-            return result
+    result = SMCRequest(href=href,
+                        params=params).read()
+    if result:
+        result.href = href
+    return result

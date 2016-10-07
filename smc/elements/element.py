@@ -13,52 +13,56 @@ See SMCElement for more details:
 """
 from collections import namedtuple
 import smc.actions.search as search
-import smc.api.common
+from smc.api.common import SMCRequest
+from smc.elements.mixins import ModifiableMixin
+from smc.elements.util import find_link_by_name
+from smc.api.exceptions import MissingRequiredInput
 
 class Meta(namedtuple('Meta', 'name href type')):
     def __new__(cls, href, name=None, type=None): # @ReservedAssignment
         return super(Meta, cls).__new__(cls, name, href, type)
 
-class SMCElement(object):
+class SMCElement(ModifiableMixin):
     """ 
     SMCElement represents the data structure for sending data to
-    the SMC API. When calling :mod:`smc.api.common` methods for 
-    create, update or delete, this is the required object type.
+    the SMC API in an SMCRequest. This object type represents most
+    generic element types.
     
     Common parameters that are needed are stored in this base class
     and are stored as instance attributes:
-    
+   
+    :ivar meta: meta data for element
     :ivar json: json data to be sent to SMC
-    :ivar etag: required for modify
     :ivar name: name of object
     :ivar href: (required) location of the resource
-    :ivar params: If additional URI parameters are needed for href
     """
     def __init__(self, meta=None, **kwargs):
+        self.meta = meta
         self.name = None
         self.json = None
-        self.etag = None
         self.href = None
-        self.params = None
-        if meta:
-            kwargs.update(meta._asdict())
-    
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
-            
+        if self.meta:
+            for k, v in meta._asdict().iteritems():
+                setattr(self, k, v)
+        
     def create(self):
         if self.href is None:
+            # self.href will be None if an element is being created
+            # for the first time vs. a POST after the object has been
+            # created.
             if hasattr(self, 'typeof'):
-                #retrieve href from class attribute if available
                 self.href = search.element_entry_point(self.typeof)
-        return smc.api.common.create(self)
+        return SMCRequest(**vars(self)).create()
     
     def update(self):
-        return smc.api.common.update(self)
+        return SMCRequest(**vars(self)).update()
     
     def delete(self):
-        return smc.api.common.delete(self.href)
-
+        return SMCRequest(href=self.href).delete()
+    
+    def read(self):
+        return SMCRequest(**vars(self)).read()
+    
     def describe(self):
         """
         Return the json representation of the SMCElement. Useful for
@@ -68,36 +72,10 @@ class SMCElement(object):
         :return: raw json of SMCElement
         """
         return search.element_by_href_as_json(self.href)
-            
-    def modify_attribute(self, **kwargs):
-        """
-        Modify attribute/s of an existing element. The proper way to
-        get the context of the element is to use the 'describe' functions
-        in :py:class:`smc.elements.collection` class.
-        For example, to change the name and IP of an existing host
-        object::
-        
-        for host in describe_hosts(name=['myhost']):
-            h.modify_attribute(name='kiley', address='1.1.2.2')
-        
-        This method will acquire the full json along with etag and href 
-        to put the element in context. Most element attributes can be
-        modified, with exception of attributes listed as read-only. Common
-        attributes can be found in class level documentation.
-        
-        :param kwargs: key=value pairs to change element attributes
-        :return: SMCResult
-        """
-        result = smc.api.common.fetch_json_by_href(self.href)
-        self.json = result.json
-        self.etag = result.etag
-        for k, v in kwargs.iteritems():
-            self.json.update({k: v})
-        return self.update()
 
     def __repr__(self):
         return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name.encode('UTF8'))
+                                      self.name)
 
    
 class Host(SMCElement):
@@ -521,10 +499,120 @@ class IPListGroup(SMCElement):
 
 class IPList(SMCElement):
     """
-    .. note:: IPList requires SMC API version >= 6.1
-    """
-    pass
+    IPList represent a custom list of IP addresses, networks or
+    ip ranges (IPv4 or IPv6). These are used in source/destination
+    fields of a rule for policy enforcement.
     
+    .. note:: IPList requires SMC API version >= 6.1
+    
+    Create an empty IPList::
+    
+        IPList(name='mylist').create()
+        
+    Create an IPList with initial content::
+    
+        IPList(name='mylist', iplist=['1.1.1.1','1.1.1.2', '1.2.3.4']).create()
+        
+    Example of downloading the IPList in text format::
+    
+        location = describe_ip_lists(name=[name])
+        if location:
+            iplist = location[0]
+            iplist.download(filename='iplist.txt', as_type='txt')
+  
+    Example of uploading an IPList as a zip file::
+    
+        location = describe_ip_lists(name=[name])
+        if location:
+            iplist = location[0]
+            iplist.upload(filename='/path/to/iplist.zip')
+        
+    :param str name: name of ip list
+    :param list iplist: list of ipaddress
+    """
+    typeof = 'ip_list'
+    
+    def __init__(self, name, meta=None, iplist=None):
+        SMCElement.__init__(self, meta=meta)
+        self.name = name
+        self.iplist = iplist
+
+    def download(self, filename=None, as_type='zip'):
+        """
+        Download the IPList. List format can be either zip, text or
+        json. For large lists, it is recommended to use zip encoding.
+        Filename is required for zip downloads.
+        
+        :param str filename: Name of file to save to (required for zip)
+        :param str as_type: type of format to download in |txt|json|zip (default)
+        :raises: IOError: if problem writing to destination filename
+        :return: :py:class:`smc.api.web.SMCResult`
+        """
+        
+        if as_type == 'zip':
+            if filename is None:
+                raise MissingRequiredInput('Filename must be specified when '
+                                           'downloading IPList as a zip file.')
+            self.headers=None
+            filename = '{}'.format(filename)
+        elif as_type =='txt':
+            self.headers={'accept':'text/plain'}
+    
+        self.href = find_link_by_name('ip_address_list', self.link)
+        self.filename = filename
+        return self.read()
+    
+    def upload(self, filename=None, json=None, as_type='zip'):
+        """
+        Upload an IPList to the SMC. The contents of the upload
+        are not incremental to what is in the existing IPList.
+        So if the intent is to add new entries, you must first retrieve
+        the existing and append to the content, then upload.
+        The only upload type that can be done without loading a file as
+        the source is as_type='json'. 
+        
+        :param str filename: required for zip/txt uploads
+        :param str json: required for json uploads
+        :param str as_type: type of format to upload in: txt|json|zip (default)
+        :raises: IOError: if filename specified cannot be loaded
+        :return: :py:class:`smc.api.web.SMCResult`
+        """      
+        headers={'content-type': 'multipart/form-data'}
+        files=None
+        if filename:
+            files = {'ip_addresses': open(filename, 'rb')}
+        if as_type == 'json':
+            headers={'accept':'application/json',
+                     'content-type':'application/json'}
+        elif as_type == 'txt': #txt
+            self.params={'format':'txt'}
+        self.href = find_link_by_name('ip_address_list', self.link)
+        self.headers = headers
+        self.files = files
+        self.json = json
+        return super(IPList, self).create()
+       
+    def create(self):
+        """
+        Create an IP List. It is also possible to add entries by supplying
+        a list of IPs/networks, although this is optional. You can also 
+        use upload/download to add to the iplist.
+        """
+        self.json={'name': self.name}
+        result = super(IPList, self).create()
+        if result.href and self.iplist:
+            links = search.element_by_href_as_json(result.href)
+            self.json = {'ip': self.iplist}
+            self.href = find_link_by_name('ip_address_list', links.get('link'))
+            return super(IPList, self).create()
+        return result
+    
+    @property
+    def link(self):
+        if not self.json:
+            self.json = search.element_by_href_as_json(self.meta.href)
+        return self.json.get('link')
+        
 class Zone(SMCElement):
     """ Class representing a zone used on physical interfaces and
     used in access control policy rules

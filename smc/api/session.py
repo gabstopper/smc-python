@@ -1,6 +1,7 @@
 """
 Session module for tracking existing connection state to SMC
 """
+import re
 import json
 import requests
 import logging
@@ -19,6 +20,7 @@ class Session(object):
         self._url = None
         self._api_key = None
         self._timeout = 10
+        self.__http_401 = 0
 
     @property
     def api_version(self):
@@ -47,6 +49,15 @@ class Session(object):
             self._cache = SessionCache()
             return self._cache
 
+    @property
+    def element_filters(self):
+        """ Filters for entry points in the elements node. 
+        These can be used as search filter_contexts.
+        
+        :return: list available filters
+        """
+        return self.cache.get_element_filters()
+    
     @property
     def url(self):
         """ SMC URL """
@@ -122,15 +133,21 @@ class Session(object):
                 else:
                     logger.error("Logout failed, status code: %s", r.status_code)
     
-    def refresh(self):
+    def http_unauthorized(self):
         """
         Refresh SMC session if it timed out. This may be the case if the CLI
         is being used and the user was idle. SMC has a time out value for API
         client sessions (configurable). Refresh will use the previously saved url
-        and apikey and get a new session and refresh the api_entry cache
+        and apikey and get a new session and http_unauthorized the api_entry cache
         """
+        self.__http_401 += 1
         if self.session is not None: #user has logged in previously
-            logger.info("Session refresh called, previous session has expired")
+            logger.info("Session http_unauthorized called, received an HTTP 401 unauthorized")
+            if self.__http_401 >= 2:
+                #Exit to prevent inadvertent looping if an http 401 was received.
+                #Try to re-authenticate once in case of longer running app's that may
+                #have had the SMC session time out
+                raise SMCConnectionError("Unauthorized. Too many HTTP 401 requests received.")
             self.login(url=self.url, 
                        api_key=self.api_key, 
                        api_version=self.api_version)
@@ -142,12 +159,13 @@ class SessionCache(object):
     def __init__(self):
         self.api_entry = None
         self.api_version = None
-                
+
     def get_api_entry(self, url, api_version=None, timeout=10):
         """
         Called internally after login to get cache of SMC entry points
-        :param: url for SMC api
-        :param api_version: if specified, use this version
+        
+        :param: str url: URL for SMC 
+        :param str api_version: if specified, use this version, or use latest
         """
         try:
             if api_version is None:
@@ -180,11 +198,11 @@ class SessionCache(object):
     def get_entry_href(self, verb):
         """
         Get entry point from entry point cache
-        Call get_all_entry_points to find all available entry points
-        :param verb: top level entry point into SMC api
-        :return dict of entry point specified
-        :raises: Exception if no entry points are found.
-        That would mean no login has occurred
+        Call get_all_entry_points to find all available entry points. 
+        
+        :param str verb: top level entry point into SMC api
+        :return dict: meta data for specified entry point
+        :raises: :py:class:`smc.api.exceptions.UnsupportedEntryPoint`
         """
         if self.api_entry:
             href = None
@@ -203,6 +221,20 @@ class SessionCache(object):
         else:
             raise SMCConnectionError("No entry points found, it is likely "
                                      "there is no valid login session.")
+
+    def get_element_filters(self):
+        """
+        Build a list of filter contexts for entry points related to elements.
+        These filters can be used in the filter_context parameter on search methods 
+        that support them.
+        
+        :return: list names of each available filter context on the element node
+        """
+        regex = self.get_entry_href('elements') + r"/(.*)"
+        element_filters=[m.group(1)
+                         for ep in self.api_entry
+                         for m in re.finditer(regex, ep.get('href'))]
+        return element_filters
 
     def get_all_entry_points(self):
         """ Returns all entry points into SMC api """

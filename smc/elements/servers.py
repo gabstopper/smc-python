@@ -3,9 +3,10 @@ Module that represents server based configurations
 """
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.elements.element import SMCElement, Meta
+from smc.elements.element import Meta
 from smc.elements.helpers import location_helper
 from smc.api.exceptions import ElementNotFound
+from smc.api.common import SMCRequest
 
 class ManagementServer(object):
     """
@@ -28,9 +29,11 @@ class ManagementServer(object):
     
     def load(self):
         if not self.meta:
-            result = search.element_info_as_json(self.name)
+            result = search.element_info_as_json_with_filter(
+                                        self.name, 'mgt_server')
+        
             if result:
-                self.meta = Meta(**result)
+                self.meta = Meta(**result[0])
             else:
                 raise ElementNotFound("Cannot find Management Server: {}, cannot load."
                                       .format(self.name))
@@ -83,12 +86,12 @@ class ManagementServer(object):
                 s.add_contact_address(contact)
                 
         :param contact_address: ContactAddress element
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address, 
                                          location=location)
-        return SMCElement(
+        return SMCRequest(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
 
@@ -114,9 +117,10 @@ class LogServer(object):
     
     def load(self):
         if not self.meta:
-            result = search.element_info_as_json(self.name)
+            result = search.element_info_as_json_with_filter(
+                                            self.name, 'log_server')
             if result:
-                self.meta = Meta(**result)
+                self.meta = Meta(**result[0])
             else:
                 raise ElementNotFound("Cannot find Log Server: {}, cannot load."
                                       .format(self.name))
@@ -163,12 +167,12 @@ class LogServer(object):
                 s.add_contact_address(contact)
         
         :param contact_address: ContactAddress element
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address,
                                          location=location)
-        return SMCElement(
+        return SMCRequest(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
     

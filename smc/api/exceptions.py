@@ -22,7 +22,7 @@ class SMCConnectionError(SMCException):
     due to wrong IP address, wrong port, or time out
     """
     pass
-    
+        
 class SMCOperationFailure(SMCException):
     """ Exception class for storing results from calls to the SMC
     This is thrown for HTTP methods that do not return the expected HTTP
@@ -39,48 +39,46 @@ class SMCOperationFailure(SMCException):
     :ivar status: status from SMC API
     :ivar message: message attribute from SMC API
     :ivar details: details list from SMC API (may not always exist)
-    :ivar smcresult: SMCResult object for consistent returns
+    :ivar smcresult: :py:class:`smc.api.web.SMCResult` object for consistent returns
     """
-    def __init__(self, response=None, msg=None):
+    def __init__(self, response=None):
         self.response = response
         self.code = None
-        self.status = None
-        self.details = None
-        self.message = None
-        self.smcresult = smc.api.web.SMCResult(msg=msg)
+        self.smcresult = smc.api.web.SMCResult()
         if response is not None:
-            self.parse_error()
+            self.format_ex()
     
-    def parse_error(self):
+    def format_ex(self):
+        details = None
         self.code = self.response.status_code
         if self.response.headers.get('content-type') == 'application/json':
             data = json.loads(self.response.text)
-            self.status = data.get('status', None)
-            self.message = data.get('message', None)
+            #status = data.get('status', None)
+            message = data.get('message', None)
             details = data.get('details', None)
-            if isinstance(details, list):
-                self.details = ' '.join(details)
-            else:
-                self.details = details
         else: #it's not json
             if self.response.text:
-                self.message = self.response.text
+                message = self.response.text
             else:
-                self.message = "HTTP error code: %s, no message" % self.code
-    
-        self.smcresult.msg = self.__str__()
+                message = "HTTP error code: %s, no message" % self.code
+
         self.smcresult.code = self.code
         
-    def __str__(self):
-        if self.message and self.details:
-            return "%s %s" % (self.message, ''.join(self.details))
-        elif self.details:
-            return ''.join(self.details)
+        if details:
+            details = ' '.join(details).encode('utf-8') \
+                if isinstance(details, list) else details.encode('utf-8')
+        if message:
+            message = message.encode('utf-8')
+    
+        if message and details:
+            self.smcresult.msg = '{} {}'.format(message, details)
+        elif details:
+            self.smcresult.msg = details
         else:
-            return self.message
-        
+            self.smcresult.msg = message
+
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, self.__dict__)
+        return 'SMCOperationFailure(response=%s)' % (self.response)
 
 class CertificateError(SMCException):
     """
@@ -116,6 +114,13 @@ class LoadPolicyFailed(SMCException):
     """
     pass
 
+class LoadElementFailed(SMCException):
+    """
+    Failure when attempting to obtain the settings for a specific
+    element. This is more generic for a broad class of elements.
+    """
+    pass
+
 class CreateElementFailed(SMCException):
     """
     Generic exception when there was a failure calling a 
@@ -131,6 +136,14 @@ class ElementNotFound(SMCException):
     """
     pass
 
+class MissingRequiredInput(SMCException):
+    """
+    Some functinos will flat out fail if certain fields are not provided.
+    This is to ensure that some functions have some protection in case the
+    user doesn't read the doc's.
+    """
+    pass
+    
 class UnsupportedEntryPoint(SMCException):
     """
     An entry point was specified that was not found in this API

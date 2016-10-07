@@ -9,3 +9,14 @@ Add VPNCertificate, Alias, Snapshot
 Exceptions around node and engine actions
 Moved engine/node/engines to smc.core.engine, smc.core.node, smc.core.engines
 Fix timeout on session constructor to backend requests
+
+$version 0.3.3
+Rewrote web api to simplify
+IPList implemented
+SMCRequest wrapper around CRUD operations
+Added unicode utf-8 decoding at the inbound SMC API border
+Factor out modify_attribute on specific classes and implement ModifiableMixin
+Change smc.actions.search.element_info_as_json to return list in case of multiple returns
+Node takes meta data
+Add permissions method on engine node for SMC API >= 6.1
+Doc fixes

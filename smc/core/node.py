@@ -14,11 +14,12 @@ For example, to load an engine and run node level commands::
         ...
 """
 import smc.actions.search as search
-from smc.elements.element import SMCElement
 from smc.elements.util import find_link_by_name, save_to_file
 from smc.api.exceptions import LicenseError, NodeCommandFailed
+from smc.api.common import SMCRequest
+from smc.elements.mixins import ModifiableMixin
 
-class Node(object):
+class Node(ModifiableMixin):
     """ 
     Node settings to make each engine node controllable individually.
     When Engine().load() is called, setattr will set all instance attributes
@@ -31,23 +32,34 @@ class Node(object):
     Instance attributes:
     
     :ivar name: name of node
-    :ivar engine_version: software version installed
     :ivar node_type: type of node, i.e. firewall_node, etc
     :ivar nodeid: node id, useful for commanding engines
     :ivar disabled: whether node is disabled or not
     :ivar href: href of this resource
     """
-    node_type = None
-    
-    def __init__(self, node_type, mydict):
-        Node.node_type = node_type
-        for k, v in mydict.iteritems():
-            setattr(self, k, v)
+    def __init__(self, meta=None, **kwargs):
+        self.meta = meta
+
+    @property
+    def name(self):
+        return self.meta.name
     
     @property
     def href(self):
-        return find_link_by_name('self', self.link)
+        return self.meta.href
     
+    @property
+    def node_type(self):
+        return self.meta.type
+    
+    @property
+    def nodeid(self):
+        return self.json.get('nodeid')
+
+    @property
+    def link(self):
+        return self.json.get('link')
+
     @classmethod
     def create(cls, name, node_type, nodeid=1):
         """
@@ -58,29 +70,15 @@ class Node(object):
         :param str node_type: based on engine type specified 
         :param int nodeid: used to identify which node 
         """  
-        node = Node(node_type,
-                        {'activate_test': True,
-                         'disabled': False,
-                         'loopback_node_dedicated_interface': [],
-                         'name': name + ' node '+str(nodeid),
-                         'nodeid': nodeid})
-        return({node_type: 
-                vars(node)}) 
+        node = { node_type: {
+                    'activate_test': True,
+                    'disabled': False,
+                    'loopback_node_dedicated_interface': [],
+                    'name': name + ' node '+str(nodeid),
+                    'nodeid': nodeid }
+                }
+        return node
 
-    def modify_attribute(self, **kwargs):
-        """ 
-        Modify attribute/value pair of base node
-        
-        :param kwargs: key=value
-        """
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
-            
-        latest = search.element_by_href_as_smcresult(self.href)
-        return SMCElement(
-                    href=self.href, json=vars(self),
-                    etag=latest.etag).update()
-    
     def fetch_license(self):
         """ 
         Fetch the node level license
@@ -88,7 +86,7 @@ class Node(object):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('fetch', self.link)).create()
         if result.msg:
             raise LicenseError(result.msg)
@@ -102,7 +100,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         params = {'license_item_id': license_item_id}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('bind', self.link), params=params).create()
         if result.msg:
             raise LicenseError(result.msg)
@@ -114,7 +112,7 @@ class Node(object):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError` 
         """
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('unbind', self.link)).create()
         if result.msg:
             raise LicenseError(result.msg)
@@ -126,7 +124,7 @@ class Node(object):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('cancel_unbind', self.link)).create()
         if result.msg:
             raise LicenseError(result.msg)
@@ -149,7 +147,7 @@ class Node(object):
         :return: str initial contact text information
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed` 
         """
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('initial_contact', self.link),
                     params={'enable_ssh': enable_ssh}).create()
       
@@ -203,7 +201,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('go_online', self.link),
                     params=params).update()
         if result.msg:
@@ -219,7 +217,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('go_offline', self.link),
                     params=params).update()
         if result.msg:
@@ -236,7 +234,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('go_standby', self.link),
                     params=params).update()
         if result.msg:
@@ -252,7 +250,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('lock_online', self.link),
                     params=params).update()
         if result.msg:
@@ -269,7 +267,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('lock_offline', self.link),
                     params=params).update()
         if result.msg:
@@ -286,7 +284,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('reset_user_db', self.link),
                     params=params).update()
         if result.msg:
@@ -295,22 +293,64 @@ class Node(object):
     def diagnostic(self, filter_enabled=False):
         """ 
         Provide a list of diagnostic options to enable
-        #TODO: implement filter_enabled
+        
+        Get all diagnostic/debug settings::
+            
+            engine = Engine('myfw').load()
+            for node in engine:
+                for diag in node.diagnostic():
+                    print diag
+                    
+        Add filter_enabled=True argument to see only enabled settings
         
         :method: GET
         :param boolean filter_enabled: returns all enabled diagnostics
         :return: list of dict items with diagnostic info; key 'diagnostics'
+        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        return search.element_by_href_as_json(
-                find_link_by_name('diagnostic', self.link))
-    
-    def send_diagnostic(self):
+        href = find_link_by_name('diagnostic', self.link)
+        params={'filter_enabled': filter_enabled}
+        result = search.element_by_href_as_smcresult(href, params)
+        if result.msg:
+            raise NodeCommandFailed(result.msg)
+        diagnostics=[]
+        for diagnostic in result.json.get('diagnostics'):
+            diagnostics.append(Diagnostic(**diagnostic))
+        return diagnostics
+
+    def send_diagnostic(self, diagnostic):
         """ 
-        Send the diagnostics to the specified node 
-        Send diagnostics in payload
-        """
-        raise NotImplementedError("Not yet implemented")
+        Enable or disable specific diagnostics on the node.
+        Diagnostics enable additional debugging into the audit files. This is
+        a dynamic setting that does not require a policy push once a setting 
+        is enabled or disabled.
         
+        Enable specific debug settings and apply to node::
+        
+            for node in engine.nodes:
+                debug=[]
+                for diag in node.diagnostic():
+                    if diag.name == 'Protocol Agent':
+                        diag.enable()
+                        debug.append(diag)
+                    elif diag.name == 'Packet filter':
+                        diag.enable()
+                        debug.append(diag)
+            node.send_diagnostic(debug)
+        
+        :param list diagnostic: :py:class:`smc.core.node.Diagnostic` object
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
+        """
+        debug=[]
+        for setting in diagnostic:
+            debug.append(vars(setting))
+        result = SMCRequest(
+                    href=find_link_by_name('send_diagnostic', self.link),
+                    json={'diagnostics': debug}).create()
+        if result.msg:
+            raise NodeCommandFailed(result.msg)
+
     def reboot(self, comment=None):
         """ 
         Send reboot command to this node.
@@ -321,7 +361,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('reboot', self.link),
                     params=params).update()
         if result.msg:
@@ -339,11 +379,8 @@ class Node(object):
         """
         params = {'include_core_files': include_core_files,
                   'include_slapcat_output': include_slapcat_output}
-        from smc.api.common import fetch_content_as_file  
-        result = fetch_content_as_file(
-                                    find_link_by_name('sginfo', self.link),
-                                    filename=filename)
-        print result
+        result = SMCRequest(href=find_link_by_name('sginfo', self.link),
+                            filename=filename).read()
    
     def ssh(self, enable=True, comment=None):
         """ 
@@ -356,7 +393,7 @@ class Node(object):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'enable': enable, 'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('ssh', self.link),
                     params=params).update()
         if result.msg:
@@ -374,7 +411,7 @@ class Node(object):
         """
         json = {'value': pwd}
         params = {'comment': comment}
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('change_ssh_pwd', self.link),
                     params=params, json=json).update()
         if result.msg:
@@ -388,7 +425,7 @@ class Node(object):
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        result = SMCElement(
+        result = SMCRequest(
                     href=find_link_by_name('time_sync', self.link)).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
@@ -402,10 +439,17 @@ class Node(object):
         return search.element_by_href_as_json(
                 find_link_by_name('certificate_info', self.link))
     
+    def __getattr__(self, attr):
+        if attr == 'json':
+            setattr(self, 'json', \
+                        search.element_by_href_as_json(self.href))
+            return self.json
+        raise AttributeError('Unsupported node command: {}'
+                             .format(attr))
+
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={},node_type={},'
-                           'node_id={}'
-                           .format(self.name,self.node_type,self.nodeid))
+        return "%s(%r)" % (self.__class__.__name__, 'name={},node_type={}'
+                           .format(self.name,self.node_type))
 
 class NodeStatus(object):
     """
@@ -476,3 +520,40 @@ class ApplianceStatus(object):
     @property
     def hardware_statuses(self):
         return self._hardware_statuses.get('hardware_statuses')
+    
+class Diagnostic(object):
+    """
+    Diagnostic (debug) setting that can be enabled or disabled on the
+    node. To retrieve the diagnostic options, get the engine context and
+    iterate the available nodes::
+    
+        for node in engine.nodes:
+            for diagnostic in node.diagnostics():
+                print diagnostic
+    
+    This class is not called directly.
+    :ivar str name: name of diagnostic
+    :ivar boolean state: enabled or disabled
+    
+    :param diagnostic: diagnostic, called from node.diagnostic()
+    """
+    def __init__(self, diagnostic):
+        self.diagnostic = diagnostic
+    
+    def enable(self):
+        self.diagnostic['enabled'] = True
+        
+    def disable(self):
+        self.diagnostic['enabled'] = False
+    
+    @property
+    def name(self):
+        return self.diagnostic.get('name')
+
+    @property
+    def state(self):
+        return self.diagnostic.get('enabled')
+
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__.__name__, 'name={},enabled={}'
+                           .format(self.name, self.state))

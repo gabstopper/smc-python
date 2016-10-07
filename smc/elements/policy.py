@@ -40,10 +40,12 @@ Example rule deletion::
 from abc import ABCMeta, abstractmethod
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.api.exceptions import SMCException, CreatePolicyFailed, TaskRunFailed
-from smc.elements.element import SMCElement, Meta
+from smc.api.exceptions import SMCException, CreatePolicyFailed, TaskRunFailed,\
+    LoadPolicyFailed
+from smc.elements.element import Meta
 from smc.elements.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule
 from smc.actions.tasks import task_handler, Task
+from smc.api.common import SMCRequest
 
 class Policy(object):
     """ 
@@ -70,12 +72,18 @@ class Policy(object):
         :return: self
         """
         base_policy = search.element_info_as_json(self.name)
-        if base_policy:
-            self.json = search.element_by_href_as_json(base_policy.get('href'))
+        if base_policy and len(base_policy) == 1:
+            self.json = search.element_by_href_as_json(base_policy[0].get('href'))
             return self
         else:
-            raise SMCException("Policy does not exist: %s" % self.name)
-        return self            
+            if base_policy:
+                names = [name.get('name') for name in base_policy 
+                         if name.get('name')]
+            else:
+                names = []
+            raise LoadPolicyFailed('Could not load policy: {}. Please ensure the '
+                                   'name is correct. Search returned: {}'
+                                   .format(self.name, names))         
 
     @abstractmethod
     def create(self):
@@ -113,7 +121,7 @@ class Policy(object):
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
         """
-        element = SMCElement(
+        element = SMCRequest(
                     href=find_link_by_name('upload', self.link),
                     params={'filter': device}).create()
         if not element.json:
@@ -129,27 +137,27 @@ class Policy(object):
         generally can be done without locking via open.
         
         :method: GET
-        :return: SMCResult, href set to location if success, msg attr set if fail
+        :return: :py:class:`smc.api.web.SMCResult`
         """
-        return SMCElement(
+        return SMCRequest(
                 href=find_link_by_name('open', self.link)).create()
     
     def save(self):
         """ Save policy that was modified 
         
         :method: POST
-        :return: SMCResult, href set to location if success, msg attr set if fail
+        :return: :py:class:`smc.api.web.SMCResult`
         """
-        return SMCElement(
+        return SMCRequest(
                 href=find_link_by_name('save', self.link)).create()
         
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
         
         :method: POST
-        :return: SMCResult, success unless msg attr set
+        :return: :py:class:`smc.api.web.SMCResult`
         """
-        return SMCElement(
+        return SMCRequest(
                 href=find_link_by_name('force_unlock', self.link)).create()
 
     def export(self, filename='policy_export.zip',wait_for_finish=True):
@@ -162,7 +170,7 @@ class Policy(object):
                  set upon failure
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
-        element = SMCElement(
+        element = SMCRequest(
                     href=find_link_by_name('export', self.link)).create()
         
         task = task_handler(Task(**element.json), 
@@ -239,7 +247,7 @@ class FirewallPolicy(Policy):
         :mathod: POST
         :param str name: name of policy
         :param str template: href of the FW template to base policy on
-        :return: SMCResult with href attribute set with location of new policy
+        :return: :py:class:`smc.api.web.SMCResult`
         
         To use after successful creation, call::
         
@@ -249,7 +257,7 @@ class FirewallPolicy(Policy):
                   'template': template}
         policy_href = search.element_entry_point(cls.typeof)
         
-        result = SMCElement(href=policy_href, json=policy).create()
+        result = SMCRequest(href=policy_href, json=policy).create()
         if result.href:
             return FirewallPolicy(name).load()
         else:

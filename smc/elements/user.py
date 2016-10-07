@@ -5,10 +5,9 @@ You can create an Admin User, enable superuser, enable/disable the account,
 assign local access to engines, and change the account password for SMC or
 engine access.
 """
-import smc.api.common as common_api
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.api.exceptions import ElementNotFound, TaskRunFailed
+from smc.api.exceptions import ElementNotFound
 from smc.elements.element import SMCElement, Meta
 from smc.actions.tasks import task_handler, Task
 
@@ -60,9 +59,10 @@ class AdminUser(SMCElement):
         Load Admin by name
         """
         if not self.meta:
-            result = search.element_info_as_json_with_filter(self.name, self.typeof)
-            if result:
-                self.meta = Meta(**result)
+            result = search.element_info_as_json_with_filter(
+                                                        self.name, self.typeof)
+            if result and len(result) == 1:
+                self.meta = Meta(**result[0])
             else:
                 raise ElementNotFound("Admin name: {} is not found, cannot modify."
                                       .format(self.name))
@@ -79,7 +79,7 @@ class AdminUser(SMCElement):
         
         :method: PUT
         :param str password: new password
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         self.href = find_link_by_name('change_password', self.link)
         self.params = {'password': password}
@@ -91,7 +91,7 @@ class AdminUser(SMCElement):
         
         :method: PUT
         :param str password: password for engine level
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         self.href = find_link_by_name('change_engine_password', self.link)
         self.params = {'password': password}
@@ -101,7 +101,7 @@ class AdminUser(SMCElement):
         """ Toggle enable and disable of administrator account
         
         :method: PUT
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         self.href = find_link_by_name('enable_disable', self.link)
         return self.update()
@@ -111,7 +111,7 @@ class AdminUser(SMCElement):
         
         :method: POST
         :param str filename: Name of file to export to
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
         self.href = find_link_by_name('export', self.link)

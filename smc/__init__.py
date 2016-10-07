@@ -1,9 +1,8 @@
 import logging
-
 from smc.api.session import Session
 
 __author__ = 'David LePage'
-__version__ = '0.3.2'
+__version__ = '0.3.3'
 
 # Default SMC Session
 session = Session()
@@ -33,4 +32,5 @@ except ImportError:
             pass
 
 logging.getLogger('smc').addHandler(NullHandler())
+
 

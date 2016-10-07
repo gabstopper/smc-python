@@ -20,7 +20,7 @@ Get element reference::
     
 All elements by type::
     
-    smc.actions.search.element_by_type('host')
+    smc.actions.search.all_elements_by_type('host')
 """
 import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
@@ -74,35 +74,31 @@ def element_as_json_with_filter(name, _filter):
             return element_by_href_as_json(element_href)
             
 def element_as_json_with_etag(name):
-    """ Convenience method to return SMCElement that
+    """ Convenience method to return SMCResult that
     holds href, etag and json in result object
     
     :param name: name of element
-    :return: SMCResult, else None
+    :return: :py:class:`smc.api.web.SMCResult`, else None
     """
     return element_as_smcresult(name)
        
 def element_info_as_json(name):
-    """ Get specified element full json based on search query
+    """ 
+    Get specified element META data based on search query
     This is the base level search that returns basic object info
-    including the href to find the full data
+    with the following attributes:
     
-    #TODO: This can be problematic - if an engine name has a similar name
-    to an object, i.e. engine name is 'mcafee' and a host object is 'mcafee2',
-    and the user doesn't get the engine name correct, or uses a wildcard for the
-    name (i.e. mcafee*), it's possible this may return multiple results as the 
-    query does not use a type filter. This will then pop only one value off of the list 
-    which might be the wrong value type. Created element_meta_as_json 
-    function as an alternative. Having a filter context for engine types would be useful
+    * href: link to element
+    * name: name of element
+    * type: type of element
     
     :param str name: name of element
-    :param list filter_lst: list to filter from in the event of multiple results
-    :return: json representation of top level element (multiple attributes), else None
+    :return: list dict with meta (href, name, type) if found, otherwise None
     """   
     if name:
         element = fetch_href_by_name(name)
         if element.json:
-            return element.json.pop()
+            return element.json
             
 def element_info_as_json_with_filter(name, _filter):
     """
@@ -110,13 +106,13 @@ def element_info_as_json_with_filter(name, _filter):
     
     :param str name: name of element
     :param str _filter: filter of entry point
-    :return: dict if found, otherwise None
+    :return: list dict with metadata, otherwise None
     """
     if name and _filter:
         element = fetch_href_by_name(name, filter_context=_filter)
         if element.json:
-            return element.json.pop()
-       
+            return element.json
+            
 def element_href_use_wildcard(name):
     """ Get element href using a wildcard rather than matching only on the name field
     This will likely return multiple results
@@ -142,37 +138,39 @@ def element_href_use_filter(name, _filter):
         if element.json:
             return element.json.pop().get('href')
 
-def element_by_href_as_json(href):
+def element_by_href_as_json(href, params=None):
     """ Get specified element by href
       
     :param href: link to object
+    :param params: optional search query parameters
     :return: json data representing element, else None
     """   
     if href:
-        element = fetch_json_by_href(href)
+        element = fetch_json_by_href(href, params=params)
         if element:
             return element.json
 
-def element_by_href_as_smcresult(href):
-    """ Get specified element returned as an SMCElement object
+def element_by_href_as_smcresult(href, params=None):
+    """ Get specified element returned as an SMCResult object
      
     :param href: href direct link to object
-    :return: SMCElement with etag, href and element field holding json, else None
+    :return: :py:class:`smc.api.web.SMCResult` with etag, href and 
+             element field holding json, else None
     """   
     if href:
-        element = fetch_json_by_href(href)
+        element = fetch_json_by_href(href, params=params)
         if element:
             return element
            
 def element_as_smcresult(name):   
-    """ Get specified element returned as an SMCElement object
+    """ Get specified element returned as an SMCResult object
     
     :param name: name of object
-    :return: SMCResult, else None
+    :return: :py:class:`smc.api.web.SMCResult`, else None
     """
     if name:
         element = fetch_json_by_name(name)
-        if element.json:
+        if element:
             return element
 
 def element_as_smcresult_use_filter(name, _filter):
@@ -181,12 +179,14 @@ def element_as_smcresult_use_filter(name, _filter):
     
     :param name: name of element to find
     :param _filter: filter to use, i.e. tcp_service, host, etc
-    :return: SMCResult
+    :return: :py:class:`smc.api.web.SMCResult`
     """
     if name:
-        element_href = element_href_use_filter(name, _filter)
-        if element_href:
-            return element_by_href_as_smcresult(element_href)
+        element = fetch_href_by_name(name, filter_context=_filter)
+        if element.msg:
+            return element
+        if element.json:
+            return element_by_href_as_smcresult(element.json.pop().get('href'))
 
 def element_href_by_batch(list_to_find, _filter=None):
     """ Find batch of entries by name. Reduces number of find calls from
@@ -203,7 +203,7 @@ def element_href_by_batch(list_to_find, _filter=None):
         else:
             return [{k:element_href(k) for k in list_to_find}] 
     except TypeError:
-        logger.error(list_to_find, 'is not iterable')
+        logger.error("%s is not iterable" % list_to_find)
             
 def all_elements_by_type(name):
     """ Get specified elements based on the entry point verb from SMC api
@@ -253,7 +253,9 @@ def search_unused():
     return element_by_href_as_json(fetch_entry_point('search_unused'))
 
 def search_duplicate():
-    """ Search all duplicate elements 
+    """ Search for duplicate IP address elements.
+    It is also possible to filter the search by name, comment, or IP address
+     
     :return: list of dict items holding href,type and name
     """
     return element_by_href_as_json(fetch_entry_point('search_duplicate'))

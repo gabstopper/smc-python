@@ -3,7 +3,6 @@ Session management for SMC client connections
 When a session is first set up using login(), this persists for the duration 
 of the python run. Run logout() after to remove the session from the SMC server.
 """
-
 import os.path
 import requests
 import json
@@ -11,13 +10,6 @@ import logging
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
 logger = logging.getLogger(__name__)
-
-def counted(f):
-    def wrapped(*args, **kwargs):
-        wrapped.calls += 1
-        return f(*args, **kwargs)
-    wrapped.calls = 0
-    return wrapped
 
 class SMCAPIConnection(object):
     """
@@ -34,159 +26,132 @@ class SMCAPIConnection(object):
     def session(self):
         return self._session.session
 
-    @counted
-    def http_get(self, href, params=None, stream=False, filename=None):
+    def send_request(self, method, request):
         """
-        Get data object from SMC
-        If response code is success, results are returned with etag
-        :param href: fully qualified href for resource
-        :param params: uri parameters
-        :param stream: used for file download
-        :type stream: boolean
-        :param filename: name of file to save content to
-        :return SMCResult object with json data and etag attrs
-        :raise SMCOperationFailure if non-http 200 response received
+        Send request to SMC
         """
-        try:
-            if self.session:
-                if filename and stream == True: #TODO: this is a temp hack
-                    r = self.session.get(href, params=params, 
-                                         stream=True)
-                    if r.status_code == 200:
-                        logger.debug("Headers returned: {}".format(r.headers))
-                        logger.debug("Streaming to file... Content length: {}"
-                                     .format(len(r.content)))
-                        try:
-                            path = os.path.abspath(filename)
-                            logger.debug("Operation: {}, saving to file: {}"
-                                         .format(href, path))
-                            with open(path, "wb") as handle:
-                                for data in r.iter_content():
-                                    handle.write(data)
-                        except IOError:
-                            raise
-                    result = SMCResult(r)
-                    result.content = path
-                    return result
-                r = self.session.get(href, params=params, timeout=self.timeout)               
-                if r.status_code == 200:
-                    logger.debug("HTTP get result: %s", r.text)
-                    return SMCResult(r)
-                elif r.status_code == 401:
-                    self._session.refresh() #session timed out
-                    return self.http_get(href)
-                else:
-                    logger.error("HTTP get returned non-http 200 code [%s] "
-                                 "for href: %s", r.status_code, href)
-                    raise SMCOperationFailure(r)
-            else:
-                raise SMCConnectionError("No session found. Please login to continue")
+        if self.session:
+            try:
+                if method == 'GET':
+                    if request.filename: #File download request
+                        return self.file_download(request)
+                    logger.debug("Sending headers: {}".format(request.headers))
+                    response = self.session.get(request.href, 
+                                                params=request.params,
+                                                headers=request.headers, 
+                                                timeout=self.timeout)
+                    response.encoding = 'utf-8'
 
-        except requests.exceptions.RequestException as e:
-            raise SMCConnectionError("Connection problem to SMC, ensure the "
-                            "API service is running and host is correct: %s, "
-                            "exiting." % e)
+                    if response.status_code != 200:
+                        logger.error("HTTP get returned non-http 200 code [{}] "
+                                     "for href: {}".format(response.status_code, 
+                                                           request.href))
+                        raise SMCOperationFailure(response)
+                    try:
+                        logger.debug(u"Get returned: {}".format(response.text))
+                    except UnicodeEncodeError:
+                        pass
+                        
+                elif method == 'POST':
+                    if request.files: #File upload request
+                        return self.file_upload(request)
+                    response = self.session.post(request.href,
+                                                 data=json.dumps(request.json),
+                                                 headers=request.headers,
+                                                 params=request.params,
+                                                )
+                    response.encoding = 'utf-8'
 
-    def http_post(self, href, data, params=None):
-        """
-        Add object to SMC
-        If response code is success, return href to new object location
-        If not success, raise exception, caught in middle tier calling method
-        
-        :param href: entry point to add specific object type
-        :param data: json document with object def
-        :param uri (optional): not implemented
-        :return SMCResult
-        :raise SMCOperationFailure in case of non-http 201 return
-        """
-        try:
-            logger.debug('POST request with href: {}, params: {}, data:{}'.format(\
-                                            href, params, data))
-            if self.session:
-                r = self.session.post(href,
-                            data=json.dumps(data),
-                            headers={'content-type': 'application/json'},
-                            params=params
-                            )
-                if r.status_code == 200 or r.status_code == 201:
-                    logger.debug("Success, returning link for new element: %s", \
-                                 r.headers.get('location'))
-                    return SMCResult(r)
-                elif r.status_code == 202:
-                    #in progress
-                    logger.debug("Asynchronous response received, monitor progress at link: %s", r.content)
-                    return SMCResult(r)
-                elif r.status_code == 401:
-                    self._session.refresh()
-                    return self.http_post(href, data)
-                else:
-                    raise SMCOperationFailure(r)
+                    if response.status_code == 200 or response.status_code == 201:
+                        logger.debug("Success, returning link for new element: {}"
+                                     .format(response.headers.get('location')))
+                    elif response.status_code == 202:
+                        #asynchronous
+                        logger.debug("Asynchronous response received, monitor progress at link: {}"
+                                     .format(response.content))
+                    else:
+                        raise SMCOperationFailure(response)
+                    
+                elif method == 'PUT':
+                    #Etag should be set in request object
+                    request.headers.update(Etag=request.etag)
+
+                    response = self.session.put(request.href,
+                                                data=json.dumps(request.json),
+                                                params=request.params,
+                                                headers=request.headers
+                                                )
+                    if response.status_code != 200:
+                        raise SMCOperationFailure(response)
+                    
+                    logger.debug("Successful modification, headers returned: {}"
+                                 .format(response.headers))
+                
+                elif method == 'DELETE':
+                    response = self.session.delete(request.href)
+                    response.encoding = 'utf-8'
+                    if response.status_code != 204:
+                        raise SMCOperationFailure(response)
+                    
+                    logger.debug("Delete returned: {}".format(response.headers))
+                
+            except SMCOperationFailure:
+                raise        
+            except requests.exceptions.RequestException as e:
+                raise SMCConnectionError(
+                                "Connection problem to SMC, ensure the "
+                                "API service is running and host is correct: %s, "
+                                "exiting." % e)
             else:
-                raise SMCConnectionError("No session found. Please login to continue")
+                return SMCResult(response)
+        else:
+            raise SMCConnectionError("No session found. Please login to continue")
             
-        except requests.exceptions.RequestException as e:
-            raise SMCConnectionError("Connection problem to SMC, ensure the "
-                                     "API service is running and host is "
-                                     "correct: %s, exiting." % e)
-
-    def http_put(self, href, data, etag, params=None):
+    
+    def file_download(self, request):
         """
-        Change state of existing SMC object
-        :param href: href of resource location
-        :param data: json encoded document
-        :param etag: required by SMC, retrieve first via http get
-        :return SMCResult
-        :raise SMCOperationFailure in case of non-http 200 return
+        Called when GET request specifies a filename to retrieve.
         """
-        try:
-            if self.session:
-                r = self.session.put(href,
-                    data = json.dumps(data),
-                    params = params,
-                    headers={'content-type': 'application/json', 'Etag': etag}
-                    )
-                if r.status_code == 200:
-                    logger.debug("Successful modification, headers returned: %s", \
-                                  r.headers)
-                    return SMCResult(r)
-                elif r.status_code == 401:
-                    self._session.refresh()
-                    return self.http_put(href, data, etag)
-                else:
-                    raise SMCOperationFailure(r)
-            else:
-                raise SMCConnectionError("No session found. Please login to continue")
+        logger.debug(vars(request))
+        response = self.session.get(request.href, params=request.params, 
+                                    headers=request.headers, stream=True)
 
-        except requests.exceptions.RequestException as e:
-            raise SMCConnectionError("Connection problem to SMC, ensure the "
-                                     "API service is running and host is "
-                                     "correct: %s, exiting." % e)
-
-    def http_delete(self, href):
+        if response.status_code == 200:
+            logger.debug("Streaming to file... Content length: {}"
+                         .format(len(response.content)))
+            try:
+                path = os.path.abspath(request.filename)
+                logger.debug("Operation: {}, saving to file: {}"
+                             .format(request.href, path))
+                with open(path, "wb") as handle:
+                    for data in response.iter_content():
+                        handle.write(data)
+            except IOError, e:
+                raise IOError('Error attempting to save to file: {}'.format(e))
+            result = SMCResult(response)
+            result.content = path
+            return result
+        else:
+            raise SMCOperationFailure(response)
+    
+    def file_upload(self, request):
+        """ 
+        Perform a file upload POST to SMC. Request should have the 
+        files attribute set which will be an open handle to the
+        file that will be binary transfer.
         """
-        Delete element by fully qualified href
-        :param href: fully qualified reference to object in SMC
-        :return SMCResult: All result SMCResult fields will be None
-        :raise SMCOperationFailure for non-http 204 code, msg attribute will have error
-        """
-        try:
-            if self.session:
-                r = self.session.delete(href)
-                if r.status_code == 204:
-                    return SMCResult(r)
-                elif r.status_code == 401:
-                    self._session.refresh()
-                    return self.http_delete(href)
-                else:
-                    raise SMCOperationFailure(r)
-            else:
-                raise SMCConnectionError("No session found. Please login to continue")
-
-        except requests.exceptions.RequestException as e:
-            raise SMCConnectionError("Connection problem to SMC, ensure the "
-                                     "API service is running and host is "
-                                     "correct: %s, exiting." % e)
-      
+        logger.debug(vars(request))
+        response = self.session.post(request.href,
+                                     params=request.params,
+                                     files=request.files
+                                    )
+        if response.status_code == 202:
+            logger.debug('Success sending file in elapsed time: {}'
+                         .format(response.elapsed))
+            return SMCResult(response)
+        
+        raise SMCOperationFailure(response)
+    
 class SMCResult(object):
     """
     SMCResult will store the return data for operations performed against the
@@ -206,7 +171,7 @@ class SMCResult(object):
         self.etag = None
         self.href = None
         self.content = None
-        self.msg = msg
+        self.msg = msg #Only set in case of error
         self.code = None
         self.json = self.extract(respobj) # list or dict
 
@@ -224,15 +189,33 @@ class SMCResult(object):
                         self.json = result
                 else:
                     self.json = []
+                #Return can be either a dict or a list depending on
+                #what the query was to SMC. If the request specified a HREF,
+                #SMC API will return a dict. If it is a general search a list
+                #is returned. Before returing encode with utf-8 the unicode 
+                #strings but ignore nested values in dictionaries
+                #for now.
+                
+                if isinstance(self.json, dict):
+                    for k, v in self.json.items():
+                        if isinstance(v, unicode):
+                            self.json[k] = v.encode('utf-8')
+                elif isinstance(self.json, list):
+                    for entry in self.json:
+                        if isinstance(entry, dict):
+                            for k, v in entry.items():
+                                if isinstance(v, unicode):
+                                    entry[k] = v.encode('utf-8')
+                
                 return self.json
             elif response.headers.get('content-type') == 'application/octet-stream':
                 self.content = response.text
-            
+            elif response.headers.get('content-type') == 'text/plain':
+                self.content = response.text
+
     def __str__(self):
-        sb = []
+        sb=[]
         for key in self.__dict__:
+            #print "key: {}, value: {}".format(key, self.__dict__[key])
             sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
         return ', '.join(sb)
-                
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.__dict__)

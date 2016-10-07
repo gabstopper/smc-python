@@ -1,7 +1,8 @@
 from copy import copy
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name, lazy_loader
-from smc.elements.element import SMCElement, Meta
+from smc.elements.element import Meta
+from smc.api.common import SMCRequest
 
 class NodeInterface(object):
     """
@@ -435,7 +436,7 @@ class PhysicalInterface(object):
         to fully add an interface configuration based on engine type
         
         :param int interface_id: interface id
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         self.data.update(interface_id=interface_id)
         return self._update()
@@ -450,7 +451,7 @@ class PhysicalInterface(object):
         :param str network_value: network cidr
         :param str zone_ref: zone reference
         :param boolean is_mgmt: should management be enabled
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`SingleNodeInterface` for more information
         """
@@ -474,7 +475,7 @@ class PhysicalInterface(object):
         :param str zone_ref: zone reference
         :param int nodeid: node identifier, used for cluster nodes
         :param boolean is_mgmt: enable management
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`NodeInterface` for more information 
         """
@@ -495,7 +496,7 @@ class PhysicalInterface(object):
         :param int interface_id: interface identifier
         :param str logical_interface_ref: logical interface reference
         :param str zone_ref: zone reference
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`CaptureInterface` for more information 
         """
@@ -515,7 +516,7 @@ class PhysicalInterface(object):
         :param str logical_interface_ref: logical interface reference
         :param zone_ref_intf1: zone for inline interface 1
         :param zone_ref_intf2: zone for inline interface 2
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`InlineInterface` for more information  
         """
@@ -537,7 +538,7 @@ class PhysicalInterface(object):
         :param boolean primary_mgt: whether to make this primary mgt
         :param str zone_ref: zone reference for interface
         :param int nodeid: node identifier
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`DHCPInterface` for more information 
         """ 
@@ -567,7 +568,7 @@ class PhysicalInterface(object):
         :param list nodes: list of dictionary items identifying cluster nodes
         :param str zone_ref: if present, is promoted to top level physical interface
         :param boolean is_mgmt: default False, should this be management enabled
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         Adding a cluster virtual to an existing engine would look like::
         
@@ -616,7 +617,7 @@ class PhysicalInterface(object):
         :param str network_value: network cidr
         :param int vlan_id: vlan identifier 
         :param str zone_ref: zone reference
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`SingleNodeInterface` for more information 
         """
@@ -637,7 +638,7 @@ class PhysicalInterface(object):
         :param int vlan_id: vlan identifier
         :param int virtual_mapping: virtual engine mapping id
         :param str virtual_resource_name: name of virtual resource
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`NodeInterface` for more information 
         """
@@ -661,7 +662,7 @@ class PhysicalInterface(object):
         :param str logical_interface_ref: logical interface reference to use
         :param str zone_ref_intf1: zone for inline interface 1
         :param str zone_ref_intf2: zone for inline interface 2
-        :return: SMCResult
+        :return: :py:class:`smc.api.web.SMCResult`
         
         See :py:class:`InlineInterface` for more information 
         """     
@@ -711,8 +712,8 @@ class PhysicalInterface(object):
                                     vars(contact_address).get('contact_addresses')[0])
         else:
             existing = vars(contact_address)
-    
-        return SMCElement(href=href, json=existing, 
+
+        return SMCRequest(href=href, json=existing, 
                           etag=engine_etag).update()
     
     @lazy_loader
@@ -817,7 +818,7 @@ class PhysicalInterface(object):
         """
         if self.href:
             #called from within engine context
-            return SMCElement(href=self.href, json=self.data).create()
+            return SMCRequest(href=self.href, json=self.data).create()
         #else don't add, just update data attribute
     
     #def __getattr__(self, value):
@@ -874,8 +875,7 @@ class Interface(object):
             return self.meta.name
         
     def delete(self):
-        import smc.api.common
-        return smc.api.common.delete(self.href)
+        return SMCRequest(href=self.href).delete()
     
     def all(self):
         """

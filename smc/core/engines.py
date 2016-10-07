@@ -1,9 +1,8 @@
 import smc.actions.search as search
 from smc.core.interfaces import PhysicalInterface, VirtualPhysicalInterface
 from smc.core.engine import Engine
-from smc.elements.element import SMCElement
 from smc.api.exceptions import CreateEngineFailed
-from smc.core.node import Node
+from smc.api.common import SMCRequest
 
 class Layer3Firewall(object):
     """
@@ -68,12 +67,13 @@ class Layer3Firewall(object):
                                location_ref=location_ref)
 
         href = search.element_entry_point('single_fw')
-        result = SMCElement(href=href, json=engine).create()
+        result = SMCRequest(href=href, json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'.format(result.msg))
+                                     'reason: {}'
+                                     .format(result.msg))
 
 class Layer2Firewall(object):
     """
@@ -132,13 +132,14 @@ class Layer2Firewall(object):
                                enable_antivirus=enable_antivirus)
        
         href = search.element_entry_point('single_layer2')
-        result = SMCElement(href=href, 
+        result = SMCRequest(href=href, 
                             json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'.format(result.msg))   
+                                     'reason: {}'
+                                     .format(result.msg))   
 
 class IPS(object):
     """
@@ -197,13 +198,14 @@ class IPS(object):
                                enable_antivirus=enable_antivirus)
         
         href = search.element_entry_point('single_ips')
-        result = SMCElement(href=href, 
+        result = SMCRequest(href=href, 
                             json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'.format(result.msg))
+                                     'reason: {}'
+                                     .format(result.msg))
         
 class Layer3VirtualEngine(object):
     """ 
@@ -214,18 +216,17 @@ class Layer3VirtualEngine(object):
     To instantiate and create, call 'create' as follows::
     
         engine = Layer3VirtualEngine.create(
-                                'myips', 
-                                'mymaster_engine, 
+                                name='myips', 
+                                master_engine='mymaster_engine', 
                                 virtual_engine='ve-3',
-                                interfaces=[{'address': '5.5.5.5', 
-                                         'network_value': '5.5.5.5/30', 
-                                         'interface_id': 0, 
-                                         'zone_ref': ''}]
+                                interfaces=[{'interface_id': 0,
+                                             'address': '5.5.5.5', 
+                                             'network_value': '5.5.5.5/30',  
+                                             'zone_ref': ''}]
     """
     node_type = 'virtual_fw_node'
     
     def __init__(self, name):
-        Node.__init__(self, name)
         pass
 
     @classmethod
@@ -280,12 +281,13 @@ class Layer3VirtualEngine(object):
         
         
         href = search.element_entry_point('virtual_fw')
-        result = SMCElement(href=href, json=engine).create()
+        result = SMCRequest(href=href, json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the virtual engine, '
-                                     'reason: {}'.format(result.msg))
+                                     'reason: {}'
+                                     .format(result.msg))
             
 class FirewallCluster(object):
     """ 
@@ -359,13 +361,14 @@ class FirewallCluster(object):
                                default_nat=default_nat)
 
         href = search.element_entry_point('fw_cluster')
-        result = SMCElement(href=href,
+        result = SMCRequest(href=href,
                             json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the firewall, '
-                                     'reason: {}'.format(result.msg))
+                                     'reason: {}'
+                                     .format(result.msg))
         
 class MasterEngine(object):
     """
@@ -414,13 +417,14 @@ class MasterEngine(object):
         engine.setdefault('cluster_mode', 'balancing')
 
         href = search.element_entry_point('master_engine')
-        result = SMCElement(href=href, 
+        result = SMCRequest(href=href, 
                             json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'.format(result.msg))
+                                     'reason: {}'
+                                     .format(result.msg))
 
 '''
 class AWSLayer3Firewall(object):
@@ -499,7 +503,7 @@ class AWSLayer3Firewall(object):
             engine.setdefault('default_nat', True)
        
         href = search.element_entry_point('single_fw')
-        result = SMCElement(href=href, 
+        result = SMCRequest(href=href, 
                             json=engine).create()
         if result.href:
             return Engine(name).load()

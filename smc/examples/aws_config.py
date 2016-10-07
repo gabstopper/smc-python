@@ -43,6 +43,7 @@ http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Scenario2.html
 Requirements:
 * smc-python
 * boto3
+* ipaddress
 * pyyaml
 
 Install smc-python::
@@ -53,6 +54,7 @@ Install boto3 and pyyaml via pip::
 
     pip install boto3
     pip install pyyaml
+    pip install ipaddress
 '''
 import sys
 import time
@@ -63,15 +65,13 @@ import boto3
 import botocore
 from smc import session
 from smc.core.engines import Layer3Firewall
-from smc.elements import collection
 from smc.api.exceptions import CreateEngineFailed, TaskRunFailed, LicenseError,\
     NodeCommandFailed
 from smc.elements.helpers import location_helper
 from smc.elements.other import ContactAddress
 from smc.actions.tasks import TaskMonitor
-#from smc import set_stream_logger
-#set_stream_logger()
-            
+from smc.elements.vpn import VPNPolicy
+
 class VpcConfiguration(object):
     """ 
     VpcConfiguration models the data to correlate certain aspects of an 
@@ -452,15 +452,22 @@ class NGFWConfiguration(object):
                 engine.physical_interface.add_single_node_interface(interface_id, 
                                                                     address, 
                                                                     network_value)
+        logger.info("Created NGFW...")
+        
         self.engine = engine.reload()
         #Enable VPN on external interface if policy provided
         if self.vpn_policy:
             for intf in engine.internal_gateway.internal_endpoint.all():
                 if intf.name == mgmt_ip:
                     intf.modify_attribute(enabled=True)
-            self.associate_vpn_policy()
-
-        logger.info("Created NGFW...")
+            success = VPNPolicy.add_internal_gateway_to_vpn(
+                                                    engine.internal_gateway.href, 
+                                                    self.vpn_policy, 
+                                                    self.vpn_role)
+            if not success:
+                logger.error("VPN policy: {} specified was not successfully bound. "
+                             "This may require manual intervention to push policy from "
+                             "the SMC to enable VPN.".format(self.vpn_policy))
         return self
 
     def queue_policy(self):
@@ -510,35 +517,6 @@ class NGFWConfiguration(object):
                              .format(e))
             return userdata
    
-    def associate_vpn_policy(self):
-        """
-        Associate this engine with an existing VPN Policy
-        First create the proper VPN Policy within the SMC. This will add the AWS NGFW as
-        a gateway node.
-        
-        :param str vpn_policy_name: name of existing VPN Policy
-        :param str gateway: central|satellite
-        :return: None
-        """
-        success=False
-        if self.vpn_policy: 
-            for policy in collection.describe_vpn_policies():
-                if policy.name.startswith(self.vpn_policy):
-                    vpn = policy.load()
-                    vpn.open()
-                    if self.vpn_role == 'central':
-                        vpn.add_central_gateway(self.engine.internal_gateway.href)
-                    else:
-                        vpn.add_satellite_gateway(self.engine.internal_gateway.href)
-                    vpn.save()
-                    vpn.close()
-                    success=True
-                    break
-        if not success:
-            logger.error("VPN policy: {} specified was not successfully bound. "
-                         "This will require manual intervention to push policy from "
-                         "the SMC.".format(self.vpn_policy))
-            
     def monitor_status(self, step=10):
         """
         Monitor NGFW initialization. See :py:class:`smc.core.node.NodeStatus` for
@@ -867,7 +845,6 @@ if __name__ == '__main__':
     vpc.associate_network_interface(0, 'eni-49ab2635')
     vpc.associate_network_interface(1, 'eni-0b931e77')
     vpc.authorize_security_group_ingress('0.0.0.0/0', ip_protocol='-1')
-    vpc.availability_zone.add('us-west-2a')
     
     userdata = create_ngfw_in_smc(name='aws-02', 
                                   interfaces=vpc.build_ngfw_interfaces(),
@@ -876,12 +853,6 @@ if __name__ == '__main__':
     instance = vpc.launch(key_pair='aws-ngfw', userdata=userdata)
     for message in wait_for_ready(instance):
         print message
-    '''
-    '''
-    addr = ec2.meta.client.describe_addresses().get('Addresses')
-    for available in addr:
-        if not available.get('NetworkInterfaceId'):
-            print "Available Elastic IP: {}".format(available.get('AllocationId'))
     '''
     session.logout()
     
