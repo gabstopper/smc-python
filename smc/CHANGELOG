@@ -20,3 +20,9 @@ Change smc.actions.search.element_info_as_json to return list in case of multipl
 Node takes meta data
 Add permissions method on engine node for SMC API >= 6.1
 Doc fixes
+
+$version 0.3.4
+SMCElement parent class rewritten to support lazy loading of elements
+smc.elements.element.* classes use consistent create classmethod, allowing objects to be loaded in main constructor
+added search methods to find name based on href
+added methods for managing group members

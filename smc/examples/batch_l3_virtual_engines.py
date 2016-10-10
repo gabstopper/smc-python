@@ -57,7 +57,7 @@ if __name__ == '__main__':
             zone_map[idx] = result
         else:
             zone_map[idx] = \
-                smc.elements.element.Zone(zone).create().href
+                smc.elements.element.Zone.create(zone).href
     
     #Load Master Engine
     engine = Engine(master_engine_name).load()

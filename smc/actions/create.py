@@ -26,7 +26,8 @@ from smc.core.engines import Layer3Firewall, Layer2Firewall, IPS,\
     Layer3VirtualEngine
 from smc.core.engine import Engine
 from smc.elements.user import AdminUser
-from smc.elements.helpers import logical_intf_helper
+from smc.elements.helpers import logical_intf_helper, zone_helper,\
+    location_helper
 from smc.core.interfaces import PhysicalInterface
 from smc.api.exceptions import SMCException, NodeCommandFailed,\
     SMCOperationFailure, CreateEngineFailed
@@ -36,9 +37,9 @@ from smc.elements.collection import describe_vpn_certificate_authority,\
     describe_address_ranges, describe_ip_lists, describe_master_engines,\
     describe_external_gateways, describe_logical_interfaces,\
     describe_admin_users, describe_access_control_lists, describe_fw_policies,\
-    describe_log_servers, describe_management_servers
+    describe_log_servers, describe_management_servers, describe_locations
 from smc.elements.vpn import VPNCertificate, VPNPolicy, ExternalGateway
-from smc.elements.element import SMCElement, Host, Group, Network, IPList
+from smc.elements.element import SMCElement, Host, Group, Network, IPList, Location
 #from smc.deploy.aws import AWSProvision
 from smc.api.common import fetch_json_by_href, fetch_json_by_name,\
     fetch_href_by_name, SMCRequest
@@ -362,8 +363,7 @@ if __name__ == '__main__':
     from pprint import pprint
     logging.getLogger()
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
-    #logging.basicConfig(filename='/Users/davidlepage/example.log', filemode='w', level=logging.DEBUG)
-
+ 
     #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=60)
     session.login(url='http://172.18.1.25:8082', api_key='gxJ8WugtuNB5ztvl7HUz0001', timeout=120)
 
@@ -371,35 +371,31 @@ if __name__ == '__main__':
     #pprint(session.cache.get_all_entry_points())
     
     """@type engine: Engine"""
-    #engine = Engine('i-d*').load()
+    #engine = Engine('i-*').load()
+    
+    #for e in engine.export(wait_for_finish=True):
+    #    print e
     #print engine
     #pprint(engine.permissions())
     
-    #ip = IPList(name='testlist', ['12.12.12.12', '13.13.13.13']).create()
+    host = Host('host1')
+    print host.describe()
     
-    #host_href=[]
-    #for host in describe_hosts(name=['host1','host2']):
-    #    host_href.append(host.href)
-    #print host_href
-   
+    #####################BUG - doesnt filter properly
+    #for locations in describe_locations():
+    #    print locations
+    #####################BUG - doesn't find location using location as filter
+    #location = Location('mylocation')
+    #print location.href
+    #for location in describe_locations():
+    #    print location
     
-    removeable = [host.href for host in describe_hosts(name=['host1', 'host2','host3'])]
-    print set(removeable)
-    for group in describe_groups():
-        if group.name == 'mygroup':    
-            #group_elements = smc.actions.search.element_by_href_as_json(group.href).get('element')
-            #new_group = set(group_elements) - set(removeable)
-            #print "new group: %s" % list(new_group)
-            #print group.modify_attribute(element=removeable)
-            group.modify_attribute(element=removeable)
-    host = Host('bbefe', '1.1.1.1').create()
-    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/ip_list/695/ip_address_list'))
-    #pprint(smc.actions.search.search_duplicate())
-    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/host/728'))
+    group = Group('silva')
+    for member in group.obtain_members():
+        e = smc.actions.search.element_name_and_type_by_href(member)
+        print e
+        print "Name: %s, Type: %s" % (e[0].decode('utf-8'), e[1])
     
-    
-        
-        
 
     #pprint(smc.actions.search.search_unused())
     #pprint(smc.actions.search.search_duplicate())
@@ -421,25 +417,6 @@ if __name__ == '__main__':
     #for x in range(1, 11): 
     #    exec(func_template % (x, x))
     '''
-    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/access_control_list'))
-    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/admin_user/2')) 
-    #pprint(smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/access_control_list/9'))
-    
-    '''
-    for x in describe_ip_lists():
-        if x.name == 'mylist':
-            href = smc.actions.search.element_by_href_as_json(x.href)
-            pprint(href)
-            for link in href.get('link'):
-                if link.get('rel') == 'ip_address_list':
-                    print SMCRequest(link.get('href'), 
-                                     filename='/Users/davidlepage/iplist').read()
-    '''
-    #a = 'http://172.18.1.25:8082/6.1/elements/ospfv2_domain_settings'.split('{}/'.format(session.cache.get_entry_href('elements')))
-    #print a
-    
-    #'http://172.18.1.25:8082/6.1/elements/ospfv2_domain_settings'
-
     
     #smc.actions.search.element_by_href_as_json('http://172.18.1.25:8082/6.1/elements/single_fw/776')
     #print fetch_href_by_name('ĂĂĂĂrdvark')

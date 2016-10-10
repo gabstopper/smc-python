@@ -116,21 +116,21 @@ To search for all host objects:
 .. code-block:: python
 
    for host in collection.describe_hosts():
-   	 print host
+       print host
         
 To search only for a host name 'test':
 
 .. code-block:: python
 
    for host in collection.describe_hosts(name=['test']):
-     print host
+       print host
 
 To search for all hosts with 'test' in the name:
 
 .. code-block:: python
 
    for host in collection.describe_hosts(name=['test'], exact_match=False):
-     print host
+       print host
    
 Creating elements
 -----------------
@@ -146,6 +146,7 @@ Creating elements with smc-python can be done for all of the common element type
 * Routers
 * Groups
 * DomainName
+* IPList (SMC API >= 6.1)
 * Zone
 * LogicalInterface
 * TCPService
@@ -169,18 +170,18 @@ Examples of creating elements are as follows:
 
 .. code-block:: python
 
-   from smc.elements.element import Host, Router, Network, IpRange, Group, Service
+   from smc.elements.element import Host, Router, Network, AddressRange, Group, Service
    
-   IpRange('myrange', '10.0.0.1-10.0.0.254').create()
-   Host('myhost', '192.168.1.1', secondary_ip='192.168.1.2').create()
-   Router('defaultgw', '172.18.1.1', comment='internet facing gw').create()
-   Network('vpn network', '10.10.1.0/24').create()
+   AddressRange.create('myrange', '10.0.0.1-10.0.0.254')
+   Host.create('myhost', '192.168.1.1', secondary_ip='192.168.1.2')
+   Router.create('defaultgw', '172.18.1.1', comment='internet facing gw')
+   Network.create('vpn network', '10.10.1.0/24')
    
-   Group('group').create()  #no members
-   Group('group', members=['1.1.1.1','1.1.1.2']).create() 
+   Group.create('group')  #no members
+   Group.create('group', members=['1.1.1.1','1.1.1.2'])
    
-   TCPService('tcp666', 666).create()
-   UDPService('udp5000-5001', 5000, 5001).create()
+   TCPService.create('tcp666', 666)
+   UDPService.create('udp5000-5001', 5000, 5001)
   
 See the :py:class:`smc.elements.element` reference documentation for more specific details.
 
@@ -197,7 +198,7 @@ Example of modifying a TCPServiceGroup by changing the name:
 
 .. code-block:: python
    
-   tcp = TCPService('newservice', 6000).create() #create a new tcp service
+   tcp = TCPService.create('newservice', 6000) #create a new tcp service
    for service in describe_tcp_services():
      if service.name == 'api-tcpgrp2':
        service.modify_attribute(name='mynew-servicename')
@@ -206,8 +207,8 @@ Example of adding TCP and UDP Services to an existing Service Group:
 
 .. code-block:: python
    
-   udp = UDPService('api-udp-svc', 6000).create()
-   tcp = TCPService('api-tcp-svc', 6000).create()
+   udp = UDPService.create('api-udp-svc', 6000)
+   tcp = TCPService.create('api-tcp-svc', 6000)
    for group in describe_tcp_service_groups([name='api-servicegrp']):
      group.modify_attribute(element=[udp.href, tcp.href])
 
@@ -767,7 +768,7 @@ Then add this site to the external gateway
 
 .. code-block:: python
 
-   network = Network('remote-network', '1.1.1.0/24').create().href
+   network = Network.create('remote-network', '1.1.1.0/24').href
     
    external_gateway.add_site('remote-site', [network])
 
@@ -806,7 +807,7 @@ Create admin:
 
 .. code-block:: python
 
-   admin = AdminUser('administrator').create()
+   admin = AdminUser.create('administrator')
    if admin.href:
      print "Successfully created admin"
      

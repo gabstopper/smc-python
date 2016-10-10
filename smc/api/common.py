@@ -23,8 +23,7 @@ class RequestHandler(object):
     def __init__(self, **kwargs):
         self._method = None
         self.files = None
-        self.headers = {'content-type': 'application/json',
-                        'accept': 'application/json'}
+        self.headers = {'content-type': 'application/json'}
     
     @property
     def method(self):
@@ -42,6 +41,8 @@ class RequestHandler(object):
             result = e.smcresult
         except SMCConnectionError, e:
             err = e
+        except TypeError, e:
+            err = str(e)
         except IOError, e:
             err = e
         finally:
@@ -82,7 +83,7 @@ class SMCRequest(RequestHandler):
     def create(self):
         return self._make_request()
     
-    @method('DELETE')    
+    @method('DELETE')
     def delete(self):
         return self._make_request()
     

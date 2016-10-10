@@ -32,6 +32,7 @@ def find_link_by_name(link_name, linklist):
     :param list linklist: list of references
     :return fully qualified href
     """
+    assert(isinstance(linklist, list)), 'List required as input'
     for entry in linklist:
         if entry.get('rel') == link_name:
             return entry.get('href')

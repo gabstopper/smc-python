@@ -80,7 +80,7 @@ Both will work, however the first option will only find items starting with TOR*
 the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 """
 from smc import session
-from smc.elements.element import SMCElement, Meta, IPList
+from smc.elements.element import SMCElement, Group, Meta, IPList
 from smc.elements.user import AdminUser
 from smc.core.engines import Engine
 from smc.elements.vpn import ExternalGateway, VPNPolicy
@@ -304,7 +304,7 @@ def describe_locations(name=None, exact_match=False):
     
     :return: list :py:class:`smc.elements.element.SMCElement`
     """
-    return generic_list_builder('location')
+    return generic_list_builder('location', name, exact_match)
 
 def describe_update_packages():
     """
@@ -525,7 +525,7 @@ def describe_groups(name=None, exact_match=True):
     :param exact_match: Do exact match against name field (default True)
     :return: list :py:class:`smc.elements.element.SMCElement`
     """
-    return generic_list_builder('group', name, exact_match)
+    return generic_list_builder('group', name, exact_match, Group)
 
 def describe_ethernet_services(name=None, exact_match=True):
     """

@@ -38,22 +38,23 @@ class AdminUser(SMCElement):
     """
     typeof = 'admin_user'
     
-    def __init__(self, name, local_admin=False, allow_sudo=False, 
-                 superuser=False, admin_domain=None, enabled=True,
-                 engine_target=None, href=None, meta=None, **kwargs):
-        SMCElement.__init__(self)
-        self.name = name
-        self.meta = meta
-        engines = []
-        if engine_target:
-            engines.extend(engine_target)
-        self.json = {'name': name,
-                     'enabled': enabled,
-                     'allow_sudo': allow_sudo,
-                     'engine_target': engines,
-                     'local_admin': local_admin,
-                     'superuser': superuser }
+    def __init__(self, name, meta=None):
+        SMCElement.__init__(self, name, meta)
+        pass
     
+    @classmethod
+    def create(cls, name, local_admin=False, allow_sudo=False, 
+               superuser=False, admin_domain=None, enabled=True,
+               engine_target=None):
+        engines = [] if engine_target is None else engine_target
+        cls.json = {'name': name,
+                    'enabled': enabled,
+                    'allow_sudo': allow_sudo,
+                    'engine_target': engines,
+                    'local_admin': local_admin,
+                    'superuser': superuser}
+        return cls._create()
+        
     def load(self):
         """
         Load Admin by name

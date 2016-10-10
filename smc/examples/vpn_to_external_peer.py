@@ -40,7 +40,7 @@ if __name__ == '__main__':
     new ones as in the example below.
     Then add this site to the external gateway
     """    
-    network = Network('remote-network', '1.1.1.0/24').create().href
+    network = Network.create('remote-network', '1.1.1.0/24').href
     
     external_gateway.add_site('remote-site', [network])
 

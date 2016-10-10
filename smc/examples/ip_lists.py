@@ -132,7 +132,7 @@ def create_iplist(name):
     :param str name: name of IPList
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    iplist = IPList(name=name).create()
+    iplist = IPList.create(name=name)
     return iplist
 
 def create_iplist_with_data(name, iplist):
@@ -143,7 +143,7 @@ def create_iplist_with_data(name, iplist):
     :param list iplist: list of IPList IP's, networks, etc
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    iplist = IPList(name=name, iplist=iplist).create()
+    iplist = IPList.create(name=name, iplist=iplist)
     return iplist
                    
 if __name__ == '__main__':

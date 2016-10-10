@@ -1,12 +1,19 @@
 Reference
 =========
 
-Element
--------
+Elements
+--------
 
 .. automodule:: smc.elements.element
-    :undoc-members:
+    :exclude-members: SMCElement
     :show-inheritance:
+
+SMCElement
+++++++++++
+
+.. autoclass:: SMCElement
+	:members:
+	:show-inheritance:
 
 Host
 ++++
@@ -397,6 +404,13 @@ System
 ------
 
 .. automodule:: smc.elements.system
+	:members:
+
+SMCResult
+---------
+
+.. automodule:: smc.api.web
+	:members: SMCResult
 
 Exceptions
 ----------

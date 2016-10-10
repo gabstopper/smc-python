@@ -19,7 +19,7 @@ def location_helper(name):
     if location:
         return location[0].get('href')    
     else:
-        return Location(name).create().href
+        return Location.create(name).href
 
 def zone_helper(zone):
     """
@@ -33,7 +33,7 @@ def zone_helper(zone):
     if zone_ref:
         return zone_ref
     else:
-        return Zone(zone).create().href
+        return Zone.create(zone).href
     
 def logical_intf_helper(interface):
     """
@@ -46,7 +46,7 @@ def logical_intf_helper(interface):
     if intf_ref:
         return intf_ref
     else:
-        return LogicalInterface(interface).create().href
+        return LogicalInterface.create(interface).href
 
 def domain_helper(name):
     """

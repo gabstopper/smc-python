@@ -81,6 +81,7 @@ class SMCAPIConnection(object):
                                                 params=request.params,
                                                 headers=request.headers
                                                 )
+                        
                     if response.status_code != 200:
                         raise SMCOperationFailure(response)
                     
@@ -195,7 +196,6 @@ class SMCResult(object):
                 #is returned. Before returing encode with utf-8 the unicode 
                 #strings but ignore nested values in dictionaries
                 #for now.
-                
                 if isinstance(self.json, dict):
                     for k, v in self.json.items():
                         if isinstance(v, unicode):

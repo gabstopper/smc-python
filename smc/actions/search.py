@@ -150,6 +150,56 @@ def element_by_href_as_json(href, params=None):
         if element:
             return element.json
 
+def element_name_by_href(href):
+    """
+    The element href is known, possibly from a reference in an
+    elements json. You want to retrieve the name of this element.
+    
+    :param str href: href of element
+    :return: str name of element, or None
+    """
+    if href:
+        element = fetch_json_by_href(href)
+        if element.json:
+            return element.json.get('name')
+
+def element_name_and_type_by_href(href):
+    """
+    Retrieve the element name and type of element based on the href.
+    You may have a href that is within another element reference and
+    want more information on that reference.
+    
+    :param str href: href of element
+    :return: tuple (name, type)
+    """
+    if href:
+        element = fetch_json_by_href(href)
+        if element.json:
+            for entries in element.json.get('link'):
+                if entries.get('rel') == 'self':
+                    typeof = entries.get('type')
+        
+            return (element.json.get('name'), 
+                    typeof)
+            
+def element_attribute_by_href(href, attr_name):
+    """
+    The element href is known and you want to retrieve a specific
+    attribute from that element.
+    
+    For example, if you want a specific attribute by it's name::
+    
+        search.element_attribute_by_href(href_to_resource, 'name')
+    
+    :param str href: href of element
+    :param str attr_name: name of attribute
+    :return: str value of attribute
+    """
+    if href:
+        element = fetch_json_by_href(href)
+        if element.json:
+            return element.json.get(attr_name)
+
 def element_by_href_as_smcresult(href, params=None):
     """ Get specified element returned as an SMCResult object
      
@@ -207,13 +257,16 @@ def element_href_by_batch(list_to_find, _filter=None):
             
 def all_elements_by_type(name):
     """ Get specified elements based on the entry point verb from SMC api
-    To get the entry points available, you can call web_api.get_all_entry_points()
-    Execution is get the entry point for the element type, then get all elements that
+    To get the entry points available, you can get these from the session::
+    
+        session.cache.get_all_entry_points()
+        
+    Execution will get the entry point for the element type, then get all elements that
     match.
     
     For example::
     
-        smc.get_element_by_entry_point('log_server')
+        search.all_elements_by_type('host')
         
     :param name: top level entry point name
     :return: list with json representation of name match, else None

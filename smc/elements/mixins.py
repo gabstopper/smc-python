@@ -34,6 +34,8 @@ class ModifiableMixin(object):
     Mixin takes a key=value pair to modify. The value modified
     can only be of type str, list or dict. In the case of a list,
     the list is replaced, a dict will be updated and a str replaced.
+    A class that implements ModifiableMixin must have an attribute
+    or property 'href' which will have the location of the element.
             
     :return: :py:class:`smc.api.web.SMCResult`
     """
@@ -59,4 +61,6 @@ class ModifiableMixin(object):
                               etag=element.etag).update()
 
     def load_attributes(self):
-        return search.element_by_href_as_smcresult(self.meta.href)
+        if self.href:
+            return search.element_by_href_as_smcresult(self.href)
+        #return search.element_by_href_as_smcresult(self.meta.href)
