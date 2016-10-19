@@ -11,7 +11,7 @@ class InspectionRule(object):
         pass
     
     
-class InspectionPolicy(Policy):
+class InspectionPolicy(InspectionRule, Policy):
     """
     The Inspection Policy references a specific inspection policy that is a property
     (reference) to either a FirewallPolicy, IPSPolicy or Layer2Policy. This policy
@@ -25,13 +25,12 @@ class InspectionPolicy(Policy):
         Policy.__init__(self, name)
         pass
     
-    def force_unlock(self):
-        return super(InspectionPolicy, self)
-    
-    def search_rule(self):
+    def export(self):
+        #Not valid for inspection policy
         pass
     
-    def search_category_tags_from_element(self):
+    def upload(self):
+        #Not valid for inspection policy
         pass
 
 class InspectionTemplatePolicy(Policy):

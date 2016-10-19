@@ -120,12 +120,16 @@ class Policy(UnicodeMixin, ExportableMixin):
         :method: POST
         :return: :py:class:`smc.api.web.SMCResult`
         """
+        print "Force unlock link: %s" % find_link_by_name('force_unlock', self.link)
         return SMCRequest(
                 href=find_link_by_name('force_unlock', self.link)).create()
     
     def search_rule(self, parameter):
         pass
    
+    def search_category_tags_from_element(self):
+        pass
+    
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
 

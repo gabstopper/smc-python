@@ -203,13 +203,9 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
         pass    
     
     def export(self):
-        """
-        Export not supported on template
-        """
+        #Not supported on the template
         pass
     
     def upload(self):
-        """
-        Upload not supported on template
-        """
+        #Not supported on the template
         pass

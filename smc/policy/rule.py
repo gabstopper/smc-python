@@ -44,13 +44,11 @@ class IPv4Rule(UnicodeMixin):
     
     @property
     def name(self):
-        if self.meta:
-            return self.meta.name
+        return self.meta.name
         
     @property
     def href(self):
-        if self.meta:
-            return self.meta.href
+        return self.meta.href
         
     def create(self, name, sources, destinations, services, action='', 
                is_disabled=False):

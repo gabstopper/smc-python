@@ -604,7 +604,7 @@ Example of changing the IP address of an existing single node interface (for lay
 
 .. code-block:: python
 
-   engine = Node('myfirewall').load()
+   engine = Engine('myfirewall').load()
    for interface in engine.interface.all():
      if interface.name == 'Interface 2':
        my_interface = interface.describe()
@@ -625,7 +625,7 @@ For example, load a Layer 3 Firewall and add a route:
 
 .. code-block:: python
 
-   engine = Node('myengine').load()
+   engine = Engine('myengine').load()
    engine.add_route('172.18.1.254', '192.168.1.0/24')
    engine.add_route('172.18.1.254', '192.168.2.0/24')
 
