@@ -57,3 +57,18 @@ def domain_helper(name):
     domain = search.element_href_use_filter(name, 'admin_domain')
     if domain:
         return domain
+
+def fw_templates(name):
+    """
+    Find the FW template href by name
+    
+    :return: str href of template or None
+    """
+    return search.element_href_use_filter(name, 'fw_template_policy')
+
+def obtain_element(name, typeof):
+    print "CALLED OBTAIN ELEMENT"
+    element = search.element_info_as_json_with_filter(name, typeof)
+    if element:    
+        print "Element: %s" % element
+    return element

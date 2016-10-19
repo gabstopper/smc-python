@@ -7,10 +7,8 @@ engine access.
 """
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
-from smc.api.exceptions import ElementNotFound
-from smc.elements.element import SMCElement, Meta
-from smc.actions.tasks import task_handler, Task
-
+from smc.elements.element import SMCElement
+from smc.api.common import SMCRequest
 
 class AdminUser(SMCElement):
     """ Represents an Adminitrator account on the SMC
@@ -27,12 +25,11 @@ class AdminUser(SMCElement):
         
         admin = AdminUser(name='dlepage', superuser=True).create()
         
-    If modifications are required after you can load the admin and
+    If modifications are required after you can access the admin and
     make changes::
     
-        for x in collection.describe_admin_users():
-            if x.name == 'dlepage':
-                admin = x.load()
+        for admin in collection.describe_admin_users():
+            if admin.name == 'dlepage':
                 admin.change_password('mynewpassword1')
                 admin.enable_disable()
     """
@@ -54,26 +51,11 @@ class AdminUser(SMCElement):
                     'local_admin': local_admin,
                     'superuser': superuser}
         return cls._create()
-        
-    def load(self):
-        """
-        Load Admin by name
-        """
-        if not self.meta:
-            result = search.element_info_as_json_with_filter(
-                                                        self.name, self.typeof)
-            if result and len(result) == 1:
-                self.meta = Meta(**result[0])
-            else:
-                raise ElementNotFound("Admin name: {} is not found, cannot modify."
-                                      .format(self.name))
-        result = search.element_by_href_as_smcresult(self.meta.href)
-        self.json = result.json
-        return self
- 
+
     @property
     def link(self):
-        return self.json.get('link')
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
 
     def change_password(self, password):
         """ Change admin password 
@@ -82,9 +64,9 @@ class AdminUser(SMCElement):
         :param str password: new password
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        self.href = find_link_by_name('change_password', self.link)
-        self.params = {'password': password}
-        return self.update()
+        href = find_link_by_name('change_password', self.link)
+        params = {'password': password}
+        return SMCRequest(href=href, params=params).update()
            
     def change_engine_password(self, password):
         """ Change Engine password for engines on allowed
@@ -94,9 +76,9 @@ class AdminUser(SMCElement):
         :param str password: password for engine level
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        self.href = find_link_by_name('change_engine_password', self.link)
-        self.params = {'password': password}
-        pass
+        href = find_link_by_name('change_engine_password', self.link)
+        params = {'password': password}
+        return SMCRequest(href=href, params=params).update()
     
     def enable_disable(self):
         """ Toggle enable and disable of administrator account
@@ -104,26 +86,5 @@ class AdminUser(SMCElement):
         :method: PUT
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        self.href = find_link_by_name('enable_disable', self.link)
-        return self.update()
-        
-    def export(self, filename='admin.zip', wait_for_finish=False):
-        """ Export the contents of this admin
-        
-        :method: POST
-        :param str filename: Name of file to export to
-        :return: :py:class:`smc.api.web.SMCResult`
-        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
-        """
-        self.href = find_link_by_name('export', self.link)
-        self.params = {}
-        element = self.create()
-       
-        task = task_handler(Task(**element.json), 
-                            wait_for_finish=wait_for_finish,
-                            filename=filename)
-        return task
-
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, "name={}".format(self.name)) 
-    
+        href = find_link_by_name('enable_disable', self.link)
+        return SMCRequest(href=href).update()

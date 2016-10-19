@@ -43,7 +43,7 @@ logging.getLogger()
 
 if __name__ == '__main__':
     
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.25:8082', api_key='4366TuolHMJp3nHaUeF60001')
     
     #Create the Firewall Cluster
     engine = FirewallCluster.create(name='mycluster', 

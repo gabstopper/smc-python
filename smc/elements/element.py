@@ -25,26 +25,62 @@ that element.
 For example, to delete an element by name::
 
     Host('myhost').delete()
+    
+Or view the details of the element::
+
+    Host('myhost').describe()
 
 """
 from collections import namedtuple
 import smc.actions.search as search
 from smc.api.common import SMCRequest
-from smc.elements.mixins import ModifiableMixin
-from smc.elements.util import find_link_by_name
+from smc.elements.mixins import ModifiableMixin, ExportableMixin, UnicodeMixin
+from smc.elements.util import find_link_by_name, \
+    bytes_to_unicode, unicode_to_bytes
 from smc.api.exceptions import MissingRequiredInput, ElementNotFound
-from smc.actions.tasks import task_handler, Task
+
+class ElementLocator(object):
+    """
+    There are two ways to get an elements location, either through the 
+    describe_xxx methods which is then stored in the instance meta attribute, 
+    or by specifying the resource directly. Elements not using this descriptor 
+    are loaded through meta by a reference of a top level related object.
+    
+    If the element is going to be loaded directly, it must have a class attribute
+    'typeof' to specify the element type. That is used in this descriptor as a 
+    search filter to find the href location of the element. 
+    """
+    def __get__(self, instance, cls=None):
+        #Does the instance already have meta data
+        if instance.meta:
+            return instance.meta.href
+        else:
+            if hasattr(instance, 'typeof'):
+                element = search.element_info_as_json_with_filter(
+                                                instance.name, instance.typeof)
+                if element:
+                    instance.meta = Meta(**element[0])
+                    return instance.meta.href
+                raise ElementNotFound('Cannot find specified element: {}, type: {}'
+                                      .format(unicode_to_bytes(instance.name), 
+                                              instance.typeof))
+            else:
+                raise ElementNotFound('This class does not have the required attribute '
+                                      'and cannot be referenced directly, type: {}'
+                                      .format(instance))
 
 class Meta(namedtuple('Meta', 'name href type')):
     """
     Internal namedtuple used to store top level element information. When 
     doing base level searches, SMC API will return only meta data for the
-    element that has name, href and type. 
+    element that has name, href and type.
+    Meta has the same data structure returned from 
+    :py:func:`smc.search.element_info_as_json`
     """
     def __new__(cls, href, name=None, type=None): # @ReservedAssignment
         return super(Meta, cls).__new__(cls, name, href, type)
 
-class SMCElement(ModifiableMixin):
+class SMCElement(UnicodeMixin, ExportableMixin, ModifiableMixin):
     """
     SMCElement is the base class for all network and other elements.
     This base class acts as a dispatcher and encapsulates features common
@@ -53,17 +89,16 @@ class SMCElement(ModifiableMixin):
     :ivar meta: meta data for element
     :ivar name: name of object
     :ivar href: location of the resource
-    
-    All SMCElement's share some common methods stored in this class such as 
-    :func:`export`
     """
+    href = ElementLocator()
+    
     def __init__(self, name, meta=None, **kwargs):
-        self.name = name
+        self._name = name #<str>
         self.meta = meta
     
     @property
-    def href(self):
-        return self.meta.href
+    def name(self):
+        return bytes_to_unicode(self._name)
     
     @classmethod
     def _create(cls):
@@ -92,75 +127,42 @@ class SMCElement(ModifiableMixin):
         """
         return SMCRequest(href=self.href).delete()
 
-    def location(self, location=None):
-        """
-        Elements can have a location element used for NAT. This represents
-        the location (if any) for the element. This will the default location
-        unless otherwise set.
-        
-        :param location: location ref for element
-        :return: :py:class:`smc.api.web.SMCResult`
-        """
-        if location is not None:
-            return self.modify_attribute(location_ref=location)
-        else:
-            return self.describe().get('location_ref')
-    
-    def export(self, filename='element.zip', wait_for_finish=False):
-        """
-        Export this element
-        
-        :method: POST
-        :param str filename: filename to store exported element
-        :param boolean wait_for_finish: wait for update msgs (default: False)
-        :return: generator yielding updates on progress
-        """
-        element = SMCRequest(
-                    href=find_link_by_name('export', self.link.get('link')),
-                    filename=filename).create()
-        task = task_handler(Task(**element.json), 
-                            wait_for_finish=wait_for_finish, 
-                            filename=filename)
-        return task
-
     def describe(self):
         """
         Show the element details, all json
         
         :return: dict of element json
         """
-        return self.link
-    
-    @property
-    def link(self):
         return search.element_by_href_as_json(self.href)
 
-    def __getattr__(self, attr):
-        if attr == 'href':
-            #Meta was not found so use class attr as a filter to
-            #search by name, if found, load meta
-            element = search.element_info_as_json_with_filter(
-                                                    self.name, self.typeof)
-            if element:
-                self.meta = Meta(**element[0])
-                return self.href
-            raise ElementNotFound('Cannot find location for element: {}'
-                                  .format(self.name))
-        raise AttributeError('Invalid attribute for element: {}'.format(attr))
-            
+    @property
+    def link(self):
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
+    
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+        return repr(unicode(self))
 
 class Host(SMCElement):
     """ 
     Class representing a Host object used in access rules
     
-    Create a host element::
+    Create a host element with ipv4::
     
         Host.create(name='myhost', address='1.1.1.1', 
                     secondary_ip=['1.1.1.2'], 
                     comment='some comment for my host')
+    
+    Create a host element with ipv6 and secondary ipv4 address::
+        
+        Host.create(name='mixedhost', 
+                    ipv6_address='2001:cdba::3257:9652', 
+                    secondary_ip=['1.1.1.1'])
+
+    .. note:: either ipv4 or ipv6 address is required
     """
     typeof = 'host'
     
@@ -169,22 +171,27 @@ class Host(SMCElement):
         pass
     
     @classmethod
-    def create(cls, name, address, secondary_ip=None, comment=None):
+    def create(cls, name, address=None, ipv6_address=None, 
+               secondary_ip=None, comment=None):
         """
         Create the host element
         
         :param str name: Name of element
-        :param str ip: ip address of host object
+        :param str address: ipv4 address of host object (optional if ipv6)
+        :param str ipv6_address: ipv6 address (optional if ipv4)
         :param str secondary_ip: secondary ip address (optional)
         :param str comment: comment (optional)
         :return: :py:class:`smc.api.web.SMCResult`
         """
+        address = None if address is None else address
+        ipv6_address = None if ipv6_address is None else ipv6_address
         secondary = [] if secondary_ip is None else secondary_ip
         comment = comment if comment else ''
         cls.json = {'name': name,
-                     'address': address,
-                     'secondary': secondary,
-                     'comment': comment}
+                    'address': address,
+                    'ipv6_address': ipv6_address,
+                    'secondary': secondary,
+                    'comment': comment}
         return cls._create()
 
 class Group(SMCElement):
@@ -284,9 +291,16 @@ class Router(SMCElement):
     """ 
     Class representing a Router object used in access rules
     
-    Create a router element::
+    Create a router element with ipv4 address::
     
         Router.create('myrouter', '1.2.3.4', comment='my router comment')
+        
+    Create a router element with ipv6 address::
+        
+        Host.create(name='mixedhost', 
+                    ipv6_address='2001:cdba::3257:9652')
+    
+    .. note:: either ipv4 or ipv6 address is required
     """
     typeof = 'router'
     
@@ -295,32 +309,42 @@ class Router(SMCElement):
         pass
         
     @classmethod
-    def create(cls, name, address, secondary_ip=None, comment=None):
+    def create(cls, name, address=None, ipv6_address=None, 
+               secondary_ip=None, comment=None):
         """
         Create the router element
         
         :param str name: Name of element
-        :param str address: ip address of host object
+        :param str address: ip address of host object (optional if ipv6)
+        :param str ipv6_address: ipv6 address (optional if ipv4)
         :param str secondary_ip: secondary ip address (optional)
         :param str comment: comment (optional)
         :return: :py:class:`smc.api.web.SMCResult`
-        """    
+        """ 
+        address = None if address is None else address
+        ipv6_address = None if ipv6_address is None else ipv6_address   
         secondary = [] if secondary_ip is None else secondary_ip 
         comment = comment if comment else ''
         cls.json = {'name': name,
                     'address': address,
+                    'ipv6_address': ipv6_address,
                     'secondary': secondary }
         return cls._create()
 
 class Network(SMCElement):
     """ 
-    Class representing a Network object used in access rules   
+    Class representing a Network object used in access rules
+    Network format should be CIDR based.  
     
-    Create a network element::
+    Create an ipv4 network element::
     
         Network.create('mynetwork', '2.2.2.0/24')
-        
-    .. note:: ip4_network must be in CIDR format
+    
+    Create an ipv6 network element:
+    
+        Network.create(name='mixednetwork', ipv6_network='fc00::/7')
+    
+    .. note:: either an ipv4_network or ipv6_network must be specified
     """
     typeof = 'network'
     
@@ -329,18 +353,23 @@ class Network(SMCElement):
         pass       
         
     @classmethod
-    def create(cls, name, ip4_network, comment=None):
+    def create(cls, name, ipv4_network=None, ipv6_network=None, 
+               comment=None):
         """
         Create the network element
         
         :param str name: Name of element
-        :param str ip4_network: network cidr
+        :param str ipv4_network: network cidr (optional if ipv6)
+        :param str ipv6_network: network cidr (optional if ipv4)
         :param str comment: comment (optional)
         :return: :py:class:`smc.api.web.SMCResult` 
         """
+        ipv4_network = None if ipv4_network is None else ipv4_network
+        ipv6_network = None if ipv6_network is None else ipv6_network
         comment = comment if comment else ''
         cls.json = {'name': name,
-                    'ipv4_network': ip4_network,
+                    'ipv4_network': ipv4_network,
+                    'ipv6_network': ipv6_network,
                     'comment': comment}
         return cls._create()
 
@@ -742,7 +771,36 @@ class Country(SMCElement):
     pass
 
 class URLListApplication(SMCElement):
-    pass
+    """
+    URL List Application represents a list of URL's (typically by domain)
+    that allow for easy grouping for performing whitelist and blacklisting
+    
+    Creating a URL List::
+    
+        URLListApplication.create(name='whitelist',
+                                  entry_url=['www.google.com', 'www.cnn.com'])
+    
+    .. note:: URLListApplication requires SMC API version >= 6.1
+    """
+    typeof = 'url_list_application'
+    
+    def __init__(self, name, meta=None):
+        SMCElement.__init__(self, name, meta)
+        pass
+    
+    @classmethod
+    def create(cls, name, url_entry):
+        """
+        Create the custom URL list
+        
+        :param str name: name of url list
+        :param list url_entry: list of url's
+        :return: :py:class:`smc.qpi.web.SMCResult`
+        """
+        cls.json = {'name': name,
+                    'url_entry': url_entry}
+        print cls.json
+        return cls._create()
 
 class IPListGroup(SMCElement):
     """
@@ -809,7 +867,7 @@ class IPList(SMCElement):
             self.headers = {'accept': 'application/json'}
         #Find the entry point link for the IPList
         href=find_link_by_name('ip_address_list', 
-                                self.link.get('link'))
+                                self.link)
         self.filename = filename
         return self._read(href=href)
     
@@ -835,9 +893,9 @@ class IPList(SMCElement):
         if as_type == 'json':
             headers={'accept':'application/json',
                      'content-type':'application/json'}
-        elif as_type == 'txt': #txt
+        elif as_type == 'txt':
             self.params={'format':'txt'}
-        href = find_link_by_name('ip_address_list', self.link.get('link'))
+        href = find_link_by_name('ip_address_list', self.link)
         self.headers = headers
         self.files = files
         self.json = json
@@ -864,7 +922,74 @@ class IPList(SMCElement):
             newlist.json = {'ip': iplist}
             return super(IPList, newlist).create(href=href)
         return result
+
+class Expression(SMCElement):
+    """
+    Expressions are used to build boolean like objects used in policy. For example,
+    if you wanted to create an expression that negates a specific set of network
+    elements to use in a "NOT" rule, an expression would be the element type.
+    
+    For example, adding a rule that negates (network A or network B):: 
+    
+        sub_expression = Expression.build_sub_expression(
+                            name='mytestexporession', 
+                            ne_ref=['http://172.18.1.150:8082/6.0/elements/host/3999',
+                                    'http://172.18.1.150:8082/6.0/elements/host/4325'], 
+                            operator='union')
+    
+        expression = Expression.create(name='apiexpression', 
+                                       ne_ref=[],
+                                       sub_expression=sub_expression)
+                                       
+    .. note:: The sub-expression creates the json for the expression 
+              (network A or network B) and is then used as an argument to create.
+    """
+    typeof = 'expression'
+    
+    def __init__(self, name, meta=None):
+        SMCElement.__init__(self, name, meta)
+        pass
+    
+    @staticmethod
+    def build_sub_expression(name, ne_ref=None, operator='union'):
+        """
+        Static method to build and return the proper json for a sub-expression.
+        A sub-expression would be the grouping of network elements used as a
+        target match. For example, (network A or network B) would be considered
+        a sub-expression. This can be used to compound sub-expressions before 
+        calling create.
         
+        :param str name: name of sub-expression
+        :param list ne_ref: network elements references
+        :param str operator: |exclusion (negation)|union|intersection (default: union)
+        :return: JSON of subexpression. Use in :func:`~create` constructor
+        """
+        ne_ref = [] if ne_ref is None else ne_ref
+        json = {'name': name,
+                'ne_ref': ne_ref,
+                'operator': operator}
+        return json
+    
+    @classmethod
+    def create(cls, name, ne_ref=None, operator='exclusion', sub_expression=None):
+        """
+        Create the expression
+        
+        :param str name: name of expression
+        :param list ne_ref: network element references for expression
+        :param str operator: |exclusion (negation)|union|intersection 
+               (default: exclusion)
+        :param dict sub_expression: sub expression used
+        :return: :py:class:`smc.api.web.SMCResult`
+        """
+        sub_expression = [] if sub_expression is None else [sub_expression]
+        cls.json = {'name':name,
+                    'operator': operator,
+                    'ne_ref': ne_ref,
+                    'sub_expression': sub_expression}
+        print cls.json
+        return cls._create()
+            
 class Zone(SMCElement):
     """ 
     Class representing a zone used on physical interfaces and
@@ -905,8 +1030,8 @@ class LogicalInterface(SMCElement):
     """
     typeof = 'logical_interface'
     
-    def __init__(self, name, comment=None):
-        SMCElement.__init__(self, name)
+    def __init__(self, name, meta=None):
+        SMCElement.__init__(self, name, meta)
         pass
     
     @classmethod

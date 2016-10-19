@@ -5,13 +5,16 @@ updating engines, applying global blacklists, etc.
 To load the configuration for system, do::
 
     from smc.elements.system import System
-    system = System().load()
+    system = System()
+    print system.smc_version
+    print system.last_activated_package
+    for pkg in system.update_package():
+        print pkg
 
 """
 import smc.actions.search as search
 from smc.elements.util import find_link_by_name
 from smc.elements.other import Blacklist
-from smc.api.exceptions import SMCException
 from smc.actions.tasks import task_handler, Task
 from smc.api.common import SMCRequest
 
@@ -25,17 +28,18 @@ class System(object):
     :ivar last_activated_package: latest update package installed
     """
     def __init__(self):
-        self.link = []
+        pass
     
-    def load(self):
-        system = search.element_by_href_as_json(
-                                    search.element_entry_point('system'))
-        if system:
-            self.link.extend(system.get('link'))
-            return self
-        else:
-            raise SMCException("Exception retrieving system settings")
-    
+    @property
+    def href(self):
+        #from cache
+        return search.element_entry_point('system') 
+
+    @property
+    def link(self):
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
+
     @property    
     def smc_version(self):
         """ Return the SMC version """
@@ -58,8 +62,7 @@ class System(object):
         """ Empty system level trash bin """
         href = find_link_by_name('empty_trash_bin', self.link)
         return SMCRequest(href=href).delete()
-    
-    #@property
+
     def update_package(self):
         """ Show all update packages on SMC 
         
@@ -131,7 +134,7 @@ class System(object):
                         find_link_by_name('license_fetch', self.link))
         
     def license_install(self):
-        print "PUT license install"
+        raise NotImplementedError
         
     def license_details(self):
         """
@@ -193,7 +196,7 @@ class System(object):
         return task
 
     def import_elements(self):
-        print "POST import elements"
+        raise NotImplementedError
 
     def certificate_authority(self):
         return search.element_by_href_as_json(

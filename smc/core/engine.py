@@ -1,7 +1,7 @@
 import smc.actions.search as search
 from smc.elements.helpers import domain_helper
 from smc.elements.element import Meta
-from smc.elements.util import find_link_by_name
+from smc.elements.util import find_link_by_name, bytes_to_unicode
 from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
     SMCConnectionError
@@ -12,9 +12,9 @@ from smc.actions.tasks import task_handler, Task
 from smc.elements.vpn import InternalGateway
 from smc.elements.other import Blacklist
 from smc.api.common import SMCRequest
-from smc.elements.mixins import ModifiableMixin
+from smc.elements.mixins import ModifiableMixin, ExportableMixin, UnicodeMixin
 
-class Engine(ModifiableMixin):
+class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
     """
     Instance attributes:
     
@@ -41,11 +41,10 @@ class Engine(ModifiableMixin):
     :ivar tunnel_interface: :py:class:`smc.core.interfaces.TunnelInterface` 
           retrieve or create tunnel interfaces
     :ivar snapshots: :py:class:`smc.core.engine.Snapshot` engine level policy snapshots
-    
-    
+
     """
     def __init__(self, name, meta=None, **kwargs):
-        self.name = name
+        self._name = name
         self.meta = meta
         
     @classmethod
@@ -137,15 +136,16 @@ class Engine(ModifiableMixin):
                     raise LoadEngineFailed('Cannot load engine name: {}, ensure the '
                                            'name is correct and that the engine exists. '
                                            'Search returned: {}'
-                                           .format(self.name, names))
+                                           .format(self._name, names))
             result = search.element_by_href_as_json(self.meta.href)
             if result.get('nodes'):
                 self.json = result
+                self._name = self.json.get('name')
                 return self
             else:
                 raise LoadEngineFailed('Cannot load engine name: {}, please ensure the name ' 
                                        'is correct. An element was returned but was of type: '
-                                       '{}'.format(self.name, self.meta.type))
+                                       '{}'.format(self._name, self.meta.type))
         except LoadEngineFailed:
             raise
 
@@ -153,6 +153,10 @@ class Engine(ModifiableMixin):
     def etag(self):
         #Need if making interface changes. ETag comes from engine level
         return search.element_by_href_as_smcresult(self.meta.href).etag
+
+    @property
+    def name(self):
+        return bytes_to_unicode(self._name)
     
     @property
     def href(self):
@@ -548,32 +552,16 @@ class Engine(ModifiableMixin):
             snapshots.append(Snapshot(**snapshot))
         return snapshots
 
-    def export(self, filename='export.zip', wait_for_finish=False): 
-        """ 
-        Generate export of configuration. Export is downloaded to
-        file specified in filename parameter.
-        
-        :mathod: POST
-        :param str filename: if set, the export will download the file. 
-        :return: generator yielding updates on progress
-        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
-        """
-        element = SMCRequest(
-                    href=find_link_by_name('export', self.link),
-                    params={'filter': self.name}).create()
-       
-        task = task_handler(Task(**element.json), 
-                            wait_for_finish=wait_for_finish, 
-                            filename=filename)
-        return task
-    
     def __getattr__(self, value):
         raise AttributeError("You must first load the engine to access resources!")
-    
+
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, self.name)
-       
-class VirtualResource(object):
+        return repr(unicode(self))
+
+class VirtualResource(UnicodeMixin):
     """
     A Virtual Resource is a container placeholder for a virtual engine
     within a Master Engine. When creating a virtual engine, each virtual
@@ -655,9 +643,11 @@ class VirtualResource(object):
             resources.append(VirtualResource(meta=Meta(**resource)))
         return resources
     
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__,
-                                      self.name)
+        return repr(unicode(self))
 
 class Snapshot(object):
     """
@@ -695,7 +685,7 @@ class Snapshot(object):
         href = find_link_by_name('content', snapshot.get('link'))
         try:
             return SMCRequest(href=href, filename=filename).read()
-        except IOError, e:
+        except IOError as e:
             raise EngineCommandFailed("Snapshot download failed: {}"
                                       .format(e))
     def describe(self):

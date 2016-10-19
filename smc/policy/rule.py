@@ -7,7 +7,7 @@ the correct class instance based on the policy links.
 
 Here is an example of how this is referenced and used::
 
-    policy = FirewallPolicy('smcpython').load()
+    policy = FirewallPolicy('smcpython')
     policy.fw_ipv4_access_rules.create(name='myrule', 
                                        sources=mysources,
                                        destinations=mydestinations, 
@@ -21,8 +21,9 @@ object for creation.
 import smc.actions.search as search
 from smc.elements.element import Meta
 from smc.api.common import SMCRequest
+from smc.elements.mixins import UnicodeMixin
 
-class IPv4Rule(object):
+class IPv4Rule(UnicodeMixin):
     """ 
     Represents an IPv4 Rule in SMC Policy
     Each rule type may have different requirements, although some fields are
@@ -38,10 +39,8 @@ class IPv4Rule(object):
     """
     typeof = 'fw_ipv4_access_rule'
     
-    def __init__(self, meta=None, **kwargs):
+    def __init__(self, meta=None):
         self.meta = meta
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
     
     @property
     def name(self):
@@ -150,11 +149,12 @@ class IPv4Rule(object):
         for rule in rule_lst:
             rules.append(IPv4Rule(meta=Meta(**rule)))
         return rules
-                      
+    
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return "%s(%r)" % (self.__class__, 'name={}'
-                           .format(self.name))
-        
+        return repr(unicode(self))
         
 class IPv4NATRule(object):
     """

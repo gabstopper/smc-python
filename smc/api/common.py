@@ -8,6 +8,7 @@ method in smc.api.web.SMCConnection to submit the data to the SMC.
 import logging
 from smc import session
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
+from smc.elements.util import unicode_to_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +38,13 @@ class RequestHandler(object):
                     self.href = session.cache.get_entry_href('elements')
             result = session.connection.send_request(self.method, self)
         
-        except SMCOperationFailure, e:
+        except SMCOperationFailure as e:
             result = e.smcresult
-        except SMCConnectionError, e:
+        except SMCConnectionError as e:
             err = e
-        except TypeError, e:
+        except TypeError as e:
             err = str(e)
-        except IOError, e:
+        except IOError as e:
             err = e
         finally:
             if err:
@@ -115,9 +116,9 @@ def fetch_entry_point(name):
             return None
         return entry_href
     
-    except SMCOperationFailure, e:
+    except SMCOperationFailure as e:
         logger.error("Failure occurred fetching element: %s" % e)
-    except SMCConnectionError, e:
+    except SMCConnectionError as e:
         raise
 
 def fetch_href_by_name(name,
@@ -149,7 +150,7 @@ def fetch_href_by_name(name,
             result.href = result.json[0].get('href')
     else:
         if not result.msg:
-            result.msg = "No results found for: {}".format(name)
+            result.msg = "No results found for: {}".format(unicode_to_bytes(name))
     return result
 
 def fetch_json_by_name(name):

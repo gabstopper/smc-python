@@ -71,7 +71,8 @@ Resources
 ---------
 
 Resources are specific areas within the smc-python API that require 'load' actions to retrieve the 
-configuration data and encapsulate specific methods based on the element type. 
+configuration data and encapsulate specific methods based on the element type. The intent of elements that
+require load() be called is to use a cached instance of the element.
 For example, to perform actions against a specific engine within SMC, you must first identify the engine and
 load the configuration:
 
@@ -85,14 +86,33 @@ engine references.
 A list of current resources are:
 
 * Engine: encapsulates all engine types; :py:class:`smc.elements.engine.Engine`
-* FirewallPolicy: configuration of firewall policies; :py:class:`smc.elements.policy.FirewallPolicy`
 * VPNPolicy: VPN Policy specific actions; :py:class:`smc.elements.vpn.VPNPolicy`
-* External Gateway: VPN external gateway actions; :py:class:`smc.elements.vpn.ExternalGateway`
-* System: System level modifications such as updates, patches; :py:class:`smc.elements.system`
-* Servers: Management and Log Server configurations; :py:class:`smc.elements.servers`
 
 Much of the functionality is encapsulated into these top level resources. For example, after loading 
 a VPNPolicy, you can add external endpoints (for External Gateways), add VPN Sites, enable/disable sites, etc.
+
+Other elements such as network elements can be retrieved by referencing the element type directly, or
+by using describe methods to get the context of the element. 
+
+For example, getting the available host elements through collections:
+
+.. code-block:: python
+
+   for host in describe_hosts():
+       print host.name, host.href
+
+Or by accessing directly if the host name is known:
+
+.. code-block:: python
+
+   host = Host('myhost')
+   print host.describe()
+   
+.. code-block:: python
+
+   policy = FirewallPolicy('firewall-perimeter')
+   for rule in policy.fw_ipv4_access_rules.all():
+       print rule
 
 Collection
 ----------
@@ -147,6 +167,7 @@ Creating elements with smc-python can be done for all of the common element type
 * Groups
 * DomainName
 * IPList (SMC API >= 6.1)
+* URLListApplication (SMC API >= 6.1)
 * Zone
 * LogicalInterface
 * TCPService
@@ -538,7 +559,7 @@ To add VLANs to layer 2 or IPS inline interfaces:
    
 To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation 
 
-Deleting interfaces
+Deleting Interfaces
 +++++++++++++++++++
 
 Deleting interfaces is done at the engine level. In order to delete an interface, you must first call
@@ -697,27 +718,23 @@ Getting the template is easiest through the collection.describe_* methods
 .. code-block:: python
 
    import smc.elements.collection
-   for template in describe_fw_template_policies():
+   for template in describe_fw_template_policy():
      print template.name, template.href
    
 To load an existing policy type:
 
 .. code-block:: python
 
-   FirewallPolicy('existing_policy_by_name').load()
+   FirewallPolicy('existing_policy_by_name')
         
 Example rule creation:
 
 .. code-block:: python
 
-   policy = FirewallPolicy('newpolicy').load()
-   policy.open()
-   policy.ipv4_rule.create(name='myrule', 
-                           sources=mysources,
-                           destinations=mydestinations, 
-                           services=myservices, 
-                           action='permit')
-   policy.save()
+   policy = FirewallPolicy('newpolicy')
+   policy.fw_ipv4_access_rules.create(name='mynewrule', sources='any', 
+                                      destinations='any', services='any',
+                                      action='permit')
 
 See :py:mod:`smc.examples.firewall_policy` for a full example 
 
@@ -725,16 +742,15 @@ Create a NAT rule for a firewall policy using source NAT (outbound NAT example):
 
 .. code-block:: python
 
-   for policy in describe_fw_policies():
+   for policy in describe_fw_policy():
      if policy.name == 'Datacenter Policy':
-       pol = policy.load()
-       pol.fw_ipv4_nat_rules.create(name='mynatrule', 
-                                    sources='any', 
-                                    destinations='any', 
-                                    services='any',
-                                    dynamic_src_nat='10.0.0.245')
+       policy.fw_ipv4_nat_rules.create(name='mynatrule', 
+                                       sources='any', 
+                                       destinations='any', 
+                                       services='any',
+                                       dynamic_src_nat='10.0.0.245')
                                     
-For additional NAT related options, see: :py:class:`smc.elements.rule.IPv4NATRule`
+For additional NAT related options, see: :py:class:`smc.policy.rule.IPv4NATRule`
 
 VPN Policy
 ----------
@@ -799,7 +815,7 @@ Creating Administrators
 -----------------------
 
 Creating administrators and modifying settings can be done using the 
-:py:class:`smc.elements.element.AdminUser` class.
+:py:class:`smc.elements.user.AdminUser` class.
 
 For example, to create a user called 'administrator' and modify after creation, do:
 
@@ -815,7 +831,7 @@ To modify after creation by setting a password and making a superuser:
 
 .. code-block:: python
 
-   admin = AdminUser.modify('administrator')
+   admin = AdminUser('administrator')
    admin.change_password('mynewpassword')
    admin.modify_attribute(superuser=True)
    admin.enable_disable() #enable or disable account
@@ -898,13 +914,6 @@ Empty the trash bin:
 
    system = System()
    system.empty_trash_bin()
-   
-    
-Shortcuts
----------
-
-The smc.actions package includes several shortcut modules to simplify common operations and also includes input
-validation. 
 
 Logging
 -------

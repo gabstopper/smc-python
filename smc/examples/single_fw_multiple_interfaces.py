@@ -10,7 +10,7 @@ from smc import session
 from smc.core.engines import Layer3Firewall
 
 if __name__ == '__main__':
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.25:8082', api_key='4366TuolHMJp3nHaUeF60001')
     
     #Create base engine specifying management IP info and management interface number
     engine = Layer3Firewall.create('myfirewall',
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     engine.add_route('172.18.1.254', '0.0.0.0/0') #default gateway
     
     #Fire off a task to queue a policy upload once device is initialized
-    engine.upload(policy='Layer 3 Router Policy')
+    engine.upload(policy='Amazon Cloud')
     
     #Get initial contact information for sg-reconfigure
     for node in engine.nodes:

@@ -11,11 +11,11 @@ network.
 from smc import session
 from smc.elements.element import Network
 from smc.core.engines import Engine
-from smc.elements.vpn import ExternalGateway, ExternalEndpoint, VPNPolicy
+from smc.elements.vpn import ExternalGateway, VPNPolicy
 
 if __name__ == '__main__':
     
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
+    session.login(url='http://172.18.1.25:8082', api_key='4366TuolHMJp3nHaUeF60001')
     
     """
     An external gateway defines a non-SMC managed gateway device that acts as a 
@@ -29,11 +29,9 @@ if __name__ == '__main__':
     IP address settings and other VPN specific settings for this endpoint
     After creating, add to the external gateway
     """
-    external_endpoint = ExternalEndpoint.create(name='myendpoint', 
-                                                address='2.2.2.2')
-    
-    external_gateway.add_external_endpoint(external_endpoint)
-    
+    external_gateway.external_endpoint.create(name='myendpoint', 
+                                              address='2.2.2.2')
+
     """
     Lastly, 'sites' need to be configured that identify the network/s on the
     other end of the VPN. You can either use pre-existing network elements, or create
@@ -42,14 +40,14 @@ if __name__ == '__main__':
     """    
     network = Network.create('remote-network', '1.1.1.0/24').href
     
-    external_gateway.add_site('remote-site', [network])
+    external_gateway.vpn_site.create('remote-site', [network])
 
     """
     Retrieve the internal gateway for SMC managed engine by loading the
     engine configuration. The internal gateway reference is located as
     engine.internal_gateway.href
     """
-    engine = Engine('aws-02').load()
+    engine = Engine('testfw').load()
 
     """
     Create the VPN Policy

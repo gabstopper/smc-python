@@ -38,6 +38,7 @@ class ContactAddress(object):
     
     :param list addresses: list of IP addresses for contact address
     :param str location: location href to map this contact address to
+    :param boolean dynamic: should this be considered a dynamic contact address
     """
     def __init__(self, address, location, dynamic=False):
         location_ref = location_helper(location)

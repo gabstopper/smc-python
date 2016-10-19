@@ -26,3 +26,10 @@ SMCElement parent class rewritten to support lazy loading of elements
 smc.elements.element.* classes use consistent create classmethod, allowing objects to be loaded in main constructor
 added search methods to find name based on href
 added methods for managing group members
+
+$version 0.3.5
+Add IPv6 support for creating Host, Network and Router objects
+Unicode mixin for classes that print via __str__ 
+Rewrite of policy classes and move to smc.policy
+URL List support
+

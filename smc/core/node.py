@@ -17,9 +17,9 @@ import smc.actions.search as search
 from smc.elements.util import find_link_by_name, save_to_file
 from smc.api.exceptions import LicenseError, NodeCommandFailed
 from smc.api.common import SMCRequest
-from smc.elements.mixins import ModifiableMixin
+from smc.elements.mixins import ModifiableMixin, UnicodeMixin
 
-class Node(ModifiableMixin):
+class Node(UnicodeMixin, ModifiableMixin):
     """ 
     Node settings to make each engine node controllable individually.
     When Engine().load() is called, setattr will set all instance attributes
@@ -37,7 +37,7 @@ class Node(ModifiableMixin):
     :ivar disabled: whether node is disabled or not
     :ivar href: href of this resource
     """
-    def __init__(self, meta=None, **kwargs):
+    def __init__(self, meta=None):
         self.meta = meta
 
     @property
@@ -101,7 +101,8 @@ class Node(ModifiableMixin):
         """
         params = {'license_item_id': license_item_id}
         result = SMCRequest(
-                    href=find_link_by_name('bind', self.link), params=params).create()
+                    href=find_link_by_name('bind', self.link), 
+                    params=params).create()
         if result.msg:
             raise LicenseError(result.msg)
         
@@ -155,7 +156,7 @@ class Node(ModifiableMixin):
             if filename:
                 try:
                     save_to_file(filename, result.content)
-                except IOError, e:
+                except IOError as e:
                     raise NodeCommandFailed("Error occurred when attempting to "
                                             "save initial contact to file: {}"
                                             .format(e))
@@ -447,9 +448,11 @@ class Node(ModifiableMixin):
         raise AttributeError('Unsupported node command: {}'
                              .format(attr))
 
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={},node_type={}'
-                           .format(self.name,self.node_type))
+        return repr(unicode(self))
 
 class NodeStatus(object):
     """

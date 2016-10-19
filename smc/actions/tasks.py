@@ -90,7 +90,7 @@ class TaskDownload(object):
         try:
             return SMCRequest(href=self.result,
                               filename=self.filename).read()
-        except IOError, io:
+        except IOError as io:
             raise TaskRunFailed("Export task failed with message: {}"
                                 .format(io))
         

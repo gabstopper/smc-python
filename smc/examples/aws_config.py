@@ -66,11 +66,14 @@ import botocore
 from smc import session
 from smc.core.engines import Layer3Firewall
 from smc.api.exceptions import CreateEngineFailed, TaskRunFailed, LicenseError,\
-    NodeCommandFailed
+    NodeCommandFailed, ElementNotFound
+from smc.actions.search import element_name_by_href
 from smc.elements.helpers import location_helper
 from smc.elements.other import ContactAddress
 from smc.actions.tasks import TaskMonitor
 from smc.elements.vpn import VPNPolicy
+from smc.elements.servers import ManagementServer, LogServer
+from smc.elements.collection import describe_log_server
 
 class VpcConfiguration(object):
     """ 
@@ -423,7 +426,7 @@ class NGFWConfiguration(object):
         self.vpn_policy = vpn_policy
         self.firewall_policy = firewall_policy
         self.reverse_connection = reverse_connection
-    
+
     def create(self, interfaces, default_gateway):
         """
         Create NGFW
@@ -531,7 +534,7 @@ class NGFWConfiguration(object):
                 for node in self.engine.nodes:
                     current = node.status()
                     if current.status != desired_status:
-                        logger.info("status: {}, config status: {}, state: {}"
+                        logger.info("Status: {}, Config status: {}, State: {}"
                                     .format(current.status, 
                                             current.configuration_status,
                                             current.state))
@@ -549,7 +552,29 @@ class NGFWConfiguration(object):
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'name={}'\
                            .format(self.name))
-           
+
+def pre_check_location_exists(location):
+    """
+    Check to make sure the Management Server and Log Server
+    have the location specified or the initial configuration
+    will not have the correct public IP address and initial 
+    contact will fail.
+    
+    :raises: :py:class: `smc.api.exceptions.ElementNotFound`
+    """
+    location = location.lower()
+    mgmt = ManagementServer('Management Server')
+    for addr in mgmt.contact_addresses():
+        if not element_name_by_href(addr.get('location_ref')).lower() == location:
+            raise ElementNotFound('Management server does not have the specified '
+                                  'location assigned. Location: {}'.format(location))
+    for addr in describe_log_server():
+        #Assuming just one log server
+        for addr in addr.contact_addresses():
+            if not element_name_by_href(addr.get('location_ref')).lower() == location:
+                raise ElementNotFound('Log server does not have the specified '
+                                      'location assigned. Location: {}'.format(location))
+                   
 def verify_key_pair(key_pair):
     """ 
     Verifies key pair before launching AMI
@@ -720,6 +745,7 @@ if __name__ == '__main__':
     else: #from ~.smcrc
         session.login()
    
+    #pre_check_location_exists(ngfw.location_ref)
     """
     Strategy to obtain credentials for EC2 operations (in order):
     * Check for region in yaml

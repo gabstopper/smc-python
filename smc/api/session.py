@@ -192,7 +192,7 @@ class SessionCache(object):
                                          "Return data was: %s" % r.text)
             self.api_entry = j['entry_point']
 
-        except requests.exceptions.RequestException, e:
+        except requests.exceptions.RequestException as e:
             raise SMCConnectionError(e)
 
     def get_entry_href(self, verb):

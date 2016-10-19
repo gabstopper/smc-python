@@ -1,6 +1,6 @@
 from copy import copy
 import smc.actions.search as search
-from smc.elements.util import find_link_by_name, lazy_loader
+from smc.elements.util import find_link_by_name
 from smc.elements.element import Meta
 from smc.api.common import SMCRequest
 
@@ -269,16 +269,6 @@ class TunnelInterface(object):
         self.data = {'interface_id': interface_id,
                      'interfaces': []}
 
-    @property
-    def href(self):
-        if self.meta:
-            return self.meta.href
-        
-    @property
-    def name(self):
-        if self.meta:
-            return self.meta.name
-
     def add_single_node_interface(self, tunnel_id, address, network_value, 
                                   nodeid=1,
                                   zone_ref=None, **kwargs):
@@ -351,14 +341,17 @@ class TunnelInterface(object):
                          interfaces=interfaces,
                          zone_ref=zone_ref)
     
-    def load(self):
+    def contact_addresses(self):
         """
-        Get latest json, mostly used by internal methods
+        View the contact address/es for this physical interface.
+        The displayed output is in json format. Use :meth:`~add_contact_address`
+        to add a new contact address to the interface.
+        
+        :return: dict of contact addresses
         """
-        result = search.element_by_href_as_smcresult(self.href)
-        if result:
-            self.data.update(**result.json)
-    
+        return search.element_by_href_as_json(
+                    find_link_by_name('contact_addresses', self.link))
+        
     def all(self):
         """
         Return all meta information for physical interfaces on this engine.
@@ -375,17 +368,38 @@ class TunnelInterface(object):
             interfaces.append(TunnelInterface(meta=Meta(**intf)))
         return interfaces
 
-    @lazy_loader
     def describe(self):
         """
         Describe the physical interface json
         
-            for intf in engine.physical_interface.all():
+            for intf in engine.tunnel_interface.all():
                 if intf.name.startswith('Interface 0'):
                     pprint(intf.describe())
-
+                    
+        :return: dict of interface json
         """
-        return self.data
+        return search.element_by_href_as_json(self.href)  
+    
+    @property
+    def href(self):
+        if self.meta:
+            return self.meta.href
+        
+    @property
+    def name(self):
+        if self.meta:
+            return self.meta.name
+        
+    @property
+    def link(self):
+        if self.data.get('link'):
+            return self.data.get('link')
+        else:
+            #interface has not been loaded yet
+            result = search.element_by_href_as_json(self.href)
+            if result:
+                self.data.update(**result)
+                return self.data.get('link')
             
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'name={}'
@@ -453,7 +467,7 @@ class PhysicalInterface(object):
         :param boolean is_mgmt: should management be enabled
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`SingleNodeInterface` for more information
+        See :py:class:`~SingleNodeInterface` for more information
         """
         intf = SingleNodeInterface(interface_id, address, network_value, **kwargs)
         if is_mgmt:
@@ -477,7 +491,7 @@ class PhysicalInterface(object):
         :param boolean is_mgmt: enable management
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`NodeInterface` for more information 
+        See :py:class:`~NodeInterface` for more information 
         """
         intf = NodeInterface(interface_id, address, network_value, nodeid=nodeid,
                              **kwargs)
@@ -498,7 +512,7 @@ class PhysicalInterface(object):
         :param str zone_ref: zone reference
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`CaptureInterface` for more information 
+        See :py:class:`~CaptureInterface` for more information 
         """
         intf = CaptureInterface(interface_id, logical_interface_ref, **kwargs)
         self.data.update(interface_id=interface_id,
@@ -518,7 +532,7 @@ class PhysicalInterface(object):
         :param zone_ref_intf2: zone for inline interface 2
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`InlineInterface` for more information  
+        See :py:class:`~InlineInterface` for more information  
         """
         inline_intf = InlineInterface(interface_id, 
                                       logical_interface_ref=logical_interface_ref,
@@ -540,7 +554,7 @@ class PhysicalInterface(object):
         :param int nodeid: node identifier
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`DHCPInterface` for more information 
+        See :py:class:`~DHCPInterface` for more information 
         """ 
         dhcp = DHCPInterface(interface_id,
                              dynamic_index,
@@ -619,7 +633,7 @@ class PhysicalInterface(object):
         :param str zone_ref: zone reference
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`SingleNodeInterface` for more information 
+        See :py:class:`~SingleNodeInterface` for more information 
         """
         vlan = VlanInterface(interface_id, vlan_id, zone_ref=zone_ref)
         node = SingleNodeInterface(vlan.interface_id, address, network_value)
@@ -640,7 +654,7 @@ class PhysicalInterface(object):
         :param str virtual_resource_name: name of virtual resource
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`NodeInterface` for more information 
+        See :py:class:`~NodeInterface` for more information 
         """
         vlan = VlanInterface(interface_id, vlan_id, 
                              virtual_mapping,
@@ -664,7 +678,7 @@ class PhysicalInterface(object):
         :param str zone_ref_intf2: zone for inline interface 2
         :return: :py:class:`smc.api.web.SMCResult`
         
-        See :py:class:`InlineInterface` for more information 
+        See :py:class:`~InlineInterface` for more information 
         """     
         first_intf = interface_id.split('-')[0]
         vlan = VlanInterface(first_intf, vlan_id, zone_ref=zone_ref_intf1)
@@ -680,8 +694,7 @@ class PhysicalInterface(object):
                          vlanInterfaces=[vars(vlan)],
                          interface_id=first_intf)
         return self._update()
-    
-    @lazy_loader
+
     def add_contact_address(self, contact_address, engine_etag):
         """
         Add a contact address to this physical interface
@@ -699,13 +712,13 @@ class PhysicalInterface(object):
         location set of 'Internet'::
         
             engine = Engine('testfw').load()
-            for interface in self.engine.interface.all():
+            for interface in engine.interface.all():
                 if interface.name == 'Interface 0':
                     contact_address = ContactAddress('53.2.4.3', 'Default')
                     interface.add_contact_address(contact_address, engine.etag)
         
         """
-        href = find_link_by_name('contact_addresses', self.data.get('link'))
+        href = find_link_by_name('contact_addresses', self.link)
         existing = search.element_by_href_as_json(href)     
         if existing:
             existing.get('contact_addresses').append(
@@ -715,12 +728,17 @@ class PhysicalInterface(object):
 
         return SMCRequest(href=href, json=existing, 
                           etag=engine_etag).update()
-    
-    @lazy_loader
+
     def contact_addresses(self):
+        """
+        View the contact address/es for this physical interface.
+        The displayed output is in json format. Use :meth:`~add_contact_address`
+        to add a new contact address to the interface.
+        
+        :return: dict of contact addresses
+        """
         return search.element_by_href_as_json(
-                    find_link_by_name('contact_addresses', 
-                                      self.data.get('link')))
+                    find_link_by_name('contact_addresses', self.link))
       
     def modify_attribute(self, **kwargs):
         """ 
@@ -732,30 +750,13 @@ class PhysicalInterface(object):
             for _k, v in interface.iteritems():
                 v.update(kwargs)
 
-    @lazy_loader
     def describe(self):
         """
-        Describe the physical interface json
+        Display the interface json information, including sub interfaces
         
-            for intf in engine.physical_interface.all():
-                if intf.name.startswith('Interface 0'):
-                    pprint(intf.describe())
+        :return: dict of interface json
         """
-        return self.data
-    
-    def load(self):
-        """
-        Get latest json, used by internal methods. All of the add interface 
-        functionality does not require the interface json be in context as the
-        SMC API will allow just the interface json to be POST. However for other
-        methods that require modifications or data retrieval this is called by
-        the lazy_loader decorator if the json is not already in context
-        
-        :return: None
-        """
-        result = search.element_by_href_as_json(self.href)
-        if result:
-            self.data.update(**result)
+        return search.element_by_href_as_json(self.href)        
 
     def all(self):
         """
@@ -768,11 +769,10 @@ class PhysicalInterface(object):
                     print interface.describe()
         """
         interfaces=[]
-        for intf in search.element_by_href_as_json(self.meta.href):
+        for intf in search.element_by_href_as_json(self.href):
             interfaces.append(PhysicalInterface(meta=Meta(**intf)))
         return interfaces
 
-    @lazy_loader
     def sub_interface(self):
         """
         Get the sub interface (single node interface, node interface, etc) for this
@@ -803,11 +803,17 @@ class PhysicalInterface(object):
         if self.meta:
             return self.meta.name
     
-    def _load(self):
-        result = search.element_by_href_as_json(self.href)
-        if result:
-            self.data.update(**result)
-                    
+    @property
+    def link(self):
+        if self.data.get('link'):
+            return self.data.get('link')
+        else:
+            #interface has not been loaded yet
+            result = search.element_by_href_as_json(self.href)
+            if result:
+                self.data.update(**result)
+                return self.data.get('link')
+               
     def _update(self):
         """
         If metadata doesn't exist, this is because an Engine is 
@@ -820,10 +826,7 @@ class PhysicalInterface(object):
             #called from within engine context
             return SMCRequest(href=self.href, json=self.data).create()
         #else don't add, just update data attribute
-    
-    #def __getattr__(self, value):
-    #    raise AttributeError("You must first load the engine to access resources!")
-    
+
     def __repr__(self):
         return "%s(%r)" % (self.__class__.__name__, 'name={}'
                            .format(self.meta.name))

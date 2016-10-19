@@ -50,10 +50,10 @@ def load_from_file(alt_filepath=None):
         for option in option_names:
             val = parser.get('smc', option)
             config[option] = val
-    except NoOptionError, e:
+    except NoOptionError as e:
         raise ConfigLoadError('Failed loading credentials from configuration '
                               'file: {}; {}'.format(path,e))
-    except NoSectionError, e:
+    except NoSectionError as e:
         raise ConfigLoadError('Failed loading credential file from: {}, check the '
                               'path and verify contents are correct.'.format(path, e))
     

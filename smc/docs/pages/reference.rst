@@ -142,6 +142,13 @@ IPList
    :exclude-members: create
    :show-inheritance:
 
+Expression
+++++++++++
+
+.. autoclass:: Expression
+	:members:
+	:show-inheritance:
+
 Zone
 ++++
 
@@ -161,6 +168,7 @@ Engine
 
 .. automodule:: smc.core.engine
    :members:
+   :show-inheritance:
 
 Node
 ----
@@ -276,36 +284,42 @@ VirtualPhysicalInterface
 Policy
 ------
 
-.. automodule:: smc.elements.policy
-    :members: Policy
-    :undoc-members:
+.. automodule:: smc.policy.policy
+    :members:
     :show-inheritance:
 
 FirewallPolicy
 ++++++++++++++
 
-.. autoclass:: FirewallPolicy
+.. automodule:: smc.policy.layer3
    :members:
    :show-inheritance:
+
+Layer2Policy
+++++++++++++
+
+.. automodule:: smc.policy.layer2
+	:members:
+	:show-inheritance:
 
 InspectionPolicy
 ++++++++++++++++
 
-.. autoclass:: InspectionPolicy
+.. automodule:: smc.policy.inspection
    :members:
    :show-inheritance:
 
 FileFilteringPolicy
 +++++++++++++++++++
 
-.. autoclass:: FileFilteringPolicy
+.. automodule:: smc.policy.file_filtering
    :members:
    :show-inheritance:
 
 Rules
 -----
 
-.. automodule:: smc.elements.rule
+.. automodule:: smc.policy.rule
 
 IPv4Rule
 ++++++++
@@ -331,13 +345,15 @@ VPNPolicy
 +++++++++
 
 .. autoclass:: VPNPolicy
-   :members: 
+   :members:
+   :show-inheritance:
 
 InternalGateway
 +++++++++++++++
 
 .. autoclass:: InternalGateway
    :members:
+   :show-inheritance:
 
 InternalEndpoint
 ++++++++++++++++
@@ -350,6 +366,7 @@ ExternalGateway
 
 .. autoclass:: ExternalGateway
    :members:
+   :show-inheritance:
    
 ExternalEndpoint
 ++++++++++++++++
@@ -374,6 +391,13 @@ Users
 
 .. automodule:: smc.elements.user
    :members: AdminUser
+   :show-inheritance:
+
+Mixins
+------
+
+.. automodule:: smc.elements.mixins
+   :members:
 
 Collection
 ----------

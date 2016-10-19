@@ -127,7 +127,7 @@ class SMCAPIConnection(object):
                 with open(path, "wb") as handle:
                     for data in response.iter_content():
                         handle.write(data)
-            except IOError, e:
+            except IOError as e:
                 raise IOError('Error attempting to save to file: {}'.format(e))
             result = SMCResult(response)
             result.content = path
@@ -190,23 +190,6 @@ class SMCResult(object):
                         self.json = result
                 else:
                     self.json = []
-                #Return can be either a dict or a list depending on
-                #what the query was to SMC. If the request specified a HREF,
-                #SMC API will return a dict. If it is a general search a list
-                #is returned. Before returing encode with utf-8 the unicode 
-                #strings but ignore nested values in dictionaries
-                #for now.
-                if isinstance(self.json, dict):
-                    for k, v in self.json.items():
-                        if isinstance(v, unicode):
-                            self.json[k] = v.encode('utf-8')
-                elif isinstance(self.json, list):
-                    for entry in self.json:
-                        if isinstance(entry, dict):
-                            for k, v in entry.items():
-                                if isinstance(v, unicode):
-                                    entry[k] = v.encode('utf-8')
-                
                 return self.json
             elif response.headers.get('content-type') == 'application/octet-stream':
                 self.content = response.text

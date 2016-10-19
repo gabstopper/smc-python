@@ -37,7 +37,7 @@ Requirements:
 """
 from smc import session
 from smc.elements.element import IPList
-from smc.elements.collection import describe_ip_lists
+from smc.elements.collection import describe_ip_list
 
 def upload_as_zip(name, filename):
     """
@@ -48,7 +48,7 @@ def upload_as_zip(name, filename):
     :param str filename: name of zip file to upload, full path
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    location = describe_ip_lists(name=[name])
+    location = describe_ip_list(name=[name])
     if location:
         iplist = location[0]
         result = iplist.upload(filename=filename)
@@ -62,7 +62,7 @@ def upload_as_text(name, filename):
     :param str filename: name of text file to upload
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    location = describe_ip_lists(name=[name])
+    location = describe_ip_list(name=[name])
     if location:
         iplist = location[0]
         result = iplist.upload(filename=filename, as_type='txt')
@@ -76,7 +76,7 @@ def upload_as_json(name, mylist):
     :param list: list of IPList entries
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    location = describe_ip_lists(name=[name])
+    location = describe_ip_list(name=[name])
     if location:
         iplist = location[0]
         result = iplist.upload(json=mylist, as_type='json')
@@ -91,7 +91,7 @@ def download_as_zip(name, filename):
     :param str name: name of IPList
     :param str filename: name of filename for IPList
     """
-    location = describe_ip_lists(name=[name])
+    location = describe_ip_list(name=[name])
     if location:
         iplist = location[0]
         result = iplist.download(filename=filename)
@@ -104,7 +104,7 @@ def download_as_text(name, filename):
     :param str name: name of IPList
     :param str filename: name of file for IPList download
     """
-    location = describe_ip_lists(name=[name])
+    location = describe_ip_list(name=[name])
     if location:
         iplist = location[0]
         result = iplist.download(filename=filename, as_type='txt')
@@ -119,7 +119,7 @@ def download_as_json(name):
     :param str name: name of IPList
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    location = describe_ip_lists(name=[name])
+    location = describe_ip_list(name=[name])
     if location:
         iplist = location[0]
         result = iplist.download(as_type='json')
@@ -148,7 +148,7 @@ def create_iplist_with_data(name, iplist):
                    
 if __name__ == '__main__':
 
-    session.login(url='http://172.18.1.25:8082', api_key='gxJ8WugtuNB5ztvl7HUz0001', timeout=120)
+    session.login(url='http://172.18.1.25:8082', api_key='4366TuolHMJp3nHaUeF60001', timeout=120)
     
     
     #print upload_as_text('mylist', '/Users/davidlepage/git/smc-python/src/smc/examples/ip_addresses')

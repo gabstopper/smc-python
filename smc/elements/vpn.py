@@ -1,12 +1,13 @@
-from smc.elements.element import Meta
-from smc.elements.mixins import ModifiableMixin
+from smc.elements.element import Meta, ElementLocator
+from smc.elements.mixins import ModifiableMixin, ExportableMixin, UnicodeMixin
 import smc.actions.search as search
 from smc.api.exceptions import LoadPolicyFailed, CreatePolicyFailed,\
-    CreateElementFailed, CertificateError, LoadElementFailed
-from smc.elements.util import find_link_by_name
+    CreateElementFailed, CertificateError
+from smc.elements.util import find_link_by_name, unicode_to_bytes,\
+    bytes_to_unicode
 from smc.api.common import SMCRequest
                                                     
-class InternalGateway(ModifiableMixin):
+class InternalGateway(UnicodeMixin, ModifiableMixin):
     """ 
     InternalGateway represents the engine side VPN configuration
     This defines settings such as setting VPN sites on protected
@@ -27,7 +28,6 @@ class InternalGateway(ModifiableMixin):
     """
     def __init__(self, meta=None, **kwargs):
         self.meta = meta
-        self.json = self.load_attributes().json
 
     @property
     def name(self):
@@ -42,7 +42,8 @@ class InternalGateway(ModifiableMixin):
 
     @property
     def link(self):
-        return self.json.get('link')
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
                
     @property
     def vpn_site(self):
@@ -98,7 +99,7 @@ class InternalGateway(ModifiableMixin):
         Certificate request should be an instance of VPNCertificate.
     
         :method: POST
-        :param :py:class:`smc.elements.vpn.VPNCertificate` certificate_request: 
+        :param: :py:class:`~smc.elements.vpn.VPNCertificate` certificate_request: 
                 certificate request created
         :return: None
         :raises: 
@@ -115,12 +116,13 @@ class InternalGateway(ModifiableMixin):
             
             print engine.internal_gateway.describe()
         """    
-        if hasattr(self, 'json'):
-            return self.json
-                    
+        return search.element_by_href_as_json(self.href)
+
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+        return repr(unicode(self))
 
 class InternalEndpoint(ModifiableMixin):
     """
@@ -145,7 +147,7 @@ class InternalEndpoint(ModifiableMixin):
     
     :param href: pass in href to init which will have engine insert location  
     """
-    def __init__(self, meta=None, **kwargs):
+    def __init__(self, meta=None):
         self.meta = meta
     
     @property
@@ -179,30 +181,33 @@ class InternalEndpoint(ModifiableMixin):
         return '{0}(name={1})'.format(self.__class__.__name__, 
                                       self.name)
  
-class ExternalGateway(object):
+class ExternalGateway(UnicodeMixin, ExportableMixin):
     """
     ExternalGateway defines an VPN Gateway for a non-SMC managed device. 
     This will specify details such as the endpoint IP, enabled, 
-    balancing mode, etc. Load needs to be called on this resource in order
-    to get the context to change the configuration.
+    balancing mode, etc.
     
-    Create the external gateway and load configuration::
+    Create the external gateway and view configuration::
     
         mygw = ExternalGateway.create('mygateway')
+        mygw.describe()
 
     Later get configuration for external gateway::
     
-        mygw = ExternalGateway('mygateway').load()
+        mygw = ExternalGateway('mygateway')
         
     :ivar gateway_profile: link to top level enabled gateway crypto
     :ivar name: name of external gateway
     :ivar trust_all_cas: True|False (default True)
     :ivar vpn_site: vpn_sites associated
     
-    :param href: pass in href to init which will have engine insert location
+    :param str name: name of external gateway
     """
-    def __init__(self, name=None, meta=None, **kwargs):
-        self.name = name
+    typeof = 'external_gateway'
+    href = ElementLocator()
+    
+    def __init__(self, name, meta=None):
+        self._name = name
         self.meta = meta
 
     @classmethod
@@ -213,6 +218,7 @@ class ExternalGateway(object):
         :param str name: name of external gateway
         :param boolean trust_all_cas: whether to trust all internal CA's
                (default: True)
+        :return: :py:class:`smc.elements.vpn.ExternalGateway`
         """
         data = {'name': name,
                 'trust_all_cas': trust_all_cas }
@@ -220,39 +226,23 @@ class ExternalGateway(object):
         href = search.element_entry_point('external_gateway')
         result = SMCRequest(href=href, json=data).create()
         if result.href:
-            return ExternalGateway(name).load()
+            return ExternalGateway(name)
         else:
             raise CreateElementFailed('Failed creating external gateway, '
                                       'reason: {}'.format(result.msg))
 
-    def load(self):
-        """
-        Load external gateway settings
-        
-        :return: ExternalGateway
-        """
-        if not self.meta:
-            result = search.element_info_as_json_with_filter(
-                                                self.name, 'external_gateway')
-            if result and len(result) == 1:
-                self.meta = Meta(**result[0])
-            else:
-                raise LoadElementFailed('Could not load external VPN gateway: '
-                                        '{}, please ensure the name is correct '
-                                        'and the gateway exists.'
-                                        .format(self.name))
-        self.json = search.element_by_href_as_json(self.meta.href)
-        return self
-    
     @property
-    def href(self):
-        return self.meta.href
-        
+    def name(self):
+        return bytes_to_unicode(self._name)
+
     @property
     def link(self):
-        if hasattr(self, 'json'):
-            return self.json.get('link')
-
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
+    
+    def describe(self):
+        return search.element_by_href_as_json(self.href)
+    
     @property
     def vpn_site(self):
         """
@@ -283,18 +273,14 @@ class ExternalGateway(object):
         """
         href = find_link_by_name('external_endpoint', self.link)
         return ExternalEndpoint(meta=Meta(href=href))
-    
-    def export(self):
-        """
-        :method: POST
-        """
-        pass
 
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+        return repr(unicode(self))
 
-class ExternalEndpoint(ModifiableMixin):
+class ExternalEndpoint(UnicodeMixin, ModifiableMixin):
     """
     External Endpoint is used by the External Gateway and defines the IP
     and other VPN related settings to identify the VPN peer. This is created
@@ -305,7 +291,7 @@ class ExternalEndpoint(ModifiableMixin):
     :ivar name: name of external endpoint
     :ivar href: pass in href to init which will have engine insert location   
     """
-    def __init__(self, meta=None, **kwargs):
+    def __init__(self, meta=None):
         self.meta = meta
 
     def create(self, name, address, enabled=True, balancing_mode='active',
@@ -314,13 +300,14 @@ class ExternalEndpoint(ModifiableMixin):
         Create an external endpoint. Define common settings for that
         specify the address, enabled, nat_t, name, etc.
         
-        :param str name
+        :param str name: name of external endpoint
         :param str address: address of remote host
         :param boolean enabled: True|False (default: True)
         :param str balancing_mode: active
         :param boolean ipsec_vpn: True|False (default: True)
         :param boolean nat_t: True|False (default: False)
         :param boolean dynamic: is a dynamic VPN (default: False)
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         json = {'name': name,
                 'address': address,
@@ -351,18 +338,20 @@ class ExternalEndpoint(ModifiableMixin):
         """
         Show all defined external endpoints
         
-        :return list :py:class:smc.elements.vpn.ExternalEndpoint`
+        :return: list :py:class:`smc.elements.vpn.ExternalEndpoint`
         """
         endpoints=[]
         for endpoint in search.element_by_href_as_json(self.href):
             endpoints.append(ExternalEndpoint(meta=Meta(**endpoint)))
         return endpoints
     
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
   
-class VPNSite(ModifiableMixin):
+    def __repr__(self):
+        return repr(unicode(self))
+  
+class VPNSite(UnicodeMixin, ModifiableMixin):
     """
     VPN Site information for an internal or external gateway
     Sites are used to encapsulate hosts or networks as 'protected' for VPN
@@ -381,7 +370,7 @@ class VPNSite(ModifiableMixin):
     :ivar name: name of VPN site
     :ivar site_element: list of network elements behind this site
     """
-    def __init__(self, meta=None, **kwargs):
+    def __init__(self, meta=None):
         self.meta = meta
  
     @property
@@ -422,19 +411,43 @@ class VPNSite(ModifiableMixin):
             sites.append(VPNSite(meta=Meta(**site)))
         return sites
     
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+        return repr(unicode(self))
 
-class VPNProfile(object):
+class VPNProfile(UnicodeMixin):
     """
     Represents a VPNProfile configuration used by the VPNPolicy
     """
-    def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
+    typeof = 'vpn_profile'
+    href = ElementLocator()
     
-class VPNPolicy(object):
+    def __init__(self, name, meta=None):
+        self.name = name
+        self.meta = meta
+    
+    @property
+    def link(self):
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
+
+    def describe(self):
+        """
+        Show the element json
+        
+        :return: json of element
+        """
+        return search.element_by_href_as_json(self.href)
+
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
+    def __repr__(self):
+        return repr(unicode(self))
+    
+class VPNPolicy(ExportableMixin):
     """
     Create a new VPN Policy
     When making VPN Policy modifications, you must first call :py:func:`open`, 
@@ -446,12 +459,17 @@ class VPNPolicy(object):
     :ivar nat: whether NAT is enabled on the VPN policy
     :ivar mobile_vpn_topology_mode: where to allow remote clients
     """
-    def __init__(self, name, meta=None, **kwargs):
-        self.name = name
+    typeof = 'vpn'
+    href = ElementLocator()
+    
+    def __init__(self, name, meta=None):
+        self._name = name
         self.meta = meta
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
 
+    @property
+    def name(self):
+        return bytes_to_unicode(self._name)
+    
     @classmethod
     def create(cls, name, nat=False, mobile_vpn_toplogy_mode=None,
                vpn_profile=None):
@@ -474,7 +492,8 @@ class VPNPolicy(object):
         if result.href:
             return VPNPolicy(name).load()
         else:
-            raise CreatePolicyFailed('VPN Policy create failed. Reason: {}'.format(result.msg))
+            raise CreatePolicyFailed('VPN Policy create failed. Reason: {}'
+                                     .format(result.msg))
     
     def load(self):
         """
@@ -483,7 +502,7 @@ class VPNPolicy(object):
         :return: VPNPolicy
         """
         if not self.meta:
-            result = search.element_info_as_json_with_filter(self.name, 'vpn')
+            result = search.element_info_as_json_with_filter(self.name, self.typeof)
             if result and len(result) == 1:
                 self.meta = Meta(**result[0])
             else:
@@ -491,17 +510,11 @@ class VPNPolicy(object):
                                        'the policy exists.'.format(self.name))
         self.json = search.element_by_href_as_json(self.meta.href)
         return self    
-    
-    @property
-    def href(self):
-        return self.meta.href
 
     @property
     def link(self):
-        if hasattr(self, 'json'):
-            return self.json.get('link')
-        else:
-            raise AttributeError("You must load the VPN Policy before accessing resources.")
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
     
     @property
     def nat(self):
@@ -575,12 +588,6 @@ class VPNPolicy(object):
         return search.element_by_href_as_json(
                     find_link_by_name('gateway_tunnel', self.link))
     
-    def export(self):
-        """
-        :method: POST
-        """
-        pass
-    
     def add_central_gateway(self, gateway):
         """ 
         Add SMC managed internal gateway to the Central Gateways of this VPN
@@ -622,9 +629,9 @@ class VPNPolicy(object):
         :param str vpn_role: central|satellite
         :return: boolean True for success
         """
-        from smc.elements.collection import describe_vpn_policies
+        from smc.elements.collection import describe_vpn
         success=False
-        for policy in describe_vpn_policies():
+        for policy in describe_vpn():
             if policy.name.startswith(vpn_policy):
                 vpn = policy.load()
                 vpn.open()
@@ -646,10 +653,15 @@ class VPNPolicy(object):
         """
         if hasattr(self, 'json'):
             return self.json
+   
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+        
+    def __str__(self):
+        return unicode_to_bytes(unicode(self))
     
     def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+        return repr(unicode(self))
         
 class VPNCertificate(object):
     """

@@ -1,11 +1,6 @@
-
-def lazy_loader(f):
-    def deco(self, *args, **kwargs):
-        #Need the full json for element
-        if not self.data.get('link'):
-            self.load()
-        return f(self, *args, **kwargs)
-    return deco
+"""
+Utility functions used in different areas of smc-python
+"""
 
 def save_to_file(filename, content):
     """
@@ -15,7 +10,7 @@ def save_to_file(filename, content):
     :param str filename: name of file to save to
     :param str content: content to save
     :return: None
-    :raises: IOError
+    :raises: :py:class:`IOError`
     """ 
     import os.path
     path = os.path.abspath(filename)
@@ -36,5 +31,26 @@ def find_link_by_name(link_name, linklist):
     for entry in linklist:
         if entry.get('rel') == link_name:
             return entry.get('href')
-        
-            
+
+def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
+    """
+    Helper to convert unicode strings to bytes for data that needs to be written to
+    on output stream (i.e. terminal)
+    
+    :param str s: string to encode
+    :param str encoding: utf-8 by default
+    :param str errors: what to do when encoding fails
+    :return: byte string utf-8 encoded
+    """
+    return s if isinstance(s, str) else s.encode(encoding, errors)
+
+def bytes_to_unicode(s, encoding='utf-8', errors='replace'):
+    """
+    Helper to convert byte string to unicode string for user based input
+    
+    :param str s: string to decode
+    :param str encoding: utf-8 by default
+    :param str errors: what to do when decoding fails
+    :return: unicode utf-8 string
+    """
+    return s if isinstance(s, unicode) else s.decode(encoding, errors)
