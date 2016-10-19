@@ -285,8 +285,8 @@ Policy
 ------
 
 .. automodule:: smc.policy.policy
-    :members:
-    :show-inheritance:
+   :members:
+   :show-inheritance:
 
 FirewallPolicy
 ++++++++++++++
@@ -299,8 +299,8 @@ Layer2Policy
 ++++++++++++
 
 .. automodule:: smc.policy.layer2
-	:members:
-	:show-inheritance:
+   :members:
+   :show-inheritance:
 
 InspectionPolicy
 ++++++++++++++++
@@ -404,7 +404,7 @@ Collection
 
 .. automodule:: smc.elements.collection
    :members:
- 
+
 Search
 ------
 
