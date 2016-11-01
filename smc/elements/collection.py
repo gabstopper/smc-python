@@ -73,15 +73,18 @@ the http://<smc>/api/elements node.
 """
 from smc import session
 import smc.elements.servers as servers
-import smc.elements.vpn as vpn
+import smc.policy.vpn as vpn
 import smc.elements.element as element
 import smc.elements.user as user
 import smc.core.engine as engine
+import smc.policy.ips as ips
 import smc.policy.layer3 as layer3
 import smc.policy.layer2 as layer2
 import smc.policy.inspection as inspection
 import smc.policy.file_filtering as file_filtering
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
+from smc.routing.access_list import IPv6AccessList, IPAccessList
+from smc.routing.prefix_list import IPPrefixList, IPv6PrefixList
 
 def describe_sub_ipv6_fw_policy(name=None, exact_match=True):
     """ 
@@ -241,7 +244,7 @@ def describe_vpn_profile(name=None, exact_match=True):
     """ 
     Describe vpn_profile entries on the SMC
     
-    :return: :py:class:`smc.elements.vpn.VPNProfile` 
+    :return: :py:class:`smc.policy.vpn.VPNProfile` 
     """
     return generic_list_builder('vpn_profile', name, exact_match, vpn.VPNProfile)
 
@@ -259,7 +262,8 @@ def describe_ipv6_access_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
-    return generic_list_builder('ipv6_access_list', name, exact_match)
+    return generic_list_builder('ipv6_access_list', name, exact_match,
+                                IPv6AccessList)
 
 def describe_single_layer2(name=None, exact_match=True):
     """ 
@@ -277,6 +281,7 @@ def describe_community_access_list(name=None, exact_match=True):
     """
     return generic_list_builder('community_access_list', name, exact_match)
 
+'''
 def describe_ei_executable(name=None, exact_match=True):
     """ 
     Describe ei_executable entries on the SMC
@@ -284,6 +289,7 @@ def describe_ei_executable(name=None, exact_match=True):
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
     return generic_list_builder('ei_executable', name, exact_match)
+'''
 
 def describe_application_risk_tag(name=None, exact_match=True):
     """ 
@@ -379,7 +385,8 @@ def describe_ipv6_prefix_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
-    return generic_list_builder('ipv6_prefix_list', name, exact_match)
+    return generic_list_builder('ipv6_prefix_list', name, exact_match,
+                                IPv6PrefixList)
 
 def describe_report_template(name=None, exact_match=True):
     """ 
@@ -826,7 +833,7 @@ def describe_vpn(name=None, exact_match=True):
     """ 
     Describe vpn entries on the SMC
     
-    :return: :py:class:`smc.elements.vpn.VPNPolicy` 
+    :return: :py:class:`smc.policy.vpn.VPNPolicy` 
     """
     return generic_list_builder('vpn', name, exact_match, vpn.VPNPolicy)
 
@@ -924,7 +931,7 @@ def describe_ips_template_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
-    return generic_list_builder('ips_template_policy', name, exact_match)
+    return generic_list_builder('ips_template_policy', name, exact_match, ips.IPSTemplatePolicy)
 
 def describe_tls_profile(name=None, exact_match=True):
     """ 
@@ -946,7 +953,7 @@ def describe_external_gateway(name=None, exact_match=True):
     """ 
     Describe external_gateway entries on the SMC
     
-    :return: :py:class:`smc.elements.vpn.ExternalGateway` 
+    :return: :py:class:`smc.policy.vpn.ExternalGateway` 
     """
     return generic_list_builder('external_gateway', name, exact_match, vpn.ExternalGateway)
 
@@ -980,7 +987,7 @@ def describe_ip_access_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
-    return generic_list_builder('ip_access_list', name, exact_match)
+    return generic_list_builder('ip_access_list', name, exact_match, IPAccessList)
 
 def describe_log_server(name=None, exact_match=True):
     """ 
@@ -1044,7 +1051,7 @@ def describe_ip_prefix_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
-    return generic_list_builder('ip_prefix_list', name, exact_match)
+    return generic_list_builder('ip_prefix_list', name, exact_match, IPPrefixList)
 
 def describe_valid_vpn_dhcp_address_pools_alias(name=None, exact_match=True):
     """ 
@@ -1421,7 +1428,7 @@ def describe_ips_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.element.SMCElement` 
     """
-    return generic_list_builder('ips_policy', name, exact_match)
+    return generic_list_builder('ips_policy', name, exact_match, ips.IPSPolicy)
 
 def describe_smtp_server(name=None, exact_match=True):
     """ 

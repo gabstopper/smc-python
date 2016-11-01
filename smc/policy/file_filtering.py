@@ -50,10 +50,10 @@ class FileFilteringRule(object):
 class FileFilteringPolicy(FileFilteringRule, Policy):
     """ 
     The File Filtering Policy references a specific file based policy for 
-    doing additional inspection based on file types. Use the policy parameters 
-    to specify how certain files are treated by either threat intelligence feeds,
-    sandbox or by local AV scanning. You can also use this policy to disable 
-    threat prevention based on specific files.
+    doing additional inspection based on file types. Use the policy 
+    parameters to specify how certain files are treated by either threat 
+    intelligence feeds,sandbox or by local AV scanning. You can also use 
+    this policy to disable threat prevention based on specific files.
     """
     typeof = 'file_filtering_policy'
     

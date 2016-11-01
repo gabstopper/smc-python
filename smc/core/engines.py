@@ -28,7 +28,8 @@ class Layer3Firewall(object):
                reverse_connection=False,
                domain_server_address=None, zone_ref=None,
                enable_antivirus=False, enable_gti=False,
-               location_ref=None):
+               location_ref=None, enable_ospf=False, 
+               ospf_profile=None):
         """ 
         Create a single layer 3 firewall with management interface and DNS
         
@@ -44,6 +45,8 @@ class Layer3Firewall(object):
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
         :param str location_ref: location href for engine if needed to contact SMC behind NAT
+        :param boolean enable_ospf: whether to turn OSPF on within engine
+        :param str ospf_profile: optional OSPF profile to use on engine, by ref   
         :return: :py:class:`smc.core.engine.Engine`
         :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         """
@@ -64,7 +67,9 @@ class Layer3Firewall(object):
                                nodes=1, enable_gti=enable_gti,
                                enable_antivirus=enable_antivirus,
                                default_nat=default_nat,
-                               location_ref=location_ref)
+                               location_ref=location_ref,
+                               enable_ospf=enable_ospf,
+                               ospf_profile=ospf_profile)
 
         href = search.element_entry_point('single_fw')
         result = SMCRequest(href=href, json=engine).create()
@@ -232,7 +237,8 @@ class Layer3VirtualEngine(object):
     @classmethod
     def create(cls, name, master_engine, virtual_resource, 
                interfaces, default_nat=False, outgoing_intf=0,
-               domain_server_address=None, **kwargs):
+               domain_server_address=None, enable_ospf=False, 
+               ospf_profile=None, **kwargs):
         """
         :param str name: Name of this layer 3 virtual engine
         :param str master_engine: Name of existing master engine
@@ -240,7 +246,9 @@ class Layer3VirtualEngine(object):
         :param list interfaces: dict of interface details
         :param boolean default_nat: Whether to enable default NAT for outbound
         :param int outgoing_intf: outgoing interface for VE. Specifies interface number
-        :param list interfaces: interfaces mappings passed in            
+        :param list interfaces: interfaces mappings passed in
+        :param boolean enable_ospf: whether to turn OSPF on within engine
+        :param str ospf_profile: optional OSPF profile to use on engine, by ref   
         :return: :py:class:`smc.core.engine.Engine`
         :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         """
@@ -274,7 +282,9 @@ class Layer3VirtualEngine(object):
                                physical_interfaces=new_interfaces, 
                                domain_server_address=domain_server_address,
                                log_server_ref=None, #Isn't used in VE
-                               nodes=1, default_nat=default_nat)
+                               nodes=1, default_nat=default_nat,
+                               enable_ospf=enable_ospf,
+                               ospf_profile=ospf_profile)
 
             engine.update(virtual_resource=virt_resource_href)
             engine.pop('log_server_ref', None) #Master Engine provides this service

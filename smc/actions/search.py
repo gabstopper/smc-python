@@ -324,6 +324,19 @@ def get_first_log_server():
         for found in available_log_servers:
             return found.get('href')
 
+def get_ospf_default_profile():
+    """ Convenience method to return the href of the ospf default
+    profile
+    
+    :return: href of ospf default profile
+    """
+    profiles = all_elements_by_type('ospfv2_profile')
+    if profiles:
+        for ospf in profiles:
+            profile = element_by_href_as_json(ospf.get('href'))
+            if profile.get('system') == True:
+                return ospf.get('href')
+
 def _iter_list_to_tuple(lst):
     """ Return tuple name,href from top level json query:
     {'href'='http://x.x.x.x', 'name'='blah', 'type'='sometype'}

@@ -86,7 +86,6 @@ engine references.
 A list of current resources are:
 
 * Engine: encapsulates all engine types; :py:class:`smc.elements.engine.Engine`
-* VPNPolicy: VPN Policy specific actions; :py:class:`smc.elements.vpn.VPNPolicy`
 
 Much of the functionality is encapsulated into these top level resources. For example, after loading 
 a VPNPolicy, you can add external endpoints (for External Gateways), add VPN Sites, enable/disable sites, etc.

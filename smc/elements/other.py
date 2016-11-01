@@ -43,5 +43,5 @@ class ContactAddress(object):
     def __init__(self, address, location, dynamic=False):
         location_ref = location_helper(location)
         self.contact_addresses = [{'address': address,
-                                  'dynamic': dynamic,
-                                  'location_ref': location_ref}]
+                                   'dynamic': dynamic,
+                                   'location_ref': location_ref}]

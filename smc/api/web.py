@@ -35,7 +35,6 @@ class SMCAPIConnection(object):
                 if method == 'GET':
                     if request.filename: #File download request
                         return self.file_download(request)
-                    logger.debug("Sending headers: {}".format(request.headers))
                     response = self.session.get(request.href, 
                                                 params=request.params,
                                                 headers=request.headers, 
@@ -58,8 +57,7 @@ class SMCAPIConnection(object):
                     response = self.session.post(request.href,
                                                  data=json.dumps(request.json),
                                                  headers=request.headers,
-                                                 params=request.params,
-                                                )
+                                                 params=request.params)
                     response.encoding = 'utf-8'
 
                     if response.status_code == 200 or response.status_code == 201:

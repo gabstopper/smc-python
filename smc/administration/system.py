@@ -4,7 +4,7 @@ updating engines, applying global blacklists, etc.
 
 To load the configuration for system, do::
 
-    from smc.elements.system import System
+    from smc.administration.system import System
     system = System()
     print system.smc_version
     print system.last_activated_package
@@ -17,6 +17,7 @@ from smc.elements.util import find_link_by_name
 from smc.elements.other import Blacklist
 from smc.actions.tasks import task_handler, Task
 from smc.api.common import SMCRequest
+from smc.elements.element import Meta
 
 class System(object):
     """
@@ -71,9 +72,10 @@ class System(object):
         updates=[]
         for update in search.element_by_href_as_json(
                             find_link_by_name('update_package', self.link)):
-            updates.append(UpdatePackage(**update))
+            print "update: %s" % update
+            updates.append(UpdatePackage(meta=Meta(**update)))
         return updates
-    
+
     def update_package_import(self):
         pass
         
@@ -92,7 +94,7 @@ class System(object):
         upgrades=[]
         for upgrade in search.element_by_href_as_json(
                             find_link_by_name('engine_upgrade', self.link)):
-            upgrades.append(EngineUpgrade(**upgrade))
+            upgrades.append(EngineUpgrade(meta=Meta(**upgrade)))
         return upgrades
         
     def uncommitted(self):
@@ -207,28 +209,11 @@ class System(object):
 
     def snapshot(self):
         raise NotImplementedError
-                
-class EngineUpgrade(object):
-    """
-    Engine Upgrade package management
-    
-    For example, to check engine upgrades and find a specific
-    one, then download for installation::
-    
-        for upgrade in system.engine_upgrade():
-            print "Available upgrade: {}".format(upgrade)
-            if upgrade.name == 
-                'Security Engine upgrade 6.0.1 build 16019 for x86-64':
-            for msg in upgrade.download():
-                print msg
-    """            
-    def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
-            
+
+class PackageMgrMixin(object):
     def download(self, wait_for_finish=False, sleep=3):
         """
-        Download Engine Upgrade
+        Download Package or Engine Update
         
         :method: POST
         :param boolean wait_for_finish: wait for download to complete
@@ -249,15 +234,59 @@ class EngineUpgrade(object):
             return ['Package cannot be downloaded, package state: {}'.format(\
                                                                     self.state)]
     
+    def activate(self, resource=None, wait_for_finish=False, sleep=3):
+        """
+        Activate this package on the SMC
+        
+        :param boolean wait_for_finish: True|False, whether to wait 
+        for update messages
+        :param int sleep: number of seconds to sleep if wait_for_finish=True
+        :return: Update messages or final URI for follower link
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+        """
+        pkg = self.package_info()
+        activate_link = find_link_by_name('activate', pkg.get('link'))
+        if activate_link:
+            result = SMCRequest(href=activate_link,
+                                json={'resource': resource}).create()
+            task = task_handler(Task(**result.json), 
+                                wait_for_finish=wait_for_finish, 
+                                sleep=sleep)
+            return task
+
+class EngineUpgrade(PackageMgrMixin):
+    """
+    Engine Upgrade package management
+    
+    For example, to check engine upgrades and find a specific
+    one, then download for installation::
+    
+        for upgrade in system.engine_upgrade():
+            print "Available upgrade: {}".format(upgrade)
+            if upgrade.name == 
+                'Security Engine upgrade 6.0.1 build 16019 for x86-64':
+                for msg in upgrade.download():
+                    print msg
+    """            
+    def __init__(self, meta=None):
+        self.meta = meta
+    
+    @property
+    def name(self):
+        return self.meta.name
+    
+    @property
+    def href(self):
+        return self.meta.href
+
     def package_info(self):
         return search.element_by_href_as_json(self.href)
     
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, "name={},type={}"\
-                           .format(self.name, self.type))        
+        return '{0}(name={1})'.format(self.__class__.__name__, self.name)      
 
 
-class UpdatePackage(object):
+class UpdatePackage(PackageMgrMixin):
     """
     Container for managing update packages on SMC
 
@@ -266,7 +295,7 @@ class UpdatePackage(object):
     
     Download and activate a package::
         
-        system = smc.elements.system.System().load()
+        system = smc.administration.system.System().load()
         print system.last_activated_package
         
         for package in system.update_package():
@@ -278,30 +307,18 @@ class UpdatePackage(object):
                         
     :ivar state: state of the package                 
     """
-    def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
-            
-    def download(self, wait_for_finish=False, sleep=3):
-        """ 
-        Download the available package
-        
-        :method: POST
-        :param boolean wait_for_finish: whether to wait for completion
-        :param int sleep: number of seconds to sleep if wait_for_finish=True
-        :return: Generator messages or final href of follower resource
-        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
-        """
-        pkg = self.package_info()
-        download_link = find_link_by_name('download', pkg.get('link'))
-        if download_link:
-            result = SMCRequest(
-                    href=download_link).create()
-            task = task_handler(Task(**result.json), 
-                                wait_for_finish=wait_for_finish, 
-                                sleep=sleep)
-            return task
-
+    def __init__(self, meta=None):
+        self.meta = meta
+    
+    @property
+    def name(self):
+        return self.meta.name
+    
+    @property
+    def href(self):
+        return self.meta.href 
+   
+    '''
     def activate(self, wait_for_finish=False, sleep=3):
         """
         Activate this package on the SMC
@@ -320,7 +337,7 @@ class UpdatePackage(object):
                                 wait_for_finish=wait_for_finish, 
                                 sleep=sleep)
             return task
-
+    '''
     def package_info(self):
         """
         Retrieve json view of package info
@@ -334,5 +351,4 @@ class UpdatePackage(object):
         return pkg.get('state')
           
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, "name={},type={}"\
-                           .format(self.name, self.type))
+        return '{0}(name={1})'.format(self.__class__.__name__, self.name)

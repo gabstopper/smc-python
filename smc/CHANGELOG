@@ -33,3 +33,10 @@ Unicode mixin for classes that print via __str__
 Rewrite of policy classes and move to smc.policy
 URL List support
 
+$version 0.3.6
+Added support for OSPF routing in smc.routing module
+Support for IP Access Lists (ipv4 & ipv6)
+Support for IP Prefix Lists (ipv4 & ipv6)
+Expression elements
+
+

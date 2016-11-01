@@ -25,10 +25,10 @@ main packages into a python script:
 
 .. code-block:: python
 
-   import smc.api.web
    import smc.elements.element
-   import smc.elements.engine
-   import smc.elements.policy
+   import smc.core.engine
+   import smc.core.engines
+   import smc.policy
    import smc.elements.system
    
 To remove the package, simply run:

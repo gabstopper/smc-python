@@ -71,7 +71,7 @@ from smc.actions.search import element_name_by_href
 from smc.elements.helpers import location_helper
 from smc.elements.other import ContactAddress
 from smc.actions.tasks import TaskMonitor
-from smc.elements.vpn import VPNPolicy
+from smc.policy.vpn import VPNPolicy
 from smc.elements.servers import ManagementServer, LogServer
 from smc.elements.collection import describe_log_server
 

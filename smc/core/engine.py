@@ -4,15 +4,16 @@ from smc.elements.element import Meta
 from smc.elements.util import find_link_by_name, bytes_to_unicode
 from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
-    SMCConnectionError
+    SMCConnectionError, CertificateError
 from smc.core.node import Node
+from smc.core.resource import Alias, Snapshot, Routing
 from smc.core.interfaces import PhysicalInterface, Interface,\
     VirtualPhysicalInterface, TunnelInterface
 from smc.actions.tasks import task_handler, Task
-from smc.elements.vpn import InternalGateway
 from smc.elements.other import Blacklist
 from smc.api.common import SMCRequest
 from smc.elements.mixins import ModifiableMixin, ExportableMixin, UnicodeMixin
+from smc.policy.vpn import VPNSite
 
 class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
     """
@@ -32,7 +33,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
           this engine
     :ivar interface: :py:class:`smc.core.interfaces.Interface` interfaces 
           for this engine
-    :ivar internal_gateway: :py:class:`smc.elements.vpn.InternalGateway` engine 
+    :ivar internal_gateway: :py:class:`~InternalGateway` engine 
           level VPN settings
     :ivar virtual_resource: :py:class:`smc.core.engine.VirtualResource` for engine, 
           only relavant to Master Engine
@@ -53,7 +54,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                nodes=1, log_server_ref=None, 
                domain_server_address=None,
                enable_antivirus=False, enable_gti=False,
-               default_nat=False, location_ref=None):
+               default_nat=False, location_ref=None,
+               enable_ospf=None, ospf_profile=None):
         """
         Create will return the engine configuration as a dict that is a 
         representation of the engine. The creating class will also add 
@@ -103,6 +105,14 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         if location_ref:
             location = {'location_ref': location_ref}
             base_cfg.update(location)
+        if enable_ospf:
+            if not ospf_profile: #get default profile
+                ospf_profile = search.get_ospf_default_profile()
+            ospf = {'dynamic_routing': {
+                        'ospfv2': {
+                            'enabled': True,
+                            'ospfv2_profile_ref': ospf_profile}}}
+            base_cfg.update(ospf)
         
         return base_cfg
           
@@ -286,16 +296,16 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                     href=find_link_by_name('add_route', self.link),
                     params={'gateway': gateway, 
                             'network': network}).create()
-                                  
+    @property                            
     def routing(self):
-        """ Retrieve routing json from engine node
+        """ Retrieve routing nodes from within engine routing tree
         
         :method: GET
         :return: json representing routing configuration
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('routing', self.link))
-       
+        href=find_link_by_name('routing', self.link)
+        return Routing(meta=Meta(href=href))
+
     def routing_monitoring(self):
         """ Return route information for the engine, including gateway, networks
         and type of route (dynamic, static)
@@ -332,7 +342,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         an interface, adding VPN sites, etc. 
     
         :method: GET
-        :return: :py:class:`smc.elements.vpn.InternalGateway`
+        :return: :py:class:`~InternalGateway`
         :raises: :py:class:`smc.api.exceptions.UnsupportedEngineFeature`
         """
         result = search.element_by_href_as_json(
@@ -549,7 +559,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         href = find_link_by_name('snapshots', self.link)
         snapshots=[]
         for snapshot in search.element_by_href_as_json(href):
-            snapshots.append(Snapshot(**snapshot))
+            snapshots.append(Snapshot(meta=Meta(**snapshot)))
         return snapshots
 
     def __getattr__(self, value):
@@ -561,6 +571,180 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
     def __repr__(self):
         return repr(unicode(self))
 
+class InternalGateway(UnicodeMixin, ModifiableMixin):
+    """ 
+    InternalGateway represents the engine side VPN configuration
+    This defines settings such as setting VPN sites on protected
+    networks and generating certificates.
+    This is defined under Engine->VPN within SMC.
+    Since each engine has only one internal gateway, this resource
+    is loaded immediately when called through engine.internal_gateway
+    
+    This is a resource of an Engine as it defines engine specific VPN 
+    gateway settings::
+    
+        engine.internal_gateway.describe()
+    
+    :ivar href: location of this internal gateway
+    :ivar etag: etag of internal gateway
+    :ivar vpn_site: vpn site object
+    :ivar internal_endpoint: interface endpoint mappings (where to enable VPN) 
+    """
+    def __init__(self, meta=None, **kwargs):
+        self.meta = meta
+
+    @property
+    def name(self):
+        return self.meta.name
+
+    @property
+    def href(self):
+        """ 
+        Use this property when adding to a VPN Policy
+        """
+        return self.meta.href
+
+    @property
+    def link(self):
+        result = search.element_by_href_as_json(self.href)
+        return result.get('link')
+               
+    @property
+    def vpn_site(self):
+        """
+        Retrieve VPN Site information for this internal gateway
+        
+        Find all configured sites for engine::
+        
+            for site in engine.internal_gateway.vpn_site.all():
+                print site
+        
+        :method: GET
+        :return: :py:class:`smc.policy.vpn.VPNSite`
+        """
+        href = find_link_by_name('vpn_site', self.link)
+        return VPNSite(meta=Meta(href=href))
+    
+    @property
+    def internal_endpoint(self):
+        """
+        Internal Endpoint setting VPN settings to the interface
+        
+        Find all internal endpoints for an engine::
+        
+            for x in engine.internal_gateway.internal_endpoint.all():
+                print x
+                
+        :method: GET
+        :return: list :py:class:`smc.policy.vpn.InternalEndpoint`
+        """
+        href = find_link_by_name('internal_endpoint', self.link)
+        return InternalEndpoint(meta=Meta(href=href))
+    
+    def gateway_certificate(self):
+        """
+        :method: GET
+        :return: list
+        """
+        return search.element_by_href_as_json(
+                find_link_by_name('gateway_certificate', self.link))
+    
+    def gateway_certificate_request(self):
+        """
+        :method: GET
+        :return list
+        """
+        return search.element_by_href_as_json(
+                find_link_by_name('gateway_certificate_request', self.link))    
+    
+    def generate_certificate(self, certificate_request):
+        """
+        Generate an internal gateway certificate used for VPN on this engine.
+        Certificate request should be an instance of VPNCertificate.
+    
+        :method: POST
+        :param: :py:class:`~smc.policy.vpn.VPNCertificate` certificate_request: 
+                certificate request created
+        :return: None
+        :raises:`smc.api.exceptions.CertificateError`
+        """
+        result = SMCRequest(
+                    href=find_link_by_name('generate_certificate', self.link),
+                    json=vars(certificate_request)).create()
+        if result.msg:
+            raise CertificateError(result.msg)
+    
+    def describe(self):
+        """
+        Describe the internal gateway by returning the raw json::
+            
+            print engine.internal_gateway.describe()
+        """    
+        return search.element_by_href_as_json(self.href)
+
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+  
+    def __repr__(self):
+        return repr(unicode(self))
+
+class InternalEndpoint(ModifiableMixin):
+    """
+    InternalEndpoint lists the VPN endpoints either enabled or disabled for
+    VPN. You should enable the endpoint for the interface that will be the
+    VPN endpoint. You may also need to enable NAT-T and ensure IPSEC is enabled.
+    This is defined under Engine->VPN->EndPoints in SMC. This class is a property
+    of the engines internal gateway and not accessed directly.
+    
+    To see all available internal endpoint (VPN gateways) on a particular
+    engine, get the engine context first::
+        
+        engine = Engine('myengine').load()
+        for endpt in engine.internal_gateway.internal_endpoint.all():
+            print endpt
+    
+    :ivar deducted_name: name of the endpoint is based on the interface
+    :ivar dynamic: True|False
+    :ivar enabled: True|False
+    :ivar ipsec_vpn: True|False
+    :ivar nat_t: True|False
+    
+    :param href: pass in href to init which will have engine insert location  
+    """
+    def __init__(self, meta=None):
+        self.meta = meta
+    
+    @property
+    def name(self):
+        return self.meta.name
+        
+    @property
+    def href(self):
+        return self.meta.href
+  
+    def describe(self):
+        """
+        Return json representation of element
+        
+        :return: raw json 
+        """
+        return search.element_by_href_as_json(self.href)
+    
+    def all(self):
+        """
+        Return all internal endpoints
+        
+        :return: list :py:class:`smc.policy.vpn.InternalEndpoint`
+        """
+        gateways=[]
+        for gateway in search.element_by_href_as_json(self.href):
+            gateways.append(InternalEndpoint(meta=Meta(**gateway)))
+        return gateways
+    
+    def __repr__(self):
+        return '{0}(name={1})'.format(self.__class__.__name__, 
+                                      self.name)
+ 
 class VirtualResource(UnicodeMixin):
     """
     A Virtual Resource is a container placeholder for a virtual engine
@@ -586,7 +770,7 @@ class VirtualResource(UnicodeMixin):
     
     :param meta: meta is provided from the engine.virtual_resource method
     """
-    def __init__(self, meta=None, **kwargs):
+    def __init__(self, meta=None):
         self.meta = meta    
 
     @property
@@ -648,78 +832,3 @@ class VirtualResource(UnicodeMixin):
   
     def __repr__(self):
         return repr(unicode(self))
-
-class Snapshot(object):
-    """
-    Policy snapshots currently held on the SMC. You can retrieve all
-    snapshots at the engine level and view details of each::
-    
-        for snapshot in engine.snapshots:
-            print snapshot.describe()
-    
-    Snapshots can also be downloaded::
-    
-        for snapshot in engine.snapshots:
-            if snapshot.name == 'blah snapshot':
-                snapshot.download()
-                
-    Snapshot filename will be snapshot.name.zip if not specified.
-    
-    :ivar name: name of snapshot
-    """
-    def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
-
-    def download(self, filename=None):
-        """
-        Download snapshot to filename
-        
-        :param str filename: fully qualified path including filename .zip
-        :return: :py:class:`smc.api.web.SMCResult`
-        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
-        """
-        if not filename:
-            filename = '{}{}'.format(self.name, '.zip')
-        snapshot = self.describe()
-        href = find_link_by_name('content', snapshot.get('link'))
-        try:
-            return SMCRequest(href=href, filename=filename).read()
-        except IOError as e:
-            raise EngineCommandFailed("Snapshot download failed: {}"
-                                      .format(e))
-    def describe(self):
-        """
-        Retrieve full json for this snapshot
-        
-        :return: json text
-        """
-        return search.element_by_href_as_json(self.href)  
-    
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
-        
-class Alias(object):
-    """
-    Aliases are specific to an engine instance and are typically 
-    used as rule elements. They are intended to have a different value
-    based on the engine that the alias is applied to. 
-    
-    :ivar name: name of alias
-    """
-    def __init__(self, **kwargs):
-        self.name = None
-        self.resolved_value = None
-        self.alias_ref = None
-        self.cluster_ref = None
-        for k, v in kwargs.iteritems():
-            setattr(self, k, v)
-            
-    def describe(self):
-        return search.element_by_href_as_json(self.alias_ref)
-        
-    def __repr__(self):
-        self.name = self.describe().get('name')
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)

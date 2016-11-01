@@ -1,0 +1,6 @@
+* Locations were introduced in SMC API version 6.1. However locations are not searchable using query parameters in
+version 6.1. 
+To obtain a list of SMC locations in version 6.1, use the following logic (without 'name' filters):
+for x in describe_location():
+	if x.name == 'the_location_im_looking_for':
+		print "Do something"

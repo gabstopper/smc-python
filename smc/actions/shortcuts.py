@@ -25,9 +25,6 @@ import smc.actions.search
 from smc.core.engines import Layer3Firewall, Layer2Firewall, IPS
 from smc.core.engine import Engine
 from smc.elements.helpers import logical_intf_helper
-from smc.core.interfaces import PhysicalInterface
-from smc.api.exceptions import SMCException, EngineCommandFailed,\
-    LoadEngineFailed
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +103,7 @@ def group(name, members=[], comment=None):
                                 members=grp_members,
                                 comment=comment).create()
 
-def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_license=False):
+def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None):
     """ Create single firewall with a single management interface
     
     :param name: name of single layer 2 fw
@@ -114,7 +111,6 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     :param mgmt_network: netmask for management network
     :param mgmt_interface: interface id for l3 mgmt
     :param dns: dns servers for management interface (optional)
-    :param fw_license: attempt license after creation (optional)
     :return: :py:class:`smc.core.engine.Engine`
     """
     result = Layer3Firewall.create(name, mgmt_ip, mgmt_network, 
@@ -123,7 +119,7 @@ def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None, fw_lice
     return result  
     
 def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_interface='default_eth', dns=None, fw_license=False):    
+               logical_interface='default_eth', dns=None):    
     """ Create single layer 2 firewall 
     Layer 2 firewall will have a layer 3 management interface and initially needs atleast 
     one inline or capture interface.
@@ -135,7 +131,6 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
     :param inline_interface: int specifying interface id's to be used for inline interfaces (default: [1-2])
     :param logical_interface: name of logical interface, must be unique if using capture and inline interfaces
     :param dns: dns servers for management interface (optional)
-    :param fw_license: attempt license after creation (optional)
     :return: :py:class:`smc.core.engine.Engine`
     """                  
     result = Layer2Firewall.create(name, mgmt_ip, mgmt_network, 
@@ -146,7 +141,7 @@ def single_layer2(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interf
     return result 
 
 def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface='1-2', 
-               logical_interface='default_eth', dns=None, fw_license=False):
+               logical_interface='default_eth', dns=None):
     """ Create single IPS 
     :param name: name of single layer 2 fw
     :param mgmt_ip: ip address for management layer 3 interface
@@ -155,7 +150,6 @@ def single_ips(name, mgmt_ip, mgmt_network, mgmt_interface='0', inline_interface
     :param inline_interface: int specifying interface id's to be used for inline interfaces (default: [1-2])
     :param logical_interface: name of logical interface, must be unique if using capture and inline interfaces
     :param dns: dns servers for management interface (optional)
-    :param fw_license: attempt license after creation (optional)
     :return: :py:class:`smc.core.engine.Engine`
     """ 
     result = IPS.create(name, mgmt_ip, mgmt_network, 

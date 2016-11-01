@@ -4,7 +4,6 @@ Firewall Policy example
 Create a new Firewall policy, open (lock) the policy, create a rule and save, then delete
 a rule by name. 
 '''
-
 from smc import session
 from smc.policy.layer3 import FirewallPolicy
 from smc.elements.element import Host

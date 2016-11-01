@@ -10,7 +10,7 @@ name of the element, by loading it directly.
 
 By using describe methods::
 
-    for host in describe_hosts():
+    for host in describe_host():
         print host
         
 :py:class:`smc.elements.collection` for more details.
@@ -75,7 +75,7 @@ class Meta(namedtuple('Meta', 'name href type')):
     doing base level searches, SMC API will return only meta data for the
     element that has name, href and type.
     Meta has the same data structure returned from 
-    :py:func:`smc.search.element_info_as_json`
+    :py:func:`smc.actions.search.element_info_as_json`
     """
     def __new__(cls, href, name=None, type=None): # @ReservedAssignment
         return super(Meta, cls).__new__(cls, name, href, type)
@@ -84,7 +84,8 @@ class SMCElement(UnicodeMixin, ExportableMixin, ModifiableMixin):
     """
     SMCElement is the base class for all network and other elements.
     This base class acts as a dispatcher and encapsulates features common
-    to all elements.
+    to all elements. Each SMCElement sub-class has a class attribute 'typeof'
+    which is the SMC entry point for elements of that type.
     
     :ivar meta: meta data for element
     :ivar name: name of object
@@ -105,25 +106,15 @@ class SMCElement(UnicodeMixin, ExportableMixin, ModifiableMixin):
         return SMCRequest(
                     href=search.element_entry_point(cls.typeof),
                     json=cls.json).create()
-    
+
     def _read(self, href=None):
         return SMCRequest(href=href, **vars(self)).read()
-                
-    def create(self, href=None):
-        #Override POST location from meta. Some element types might have
-        #nested entry points such as modifying IPLists. 
-        if href is not None: 
-            href=href
-        else: #Try to get from meta or raise not found
-            href = self.href
-        return SMCRequest(href=href,
-                          **vars(self)).create()
 
     def delete(self):
         """
         Delete the element
         
-        :return: :py:class:`smc.qpi.web.SMCResult`
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         return SMCRequest(href=self.href).delete()
 
@@ -634,9 +625,7 @@ class ServiceGroup(SMCElement):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         comment = comment if comment else ''
-        elements = []
-        if element:
-            elements.extend(element)
+        elements = [] if element is None else element
         cls.json = {'name': name,
                     'element': elements,
                     'comment': comment}
@@ -668,9 +657,7 @@ class TCPServiceGroup(SMCElement):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         comment = comment if comment else ''
-        elements = []
-        if element:
-            elements.extend(element)
+        elements = [] if element is None else element
         cls.json = {'name': name,
                     'element': elements,
                     'comment': comment}
@@ -737,6 +724,20 @@ class IPServiceGroup(SMCElement):
                     'comment': comment}
         return cls._create()
 
+class ApplicationSituation(SMCElement):
+    """
+    Application Situations are network applications used as rule service
+    parameters in policies. Applications examples are 'facebook chat', 
+    'facebook plugins', etc. These transcend the layer 7 protocol being
+    used (most commonly port 80 and 443) and instead provide visibility 
+    into the application itself.
+    """
+    typeof = 'application_situation'
+    
+    def __init__(self, name, meta=None):
+        SMCElement.__init__(self, name, meta)
+        pass
+    
 class Location(SMCElement):
     """
     Locations are used by elements to identify when they are behind a NAT
@@ -887,6 +888,7 @@ class IPList(SMCElement):
         :return: :py:class:`smc.api.web.SMCResult`
         """      
         headers={'content-type': 'multipart/form-data'}
+        params=None
         files=None
         if filename:
             files = {'ip_addresses': open(filename, 'rb')}
@@ -894,12 +896,12 @@ class IPList(SMCElement):
             headers={'accept':'application/json',
                      'content-type':'application/json'}
         elif as_type == 'txt':
-            self.params={'format':'txt'}
-        href = find_link_by_name('ip_address_list', self.link)
-        self.headers = headers
-        self.files = files
-        self.json = json
-        return super(IPList, self).create(href=href)
+            params={'format':'txt'}
+
+        return SMCRequest(
+                    href=find_link_by_name('ip_address_list', self.link),
+                    headers=headers, files=files, json=json, 
+                    params=params).create()
 
     @classmethod   
     def create(cls, name, iplist=None):
@@ -917,10 +919,12 @@ class IPList(SMCElement):
         if result.href and iplist is not None:
             #get link to ip_access_list node for this element
             links = search.element_by_href_as_json(result.href) 
-            href = find_link_by_name('ip_address_list', links.get('link'))
             newlist = IPList(name)
             newlist.json = {'ip': iplist}
-            return super(IPList, newlist).create(href=href)
+            return SMCRequest(
+                        href=find_link_by_name('ip_address_list', 
+                                               links.get('link')),
+                        json=newlist.json).create()
         return result
 
 class Expression(SMCElement):

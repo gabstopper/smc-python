@@ -14,9 +14,8 @@ A good place to start is the Installation and Getting Started section of the hel
 
 Current versions are validated using:
 
-* Stonesoft Management Server 5.10, 6.0
+* Stonesoft Management Server 5.10, 6.0, 6.1 (Windows/Linux)
 * Python 2.7.x
-* Windows / Linux platforms
 
 
 

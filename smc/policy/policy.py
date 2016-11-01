@@ -61,6 +61,9 @@ class Policy(UnicodeMixin, ExportableMixin):
                     href=search.element_entry_point(cls.typeof),
                     json=cls.json).create()
 
+    def delete(self):
+        return SMCRequest(self.href).delete()
+
     def describe(self):
         return search.element_by_href_as_json(self.href)
                                      
@@ -76,7 +79,7 @@ class Policy(UnicodeMixin, ExportableMixin):
         arrive.
         
         :method: POST
-        :param device: name of device to upload policy to
+        :param engine: name of device to upload policy to
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
         """

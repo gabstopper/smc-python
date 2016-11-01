@@ -170,6 +170,25 @@ Engine
    :members:
    :show-inheritance:
 
+InternalGateway
++++++++++++++++
+
+.. autoclass:: InternalGateway
+   :members:
+   :show-inheritance:
+
+InternalEndpoint
+++++++++++++++++
+
+.. autoclass:: InternalEndpoint
+   :members:
+   
+Resources
++++++++++
+
+.. automodule:: smc.core.resources
+	:members:
+
 Node
 ----
 
@@ -222,6 +241,7 @@ MasterEngine
 
 Interfaces
 ----------
+Represents classes responsible for configuring interfaces on engines
 
 .. automodule:: smc.core.interfaces
     :members:
@@ -281,6 +301,59 @@ VirtualPhysicalInterface
    :members:
    :show-inheritance:
 
+Dynamic Routing
+---------------
+Represents classes responsible for configuring dynamic routing protocols
+
+.. automodule:: smc.routing
+    :members:
+
+OSPF
+++++
+
+.. automodule:: smc.routing.ospf
+	:members:
+
+IPAccessList
+++++++++++++
+
+.. automodule:: smc.routing.access_list
+	:members: IPAccessList
+	:show-inheritance:
+
+IPv6AccessList
+++++++++++++++
+
+.. automodule:: smc.routing.access_list
+	:members: IPv6AccessList
+	:show-inheritance:
+
+AccessList
+++++++++++
+
+.. automodule:: smc.routing.access_list
+	:members: AccessList
+
+IPPrefixList
+++++++++++++
+
+.. automodule:: smc.routing.prefix_list
+	:members: IPPrefixList
+	:show-inheritance:
+
+IPv6PrefixList
+++++++++++++++
+
+.. automodule:: smc.routing.prefix_list
+	:members: IPv6PrefixList
+	:show-inheritance:
+	
+PrefixList
+++++++++++
+
+.. automodule:: smc.routing.prefix_list
+	:members: PrefixList
+
 Policy
 ------
 
@@ -318,6 +391,7 @@ FileFilteringPolicy
 
 Rules
 -----
+Represents classes responsible for configuring rule types
 
 .. automodule:: smc.policy.rule
 
@@ -335,10 +409,33 @@ IPv4NATRule
    :members:
    :show-inheritance:
 
+IPv4Layer2Rule
+++++++++++++++
+
+.. autoclass:: IPv4Layer2Rule
+   :members:
+   :show-inheritance:
+  
+EthernetRule
+++++++++++++
+
+.. autoclass:: EthernetRule
+   :members:
+   :show-inheritance:
+   
+Rule
+++++
+
+.. autoclass:: Rule
+   :members:
+   :exclude-members: rule_common, rule_l2_common
+
 VPN
 ---
+Represents classes responsible for configuring VPN settings such as VPN external
+gateways, VPN sites, VPN Certificate and VPN Policy
 
-.. automodule:: smc.elements.vpn
+.. automodule:: smc.policy.vpn
    :members: 
  
 VPNPolicy
@@ -348,19 +445,6 @@ VPNPolicy
    :members:
    :show-inheritance:
 
-InternalGateway
-+++++++++++++++
-
-.. autoclass:: InternalGateway
-   :members:
-   :show-inheritance:
-
-InternalEndpoint
-++++++++++++++++
-
-.. autoclass:: InternalEndpoint
-   :members:
-   
 ExternalGateway
 +++++++++++++++
 
@@ -390,14 +474,14 @@ Users
 -----
 
 .. automodule:: smc.elements.user
-   :members: AdminUser
+   :members: 
    :show-inheritance:
 
 Mixins
 ------
 
 .. automodule:: smc.elements.mixins
-   :members:
+   :members: ModifiableMixin, ExportableMixin
 
 Collection
 ----------
@@ -427,17 +511,22 @@ Session
 System
 ------
 
-.. automodule:: smc.elements.system
+.. automodule:: smc.administration.system
 	:members:
 
 SMCResult
 ---------
+Most operations being performed that involve REST operations will return an
+SMCResult object. This object will hold attributes that are useful to determine
+if the operation was successful and if not, the reason.
 
 .. automodule:: smc.api.web
 	:members: SMCResult
 
 Exceptions
 ----------
+Exceptions thrown throughout smc-python. Be sure to check functions or class methods
+that have raises documentation. All exception classes subclass SMCException
 
 .. automodule:: smc.api.exceptions
    :members:

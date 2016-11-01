@@ -46,11 +46,6 @@ class ModifiableMixin(object):
         :param dict kwargs: key=value pair to change      
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        # First we need to retrieve the updated full json for
-        # the requested element. Each modifiable element will
-        # have meta data that will have the element href. Once
-        # retrieved, modify only top level key/value pairs no
-        # recursion) and update dict, list or str values.
         if self.href:
             element = search.element_by_href_as_smcresult(self.href)
         if element.json:
@@ -69,7 +64,9 @@ class ModifiableMixin(object):
 class ExportableMixin(object):
     """
     Elements that implement this mixin can be exported individually 
-    from the SMC.
+    from the SMC. Only non-system related elements can be exported 
+    independently. System elements are created by dynamic update packages
+    and can only be exported by exporting all elements by type.
     """
     def export(self, filename='element.zip', wait_for_finish=False):
         """
@@ -78,15 +75,20 @@ class ExportableMixin(object):
         :method: POST
         :param str filename: filename to store exported element
         :param boolean wait_for_finish: wait for update msgs (default: False)
-        :return: generator yielding updates on progress
+        :return: generator yielding updates on progress, or [] if element cannot
+                 be exported due to system element
         """
-        element = SMCRequest(
-                    href=find_link_by_name('export', self.link),
-                    filename=filename).create()
-        task = task_handler(Task(**element.json), 
-                            wait_for_finish=wait_for_finish, 
-                            filename=filename)
-        return task
+        href = find_link_by_name('export', self.link)
+        if href is not None:
+            element = SMCRequest(
+                        href=find_link_by_name('export', self.link),
+                        filename=filename).create()
+            task = task_handler(Task(**element.json), 
+                                wait_for_finish=wait_for_finish, 
+                                filename=filename)
+            return task
+        else:
+            return []
         
 class UnicodeMixin(object):
     """
@@ -97,7 +99,7 @@ class UnicodeMixin(object):
     
     Consider migrating to future module and use their class decorator
     from future.utils import python_2_unicode_compatible
-    @python_2_unicode_compatible
+    \@python_2_unicode_compatible
     From: http://python-future.org/what_else.html
     """
     import sys

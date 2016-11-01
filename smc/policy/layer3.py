@@ -34,7 +34,7 @@ Example rule deletion::
         if rule.name == 'mynewrule':
             print rule.delete()
 """
-import smc.actions.search as search
+from smc.actions.search import element_name_by_href
 from smc.elements.util import find_link_by_name
 from smc.elements.element import Meta
 from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFailed
@@ -46,13 +46,6 @@ class FirewallRule(object):
     Encapsulates all references to firewall rule related entry
     points. This is referenced by multiple classes such as 
     FirewallPolicy and FirewallPolicyTemplate.
-    
-    Instance Resources:
-    
-    :ivar fw_ipv4_access_rules: :py:class:`IPv4Rule` reference
-    :ivar fw_ipv4_nat_rules: :py:class:`IPv4NATRule` reference
-    :ivar fw_ipv6_access_rules: :py:class:`IPv6Rule` reference
-    :ivar fw_ipv6_nat_rules: :py:class:`IPv6NATRule` reference
     """
     def __init__(self):
         pass
@@ -99,16 +92,14 @@ class FirewallRule(object):
     
 class FirewallPolicy(FirewallRule, Policy):
     """ 
-    This subclass represents a FirewallPolicy installed on layer 3 
+    FirewallPolicy represents a set of rules installed on layer 3 
     devices. Layer 3 FW's support either ipv4 or ipv6 rules. 
     
     They also have NAT rules and reference to an Inspection and
     File Filtering Policy.
 
     :ivar template: which policy template is used
-    :ivar file_filtering_policy: mapped file filtering policy
-    :ivar inspection_policy: mapping inspection policy
-    
+
     Instance Resources:
     
     :ivar fw_ipv4_access_rules: :py:class:`~FirewallRule.fw_ipv4_access_rules`
@@ -134,19 +125,6 @@ class FirewallPolicy(FirewallRule, Policy):
         
         This policy will then inherit the Inspection and File Filtering
         policy from the specified template.
-        Existing policies and templates are searchable from describe methods, 
-        such as::
-        
-            import smc.elements.collection
-            for policy in describe_fw_policy():
-                for rule in policy.fw_ipv4_access_rules.all():
-                    print rule
-                
-        Find the available FW templates::
-        
-            for template in describe_fw_template_policy():
-                print template.name
-                ....
         
         :mathod: POST
         :param str name: name of policy
@@ -176,14 +154,19 @@ class FirewallPolicy(FirewallRule, Policy):
  
     @property
     def template(self):
+        """
+        Layer 2 Firewall policy template used by the Layer 2 Policy.
+        
+        :return: :py:class:`smc.policy.layer2.FirewallTemplatePolicy`
+        """
         href = self.describe().get('template') #href for template
-        name = search.element_name_by_href(href)
+        name = element_name_by_href(href)
         return FirewallTemplatePolicy(name=name, meta=Meta(href=href))
 
 class FirewallTemplatePolicy(FirewallRule, Policy):
     """
-    All Firewall Policies will reference a firewall policy template (even an
-    empty custom one - although not recommended).
+    All Firewall Policies will reference a firewall policy template.
+
     Most templates will be pre-configured best practice configurations
     and rarely need to be modified. However, you may want to view the
     details of rules configured in a template or possibly insert additional
