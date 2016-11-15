@@ -5,12 +5,10 @@ You can create an Admin User, enable superuser, enable/disable the account,
 assign local access to engines, and change the account password for SMC or
 engine access.
 """
-import smc.actions.search as search
-from smc.elements.util import find_link_by_name
-from smc.elements.element import SMCElement
-from smc.api.common import SMCRequest
+from smc.base.util import find_link_by_name
+from smc.base.model import Element, ElementCreator, prepared_request
 
-class AdminUser(SMCElement):
+class AdminUser(Element):
     """ Represents an Adminitrator account on the SMC
     Use the constructor to create the user.
 
@@ -36,7 +34,7 @@ class AdminUser(SMCElement):
     typeof = 'admin_user'
 
     def __init__(self, name, meta=None):
-        SMCElement.__init__(self, name, meta)
+        Element.__init__(self, name, meta)
         pass
 
     @classmethod
@@ -50,12 +48,8 @@ class AdminUser(SMCElement):
                     'engine_target': engines,
                     'local_admin': local_admin,
                     'superuser': superuser}
-        return cls._create()
-
-    @property
-    def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
+        
+        return ElementCreator(cls)
 
     def change_password(self, password):
         """ Change admin password
@@ -66,8 +60,8 @@ class AdminUser(SMCElement):
         """
         href = find_link_by_name('change_password', self.link)
         params = {'password': password}
-        return SMCRequest(href=href, params=params).update()
-           
+        return prepared_request(href=href, params=params).update()
+    
     def change_engine_password(self, password):
         """ Change Engine password for engines on allowed
         list.
@@ -78,7 +72,7 @@ class AdminUser(SMCElement):
         """
         href = find_link_by_name('change_engine_password', self.link)
         params = {'password': password}
-        return SMCRequest(href=href, params=params).update()
+        return prepared_request(href=href, params=params).update()
     
     def enable_disable(self):
         """ Toggle enable and disable of administrator account
@@ -87,4 +81,4 @@ class AdminUser(SMCElement):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         href = find_link_by_name('enable_disable', self.link)
-        return SMCRequest(href=href).update()
+        return prepared_request(href=href).update()

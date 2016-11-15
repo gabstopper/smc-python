@@ -1,21 +1,20 @@
 import smc.actions.search as search
 from smc.elements.helpers import domain_helper
-from smc.elements.element import Meta
-from smc.elements.util import find_link_by_name, bytes_to_unicode
+from smc.base.model import Meta, Element, ElementCreator, prepared_request
+from smc.base.util import find_link_by_name
 from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
     SMCConnectionError, CertificateError
 from smc.core.node import Node
-from smc.core.resource import Alias, Snapshot, Routing
+from smc.core.resource import Alias, Snapshot, Routing, RouteTable
 from smc.core.interfaces import PhysicalInterface, Interface,\
     VirtualPhysicalInterface, TunnelInterface
 from smc.actions.tasks import task_handler, Task
-from smc.elements.other import Blacklist
+from smc.elements.other import prepare_blacklist
+from smc.vpn.elements import VPNSite
 from smc.api.common import SMCRequest
-from smc.elements.mixins import ModifiableMixin, ExportableMixin, UnicodeMixin
-from smc.policy.vpn import VPNSite
 
-class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
+class Engine(Element):
     """
     Instance attributes:
     
@@ -59,7 +58,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         """
         Create will return the engine configuration as a dict that is a 
         representation of the engine. The creating class will also add 
-        engine specific requirements before constructing an SMCRequest
+        engine specific requirements before constructing the request
         and sending to SMC (which will serialize the dict to json).
         
         :param name: name of engine
@@ -160,19 +159,6 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
             raise
 
     @property
-    def etag(self):
-        #Need if making interface changes. ETag comes from engine level
-        return search.element_by_href_as_smcresult(self.meta.href).etag
-
-    @property
-    def name(self):
-        return bytes_to_unicode(self._name)
-    
-    @property
-    def href(self):
-        return self.meta.href
-    
-    @property
     def link(self):
         return self.json.get('link')
 
@@ -216,12 +202,9 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         
         :return: list :py:class:`smc.core.node.Node`
         """
-        nodes = search.element_by_href_as_json(
-                            find_link_by_name('nodes', self.link))
-        node_list=[]
-        for node in nodes:
-            node_list.append(Node(meta=Meta(**node)))
-        return node_list
+        href = find_link_by_name('nodes', self.link)
+        return [Node(meta=Meta(**node))
+                for node in search.element_by_href_as_json(href)]
 
     def permissions(self):
         """
@@ -242,16 +225,14 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :method: GET
         :return: list :py:class:`smc.core.engine.Alias`
         """
-        result = search.element_by_href_as_json(
-                        find_link_by_name('alias_resolving', self.link))
-        aliases=[]
-        for alias in result:
-            aliases.append(Alias(**alias))
-        return aliases
+        href = find_link_by_name('alias_resolving', self.link)
+        return [Alias(**alias)
+                for alias in search.element_by_href_as_json(href)]
 
     def blacklist(self, src, dst, duration=3600):
         """ 
-        Add blacklist entry to engine node by name
+        Add blacklist entry to engine node by name. For blacklist to work,
+        you must also create a rule with action "Apply Blacklist".
     
         :method: POST
         :param str src: source to blacklist, can be /32 or network cidr
@@ -260,8 +241,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :return: None
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        result = SMCRequest(href=find_link_by_name('blacklist', self.link),
-                            json=vars(Blacklist(src, dst, duration))).create()
+        result = prepared_request(href=find_link_by_name('blacklist', self.link),
+                                  json=prepare_blacklist(src, dst, duration)).create()
         if result.msg:
             raise EngineCommandFailed(result.msg)
 
@@ -274,7 +255,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         href = find_link_by_name('flush_blacklist', self.link)
-        result = SMCRequest(href=href).delete()
+        result = prepared_request(href=href).delete()
         if result.msg:
             raise EngineCommandFailed(result.msg)
     
@@ -292,41 +273,51 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :param str network: network address in cidr format
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        return SMCRequest(
+        return prepared_request(
                     href=find_link_by_name('add_route', self.link),
                     params={'gateway': gateway, 
                             'network': network}).create()
     @property                            
     def routing(self):
-        """ Retrieve routing nodes from within engine routing tree
-        
+        """
+        Find all routing nodes within engine::
+    
+            for routing_node in engine.routing.all():
+                print routing_node.name, routing_node.network
+
         :method: GET
-        :return: json representing routing configuration
+        :return: :py:class:`smc.core.resource.RoutingNode`
         """
         href=find_link_by_name('routing', self.link)
         return Routing(meta=Meta(href=href))
 
+    @property
     def routing_monitoring(self):
-        """ Return route information for the engine, including gateway, networks
-        and type of route (dynamic, static)
+        """ 
+        Return route table for the engine, including 
+        gateway, networks and type of route (dynamic, static). 
+        Calling this can take a few seconds to retrieve routes
+        from the engine.
+        
+        Find all routes for engine resource::
+            
+            engine = Engine('myengine').load()
+            for route in engine.routing_monitoring.all():
+                print route
         
         :method: GET
-        :return: list of routes
+        :return: :py:class:`smc.core.resource.RouteTable`
         """
-        from collections import namedtuple
-        routes=[]
         try:
             result = search.element_by_href_as_json(
                         find_link_by_name('routing_monitoring', self.link))
-            for route in result.get('routing_monitoring_entry'):
-                r = namedtuple('Route', route.keys())(**route)
-                routes.append(r)
+            return RouteTable(result)
         except SMCConnectionError: #timeout if engine is not initialized
-            pass    
-        return routes
-                              
+            return []
+                         
     def antispoofing(self):
-        """ Antispoofing interface information. By default is based on routing
+        """ 
+        Antispoofing interface information. By default is based on routing
         but can be modified in special cases
         
         :method: GET
@@ -337,7 +328,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
     
     @property
     def internal_gateway(self):
-        """ Engine level VPN gateway information. This is a link from
+        """ 
+        Engine level VPN gateway information. This is a link from
         the engine to VPN level settings like VPN Client, Enabling/disabling
         an interface, adding VPN sites, etc. 
     
@@ -375,7 +367,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
             
     @property    
     def interface(self):
-        """ Get all interfaces, including non-physical interfaces such
+        """ 
+        Get all interfaces, including non-physical interfaces such
         as tunnel or capture interfaces. These are returned as Interface 
         objects and can be used to load specific interfaces to modify, etc.
 
@@ -389,7 +382,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
 
     @property
     def physical_interface(self):
-        """ Returns a PhysicalInterface. This property can be used to
+        """ 
+        Returns a PhysicalInterface. This property can be used to
         add physical interfaces to the engine. For example::
         
             engine.physical_interface.add_single_node_interface(....)
@@ -433,7 +427,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
 
     @property
     def tunnel_interface(self):
-        """ Get only tunnel interfaces for this engine node.
+        """ 
+        Get only tunnel interfaces for this engine node.
         
         :method: GET
         :return: :py:class:`smc.core.interfaces.TunnelInterface`
@@ -448,7 +443,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         return TunnelInterface(meta=Meta(href=href))
 
     def modem_interface(self):
-        """ Get only modem interfaces for this engine node.
+        """ 
+        Get only modem interfaces for this engine node.
         
         :method: GET
         :return: list of dict entries with href,name,type, or None
@@ -457,7 +453,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                         find_link_by_name('modem_interface', self.link))
     
     def adsl_interface(self):
-        """ Get only adsl interfaces for this engine node.
+        """ 
+        Get only adsl interfaces for this engine node.
         
         :method: GET
         :return: list of dict entries with href,name,type, or None
@@ -466,7 +463,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                         find_link_by_name('adsl_interface', self.link))
     
     def wireless_interface(self):
-        """ Get only wireless interfaces for this engine node.
+        """ 
+        Get only wireless interfaces for this engine node.
         
         :method: GET
         :return: list of dict entries with href,name,type, or None
@@ -475,7 +473,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                         find_link_by_name('wireless_interface', self.link))
     
     def switch_physical_interface(self):
-        """ Get only switch physical interfaces for this engine node.
+        """ 
+        Get only switch physical interfaces for this engine node.
         
         :method: GET
         :return: list of dict entries with href,name,type, or None
@@ -484,7 +483,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                         find_link_by_name('switch_physical_interface', self.link))
     
     def refresh(self, wait_for_finish=True, sleep=3):
-        """ Refresh existing policy on specified device. This is an asynchronous 
+        """ 
+        Refresh existing policy on specified device. This is an asynchronous 
         call that will return a 'follower' link that can be queried to determine 
         the status of the task. 
         
@@ -501,7 +501,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :return: generator yielding updates on progress
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
-        element = SMCRequest(
+        element = prepared_request(
                     href=find_link_by_name('refresh', self.link)).create()
         if not element.json:
             raise TaskRunFailed(element.msg)
@@ -510,7 +510,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                             sleep=sleep)
 
     def upload(self, policy, wait_for_finish=False, sleep=3):
-        """ Upload policy to engine. This is used when a new policy is required
+        """ 
+        Upload policy to engine. This is used when a new policy is required
         for an engine, or this is the first time a policy is pushed to an engine.
         If an engine already has a policy and the intent is to re-push, then use
         :py:func:`refresh` instead.
@@ -528,7 +529,7 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :return: generator yielding updates on progress
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         """
-        element = SMCRequest(
+        element = prepared_request(
                     href=find_link_by_name('upload', self.link),
                     params={'filter': policy}).create()
         if not element.json: #policy not found
@@ -538,7 +539,8 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
                             sleep=sleep)
 
     def generate_snapshot(self, filename='snapshot.zip'):
-        """ Generate and retrieve a policy snapshot from the engine
+        """ 
+        Generate and retrieve a policy snapshot from the engine
         This is blocking as file is downloaded
         
         :method: GET
@@ -546,10 +548,11 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :return: None
         """
         href = find_link_by_name('generate_snapshot', self.link)
-        return SMCRequest(href=href, filename=filename).read()
+        return prepared_request(href=href, filename=filename).read()
     
     def snapshots(self):
-        """ References to policy based snapshots for this engine, including
+        """ 
+        References to policy based snapshots for this engine, including
         the date the snapshot was made
         
         :method: GET
@@ -557,21 +560,13 @@ class Engine(UnicodeMixin, ExportableMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         href = find_link_by_name('snapshots', self.link)
-        snapshots=[]
-        for snapshot in search.element_by_href_as_json(href):
-            snapshots.append(Snapshot(meta=Meta(**snapshot)))
-        return snapshots
+        return [Snapshot(meta=Meta(**snapshot))
+                for snapshot in search.element_by_href_as_json(href)]
 
     def __getattr__(self, value):
         raise AttributeError("You must first load the engine to access resources!")
 
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
-
-class InternalGateway(UnicodeMixin, ModifiableMixin):
+class InternalGateway(Element):
     """ 
     InternalGateway represents the engine side VPN configuration
     This defines settings such as setting VPN sites on protected
@@ -598,18 +593,6 @@ class InternalGateway(UnicodeMixin, ModifiableMixin):
         return self.meta.name
 
     @property
-    def href(self):
-        """ 
-        Use this property when adding to a VPN Policy
-        """
-        return self.meta.href
-
-    @property
-    def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
-               
-    @property
     def vpn_site(self):
         """
         Retrieve VPN Site information for this internal gateway
@@ -620,7 +603,7 @@ class InternalGateway(UnicodeMixin, ModifiableMixin):
                 print site
         
         :method: GET
-        :return: :py:class:`smc.policy.vpn.VPNSite`
+        :return: :py:class:`smc.vpn.elements.VPNSite`
         """
         href = find_link_by_name('vpn_site', self.link)
         return VPNSite(meta=Meta(href=href))
@@ -636,7 +619,7 @@ class InternalGateway(UnicodeMixin, ModifiableMixin):
                 print x
                 
         :method: GET
-        :return: list :py:class:`smc.policy.vpn.InternalEndpoint`
+        :return: list :py:class:`smc.vpn.elements.InternalEndpoint`
         """
         href = find_link_by_name('internal_endpoint', self.link)
         return InternalEndpoint(meta=Meta(href=href))
@@ -663,32 +646,18 @@ class InternalGateway(UnicodeMixin, ModifiableMixin):
         Certificate request should be an instance of VPNCertificate.
     
         :method: POST
-        :param: :py:class:`~smc.policy.vpn.VPNCertificate` certificate_request: 
+        :param: :py:class:`~smc.vpn.elements.VPNCertificate` certificate_request: 
                 certificate request created
         :return: None
         :raises:`smc.api.exceptions.CertificateError`
         """
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('generate_certificate', self.link),
                     json=vars(certificate_request)).create()
         if result.msg:
             raise CertificateError(result.msg)
-    
-    def describe(self):
-        """
-        Describe the internal gateway by returning the raw json::
-            
-            print engine.internal_gateway.describe()
-        """    
-        return search.element_by_href_as_json(self.href)
 
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
-
-class InternalEndpoint(ModifiableMixin):
+class InternalEndpoint(Element):
     """
     InternalEndpoint lists the VPN endpoints either enabled or disabled for
     VPN. You should enable the endpoint for the interface that will be the
@@ -717,35 +686,17 @@ class InternalEndpoint(ModifiableMixin):
     @property
     def name(self):
         return self.meta.name
-        
-    @property
-    def href(self):
-        return self.meta.href
-  
-    def describe(self):
-        """
-        Return json representation of element
-        
-        :return: raw json 
-        """
-        return search.element_by_href_as_json(self.href)
-    
+
     def all(self):
         """
         Return all internal endpoints
         
-        :return: list :py:class:`smc.policy.vpn.InternalEndpoint`
+        :return: list :py:class:`smc.core.engine.InternalEndpoint`
         """
-        gateways=[]
-        for gateway in search.element_by_href_as_json(self.href):
-            gateways.append(InternalEndpoint(meta=Meta(**gateway)))
-        return gateways
-    
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
+        return [InternalEndpoint(meta=Meta(**ep))
+                for ep in search.element_by_href_as_json(self.href)]
  
-class VirtualResource(UnicodeMixin):
+class VirtualResource(Element):
     """
     A Virtual Resource is a container placeholder for a virtual engine
     within a Master Engine. When creating a virtual engine, each virtual
@@ -768,19 +719,22 @@ class VirtualResource(UnicodeMixin):
     This is used to get the entry point for an empty resource and when loading
     existing resources, provides name and href of the virtual resource. 
     
+    :ivar name: name of virtual resource
+    :ivar vfw_id: virtual resource id
+
     :param meta: meta is provided from the engine.virtual_resource method
     """
     def __init__(self, meta=None):
         self.meta = meta    
 
     @property
-    def href(self):
-        return self.meta.href
-    
-    @property
     def name(self):
         return self.meta.name
    
+    @property
+    def vfw_id(self):
+        return self.describe().get('vfw_id')
+
     def create(self, name, vfw_id, domain='Shared Domain',
                show_master_nic=False, connection_limit=0):
         """
@@ -803,15 +757,7 @@ class VirtualResource(UnicodeMixin):
                 'allocated_domain_ref': allocated_domain}
        
         return SMCRequest(href=self.href, json=json).create()
-      
-    def describe(self):
-        """
-        Retrieve full json for this virtual resource and return pretty printed
-        
-        :return: json text
-        """
-        return search.element_by_href_as_json(self.href)
-    
+
     def all(self):
         """
         Return metadata for all virtual resources
@@ -822,13 +768,5 @@ class VirtualResource(UnicodeMixin):
         
         :return: list VirtualResource
         """
-        resources=[]
-        for resource in search.element_by_href_as_json(self.meta.href):
-            resources.append(VirtualResource(meta=Meta(**resource)))
-        return resources
-    
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
+        return [VirtualResource(meta=Meta(**resource))
+                for resource in search.element_by_href_as_json(self.href)]

@@ -24,7 +24,7 @@ All elements by type::
 """
 import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
-    fetch_json_by_name, fetch_entry_point
+    fetch_json_by_name, fetch_entry_point, fetch_json_by_post
 from smc import session
 
 logger = logging.getLogger(__name__)
@@ -269,6 +269,7 @@ def all_elements_by_type(name):
         search.all_elements_by_type('host')
         
     :param name: top level entry point name
+    :raises: `smc.api.exceptions.UnsupportedEntryPoint`
     :return: list with json representation of name match, else None
     """
     if name:
@@ -277,8 +278,6 @@ def all_elements_by_type(name):
         if entry: #in case an invalid entry point is specified
             result = element_by_href_as_json(entry)
             return result
-        else:
-            logger.error("Entry point specified was not found: %s" % name)
 
 def all_entry_points(): #get from session cache
     """ Get all SMC API entry points """
@@ -313,6 +312,34 @@ def search_duplicate():
     """
     return element_by_href_as_json(fetch_entry_point('search_duplicate'))
 
+def element_references(element_href):
+    """
+    Return references for an element given the element href. The result is
+    filtered based on the SMCResult. If error, empty list is returned
+    
+    :param str element_href: element reference
+    :return: list list of references where element is used
+    """
+    href = fetch_entry_point('references_by_element')
+    result = fetch_json_by_post(href=href,
+                                json={'value': element_href})
+    if result.json:
+        return result.json
+    else:
+        return []
+    
+def element_references_as_smcresult(element_href):
+    """
+    Return references for an element given the element href. The
+    return is the full SMCResult object.
+    
+    :param str element_href: element reference
+    :return: :py:class:`smc.api.web.SMCResult`
+    """
+    href = fetch_entry_point('references_by_element')
+    return fetch_json_by_post(href=href,
+                              json={'value': element_href})
+    
 def get_first_log_server():
     """ Convenience method to return the first log server match in
     the case where there might be multiple
@@ -336,18 +363,3 @@ def get_ospf_default_profile():
             profile = element_by_href_as_json(ospf.get('href'))
             if profile.get('system') == True:
                 return ospf.get('href')
-
-def _iter_list_to_tuple(lst):
-    """ Return tuple name,href from top level json query:
-    {'href'='http://x.x.x.x', 'name'='blah', 'type'='sometype'}
-    
-    :param policy: find specific href of policy by name
-    :return: list of tuple (name, href)
-    """
-    return [(opt.get('name'),opt.get('href')) for opt in lst]
-
-def _href_from_name_href_tuple(dictentry, element_name):
-    element = [entry.get('href') for entry in dictentry 
-               if entry.get('name') == element_name]
-    if element:
-        return element.pop()

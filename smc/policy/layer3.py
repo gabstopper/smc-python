@@ -35,8 +35,8 @@ Example rule deletion::
             print rule.delete()
 """
 from smc.actions.search import element_name_by_href
-from smc.elements.util import find_link_by_name
-from smc.elements.element import Meta
+from smc.base.util import find_link_by_name
+from smc.base.model import Meta, ElementCreator
 from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFailed
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule
@@ -47,15 +47,12 @@ class FirewallRule(object):
     points. This is referenced by multiple classes such as 
     FirewallPolicy and FirewallPolicyTemplate.
     """
-    def __init__(self):
-        pass
-    
     @property
     def fw_ipv4_access_rules(self):
         """
         IPv4 rule entry point
         
-        :return: :py:class:`smc.elements.rule.IPv4Rule`
+        :return: :py:class:`smc.policy.rule.IPv4Rule`
         """
         href = find_link_by_name('fw_ipv4_access_rules', self.link)
         return IPv4Rule(meta=Meta(href=href))
@@ -65,7 +62,7 @@ class FirewallRule(object):
         """
         IPv4NAT Rule entry point
         
-        :return: :py:class:`smc.elements.rule.IPv4NATRule`
+        :return: :py:class:`smc.policy.rule.IPv4NATRule`
         """
         href = find_link_by_name('fw_ipv4_nat_rules', self.link)
         return IPv4NATRule(meta=Meta(href=href))
@@ -75,7 +72,7 @@ class FirewallRule(object):
         """
         IPv6 Rule entry point
         
-        :return: :py:class:`smc.elements.rule.IPv6Rule`
+        :return: :py:class:`smc.policy.rule.IPv6Rule`
         """
         href = find_link_by_name('fw_ipv6_access_rules', self.link)
         return IPv6Rule(meta=Meta(href=href))
@@ -85,7 +82,7 @@ class FirewallRule(object):
         """
         IPv6NAT Rule entry point
         
-        :return: :py:class:`smc.elements.rule.IPv6NATRule`
+        :return: :py:class:`smc.policy.rule.IPv6NATRule`
         """
         href = find_link_by_name('fw_ipv6_nat_rules', self.link)
         return IPv6NATRule(meta=Meta(href=href)) 
@@ -145,7 +142,7 @@ class FirewallPolicy(FirewallRule, Policy):
                                    .format(template))
         cls.json = {'name': name,
                     'template': fw_template}
-        result = cls._create()
+        result = ElementCreator(cls)
         if result.href:
             return FirewallPolicy(name, Meta(href=result.href))
         else:

@@ -20,7 +20,9 @@ In order to view error messages, do the following in your calling script::
 """
 from __future__ import absolute_import
 import logging
-import smc.elements.element as element
+import smc.elements.network as network
+import smc.elements.service as service
+import smc.elements.group as group
 import smc.actions.search
 from smc.core.engines import Layer3Firewall, Layer2Firewall, IPS
 from smc.core.engine import Engine
@@ -37,7 +39,7 @@ def host(name, ipaddress, secondary_ip=[], comment=None):
     :param comment (optional)
     :return: :py:class:`smc.api.web.SMCResult`
     """   
-    return element.Host.create(name, ipaddress, 
+    return network.Host.create(name, ipaddress, 
                                secondary_ip=secondary_ip, 
                                comment=comment).create()
 
@@ -51,7 +53,7 @@ def iprange(name, addr_range, comment=None):
     """   
     addr = addr_range.split('-') #just verify each side is valid ip addr
     if len(addr) == 2: #has two parts
-        return element.AddressRange.create(name, addr_range,
+        return network.AddressRange.create(name, addr_range,
                                            comment=comment).create()   
        
 def router(name, ipaddress, secondary_ip=None, comment=None):
@@ -62,7 +64,7 @@ def router(name, ipaddress, secondary_ip=None, comment=None):
     :param comment (optional)
     :return: :py:class:`smc.api.web.SMCResult`
     """     
-    return element.Router.create(name, ipaddress,
+    return network.Router.create(name, ipaddress,
                                  secondary_ip=secondary_ip,
                                  comment=comment).create()
 
@@ -74,7 +76,7 @@ def network(name, ip_network, comment=None):
     :param comment (optional)
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    return element.Network.create(name, ip_network,
+    return network.Network.create(name, ip_network,
                                   comment=comment).create()
 
 def group(name, members=[], comment=None):
@@ -99,9 +101,9 @@ def group(name, members=[], comment=None):
             else:
                 logger.info("Element: %s could not be found, not adding to group" % m)    
     
-    return element.Group.create(name,
-                                members=grp_members,
-                                comment=comment).create()
+    return group.Group.create(name,
+                              members=grp_members,
+                              comment=comment).create()
 
 def single_fw(name, mgmt_ip, mgmt_network, mgmt_interface='0', dns=None):
     """ Create single firewall with a single management interface

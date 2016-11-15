@@ -3,7 +3,8 @@ Helper functions to retrieve various elements that may be required by specific
 constructors.
 """
 import smc.actions.search as search
-from element import Zone, LogicalInterface, Location
+from smc.elements.network import Zone
+from smc.elements.other import LogicalInterface, Location
       
 def location_helper(name):
     """
@@ -57,11 +58,3 @@ def domain_helper(name):
     domain = search.element_href_use_filter(name, 'admin_domain')
     if domain:
         return domain
-
-def fw_templates(name):
-    """
-    Find the FW template href by name
-    
-    :return: str href of template or None
-    """
-    return search.element_href_use_filter(name, 'fw_template_policy')

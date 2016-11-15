@@ -1,9 +1,7 @@
 from smc.policy.policy import Policy
 
 class InspectionRule(object):
-    def __init__(self):
-        pass
-    
+   
     def inspection_global_rules(self):
         pass
     

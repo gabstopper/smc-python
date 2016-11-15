@@ -2,7 +2,7 @@ import smc.actions.search as search
 from smc.core.interfaces import PhysicalInterface, VirtualPhysicalInterface
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed
-from smc.api.common import SMCRequest
+from smc.base.model import prepared_request
 
 class Layer3Firewall(object):
     """
@@ -70,9 +70,9 @@ class Layer3Firewall(object):
                                location_ref=location_ref,
                                enable_ospf=enable_ospf,
                                ospf_profile=ospf_profile)
-
+        
         href = search.element_entry_point('single_fw')
-        result = SMCRequest(href=href, json=engine).create()
+        result = prepared_request(href=href, json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
@@ -137,8 +137,8 @@ class Layer2Firewall(object):
                                enable_antivirus=enable_antivirus)
        
         href = search.element_entry_point('single_layer2')
-        result = SMCRequest(href=href, 
-                            json=engine).create()
+        result = prepared_request(href=href, 
+                                  json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
@@ -203,8 +203,8 @@ class IPS(object):
                                enable_antivirus=enable_antivirus)
         
         href = search.element_entry_point('single_ips')
-        result = SMCRequest(href=href, 
-                            json=engine).create()
+        result = prepared_request(href=href, 
+                                  json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
@@ -288,10 +288,9 @@ class Layer3VirtualEngine(object):
 
             engine.update(virtual_resource=virt_resource_href)
             engine.pop('log_server_ref', None) #Master Engine provides this service
-        
-        
+
         href = search.element_entry_point('virtual_fw')
-        result = SMCRequest(href=href, json=engine).create()
+        result = prepared_request(href=href, json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
@@ -329,7 +328,7 @@ class FirewallCluster(object):
         :param cluster_mask: ip netmask of cluster CVI
         :param macaddress: macaddress for packet dispatch clustering
         :param cluster_nic: nic id to use for primary interface
-        :param nodes: address/network_value/nodeid combination for cluster nodes  
+        :param list nodes: address/network_value/nodeid combination for cluster nodes  
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param str zone_ref: (optional) zone name for management interface (created if not found)
@@ -371,8 +370,8 @@ class FirewallCluster(object):
                                default_nat=default_nat)
 
         href = search.element_entry_point('fw_cluster')
-        result = SMCRequest(href=href,
-                            json=engine).create()
+        result = prepared_request(href=href,
+                                  json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
@@ -397,10 +396,13 @@ class MasterEngine(object):
                domain_server_address=None, enable_gti=False,
                enable_antivirus=False):
         """
-         Create a Master Engine with management interface
+        Create a Master Engine with management interface
         
         :param str name: name of master engine engine
         :param str master_type: firewall|
+        :param str mgmt_ip: ip address for management interface
+        :param str mgmt_netmask: full netmask for management
+        :param str mgmt_interface: interface to use for mgmt (default: 0)
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
@@ -423,12 +425,85 @@ class MasterEngine(object):
                                log_server_ref=log_server_ref,
                                nodes=1, enable_gti=enable_gti,
                                enable_antivirus=enable_antivirus)      
-        engine.setdefault('master_type', master_type)
-        engine.setdefault('cluster_mode', 'balancing')
+        
+        engine.update(master_type=master_type,
+                      cluster_mode='standby')
 
         href = search.element_entry_point('master_engine')
-        result = SMCRequest(href=href, 
-                            json=engine).create()
+        result = prepared_request(href=href, 
+                              json=engine).create()
+        if result.href:
+            return Engine(name).load()
+        else:
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}'
+                                     .format(result.msg))
+
+class MasterEngineCluster(object):
+    """
+    Master Engine Cluster
+    Clusters are currently supported in an active/standby configuration
+    only. 
+    """
+    node_type = 'master_node'
+    
+    def __init__(self, name):
+        pass
+    
+    @classmethod
+    def create(cls, name, master_type, macaddress, 
+               nodes, mgmt_interface=0, log_server_ref=None,
+               domain_server_address=None, 
+               enable_gti=False,
+               enable_antivirus=False):
+        """
+        Create Master Engine Cluster
+        
+        :param str name: name of master engine engine
+        :param str master_type: firewall|
+        :param str mgmt_ip: ip address for management interface
+        :param str mgmt_netmask: full netmask for management
+        :param str mgmt_interface: interface to use for mgmt (default: 0)
+        :param list nodes: address/network_value/nodeid combination for cluster nodes 
+        :param str log_server_ref: (optional) href to log_server instance 
+        :param list domain_server_address: (optional) DNS server addresses
+        :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param boolean enable_gti: (optional) Enable GTI
+        :return: :py:class:`smc.core.engine.Engine`
+        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
+        
+        Example nodes parameter input::
+            
+            [{'address':'5.5.5.2', 
+            'network_value':'5.5.5.0/24', 
+            'nodeid':1},
+            {'address':'5.5.5.3', 
+            'network_value':'5.5.5.0/24', 
+            'nodeid':2},
+            {'address':'5.5.5.4', 
+            'network_value':'5.5.5.0/24', 
+            'nodeid':3}]
+        """
+        physical = PhysicalInterface()
+        physical.add_cluster_interface_on_master_engine(
+                                            mgmt_interface,
+                                            macaddress, 
+                                            nodes, 
+                                            is_mgmt=True)
+        engine = Engine.create(name=name,
+                               node_type=cls.node_type,
+                               physical_interfaces=[
+                                        {PhysicalInterface.typeof: physical.data}], 
+                               domain_server_address=domain_server_address,
+                               log_server_ref=log_server_ref,
+                               nodes=len(nodes), enable_gti=enable_gti,
+                               enable_antivirus=enable_antivirus)
+        engine.update(master_type=master_type,
+                      cluster_mode='standby')
+        
+        href = search.element_entry_point('master_engine')
+        result = prepared_request(href=href, 
+                              json=engine).create()
         if result.href:
             return Engine(name).load()
         else:
@@ -513,7 +588,7 @@ class AWSLayer3Firewall(object):
             engine.setdefault('default_nat', True)
        
         href = search.element_entry_point('single_fw')
-        result = SMCRequest(href=href, 
+        result = prepared_request(href=href, 
                             json=engine).create()
         if result.href:
             return Engine(name).load()

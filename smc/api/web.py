@@ -2,6 +2,9 @@
 Session management for SMC client connections
 When a session is first set up using login(), this persists for the duration 
 of the python run. Run logout() after to remove the session from the SMC server.
+
+SSL certificates are not verified to the CA authority, need to implement for urllib3:
+https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
 """
 import os.path
 import requests
@@ -77,8 +80,7 @@ class SMCAPIConnection(object):
                     response = self.session.put(request.href,
                                                 data=json.dumps(request.json),
                                                 params=request.params,
-                                                headers=request.headers
-                                                )
+                                                headers=request.headers)
                         
                     if response.status_code != 200:
                         raise SMCOperationFailure(response)

@@ -3,7 +3,7 @@ Exceptions Module
 '''
 import json
 import smc.api.web
-from smc.elements.util import unicode_to_bytes
+from smc.base.util import unicode_to_bytes
 
 class SMCException(Exception):
     """ Base class for exceptions """
@@ -62,7 +62,7 @@ class SMCOperationFailure(SMCException):
                 message = self.response.text
             else:
                 message = "HTTP error code: %s, no message" % self.code
-
+       
         self.smcresult.code = self.code
         
         if details:
@@ -74,7 +74,7 @@ class SMCOperationFailure(SMCException):
         if message:
             #message = message.encode('utf-8')
             message = unicode_to_bytes(message)
-    
+        
         if message and details:
             self.smcresult.msg = '{} {}'.format(message, details)
         elif details:

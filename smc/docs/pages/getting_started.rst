@@ -23,9 +23,7 @@ Once you have enabled this and have access to the authentication key (keep this 
 you can establish a session to the SMC by either providing the url and apikey in the 
 constructor, or storing this in a file located ~/.smcrc.
 
-Storing the credential information in the user profile file is preferred.
-
-For example, providing the connect information through the constructor:
+Example of providing the connect information through the constructor:
 
 .. code-block:: python
 
@@ -44,7 +42,36 @@ constructor. Otherwise the latest API version available will be used:
    session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
    api_version='5.10')
 
-If storing in a user profile configuration file, the syntax for that is:
+In order to use SSL connections, you must first associated a private key and certificate
+with the SMC API server. This is done under the Management Server properties, SMC API.
+Obtain the certificate for use by the client.
+It is recommended to ensure your certificate has the subjectAltName field set per
+RFC 2818.
+
+Using SSL and specify certificate for verifying:
+
+.. code-block:: python
+
+   from smc import session
+   session.login(url='https://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
+   				 verify='/Users/davidlepage/home/mycacert.pem')
+   
+Using SSL to the SMC without SSL validation (NOT recommended)
+
+.. code-block:: python
+
+   from smc import session
+   session.login(url='https://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001',
+   				 verify=False)
+
+When storing in a file, using session.login with no arguments:
+
+.. code-block:: python
+	
+	session.login()
+	session.logout()
+
+If storing in a user profile configuration file, the syntax is:
 
 .. code-block:: python
 
@@ -52,6 +79,8 @@ If storing in a user profile configuration file, the syntax for that is:
    smc_address=1.1.1.1
    smc_apikey=xxxxxxxxxxxxxxxxxxxxxxxxx
    smc_port=8082 (optional; default:8082)
+   smc_cert='/Users/davidlepage/home/mycacert.pem'
+   ssl_on
    
 Once the session has been successfully obtained, there is no reason to re-authenticate a new session
 unless `logout` has been called.
@@ -254,17 +283,12 @@ Creating engines
 ----------------
 
 Engines are the definitions for a layer 3 FW, layer 2 FW, IPS, Cluster Firewalls, Master Engines,
-Virtual Engines or AWS engines. 
+or Virtual Engines.
 
 An engine defines the basic settings to make the device or virtual instance operational such as
 interfaces, routes, ip addresses, networks, dns servers, etc. 
 
-From a class hierarchy perspective, this relationship can be represented as:
-
-Engine (object) --has-a--> Node(s) (object) ---> 
-				Layer3 Firewall / Layer2 Firewall / IPS / Firewall Cluster / VirtualL3Engine
-
-Creating engines are done using the Firewall specific base classes.
+Creating engines are done using the Firewall specific base classes in :py:mod:`smc.core.engines`
 
 Nodes are individual devices represented as properties of an engine element. 
 In the case of single device deployments, there is only one node. For clusters, there will be at a minimum 
@@ -285,7 +309,7 @@ To create a layer 3 firewall:
 
 .. code-block:: python
 
-   from smc.elements.engines import Layer3Firewall
+   from smc.core.engines import Layer3Firewall
    
    Layer3Firewall.create('myfirewall', '1.1.1.1', '1.1.1.0/24')
 
@@ -302,7 +326,7 @@ Creating a Layer2 Firewall with alternative management interface and DNS setting
 
 .. code-block:: python
 
-   from smc.elements.engines import Layer2Firewall
+   from smc.core.engines import Layer2Firewall
    
    Layer2Firewall.create('myfirewall', '1.1.1.1', '1.1.1.0/24', mgmt_interface=5, dns=['172.18.1.20'])
 
@@ -315,7 +339,7 @@ Using alternative inline interface pair (mgmt on interface 0):
  
  .. code-block:: python
 
-    from smc.elements.engines import IPS
+    from smc.core.engines import IPS
    
     IPS.create('myfirewall', '1.1.1.1', '1.1.1.0/24', inline_interface='5-6')
  
@@ -323,6 +347,30 @@ Once you have created your engine, it is possible to use any of the engine or no
 to control the nodes.
 
 See reference for more information: :py:class:`smc.elements.engines.IPS`
+
+Creating Master Engine
+++++++++++++++++++++++
+
+A Master Engine is used to manage virtual engine nodes and provides in system virtualization.
+Master Engine controls administrative aspects and specifies how resources are allocated to 
+the virtual engines.
+
+Create a master engine with a single management interface, then add 2 more physical interface for
+virtual engine allocation:
+
+.. code-block:: python
+
+   engine = MasterEngine.create(name='api-master',
+                       			mgmt_ip='1.1.1.1',
+                       			mgmt_netmask='1.1.1.0/24',
+                       			master_type='firewall', 
+                       			domain_server_address=['8.8.4.4', '7.7.7.7'])
+                       
+   engine.physical_interface.add(interface_id=1)
+   engine.physical_interface.add(interface_id=2)
+   
+
+See :py:class:`smc.core.engines.MasterEngine` for more details.
 
 Creating Layer3Virtual Engine
 +++++++++++++++++++++++++++++
@@ -349,12 +397,14 @@ Creating a layer 3 virtual engine with 3 physical interfaces:
         
 .. code-block:: python
         
-   Layer3VirtualEngine.
-           create('red', 'my_master_engine', 've-1',
+   Layer3VirtualEngine.create(
+   				   name='red',
+   				   master_engine='my_master_engine', 
+   				   virtual_resource='ve-1',
                    interfaces=[
-                            {'ipaddress': '5.5.5.5', 'mask': '5.5.5.5/30', 'interface_id':0, zone=''},
-                            {'ipaddress': '6.6.6.6', 'mask': '6.6.6.0/24', 'interface_id':1, zone=''},
-                            {'ipaddress': '7.7.7.7', 'mask': '7.7.7.0/24', 'interface_id':2, zone=''}]
+                            {'address': '5.5.5.5', 'network_value': '5.5.5.5/30', 'interface_id':0},
+                            {'address': '6.6.6.6', 'network_value': '6.6.6.0/24', 'interface_id':1},
+                            {'address': '7.7.7.7', 'network_value': '7.7.7.0/24', 'interface_id':2}]
 
 .. note:: Virtual engine interface id's will be staggered based on used interfaces
           by the master engine.
@@ -391,7 +441,41 @@ constructor as follows:
                                     domain_server_address=['1.1.1.1'], 
                                     zone_ref=zone_helper('Internal'))
                              
-                                   
+
+Creating MasterEngine Cluster
++++++++++++++++++++++++++++++
+
+Create a master engine cluster for redundancy. Master Engine clusters support active/standby
+mode.
+
+Create the cluster and add a second interface for each cluster node:
+
+.. code-block:: python
+
+   engine = MasterEngineCluster.create(
+                                    name='engine-cluster',
+                                    master_type='firewall', 
+                                    macaddress='22:22:22:22:22:22', 
+                                    nodes=[{'address':'5.5.5.2', 
+                                            'network_value':'5.5.5.0/24', 
+                                            'nodeid':1},
+                                           {'address':'5.5.5.3', 
+                                            'network_value':'5.5.5.0/24', 
+                                            'nodeid':2}])
+      
+   #Create another interface
+   engine.physical_interface.add_cluster_interface_on_master_engine(
+                                    interface_id=1,
+                                    macaddress='22:22:22:22:22:33', 
+                                    nodes=[{'address': '6.6.6.2',
+                                            'network_value': '6.6.6.0/24',
+                                            'nodeid':1},
+                                            {'address':'6.6.6.3',
+                                             'network_value':'6.6.6.0/24',
+                                             'nodeid':2}])
+                                             
+See :py:class:`smc.core.engines.MasterEngineCluster` for more info
+                                 
 Interfaces
 ++++++++++
 

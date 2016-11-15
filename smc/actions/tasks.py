@@ -1,8 +1,8 @@
 import time
-import re    
+import re
+import smc.base.model
 import smc.actions.search as search
-from smc.api.common import SMCRequest
-from smc.elements.util import find_link_by_name
+from smc.base.util import find_link_by_name
 from smc.api.exceptions import TaskRunFailed
 
 clean_html = re.compile(r'<.*?>')
@@ -37,7 +37,7 @@ class Task(object):
 
     @property
     def abort(self):
-        return SMCRequest(
+        return smc.base.model.prepared_request(
                     href=find_link_by_name('abort', self.link)).delete()
 
     def __getattr__(self, value):
@@ -88,8 +88,9 @@ class TaskDownload(object):
     
     def run(self):
         try:
-            return SMCRequest(href=self.result,
-                              filename=self.filename).read()
+            return smc.base.model.prepared_request(
+                                            href=self.result,
+                                            filename=self.filename).read()
         except IOError as io:
             raise TaskRunFailed("Export task failed with message: {}"
                                 .format(io))

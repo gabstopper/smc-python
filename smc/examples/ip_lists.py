@@ -36,7 +36,7 @@ Requirements:
 
 """
 from smc import session
-from smc.elements.element import IPList
+from smc.elements.network import IPList
 from smc.elements.collection import describe_ip_list
 
 def upload_as_zip(name, filename):
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     
     #print create_iplist(name='newlist')
     
-    #print create_iplist_with_data(name='abrandnewlist', iplist=['123.123.123.123','23.23.23.23'])
+    print create_iplist_with_data(name='abrandnewlist', iplist=['123.123.123.123','23.23.23.23'])
     
     #print download_as_text('mylist', filename='/Users/davidlepage/iplist.txt')
     

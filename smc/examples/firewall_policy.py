@@ -6,7 +6,7 @@ a rule by name.
 '''
 from smc import session
 from smc.policy.layer3 import FirewallPolicy
-from smc.elements.element import Host
+from smc.elements.network import Host
 from smc.elements.collection import describe_tcp_service
 
 import logging
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     host = Host.create(name='amazon-linux-host', address='192.168.1.5')
     mysources = [host.href]
     
-    mydestinations = ['any']
+    mydestinations = 'any'
     
     policy.fw_ipv4_access_rules.create(name='mynewrule', 
                                        sources=mysources, 

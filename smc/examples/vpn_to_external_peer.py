@@ -9,20 +9,31 @@ network.
 
 """
 from smc import session
-from smc.elements.element import Network
-from smc.core.engines import Engine
-from smc.elements.vpn import ExternalGateway, VPNPolicy
+from smc.elements.network import Network
+from smc.core.engines import Engine, Layer3Firewall
+from smc.vpn.elements import ExternalGateway
+from smc.vpn.policy import VPNPolicy
 
+def create_single_fw():
+    """
+    Create single layer 3 firewall for this example
+    """
+    Layer3Firewall.create(name='testfw', 
+                          mgmt_ip='192.168.10.1', 
+                          mgmt_network='192.168.10.0/24')
+    
 if __name__ == '__main__':
     
     session.login(url='http://172.18.1.25:8082', api_key='4366TuolHMJp3nHaUeF60001')
+    
+    create_single_fw()
     
     """
     An external gateway defines a non-SMC managed gateway device that acts as a 
     remote VPN peer. 
     First create the external gateway element
     """
-    external_gateway = ExternalGateway.create('myextgw')
+    external_gateway = ExternalGateway.create('mygw')
     
     """
     An external endpoint is defined within the external gateway and specifies the

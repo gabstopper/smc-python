@@ -14,12 +14,11 @@ For example, to load an engine and run node level commands::
         ...
 """
 import smc.actions.search as search
-from smc.elements.util import find_link_by_name, save_to_file
+from smc.base.util import find_link_by_name, save_to_file
 from smc.api.exceptions import LicenseError, NodeCommandFailed
-from smc.api.common import SMCRequest
-from smc.elements.mixins import ModifiableMixin, UnicodeMixin
+from smc.base.model import Element, prepared_request
 
-class Node(UnicodeMixin, ModifiableMixin):
+class Node(Element):
     """ 
     Node settings to make each engine node controllable individually.
     When Engine().load() is called, setattr will set all instance attributes
@@ -43,11 +42,7 @@ class Node(UnicodeMixin, ModifiableMixin):
     @property
     def name(self):
         return self.meta.name
-    
-    @property
-    def href(self):
-        return self.meta.href
-    
+
     @property
     def node_type(self):
         return self.meta.type
@@ -70,12 +65,12 @@ class Node(UnicodeMixin, ModifiableMixin):
         :param str node_type: based on engine type specified 
         :param int nodeid: used to identify which node 
         """  
-        node = { node_type: {
+        node = {node_type: {
                     'activate_test': True,
                     'disabled': False,
                     'loopback_node_dedicated_interface': [],
                     'name': name + ' node '+str(nodeid),
-                    'nodeid': nodeid }
+                    'nodeid': nodeid}
                 }
         return node
 
@@ -86,10 +81,11 @@ class Node(UnicodeMixin, ModifiableMixin):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        result = SMCRequest(
-                    href=find_link_by_name('fetch', self.link)).create()
-        if result.msg:
-            raise LicenseError(result.msg)
+        href = find_link_by_name('fetch', self.link)
+        if href:
+            result = prepared_request(href=href).create()
+            if result.msg:
+                raise LicenseError(result.msg)
 
     def bind_license(self, license_item_id=None):
         """ 
@@ -100,7 +96,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         params = {'license_item_id': license_item_id}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('bind', self.link), 
                     params=params).create()
         if result.msg:
@@ -113,7 +109,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError` 
         """
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('unbind', self.link)).create()
         if result.msg:
             raise LicenseError(result.msg)
@@ -125,7 +121,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('cancel_unbind', self.link)).create()
         if result.msg:
             raise LicenseError(result.msg)
@@ -148,9 +144,11 @@ class Node(UnicodeMixin, ModifiableMixin):
         :return: str initial contact text information
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed` 
         """
-        result = SMCRequest(
-                    href=find_link_by_name('initial_contact', self.link),
-                    params={'enable_ssh': enable_ssh}).create()
+        href = find_link_by_name('initial_contact', self.link)
+        if not href:
+            raise NodeCommandFailed('Initial contact not supported on this node type')
+        result = prepared_request(href=href,
+                                  params={'enable_ssh': enable_ssh}).create()
       
         if result.content:
             if filename:
@@ -202,7 +200,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('go_online', self.link),
                     params=params).update()
         if result.msg:
@@ -218,7 +216,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('go_offline', self.link),
                     params=params).update()
         if result.msg:
@@ -235,7 +233,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('go_standby', self.link),
                     params=params).update()
         if result.msg:
@@ -251,7 +249,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('lock_online', self.link),
                     params=params).update()
         if result.msg:
@@ -268,7 +266,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('lock_offline', self.link),
                     params=params).update()
         if result.msg:
@@ -285,7 +283,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('reset_user_db', self.link),
                     params=params).update()
         if result.msg:
@@ -314,10 +312,9 @@ class Node(UnicodeMixin, ModifiableMixin):
         result = search.element_by_href_as_smcresult(href, params)
         if result.msg:
             raise NodeCommandFailed(result.msg)
-        diagnostics=[]
-        for diagnostic in result.json.get('diagnostics'):
-            diagnostics.append(Diagnostic(**diagnostic))
-        return diagnostics
+        
+        return [(Diagnostic(**diagnostic))
+                for diagnostic in result.json.get('diagnostics')]
 
     def send_diagnostic(self, diagnostic):
         """ 
@@ -346,7 +343,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         debug=[]
         for setting in diagnostic:
             debug.append(vars(setting))
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('send_diagnostic', self.link),
                     json={'diagnostics': debug}).create()
         if result.msg:
@@ -362,7 +359,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('reboot', self.link),
                     params=params).update()
         if result.msg:
@@ -380,7 +377,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         """
         params = {'include_core_files': include_core_files,
                   'include_slapcat_output': include_slapcat_output}
-        result = SMCRequest(href=find_link_by_name('sginfo', self.link),
+        result = prepared_request(href=find_link_by_name('sginfo', self.link),
                             filename=filename).read()
    
     def ssh(self, enable=True, comment=None):
@@ -394,7 +391,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'enable': enable, 'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('ssh', self.link),
                     params=params).update()
         if result.msg:
@@ -412,7 +409,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         """
         json = {'value': pwd}
         params = {'comment': comment}
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('change_ssh_pwd', self.link),
                     params=params, json=json).update()
         if result.msg:
@@ -426,7 +423,7 @@ class Node(UnicodeMixin, ModifiableMixin):
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        result = SMCRequest(
+        result = prepared_request(
                     href=find_link_by_name('time_sync', self.link)).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
@@ -447,12 +444,6 @@ class Node(UnicodeMixin, ModifiableMixin):
             return self.json
         raise AttributeError('Unsupported node command: {}'
                              .format(attr))
-
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
 
 class NodeStatus(object):
     """

@@ -11,11 +11,15 @@ setup(name='smc-python',
       url='http://github.com/gabstopper/smc-python',
       author='David LePage',
       author_email='dwlepage70@gmail.com',
-      license='None',
+      license='Apache 2.0',
       packages=['smc', 'smc.actions', 'smc.api', 'smc.elements', 'smc.core', 
-                'smc.policy', 'smc.routing', 'smc.administration'],
+                'smc.policy', 'smc.routing', 'smc.administration', 'smc.vpn',
+                'smc.base'],
       install_requires=[
           'requests'
       ],
       include_package_data=True,
+      classifiers=[
+        "Programming Language :: Python :: 2.7",
+        ],
       zip_safe=False)

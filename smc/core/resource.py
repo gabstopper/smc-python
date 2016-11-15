@@ -1,10 +1,10 @@
 from smc.actions.search import element_by_href_as_json,\
     element_by_href_as_smcresult
 from smc.api.exceptions import EngineCommandFailed
-from smc.api.common import SMCRequest
-from smc.elements.util import find_link_by_name
+from smc.base.util import find_link_by_name
+from smc.base.model import Element, prepared_request
 
-class Routing(object):
+class Routing(Element):
     """
     Routing represents the top level routing node from the engine. This
     is the full routing json for the engine node. This is obtained from
@@ -17,30 +17,19 @@ class Routing(object):
         self.meta = meta
 
     @property
-    def data(self):
-        return element_by_href_as_json(self.href)
-    
-    @property
-    def href(self):
-        return self.meta.href
-    
+    def name(self):
+        return self.meta.name
+
     def all(self):
         """
         Get all interfaces that can act as routing nodes
         
         :return: list :py:class:`~RoutingNode`
         """
-        node=[]
-        for interface in self.data.get('routing_node'):
-            node.append(RoutingNode(meta=self.meta,
-                                    data=interface))
-        return node
+        return [RoutingNode(meta=self.meta, data=interface)
+                for interface in self.describe().get('routing_node')]
 
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.meta)  
-   
-class RoutingNode(object):
+class RoutingNode(Element):
     """
     Routing Node is the interface bound to a routing configuration.
     The routing node will also have at least one network associated 
@@ -51,8 +40,8 @@ class RoutingNode(object):
         for routing_node in engine.routing.all():
             print routing_node.name, routing_node.network
 
-    :ivar: str name: name of routing node
-    :ivar: list network: list of networks on this interface
+    :ivar str name: name of routing node
+    :ivar list network: list of networks on this interface
     """
     def __init__(self, meta=None, data=None):
         self.meta = meta
@@ -62,9 +51,8 @@ class RoutingNode(object):
     def name(self):
         return self.data.get('name')
 
-    @property
-    def href(self):
-        return self.meta.href
+    def describe(self):
+        return self.data
 
     @property
     def network(self):
@@ -73,11 +61,8 @@ class RoutingNode(object):
         
         :return: list networks associated with this routing node
         """
-        networks=[]
-        for node in self.data.get('routing_node'):
-            networks.append(node.get('ip'))
-        return networks
-    
+        return [node.get('ip') for node in self.data.get('routing_node')]
+
     def add_ospf_area(self, ospf_area, communication_mode='NOT_FORCED',
                       unicast_ref=None):
         """
@@ -123,40 +108,33 @@ class RoutingNode(object):
         routing_node = json.get('routing_node') #Get routing node
         for interface in routing_node:
             if interface.get('key') == self.data.get('key'):
-                interface.update(self.data)  #match on key index and update
+                interface.update(self.data)  #replace based on key index
 
-        return SMCRequest(href=self.href,
-                          json=json, 
-                          etag=node.etag).update()
+        return prepared_request(href=self.href,
+                                json=json, 
+                                etag=node.etag).update()
 
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)  
-
-class Alias(object):
+class RouteTable(object):
     """
-    Aliases are specific to an engine instance and are typically 
-    used as rule elements. They are intended to have a different value
-    based on the engine that the alias is applied to. 
+    RouteTable returns a raw view of the engines routing table.
+    It is referenced by::
     
-    :ivar name: name of alias
+        engine = Engine('myengine').load()
+        for route in engine.routing_monitoring.all():
+            print route
     """
-    def __init__(self, resolved_value=None, alias_ref=None,
-                 cluster_ref=None):
-        self.name = None
-        self.resolved_value = resolved_value
-        self.alias_ref = alias_ref
-        self.cluster_ref = cluster_ref
+    def __init__(self, routes):
+        self.routes = routes
 
-    def describe(self):
-        return element_by_href_as_json(self.alias_ref)
+    def all(self):
+        """
+        Return all routes
         
-    def __repr__(self):
-        self.name = self.describe().get('name')
-        return '{0}(name={1})'.format(self.__class__.__name__, 
-                                      self.name)
-
-class Snapshot(object):
+        :return: list dict of route entries
+        """
+        return self.routes.get('routing_monitoring_entry')
+    
+class Snapshot(Element):
     """
     Policy snapshots currently held on the SMC. You can retrieve all
     snapshots at the engine level and view details of each::
@@ -178,10 +156,6 @@ class Snapshot(object):
         self.meta = meta
     
     @property
-    def href(self):
-        return self.meta.href
-    
-    @property
     def name(self):
         return self.meta.name
 
@@ -195,20 +169,52 @@ class Snapshot(object):
         """
         if not filename:
             filename = '{}{}'.format(self.name, '.zip')
-        snapshot = self.describe()
-        href = find_link_by_name('content', snapshot.get('link'))
+        href = find_link_by_name('content', self.link)
         try:
-            return SMCRequest(href=href, filename=filename).read()
+            return prepared_request(href=href, filename=filename).read()
         except IOError as e:
             raise EngineCommandFailed("Snapshot download failed: {}"
                                       .format(e))
-    def describe(self):
-        """
-        Retrieve full json for this snapshot
-        
-        :return: json text
-        """
-        return element_by_href_as_json(self.href)  
+
+class Alias(Element):
+    """
+    An Alias is an element that is shared by multiple engines but has a
+    unique value depending on the engine it is applied on. 
+    Show the engine aliases and their resolved values::
     
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, self.name)
+        engine = Engine('sg_vm').load()
+        for alias in engine.alias_resolving():
+            print alias.name, alias.resolved_value
+    
+    """
+    def __init__(self, resolved_value=None, alias_ref=None,
+                 cluster_ref=None):
+        self._resolved_value = resolved_value #: list of resolved values
+        self.alias_ref = alias_ref            #: alias href
+        self.cluster_ref = cluster_ref        #: engine href
+    
+    @property
+    def name(self):
+        """
+        Return name of alias
+        
+        :return: str name of alias
+        """
+        return element_by_href_as_json(self.href).get('name')
+
+    @property
+    def href(self):
+        return self.alias_ref
+    
+    @property
+    def resolved_value(self):
+        """
+        Resolved value of alias
+        
+        :return: list resolved values for this alias
+        """
+        return self._resolved_value
+
+    def resolve(self):
+        href = find_link_by_name('resolve', self.link)
+        print href

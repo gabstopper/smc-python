@@ -1,165 +1,207 @@
 Reference
 =========
 
+Element
+-------
+Element is the top level class for most elements represented in the SMC. Element
+contains many methods that allow a common interface as well as helpers to simplify
+finding elements.
+ 
+.. automodule:: smc.base.model
+	:members: Element
+
 Elements
 --------
+Elements used for various configuration areas within SMC. Element types are made up of
+network, service groups and other.
 
-.. automodule:: smc.elements.element
-    :exclude-members: SMCElement
-    :show-inheritance:
+Network
++++++++
 
-SMCElement
-++++++++++
-
-.. autoclass:: SMCElement
-	:members:
-	:show-inheritance:
+.. automodule:: smc.elements.network
 
 Host
-++++
+****
 
 .. autoclass:: Host
    :members:
    :show-inheritance:
 
 Network
-+++++++
+*******
 
 .. autoclass:: Network
    :members:
    :show-inheritance:
 
 AddressRange
-++++++++++++
+************
 
 .. autoclass:: AddressRange
    :members:
    :show-inheritance:
 
 Router
-++++++
+******
 
 .. autoclass:: Router
    :members:
    :show-inheritance:
 
-Group
-+++++
-
-.. autoclass:: Group
-   :members:
-   :show-inheritance:
-
 DomainName
-++++++++++
+**********
 
 .. autoclass:: DomainName 
    :members:
    :show-inheritance:
 
-TCPService
-++++++++++
-
-.. autoclass:: TCPService 
-   :members:
-   :show-inheritance:
-
-UDPService
-++++++++++
-
-.. autoclass:: UDPService 
-   :members:
-   :show-inheritance:
-   
-IPService
-+++++++++
-
-.. autoclass:: IPService 
-   :members:
-   :show-inheritance:
-   
-EthernetService
-+++++++++++++++
-
-.. autoclass:: EthernetService 
-   :members:
-   :show-inheritance:
-   
-Protocol
-++++++++
-
-.. autoclass:: Protocol 
-   :members:
-   :show-inheritance:
-   
-ICMPService
-+++++++++++
-
-.. autoclass:: ICMPService 
-   :members:
-   :show-inheritance:
-   
-ICMPIPv6Service
-+++++++++++++++
-
-.. autoclass:: ICMPIPv6Service 
-   :members:
-   :show-inheritance:
-   
-ServiceGroup
-++++++++++++
-
-.. autoclass:: ServiceGroup 
-   :members:
-   :show-inheritance:
-   
-TCPServiceGroup
-+++++++++++++++
-
-.. autoclass:: TCPServiceGroup 
-   :members:
-   :show-inheritance:
-
-UDPServiceGroup
-+++++++++++++++
-
-.. autoclass:: UDPServiceGroup 
-   :members:
-   :show-inheritance:
-
-IPServiceGroup
-++++++++++++++
-
-.. autoclass:: IPServiceGroup 
-   :members:
-   :show-inheritance:
-
 IPList
-++++++
+******
 
 .. autoclass:: IPList
    :members:
-   :exclude-members: create
    :show-inheritance:
 
+URLListApplication
+******************
+
+.. autoclass:: URLListApplication
+	:members:
+	:show-inheritance:
+
 Expression
-++++++++++
+**********
 
 .. autoclass:: Expression
 	:members:
 	:show-inheritance:
 
 Zone
-++++
+****
 
 .. autoclass:: Zone 
    :members:
    :show-inheritance:
+   
+Services
+++++++++
+
+.. automodule:: smc.elements.service
+
+TCPService
+**********
+
+.. autoclass:: TCPService 
+   :members:
+   :show-inheritance:
+
+UDPService
+**********
+
+.. autoclass:: UDPService 
+   :members:
+   :show-inheritance:
+   
+IPService
+*********
+
+.. autoclass:: IPService 
+   :members:
+   :show-inheritance:
+   
+EthernetService
+***************
+
+.. autoclass:: EthernetService 
+   :members:
+   :show-inheritance:
+   
+Protocol
+********
+
+.. autoclass:: Protocol 
+   :members:
+   :show-inheritance:
+   
+ICMPService
+***********
+
+.. autoclass:: ICMPService 
+   :members:
+   :show-inheritance:
+   
+ICMPIPv6Service
+***************
+
+.. autoclass:: ICMPIPv6Service 
+   :members:
+   :show-inheritance:
+
+Groups
+++++++
+
+.. automodule:: smc.elements.group
+	:members: GroupMixin
+
+Group
+*****
+
+.. autoclass:: Group
+   :members:
+   :show-inheritance:  
+
+ServiceGroup
+************
+
+.. autoclass:: ServiceGroup 
+   :members:
+   :show-inheritance:
+   
+TCPServiceGroup
+***************
+
+.. autoclass:: TCPServiceGroup 
+   :members:
+   :show-inheritance:
+
+UDPServiceGroup
+***************
+
+.. autoclass:: UDPServiceGroup 
+   :members:
+   :show-inheritance:
+
+IPServiceGroup
+**************
+
+.. autoclass:: IPServiceGroup 
+   :members:
+   :show-inheritance:
+
+Other
++++++
+
+.. automodule:: smc.elements.other
 
 LogicalInterface
-++++++++++++++++
+****************
 
 .. autoclass:: LogicalInterface 
+   :members:
+   :show-inheritance:
+
+MacAddress
+**********
+
+.. autoclass:: MacAddress 
+   :members:
+   :show-inheritance:
+
+
+Location
+********
+
+.. autoclass:: Location 
    :members:
    :show-inheritance:
 
@@ -168,8 +210,9 @@ Engine
 
 .. automodule:: smc.core.engine
    :members:
+   :exclude-members: create
    :show-inheritance:
-
+   
 InternalGateway
 +++++++++++++++
 
@@ -182,22 +225,58 @@ InternalEndpoint
 
 .. autoclass:: InternalEndpoint
    :members:
+   :show-inheritance:
+
+VirtualResource
++++++++++++++++
+
+.. autoclass:: VirtualResource
+	:members:
+	:show-inheritance:
    
 Resources
 +++++++++
 
-.. automodule:: smc.core.resources
+.. automodule:: smc.core.resource
 	:members:
 
+RoutingNode
+***********
+
+.. autoclass:: RoutingNode
+	:members:
+	:show-inheritance:
+	
+RouteTable
+**********
+
+.. autoclass:: RouteTable
+	:members:
+
+Alias
+*****
+
+.. autoclass:: Alias
+   :members:
+   :show-inheritance:
+
+Snapshot
+********
+
+.. autoclass:: Snapshot
+	:members:
+	:show-inheritance:
+
 Node
-----
+++++
 
 .. automodule:: smc.core.node
    :members: Node
    :exclude-members: create
-      
-Engines
--------
+   :show-inheritance:
+         
+Engine Types
+------------
 
 .. automodule:: smc.core.engines
    :members:
@@ -238,6 +317,12 @@ MasterEngine
 
 .. autoclass:: MasterEngine
    :members:
+
+MasterEngineCluster
++++++++++++++++++++
+
+.. autoclass:: MasterEngineCluster
+	:members:
 
 Interfaces
 ----------
@@ -428,48 +513,48 @@ Rule
 
 .. autoclass:: Rule
    :members:
-   :exclude-members: rule_common, rule_l2_common
+   :show-inheritance:
 
 VPN
 ---
 Represents classes responsible for configuring VPN settings such as VPN external
 gateways, VPN sites, VPN Certificate and VPN Policy
 
-.. automodule:: smc.policy.vpn
-   :members: 
- 
 VPNPolicy
 +++++++++
 
-.. autoclass:: VPNPolicy
+.. automodule:: smc.vpn.policy
    :members:
-   :show-inheritance:
-
+   :show-inheritance: 
+ 
 ExternalGateway
 +++++++++++++++
 
-.. autoclass:: ExternalGateway
+.. autoclass:: smc.vpn.elements.ExternalGateway
    :members:
    :show-inheritance:
    
 ExternalEndpoint
 ++++++++++++++++
 
-.. autoclass:: ExternalEndpoint
+.. autoclass:: smc.vpn.elements.ExternalEndpoint
    :members:
+   :show-inheritance:
    
 VPNSite
 +++++++
 
-.. autoclass:: VPNSite
+.. autoclass:: smc.vpn.elements.VPNSite
    :members:
+   :show-inheritance:
 
 VPNCertificate
 ++++++++++++++
 
-.. autoclass:: VPNCertificate
+.. autoclass:: smc.vpn.elements.VPNCertificate
    :members:
- 
+   :show-inheritance:
+  
 Users
 -----
 
@@ -477,11 +562,38 @@ Users
    :members: 
    :show-inheritance:
 
-Mixins
-------
+Administration
+--------------
 
-.. automodule:: smc.elements.mixins
-   :members: ModifiableMixin, ExportableMixin
+.. automodule:: smc.administration.system
+	:members:
+
+Updates
+++++++++
+
+.. automodule:: smc.administration.updates
+	:members: PackageMixin
+
+EngineUpgrade
+*************
+
+.. autoclass:: EngineUpgrade
+	:members:
+	:show-inheritance:
+	
+PackageUpdate
+*************
+
+.. autoclass:: UpdatePackage
+	:members:
+	:show-inheritance:
+
+
+Tasks
+-----
+
+.. automodule:: smc.actions.tasks
+   :members: TaskMonitor, TaskDownload
 
 Collection
 ----------
@@ -494,25 +606,13 @@ Search
 
 .. automodule:: smc.actions.search
    :members:
-
-Tasks
------
-
-.. automodule:: smc.actions.tasks
-   :members: TaskMonitor, TaskDownload
-   
+     
 Session
 -------
 
 .. automodule:: smc.api.session
 .. autoclass:: Session
    :members: login, logout, api_version, url, api_key, session, session_id
-
-System
-------
-
-.. automodule:: smc.administration.system
-	:members:
 
 SMCResult
 ---------

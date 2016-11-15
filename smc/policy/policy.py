@@ -20,16 +20,13 @@ overidden.
           needed, calling open() will lock the policy from external modifications
           until save() is called.
 """
-
-import smc.actions.search as search
-from smc.elements.util import find_link_by_name, bytes_to_unicode
+from smc.base.util import find_link_by_name
 from smc.api.exceptions import TaskRunFailed
-from smc.elements.element import ElementLocator
+from smc.base.model import prepared_request
 from smc.actions.tasks import task_handler, Task
-from smc.api.common import SMCRequest
-from smc.elements.mixins import ExportableMixin, UnicodeMixin
+from smc.base.model import Element
 
-class Policy(UnicodeMixin, ExportableMixin):
+class Policy(Element):
     """ 
     Policy is the base class for all policy types managed by the SMC.
     This base class is not intended to be instantiated directly.
@@ -40,33 +37,10 @@ class Policy(UnicodeMixin, ExportableMixin):
     All generic methods that are policy level, such as 'open', 'save', 'force_unlock',
     'export', and 'upload' are encapsulated into this base class.
     """
-    href = ElementLocator()
-
     def __init__(self, name, meta=None):
         self._name = name #: Name of policy
         self.meta = meta
-
-    @property
-    def name(self):
-        return bytes_to_unicode(self._name)
-
-    @property
-    def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
-
-    @classmethod
-    def _create(cls):
-        return SMCRequest(
-                    href=search.element_entry_point(cls.typeof),
-                    json=cls.json).create()
-
-    def delete(self):
-        return SMCRequest(self.href).delete()
-
-    def describe(self):
-        return search.element_by_href_as_json(self.href)
-                                     
+                                   
     def upload(self, engine, wait_for_finish=True):
         """ 
         Upload policy to specific device. This is an asynchronous call
@@ -83,7 +57,7 @@ class Policy(UnicodeMixin, ExportableMixin):
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
         """
-        element = SMCRequest(
+        element = prepared_request(
                     href=find_link_by_name('upload', self.link),
                     params={'filter': engine}).create()
         if not element.json:
@@ -104,8 +78,8 @@ class Policy(UnicodeMixin, ExportableMixin):
         """
         href = find_link_by_name('open', self.link)
         if href:
-            return SMCRequest(href=href).create()
-    
+            return prepared_request(href=href).create()
+
     def save(self):
         """ Save policy that was modified
         This is only used in SMC API v6.0 and below.
@@ -115,16 +89,15 @@ class Policy(UnicodeMixin, ExportableMixin):
         """
         href = find_link_by_name('save', self.link)
         if href:
-            return SMCRequest(href=href).create()
-    
+            return prepared_request(href=href).create()
+
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
         
         :method: POST
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        print "Force unlock link: %s" % find_link_by_name('force_unlock', self.link)
-        return SMCRequest(
+        return prepared_request(
                 href=find_link_by_name('force_unlock', self.link)).create()
     
     def search_rule(self, parameter):
@@ -132,9 +105,3 @@ class Policy(UnicodeMixin, ExportableMixin):
    
     def search_category_tags_from_element(self):
         pass
-    
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-
-    def __repr__(self):
-        return repr(unicode(self))

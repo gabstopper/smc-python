@@ -1,22 +1,14 @@
 """
 IP Prefix list
 """
-from smc.elements.element import ElementLocator
 import smc.actions.search as search
-from smc.api.common import SMCRequest
+from smc.base.model import ElementCreator, Element, prepared_request
 
-class PrefixList(object):
+class PrefixList(Element):
     """
     PrefixList provides common methods utilized by all
     prefix list operations
     """
-    typeof = None
-    href = None
-
-    @property
-    def name(self):
-        return self._name
-
     @classmethod
     def create(cls, name, entries=None):
         """
@@ -48,12 +40,10 @@ class PrefixList(object):
                         'max_prefix_length': max_len,
                         'min_prefix_length': min_len,
                         'subnet': subnet}})
-        json = {'name': name,
-                'entries': prefix_list_entry}
+        cls.json = {'name': name,
+                    'entries': prefix_list_entry}
 
-        href = search.element_entry_point(cls.typeof)
-        return SMCRequest(href=href,
-                          json=json).create()
+        return ElementCreator(cls)
 
     def add_entry(self, subnet, min_prefix_length,
                   max_prefix_length, action):
@@ -72,10 +62,12 @@ class PrefixList(object):
                     'min_prefix_length': min_prefix_length,
                     'max_prefix_length': max_prefix_length,
                     'subnet': subnet}}
+
         acl = search.element_by_href_as_smcresult(self.href)
         acl.json.get('entries').append(json)
-        return SMCRequest(href=self.href, json=acl.json,
-                          etag=acl.etag).update()
+        
+        return prepared_request(href=self.href, json=acl.json,
+                            etag=acl.etag).update()
 
     def remove_entry(self, subnet):
         """
@@ -88,8 +80,9 @@ class PrefixList(object):
                                   for entry in acl.json.get('entries')
                                   if entry.get('{}_entry'.format(self.typeof))\
                                   .get('subnet') != subnet]
-        return SMCRequest(href=self.href, json=acl.json,
-                          etag=acl.etag).update()
+        
+        return prepared_request(href=self.href, json=acl.json,
+                            etag=acl.etag).update()
 
     def view(self):
         """
@@ -106,18 +99,6 @@ class PrefixList(object):
                          e.get('max_prefix_length'), e.get('action')))
         return acls
 
-    def describe(self):
-        """
-        Display the raw json
-
-        :return: dict json
-        """
-        return search.element_by_href_as_json(self.href)
-
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__,
-                                      self.name)
-
 class IPPrefixList(PrefixList):
     """
     An IP prefix list specifies a list of networks. When you apply an IP
@@ -126,8 +107,7 @@ class IPPrefixList(PrefixList):
     This represents IPv4 prefix lists
     """
     typeof = 'ip_prefix_list'
-    href = ElementLocator()
-
+    
     def __init__(self, name, meta=None):
         self._name = name
         self.meta = meta
@@ -140,8 +120,7 @@ class IPv6PrefixList(PrefixList):
     This represents IPv6 prefix lists
     """
     typeof = 'ipv6_prefix_list'
-    href = ElementLocator()
-
+  
     def __init__(self, name, meta=None):
         self._name = name
         self.meta = meta

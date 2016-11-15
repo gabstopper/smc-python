@@ -28,7 +28,7 @@ import csv
 from smc import session
 from collections import OrderedDict
 import smc.actions.search
-import smc.elements.element
+import smc.elements.network
 from smc.core.engines import Layer3VirtualEngine, Engine
 
 import logging
@@ -57,7 +57,7 @@ if __name__ == '__main__':
             zone_map[idx] = result
         else:
             zone_map[idx] = \
-                smc.elements.element.Zone.create(zone).href
+                smc.elements.network.Zone.create(zone).href
     
     #Load Master Engine
     engine = Engine(master_engine_name).load()

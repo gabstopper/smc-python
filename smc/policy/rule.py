@@ -27,32 +27,28 @@ a source network object that already exists::
                                        vpn_policy='Amazon')
 """
 import smc.actions.search as search
-from smc.elements.element import Meta, LogicalInterface
-from smc.api.common import SMCRequest
-from smc.elements.mixins import UnicodeMixin
-from smc.policy.vpn import VPNPolicy
+from smc.base.model import Meta, Element, prepared_request
+from smc.elements.other import LogicalInterface
+from smc.vpn.policy import VPNPolicy
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput
 
-class Rule(UnicodeMixin):   
+class Rule(Element):
+    """ 
+    Top level rule construct with methods required to modify common 
+    behavior of any rule types
+    """
     @property
     def name(self):
+        """
+        Name attribute of rule element
+        """
         return self.meta.name
-        
-    @property
-    def href(self):
-        return self.meta.href
-    
+
     def add_after(self):
         pass
     
     def add_before(self):
         pass
-    
-    def describe(self):
-        return search.element_by_href_as_json(self.href)
-    
-    def delete(self):
-        return SMCRequest(href=self.href).delete()
     
     def all(self):
         """
@@ -61,14 +57,11 @@ class Rule(UnicodeMixin):
         
         :return: class type based on rule type 
         """
-        rule_lst = search.element_by_href_as_json(self.href)
-        rules=[] 
-        for rule in rule_lst:
-            #return self class instance by calling type
-            rules.append(type(self)(meta=Meta(**rule)))
-        return rules
+        #return self class instance by calling type
+        return [type(self)(meta=Meta(**rule))
+                for rule in search.element_by_href_as_json(self.href)]
     
-    def rule_l2_common(self, logical_interfaces):
+    def _rule_l2_common(self, logical_interfaces):
         """
         Common values for layer 2 ethernet / IPS rule parameters.
         In particular, logical interfaces are an additional parameter that 
@@ -89,7 +82,7 @@ class Rule(UnicodeMixin):
                                            ': {}'.format(logical_interfaces))
         return rule_values
     
-    def rule_common(self, sources, destinations, services):
+    def _rule_common(self, sources, destinations, services):
         """
         Common values for rules. These will apply to all rule types, 
         including NAT.
@@ -124,18 +117,6 @@ class Rule(UnicodeMixin):
             rule_values.update(services={'none': True})
             
         return rule_values
-    
-    def _compile_rule(self):
-        pass
-    
-    def _src_dst_resolver(self):
-        pass
-            
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
 
 class IPv4Rule(Rule):
     """ 
@@ -154,39 +135,37 @@ class IPv4Rule(Rule):
                                            destinations='any', 
                                            services='any')
                 
-        Sources and Destinations can be one of any valid network element types defined
-        in :py:class:smc.elements.element`.
+    Sources and Destinations can be one of any valid network element types defined
+    in :py:class:`smc.elements.network`.
         
-        Source entries by href:: 
+    Source entries by href:: 
         
-            sources=['http://1.1.1.1:8082/elements/network/myelement',
-                     'http://1.1.1.1:8082/elements/host/myhost'], etc
+        sources=['http://1.1.1.1:8082/elements/network/myelement',
+                 'http://1.1.1.1:8082/elements/host/myhost'], etc
         
-        Services have a similar syntax, provide a list of the href's for the services::
+    Services have a similar syntax, provide a list of the href's for the services::
         
             services=['http://1.1.1.1/8082/elements/tcp_service/mytcpservice',
                       'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
         
-        You can obtain the href for the network and service elements by using the 
-        :py:mod:`smc.elements.collection` describe functions such as::
+    You can obtain the href for the network and service elements by using the 
+    :py:mod:`smc.elements.collection` describe functions such as::
         
-            services=[x.href for x in describe_tcp_service(name=['80','443', 'FTP'])]
-            sources=[x.href for x in describe_network(name=['172.18.1.0'])]
+        services=[x.href for x in describe_tcp_service(name=['80','443', 'FTP'])]
+        sources=[x.href for x in describe_network(name=['172.18.1.0'])]
             
-        Services by application (get all facebook applications)::
+    Services by application (get all facebook applications)::
         
-            services = [x.href for x in describe_application_situation(
-                        name=['Facebook'], exact_match=False)]
+        services = [x.href for x in describe_application_situation(
+                    name=['Facebook'], exact_match=False)]
 
-        Sources / Destinations and Services can also take the string value 'any' to
-        allow all. For example::
+    Sources / Destinations and Services can also take the string value 'any' to
+    allow all. For example::
         
-            sources='any'
+        sources='any'
     
     :ivar name: name of rule
     """
-    typeof = 'fw_ipv4_access_rule'
-    
     def __init__(self, meta=None):
         self.meta = meta
 
@@ -212,7 +191,7 @@ class IPv4Rule(Rule):
         actions = ['allow', 'continue', 'discard', 'refuse', 
                    'enforce_vpn', 'apply_vpn', 'blacklist']
 
-        rule_values = self.rule_common(sources, destinations, services)
+        rule_values = self._rule_common(sources, destinations, services)
         rule_values.update(name=name)
 
         if action not in actions:
@@ -236,8 +215,8 @@ class IPv4Rule(Rule):
 
         rule_values.update(is_disabled=is_disabled)
 
-        return SMCRequest(href=self.href,
-                          json=rule_values).create()
+        return prepared_request(href=self.href,
+                            json=rule_values).create()
         
 class IPv4NATRule(Rule):
     """
@@ -274,7 +253,7 @@ class IPv4NATRule(Rule):
         :param boolean is_disabled: whether to disable rule or not
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        rule_values = self.rule_common(sources, destinations, services)
+        rule_values = self._rule_common(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
@@ -287,7 +266,7 @@ class IPv4NATRule(Rule):
                                           'min_port': min_port}]}}}
             rule_values.update(dyn_nat)
 
-        return SMCRequest(href=self.href, json=rule_values).create()
+        return prepared_request(href=self.href, json=rule_values).create()
     
 class IPv4Layer2Rule(Rule):
     """
@@ -301,8 +280,6 @@ class IPv4Layer2Rule(Rule):
                                                destinations='any', 
                                                services='any')
     """
-    typeof = 'layer2_ipv4_access_rule'
-   
     def __init__(self, meta=None):
         self.meta = meta
     
@@ -324,7 +301,7 @@ class IPv4Layer2Rule(Rule):
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         """
-        rule_values = self.rule_common(sources, destinations, services)
+        rule_values = self._rule_common(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
@@ -336,9 +313,9 @@ class IPv4Layer2Rule(Rule):
         rule_values.update(action={'action': action,
                                    'connection_tracking_options':{}})
     
-        rule_values.update(self.rule_l2_common(logical_interfaces))
+        rule_values.update(self._rule_l2_common(logical_interfaces))
 
-        return SMCRequest(href=self.href, json=rule_values).create()
+        return prepared_request(href=self.href, json=rule_values).create()
 
 class EthernetRule(Rule):
     """
@@ -355,8 +332,6 @@ class EthernetRule(Rule):
                                             sources='any',
                                             action='discard')
     """                          
-    typeof = 'ethernet_rule'
-    
     def __init__(self, meta=None):
         self.meta = meta
 
@@ -378,7 +353,7 @@ class EthernetRule(Rule):
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         """
-        rule_values = self.rule_common(sources, destinations, services)
+        rule_values = self._rule_common(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
@@ -390,18 +365,14 @@ class EthernetRule(Rule):
         rule_values.update(action={'action': action,
                                    'connection_tracking_options':{}})
     
-        rule_values.update(self.rule_l2_common(logical_interfaces))
+        rule_values.update(self._rule_l2_common(logical_interfaces))
 
-        return SMCRequest(href=self.href, json=rule_values).create()
+        return prepared_request(href=self.href, json=rule_values).create()
     
 class IPv6Rule(object):
-    typeof = 'ipv6_rule'
-    
     def __init__(self):
         pass
     
 class IPv6NATRule(object):
-    typeof = 'ipv6_nat_rule'
-    
     def __init__(self):
         pass

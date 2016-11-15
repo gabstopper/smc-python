@@ -71,7 +71,7 @@ from smc.actions.search import element_name_by_href
 from smc.elements.helpers import location_helper
 from smc.elements.other import ContactAddress
 from smc.actions.tasks import TaskMonitor
-from smc.policy.vpn import VPNPolicy
+from smc.vpn.policy import VPNPolicy
 from smc.elements.servers import ManagementServer, LogServer
 from smc.elements.collection import describe_log_server
 
@@ -377,7 +377,7 @@ class VpcConfiguration(object):
         """
         for instance in self.vpc.instances.filter(Filters=[{
                                     'Name': 'instance-state-name',
-                                    'Values': ['running', 'pending']}]):
+                                    'Values': ['running', 'pending', 'stopped']}]):
             logger.info("Terminating instance: {}".format(instance.instance_id))
             instance.terminate()
             for state in waiter(instance, 'terminated'):
@@ -427,7 +427,7 @@ class NGFWConfiguration(object):
         self.firewall_policy = firewall_policy
         self.reverse_connection = reverse_connection
 
-    def create(self, interfaces, default_gateway):
+    def __call__(self, interfaces, default_gateway):
         """
         Create NGFW
         
@@ -471,7 +471,6 @@ class NGFWConfiguration(object):
                 logger.error("VPN policy: {} specified was not successfully bound. "
                              "This may require manual intervention to push policy from "
                              "the SMC to enable VPN.".format(self.vpn_policy))
-        return self
 
     def queue_policy(self):
         """
@@ -548,10 +547,6 @@ class NGFWConfiguration(object):
                 time.sleep(step)
         except KeyboardInterrupt:
             pass
-        
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, 'name={}'\
-                           .format(self.name))
 
 def pre_check_location_exists(location):
     """
@@ -810,7 +805,9 @@ if __name__ == '__main__':
         vpc.create_network_interface(1, awscfg.vpc_private, description='private-ngfw')
         vpc.authorize_security_group_ingress('0.0.0.0/0', ip_protocol='-1')
         
-        userdata = ngfw.create(vpc.ngfw_interfaces, vpc.ngfw_gateway).initial_contact()
+        #userdata = ngfw.create(vpc.ngfw_interfaces, vpc.ngfw_gateway).initial_contact()
+        ngfw(vpc.ngfw_interfaces, vpc.ngfw_gateway)
+        userdata = ngfw.initial_contact()
         
         
         instance = vpc.launch(key_pair=awscfg.aws_keypair, userdata=userdata, 

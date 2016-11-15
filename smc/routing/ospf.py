@@ -36,7 +36,7 @@ OSPFArea with message-digest authentication also has a OSPFKeyChain reference:
     
     *OSPFArea --> OSPFKeyChain & OSPFInterfaceSetting*
 
-Layer3Firewall and Layer3VirtualEngine types can enable OSPF during creation.
+Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF
 
 .. seealso:: :py:class:`smc.core.engines.Layer3Firewall` and 
              :py:class:`smc.core.engines.Layer3VirtualEngine`
@@ -53,15 +53,20 @@ Disable OSPF on an engine::
     
     engine.modify_attribute(dynamic_routing={'ospfv2':{'enabled': False}})
 
+Example options for elements::
+
+    ospf = OSPFArea('testospf')
+    print ospf.name
+    print ospf.describe()
+    print ospf.modify_attribute(area_id=50)
+    print ospf.delete()
+
 See each class definition for more examples on creating the element types.
 
-.. note:: Not all advanced settings are implemented   
 """
-import smc.actions.search as search
-from smc.api.common import SMCRequest
-from smc.elements.element import ElementLocator
+from smc.base.model import Element, ElementCreator
 
-class OSPFArea(object):
+class OSPFArea(Element):
     """
     OSPFArea is an element that identifies general settings for an
     OSPF configuration applied to a routing node. The OSPFArea has a 
@@ -91,7 +96,7 @@ class OSPFArea(object):
 
     When using ABR substitute rules, there are 3 actions, 'aggregate', 'not_advertise'
     and 'substitute_with'. All references required are of type 
-    :py:class:`smc.elements.element.Network`. These elements can either be created or
+    :py:class:`smc.elements.network.Network`. These elements can either be created or
     retrieved using describe_xx methods, or by getting the resource directly.
     
     Example of creating an OSPF area and using ABR settings::
@@ -108,15 +113,10 @@ class OSPFArea(object):
                      'substitute_type': 'aggregate'}])
     """
     typeof = 'ospfv2_area'
-    href = ElementLocator()
-    
+
     def __init__(self, name, meta=None):
         self._name = name
         self.meta = meta
-
-    @property
-    def name(self):
-        return self._name
 
     @classmethod
     def create(cls, name, interface_settings_ref, area_id=1, 
@@ -144,22 +144,20 @@ class OSPFArea(object):
                |aggregate|not_advertise|substitute_with
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        json={'name': name,
-              'area_id': area_id,
-              'area_type': area_type,
-              'inbound_filters_ref': inbound_filters_ref,
-              'interface_settings_ref': interface_settings_ref,
-              'ospf_abr_substitute_container': ospf_abr_substitute_container,
-              'ospfv2_virtual_links_endpoints_container': 
-                                    ospfv2_virtual_links_endpoints_container,
-              'outbound_filters_ref': outbound_filters_ref,
-              'shortcut_capable_area': shortcut_capable_area}
+        cls.json={'name': name,
+                  'area_id': area_id,
+                  'area_type': area_type,
+                  'inbound_filters_ref': inbound_filters_ref,
+                  'interface_settings_ref': interface_settings_ref,
+                  'ospf_abr_substitute_container': ospf_abr_substitute_container,
+                  'ospfv2_virtual_links_endpoints_container': 
+                                        ospfv2_virtual_links_endpoints_container,
+                  'outbound_filters_ref': outbound_filters_ref,
+                  'shortcut_capable_area': shortcut_capable_area}
         
-        href = search.element_entry_point(cls.typeof)
-        return SMCRequest(href=href,
-                          json=json).create()
+        return ElementCreator(cls)
 
-class OSPFInterfaceSetting(object):
+class OSPFInterfaceSetting(Element):
     """
     OSPF Interface Setting indicate specific configurations that are
     applied to the interface and OSPF Area configuration, including
@@ -182,16 +180,11 @@ class OSPFInterfaceSetting(object):
     parameter must be specified.
     """ 
     typeof = 'ospfv2_interface_settings'
-    href = ElementLocator()
-    
+  
     def __init__(self, name, meta=None):
         self._name = name
         self.meta= meta
-    
-    @property
-    def name(self):
-        return self._name
-    
+
     @classmethod
     def create(cls, name, dead_interval=40, hello_interval=10, 
                hello_interval_type='normal', dead_multiplier=1,
@@ -218,24 +211,22 @@ class OSPFInterfaceSetting(object):
                authentication_type='message_digest')
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        json={'name': name,
-              'authentication_type': authentication_type,
-              'password': password,
-              'key_chain_ref': key_chain_ref,
-              'dead_interval': dead_interval,
-              'dead_multiplier': dead_multiplier,
-              'hello_interval': hello_interval,
-              'hello_interval_type': hello_interval_type,
-              'mtu_mismatch_detection': mtu_mismatch_detection,
-              'retransmit_interval': retransmit_interval,
-              'router_priority': router_priority,
-              'transmit_delay': transmit_delay}
+        cls.json={'name': name,
+                  'authentication_type': authentication_type,
+                  'password': password,
+                  'key_chain_ref': key_chain_ref,
+                  'dead_interval': dead_interval,
+                  'dead_multiplier': dead_multiplier,
+                  'hello_interval': hello_interval,
+                  'hello_interval_type': hello_interval_type,
+                  'mtu_mismatch_detection': mtu_mismatch_detection,
+                  'retransmit_interval': retransmit_interval,
+                  'router_priority': router_priority,
+                  'transmit_delay': transmit_delay}
         
-        href = search.element_entry_point(cls.typeof)
-        return SMCRequest(href=href,
-                          json=json).create()
-                      
-class OSPFKeyChain(object):
+        return ElementCreator(cls)    
+
+class OSPFKeyChain(Element):
     """
     OSPF Key Chain is used for authenticating OSPFv2 packets. If required,
     create a key chain and specify authentication in the OSPFInterfaceSetting
@@ -251,15 +242,10 @@ class OSPFKeyChain(object):
                                     key_chain_ref=key_chain.href)
     """
     typeof = 'ospfv2_key_chain'
-    href = ElementLocator()
-    
+  
     def __init__(self, name, meta=None):
         self._name = name
         self.meta = meta
-    
-    @property
-    def name(self):
-        return self._name
 
     @classmethod
     def create(cls, name, key_chain_entry):
@@ -275,14 +261,12 @@ class OSPFKeyChain(object):
         :return: :py:class:`smc.qpi.web.SMCResult`
         """
         key_chain_entry = [] if key_chain_entry is None else key_chain_entry
-        json={'name': name,
-              'ospfv2_key_chain_entry': key_chain_entry}
+        cls.json={'name': name,
+                  'ospfv2_key_chain_entry': key_chain_entry}
         
-        href = search.element_entry_point(cls.typeof)
-        return SMCRequest(href=href,
-                          json=json).create()
+        return ElementCreator(cls)
 
-class OSPFProfile(object):
+class OSPFProfile(Element):
     """
     This element contains administrative distance and redistribution 
     settings.
@@ -312,15 +296,10 @@ class OSPFProfile(object):
                             
     """
     typeof = 'ospfv2_profile'
-    href = ElementLocator()
-    
+  
     def __init__(self, name, meta=None):
         self._name = name
         self.meta = meta
-        
-    @property
-    def name(self):
-        return self._name
 
     @classmethod
     def create(cls, name, domain_settings_ref, external_distance=110,
@@ -337,18 +316,16 @@ class OSPFProfile(object):
         :param list redistribution_entry:
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        json={'name': name,
-              'domain_settings_ref': domain_settings_ref,
-              'external_distance': external_distance,
-              'inter_distance': inter_distance,
-              'intra_distance': intra_distance,
-              'redistribution_entry': redistribution_entry}
+        cls.json={'name': name,
+                  'domain_settings_ref': domain_settings_ref,
+                  'external_distance': external_distance,
+                  'inter_distance': inter_distance,
+                  'intra_distance': intra_distance,
+                  'redistribution_entry': redistribution_entry}
         
-        href = search.element_entry_point(cls.typeof)
-        return SMCRequest(href=href,
-                          json=json).create()
+        return ElementCreator(cls)    
 
-class OSPFDomainSetting(object):
+class OSPFDomainSetting(Element):
     """
     Use this element to set the area border router (ABR) type, 
     throttle timer settings, and the max metric router link-state 
@@ -365,15 +342,10 @@ class OSPFDomainSetting(object):
                                  deprecated_algorithm=True)
     """
     typeof = 'ospfv2_domain_settings'
-    href = ElementLocator()
-    
+ 
     def __init__(self, name, meta=None):
         self._name = name
         self.meta = meta
-        
-    @property
-    def name(self):
-        return self._name
 
     @classmethod
     def create(cls, name, abr_type='cisco', auto_cost_bandwidth=100, 
@@ -396,16 +368,14 @@ class OSPFDomainSetting(object):
         :param int startup_max_metric_lsa: in seconds
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        json={'name': name,
-              'abr_type': abr_type,
-              'auto_cost_bandwidth': auto_cost_bandwidth,
-              'deprecated_algorithm': deprecated_algorithm,
-              'initial_delay': initial_delay,
-              'initial_hold_time': initial_hold_time,
-              'max_hold_time': max_hold_time,
-              'shutdown_max_metric_lsa': shutdown_max_metric_lsa,
-              'startup_max_metric_lsa': startup_max_metric_lsa}
+        cls.json={'name': name,
+                  'abr_type': abr_type,
+                  'auto_cost_bandwidth': auto_cost_bandwidth,
+                  'deprecated_algorithm': deprecated_algorithm,
+                  'initial_delay': initial_delay,
+                  'initial_hold_time': initial_hold_time,
+                  'max_hold_time': max_hold_time,
+                  'shutdown_max_metric_lsa': shutdown_max_metric_lsa,
+                  'startup_max_metric_lsa': startup_max_metric_lsa}
         
-        href = search.element_entry_point(cls.typeof)
-        return SMCRequest(href=href,
-                          json=json).create()
+        return ElementCreator(cls)

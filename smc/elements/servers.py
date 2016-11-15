@@ -2,13 +2,12 @@
 Module that represents server based configurations
 """
 import smc.actions.search as search
-from smc.elements.util import find_link_by_name
-from smc.elements.element import ElementLocator
+from smc.base.util import find_link_by_name
+from smc.base.model import prepared_request
 from smc.elements.helpers import location_helper
-from smc.api.common import SMCRequest
-from smc.elements.mixins import ExportableMixin, UnicodeMixin
+from smc.base.model import Element
 
-class ManagementServer(UnicodeMixin, ExportableMixin):
+class ManagementServer(Element):
     """
     Management Server configuration. Most configuration settings are better set
     through the SMC UI, such as HA, however this object can be used to do simple
@@ -20,7 +19,7 @@ class ManagementServer(UnicodeMixin, ExportableMixin):
         for server in describe_management_servers():
             print server.name
     
-    Or load it directly if the name is known::
+    Or load it directly if the name is known and show any contact addresses::
     
         mgmt = ManagementServer('Management Server')
         print mgmt.contact_addresses()
@@ -28,20 +27,10 @@ class ManagementServer(UnicodeMixin, ExportableMixin):
     :param name: name of management server
     """
     typeof = 'mgt_server'
-    href = ElementLocator()
-    
-    def __init__(self, name, meta=None):
-        self.name = name
-        self.meta = meta
-            
-    @property
-    def etag(self):
-        return search.element_by_href_as_smcresult(self.href).etag
 
-    @property
-    def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
+    def __init__(self, name, meta=None):
+        self._name = name
+        self.meta = meta
 
     def search_category_tags_from_element(self):
         pass
@@ -54,7 +43,7 @@ class ManagementServer(UnicodeMixin, ExportableMixin):
         :return: list dict of contact addresses {location_ref,addresses}
         """
         result = search.element_by_href_as_json(
-                                find_link_by_name('contact_addresses', self.link))
+                            find_link_by_name('contact_addresses', self.link))
         if result:
             return result.get('multi_contact_addresses')
         else:
@@ -75,17 +64,11 @@ class ManagementServer(UnicodeMixin, ExportableMixin):
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address, 
                                          location=location)
-        return SMCRequest(
+        return prepared_request(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
 
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
-        
-class LogServer(UnicodeMixin, ExportableMixin):
+class LogServer(Element):
     """
     Log Server elements are used to receive log data from the security engines
     Most settings on Log Server generally do not need to be changed, however it
@@ -103,20 +86,10 @@ class LogServer(UnicodeMixin, ExportableMixin):
         print server.contact_addresses()
     """
     typeof = 'log_server'
-    href = ElementLocator()
-    
+ 
     def __init__(self, name, meta=None):
-        self.name = name
+        self._name = name
         self.meta = meta
-
-    @property
-    def etag(self):
-        return search.element_by_href_as_smcresult(self.href).etag
-        
-    @property
-    def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
 
     def contact_addresses(self):
         """
@@ -126,7 +99,7 @@ class LogServer(UnicodeMixin, ExportableMixin):
         :return: list dict of contact addresses {location_ref,addresses}
         """
         result = search.element_by_href_as_json(
-                                find_link_by_name('contact_addresses', self.link))
+                            find_link_by_name('contact_addresses', self.link))
         if result:
             return result.get('multi_contact_addresses')
         else:
@@ -147,19 +120,13 @@ class LogServer(UnicodeMixin, ExportableMixin):
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address,
                                          location=location)
-        return SMCRequest(
+        return prepared_request(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
-    
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
         
 def _add_contact_address(addresses, contact_address, location):
     """
-    :param addresses: existing contact addresses from call to 
+    :param list addresses: existing contact addresses from call to 
            contact_addresses()
     :param str contact_address: contact address provided for server
     :param str location: location of element, created if it doesnt exist
@@ -168,10 +135,7 @@ def _add_contact_address(addresses, contact_address, location):
     addr = {'addresses': [contact_address],
             'location_ref': location_ref}
     
-    if addresses:
-        addresses.get('multi_contact_addresses').append(addr)
-    else:
-        addresses = {'multi_contact_addresses':[]}
-        addresses.get('multi_contact_addresses').append(addr)
-    return addresses
+    addresses = [] if not addresses else addresses
+    addresses.append(addr)
+    return {'multi_contact_addresses': addresses}
             

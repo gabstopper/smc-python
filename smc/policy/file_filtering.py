@@ -1,7 +1,6 @@
 from smc.policy.policy import Policy
-from smc.elements.element import Meta
-from smc.api.common import SMCRequest
-from smc.elements.util import find_link_by_name
+from smc.base.model import Meta, prepared_request
+from smc.base.util import find_link_by_name
 import smc.actions.search as search
 
 class FileRule(object):
@@ -23,15 +22,12 @@ class FileRule(object):
         return search.element_by_href_as_json(self.href)
     
     def delete(self):
-        return SMCRequest(href=self.href).delete()
+        return prepared_request(href=self.href).delete()
     
     def all(self):
-        rule_lst = search.element_by_href_as_json(self.href)
-        rules=[] 
-        for rule in rule_lst:
-            rules.append(FileRule(meta=Meta(**rule)))
-        return rules
-    
+        return [FileRule(meta=Meta(**rule))
+                for rule in search.element_by_href_as_json(self.href)]
+       
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
   

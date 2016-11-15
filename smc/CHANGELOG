@@ -39,4 +39,11 @@ Support for IP Access Lists (ipv4 & ipv6)
 Support for IP Prefix Lists (ipv4 & ipv6)
 Expression elements
 
+$version 0.3.7
+Refactor smc.elements.element to: smc.elements.network, smc.elements.service, smc.elements.other
+Search functions to find element references (smc.actions.search.element_references, smc.actions.search.element_references_as_smcresult)
+SSL for SMC API connections (see smc.api.session.login)
+MasterEngine Cluster support
+All relevant classes now inherit from smc.base.model.Element which hold common settings and simplified methods for searching
+unittest code coverage 85%
 

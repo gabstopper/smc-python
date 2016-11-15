@@ -34,8 +34,8 @@ Example rule deletion::
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
 from smc.actions.search import element_name_by_href
-from smc.elements.element import Meta
-from smc.elements.util import find_link_by_name
+from smc.base.model import Meta, ElementCreator
+from smc.base.util import find_link_by_name
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed
 
@@ -45,9 +45,6 @@ class IPSRule(object):
     points. This is referenced by multiple classes such as 
     IPSPolicy and IPSPolicyTemplate.
     """
-    def __init__(self):
-        pass
-    
     @property
     def ips_ipv4_access_rules(self):
         """ 
@@ -105,7 +102,7 @@ class IPSPolicy(IPSRule, Policy):
                                    .format(template))
         cls.json = {'name': name,
                     'template': fw_template}
-        result = cls._create()
+        result = ElementCreator(cls)
         if result.href:
             return IPSPolicy(name, Meta(href=result.href))
         else:

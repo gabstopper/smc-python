@@ -1,14 +1,14 @@
 """
 Middle tier helper module to wrap CRUD operations and catch exceptions
 
-SMCRequest is the general data structure that is sent to the send_request
+SMCRequest is the general data structure that is sent to the prepared_request
 method in smc.api.web.SMCConnection to submit the data to the SMC. 
 """
 
 import logging
 from smc import session
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
-from smc.elements.util import unicode_to_bytes
+from smc.base.util import unicode_to_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -183,3 +183,15 @@ def fetch_json_by_href(href, params=None):
     if result:
         result.href = href
     return result
+
+def fetch_json_by_post(href, json=None):
+    """
+    Some search functions require that query parameters be embedded
+    in the body of the request, therefore require POST.
+    
+    :param str href: href of element to search for
+    :return :py:class: `smc.api.web.SMCResult`
+    """
+    return SMCRequest(href=href, 
+                      json=json).create()
+    

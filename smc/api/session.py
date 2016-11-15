@@ -10,6 +10,8 @@ from smc.api.exceptions import SMCConnectionError, ConfigLoadError,\
     UnsupportedEntryPoint
 from smc.api.configloader import load_from_file
 
+#requests.packages.urllib3.disable_warnings()
+
 logger = logging.getLogger(__name__)
 
 class Session(object):
@@ -73,7 +75,7 @@ class Session(object):
         return self._timeout
     
     def login(self, url=None, api_key=None, api_version=None,
-              timeout=None, **kwargs):
+              timeout=None, verify=True, **kwargs):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
@@ -89,10 +91,20 @@ class Session(object):
         :param str api_key: API key created for api client in SMC
         :param api_version (optional): specify api version
         :param int timeout: (optional): specify a timeout for initial connect; (default 10)
+        :param str|boolean verify: verify SSL connections using cert (default: verify=True)
 
+        For SSL connections, you can disable validation of the SMC SSL certificate by setting 
+        verify=False, however this is not a recommended practice.
+        
+        If you want to use the SSL certificate generated and used by the SMC API server
+        for validation, set verify='path_to_my_dot_pem'. It is also recommended that your 
+        certificate has subjectAltName defined per RFC 2818
+        
+        If SSL warnings are thrown in debug output, see: 
+        https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+        
         Logout should be called to remove the session immediately from the
         SMC server.
-        #TODO: Implement SSL tracking
         """
         if url and api_key:
             self._url = url
@@ -101,19 +113,27 @@ class Session(object):
                 self._timeout = timeout
         else:
             try:
-                self.login(**load_from_file())
+                cfg = load_from_file()
+                self._url = cfg.get('url')
+                self._api_key = cfg.get('api_key')
+                api_version = cfg.get('api_version')
+                verify = cfg.get('verify')
             except ConfigLoadError:
                 raise
-                   
+    
         self.cache.get_api_entry(self.url, api_version, 
-                                 timeout=self.timeout)
+                                 timeout=self.timeout,
+                                 verify=verify)
 
         s = requests.session() #no session yet
         r = s.post(self.cache.get_entry_href('login'),
                    json={'authenticationkey': self.api_key},
-                   headers={'content-type': 'application/json'})
+                   headers={'content-type': 'application/json'},
+                   verify=verify)
+
         if r.status_code == 200:
             self._session = s #session creation was successful
+            self._session.verify = verify #make verify setting persistent
             logger.debug("Login succeeded and session retrieved: %s", \
                          self.session_id)
             self._connection = SMCAPIConnection(self)
@@ -123,15 +143,21 @@ class Session(object):
     def logout(self):
         """ Logout session from SMC """
         if self.session:
-            r = self.session.put(self.cache.get_entry_href('logout'))
-            if r.status_code == 204:
-                logger.info("Logged out successfully")
-            else:
-                if r.status_code == 401:
-                    logger.error("Logout failed, session has already expired, "
-                                 "status code: %s", (r.status_code))
+            try:
+                r = self.session.put(self.cache.get_entry_href('logout'))
+                if r.status_code == 204:
+                    logger.info("Logged out successfully")
                 else:
-                    logger.error("Logout failed, status code: %s", r.status_code)
+                    if r.status_code == 401:
+                        logger.error("Logout failed, session has already expired, "
+                                     "status code: %s", (r.status_code))
+                    else:
+                        logger.error("Logout failed, status code: %s", r.status_code)
+            except requests.exceptions.SSLError as e:
+                #When SSL is enabled and verification is disabled, logout may throw an
+                #SSL VERIFY FAILED error from requests module. Not sure why, will have
+                #to investigate
+                logger.error("SSL exception thrown during logout: %s", e)       
     
     def http_unauthorized(self):
         """
@@ -160,7 +186,8 @@ class SessionCache(object):
         self.api_entry = None
         self.api_version = None
 
-    def get_api_entry(self, url, api_version=None, timeout=10):
+    def get_api_entry(self, url, api_version=None, timeout=10,
+                      verify=True):
         """
         Called internally after login to get cache of SMC entry points
         
@@ -169,7 +196,8 @@ class SessionCache(object):
         """
         try:
             if api_version is None:
-                r = requests.get('%s/api' % url, timeout=timeout) #no session required
+                r = requests.get('%s/api' % url, timeout=timeout, 
+                                 verify=verify) #no session required
                 j = json.loads(r.text)
                 versions = []
                 for version in j['version']:
@@ -179,9 +207,10 @@ class SessionCache(object):
 
             #else api_version was defined
             logger.info("Using SMC API version: %s", api_version)
-            smc_url = url + '/' + str(api_version)
-
-            r = requests.get('%s/api' % (smc_url), timeout=timeout)
+            smc_url = '{}/{}'.format(url, str(api_version))
+            
+            r = requests.get('%s/api' % (smc_url), timeout=timeout, 
+                             verify=verify)
             if r.status_code==200:
                 j = json.loads(r.text)
                 self.api_version = api_version

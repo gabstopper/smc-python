@@ -51,8 +51,8 @@ Example rule deletion::
         if rule.name == 'myrule':
             print rule.delete()
 """
-from smc.elements.element import Meta
-from smc.elements.util import find_link_by_name
+from smc.base.model import Meta, ElementCreator
+from smc.base.util import find_link_by_name
 from smc.actions.search import element_name_by_href
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed
@@ -65,15 +65,12 @@ class Layer2Rule(object):
     entry points. This is referenced by multiple classes such as 
     Layer2Policy and Layer2TemplatePolicy.
     """
-    def __init__(self):
-        pass
-    
     @property
     def layer2_ipv4_access_rules(self):
         """ 
         Layer2 Firewall access rule
         
-        :return: :py:class:`smc.elements.rule.IPv4Layer2Rule`
+        :return: :py:class:`smc.policy.rule.IPv4Layer2Rule`
         """
         href = find_link_by_name('layer2_ipv4_access_rules', self.link)
         return IPv4Layer2Rule(meta=Meta(href=href))
@@ -150,7 +147,7 @@ class Layer2Policy(Layer2Rule, Policy):
                                    'template: {}'.format(template))
         cls.json = {'name': name,
                     'template': fw_template}
-        result = cls._create()
+        result = ElementCreator(cls)
         if result.href:
             return Layer2Policy(name, Meta(href=result.href))
         else:
