@@ -48,7 +48,7 @@ class Group(GroupMixin):
         
     Group with members::
     
-        Group.create('mygroup', ['member1','member2'])
+        Group.create('mygroup', ['member1-href','member2-href'])
     """     
     typeof = 'group'
 

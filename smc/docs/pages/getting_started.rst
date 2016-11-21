@@ -219,7 +219,7 @@ Examples of creating elements are as follows:
 
 .. code-block:: python
 
-   from smc.elements.element import Host, Router, Network, AddressRange, Group, Service
+   from smc.elements.network import Host, Router, Network, AddressRange, Group, Service
    
    AddressRange.create('myrange', '10.0.0.1-10.0.0.254')
    Host.create('myhost', '192.168.1.1', secondary_ip='192.168.1.2')
@@ -232,7 +232,7 @@ Examples of creating elements are as follows:
    TCPService.create('tcp666', 666)
    UDPService.create('udp5000-5001', 5000, 5001)
   
-See the :py:class:`smc.elements.element` reference documentation for more specific details.
+See the :py:class:`smc.elements.network` reference documentation for more specific details.
 
 Modifying elements
 ------------------   
@@ -550,7 +550,7 @@ To add a node interface to an existing engine:
 Inline interfaces can only be added to Layer 2 Firewall or IPS engines. An inline interface consists
 of a pair of interfaces that do not necessarily have to be contiguous. Each inline interface requires
 that a 'logical interface' is defined. This is used to identify the interface pair and can be used to
-simplify policy. See :py:class:`smc.elements.element.LogicalInterface` for more details.
+simplify policy. See :py:class:`smc.elements.other.LogicalInterface` for more details.
 
 To add an inline interface to an existing engine:
 
@@ -560,7 +560,7 @@ To add an inline interface to an existing engine:
    engine = Engine('myengine').load()
    engine.physical_interface.add_inline_interface('5-6', logical_interface_ref=logical_intf)
    
-.. note:: Use :py:func:`smc.elements.element.logical_intf_helper('name')` which will find the existing
+.. note:: Use :py:func:`smc.elements.helpers.logical_intf_helper('name')` which will find the existing
 		  logical interface reference or create the logical interface automatically
 		     
 Capture Interfaces are used on Layer 2 Firewall or IPS engines as SPAN monitors to view traffic on the wire. 

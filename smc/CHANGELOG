@@ -47,3 +47,7 @@ MasterEngine Cluster support
 All relevant classes now inherit from smc.base.model.Element which hold common settings and simplified methods for searching
 unittest code coverage 85%
 
+$version 0.3.8
+describe_xxxx methods can take a name=<str> as well as list describe_host(name='test')
+Fix some documentation referencing moved modules
+

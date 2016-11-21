@@ -4,7 +4,7 @@ element data.
 
 Each describe function allows two possible (optional) parameters:
 
-* name: search parameter (can be any value)
+* name: search for (str or list)
 * exact_match: True|False, whether to match exactly on name field
 
 Each function returns a list of objects based on the specified element type. Most
@@ -32,8 +32,8 @@ To search for all host objects::
         
 To search only for a host with name 'test'::
 
-    for host in describe_host(name=['test']):
-        print host
+    for host in describe_host(name='test'):
+        print host.href
 
 To search for all hosts with 'test' in the name::
 
@@ -67,7 +67,7 @@ the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 This module is generated dynamically based on SMC API entry points mounted at
 the http://<smc>/api/elements node.
 
-    :param list name: list of names to retrieve
+    :param str|list name: str name or list of names to retrieve
     :param boolean exact_match: True|False, whether to match specifically on name field
            or do a wildcard search (default: True)
 """
@@ -1954,10 +1954,16 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=element.Elem
                 result.append(klazz(name=item.get('name'), 
                                     meta=element.Meta(**item)))
     else: #Filter provided
-        for elements in name:
-            for item in fetch_href_by_name(elements, 
-                                           filter_context=typeof, 
+        if isinstance(name, str): # By str
+            for item in fetch_href_by_name(name, filter_context=typeof,
                                            exact_match=exact_match).json:
                 result.append(klazz(name=item.get('name'),
                                     meta=element.Meta(**item)))
+        else: # By list
+            for elements in name:
+                for item in fetch_href_by_name(elements, 
+                                               filter_context=typeof, 
+                                               exact_match=exact_match).json:
+                    result.append(klazz(name=item.get('name'),
+                                        meta=element.Meta(**item)))
     return result

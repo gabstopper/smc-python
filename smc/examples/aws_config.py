@@ -1,61 +1,5 @@
-'''
-Stonesoft NGFW configurator for AWS instance deployment with auto-engine creation.
-There are two example use cases that can be leveraged to generate NGFW automation into AWS:
-
-Use Case 1: 
-    * Fully create a VPC and subnets and auto provision NGFW as gateway
-    
-Use Case 2: 
-    * Fully provision NGFW into existing VPC
-
-In both cases the NGFW will connect to Stonesoft Management Center over an encrypted connection 
-across the internet.
-It is also possible to host SMC in AWS where contact could be made through AWS routing
-
-.. note:: This also assumes the NGFW AMI is available in "My AMI's" within the AWS Console 
-
-The Stonesoft NGFW will be created with 2 interfaces (limit for t2.micro) and use static interfaces
-for both private and public. No IP addresses are required when creating the NGFW. 
-The strategy is that the network interface objects will be created first from the boto3 API, if
-the interface is for eth0 (management), then the subnet range will be determined and the NGFW will
-take an IP address on that subnet, -1 from the broadcast address.
-For the 'private' (inside) interface, AWS will auto-assign an IP address which will be statically
-assigned to the NGFW during FW creation.
-
-See AWS doc's for reserved addresses in a VPC:
-http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html
-
-Default NAT is enabled on the engine to allow outbound traffic without a specific NAT rule. 
-
-Once the NGFW is created, a license is automatically bound and the initial_contact for the engine
-is created for AMI instance UserData. 
-
-The AWS create_instances() method is called specifying the required information and user data allowing the
-NGFW to auto-connect to the SMC without intervention.
-
-The SMC should be prepared with the following:
-* Available security engine licenses
-* Pre-configured Layer 3 Policy with needed policy
-
-The tested scenario was based on public AWS documentation found at:
-http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Scenario2.html
-
-Requirements:
-* smc-python
-* boto3
-* ipaddress
-* pyyaml
-
-Install smc-python::
-
-    python install git+https://github.com/gabstopper/smc-python.git
-
-Install boto3 and pyyaml via pip::
-
-    pip install boto3
-    pip install pyyaml
-    pip install ipaddress
-'''
+"""
+"""
 import sys
 import time
 import ipaddress
@@ -66,14 +10,12 @@ import botocore
 from smc import session
 from smc.core.engines import Layer3Firewall
 from smc.api.exceptions import CreateEngineFailed, TaskRunFailed, LicenseError,\
-    NodeCommandFailed, ElementNotFound
-from smc.actions.search import element_name_by_href
+    NodeCommandFailed
 from smc.elements.helpers import location_helper
 from smc.elements.other import ContactAddress
 from smc.actions.tasks import TaskMonitor
 from smc.vpn.policy import VPNPolicy
 from smc.elements.servers import ManagementServer, LogServer
-from smc.elements.collection import describe_log_server
 
 class VpcConfiguration(object):
     """ 
@@ -547,28 +489,6 @@ class NGFWConfiguration(object):
                 time.sleep(step)
         except KeyboardInterrupt:
             pass
-
-def pre_check_location_exists(location):
-    """
-    Check to make sure the Management Server and Log Server
-    have the location specified or the initial configuration
-    will not have the correct public IP address and initial 
-    contact will fail.
-    
-    :raises: :py:class: `smc.api.exceptions.ElementNotFound`
-    """
-    location = location.lower()
-    mgmt = ManagementServer('Management Server')
-    for addr in mgmt.contact_addresses():
-        if not element_name_by_href(addr.get('location_ref')).lower() == location:
-            raise ElementNotFound('Management server does not have the specified '
-                                  'location assigned. Location: {}'.format(location))
-    for addr in describe_log_server():
-        #Assuming just one log server
-        for addr in addr.contact_addresses():
-            if not element_name_by_href(addr.get('location_ref')).lower() == location:
-                raise ElementNotFound('Log server does not have the specified '
-                                      'location assigned. Location: {}'.format(location))
                    
 def verify_key_pair(key_pair):
     """ 
@@ -799,7 +719,7 @@ if __name__ == '__main__':
              by AWS when the interface is created. If you require a different AZ, set the 
              attribute :py:class:`VpcConfiguration.availability_zone` before called launch. 
     '''
-    vpc = VpcConfiguration.create(vpc_subnet=awscfg.vpc_subnet)
+    vpc = VpcConfiguration.create(vpc_subnet=awscfg.vpc_subnet, ec2)
     try:
         vpc.create_network_interface(0, awscfg.vpc_public, description='public-ngfw') 
         vpc.create_network_interface(1, awscfg.vpc_private, description='private-ngfw')

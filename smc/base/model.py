@@ -80,9 +80,9 @@ class ElementLocator(object):
     or by specifying the resource directly, i.e. Host('myhost'). 
 
     If the element is going to be loaded directly, it must have a class attribute
-    'typeof' to specify the element type, and allow the 'name' parameter in it's 
-    init constructor. Elements with only 'meta=None' in their constructor do not have
-    valid entry points in the SMC API and will be created through a reference. 
+    'typeof' to specify the element type. Elements with only 'meta=None' in their 
+    constructor do not have valid entry points in the SMC API and will be created 
+    through a reference. 
     The typeof class attribute is used in this descriptor as a search filter to find 
     the href location of the element and represents the SMC API entry point for that
     element type.

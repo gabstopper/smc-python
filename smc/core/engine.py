@@ -205,7 +205,8 @@ class Engine(Element):
         href = find_link_by_name('nodes', self.link)
         return [Node(meta=Meta(**node))
                 for node in search.element_by_href_as_json(href)]
-
+        #TODO: Throws error when machine is deleted and monotirong is looping
+        
     def permissions(self):
         """
         Retrieve the permissions for this engine instance.

@@ -161,8 +161,8 @@ class VPNPolicy(Element):
         """
         gateway_node = find_link_by_name('central_gateway_node', self.link)
         return prepared_request(href=gateway_node, 
-                            json={'gateway': gateway,
-                                  'node_usage':'central'}).create()
+                                json={'gateway': gateway,
+                                      'node_usage':'central'}).create()
 
     def add_satellite_gateway(self, gateway):
         """

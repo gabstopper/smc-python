@@ -25,7 +25,7 @@ main packages into a python script:
 
 .. code-block:: python
 
-   import smc.elements.element
+   import smc.elements
    import smc.core.engine
    import smc.core.engines
    import smc.policy
