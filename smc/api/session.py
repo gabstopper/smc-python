@@ -3,8 +3,8 @@ Session module for tracking existing connection state to SMC
 """
 import re
 import json
-import requests
 import logging
+import requests
 from smc.api.web import SMCAPIConnection
 from smc.api.exceptions import SMCConnectionError, ConfigLoadError,\
     UnsupportedEntryPoint

@@ -152,7 +152,7 @@ class SMCAPIConnection(object):
             return SMCResult(response)
         
         raise SMCOperationFailure(response)
-    
+   
 class SMCResult(object):
     """
     SMCResult will store the return data for operations performed against the
