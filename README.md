@@ -1,4 +1,4 @@
-[![Documentation Status](https://readthedocs.org/projects/smc-python/badge/?version=latest)](http://smc-python.readthedocs.io/en/latest/?badge=latest) [![GitHub release](https://img.shields.io/badge/version-0.3.8-brightgreen.svg)](https://github.com/gabstopper/smc-python/blob/master/smc/CHANGELOG)
+[![Documentation Status](https://readthedocs.org/projects/smc-python/badge/?version=latest)](http://smc-python.readthedocs.io/en/latest/?badge=latest) [![GitHub release](https://img.shields.io/badge/version-0.3.9-brightgreen.svg)](https://github.com/gabstopper/smc-python/blob/master/smc/CHANGELOG)
 ### smc-python
 
 Python based library to provide the ability to interact with the Stonesoft Management Center API.
