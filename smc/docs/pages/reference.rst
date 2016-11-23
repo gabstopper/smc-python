@@ -197,7 +197,6 @@ MacAddress
    :members:
    :show-inheritance:
 
-
 Location
 ********
 

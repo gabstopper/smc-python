@@ -767,11 +767,10 @@ class PhysicalInterface(object):
     def add_contact_address(self, contact_address, engine_etag):
         """
         Add a contact address to this physical interface
-        This will currently only add a default contact address to the
-        engine. If the engine has a location set, this will be added to
-        the contact address json as it is required.
+        Contact address is the return of 
+        :py:func:`smc.elements.other.prepare_contact_address`.
         
-        :param contact_address: :py:class:`smc.elements.other.ContactAddress`
+        :param contact_address: :py:func:`smc.elements.other.prepare_contact_address`
         :param engine_etag: etag for engine, required for update
         
         You can obtain the engine_etag after loading the engine and by
@@ -783,7 +782,7 @@ class PhysicalInterface(object):
             engine = Engine('testfw').load()
             for interface in engine.interface.all():
                 if interface.name == 'Interface 0':
-                    contact_address = ContactAddress('53.2.4.3', 'Default')
+                    contact_address = prepare_contact_address('53.2.4.3', 'Default')
                     interface.add_contact_address(contact_address, engine.etag)
         
         """
@@ -791,9 +790,9 @@ class PhysicalInterface(object):
         existing = search.element_by_href_as_json(href)
         if existing:
             existing.get('contact_addresses').append(
-                            vars(contact_address).get('contact_addresses')[0])
+                            contact_address.get('contact_addresses')[0])
         else:
-            existing = vars(contact_address)
+            existing = contact_address
 
         return prepared_request(href=href, json=existing, 
                                 etag=engine_etag).update()

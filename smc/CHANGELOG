@@ -51,3 +51,6 @@ $version 0.3.8
 describe_xxxx methods can take a name=<str> as well as list describe_host(name='test')
 Fix some documentation referencing moved modules
 
+$version 0.3.9
+Remove ContactAddress class for function
+Fix packaging requirements

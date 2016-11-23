@@ -16,7 +16,7 @@ setup(name='smc-python',
                 'smc.policy', 'smc.routing', 'smc.administration', 'smc.vpn',
                 'smc.base'],
       install_requires=[
-          'requests'
+          'requests>=2.12.0'
       ],
       include_package_data=True,
       classifiers=[

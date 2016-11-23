@@ -132,30 +132,8 @@ def prepare_contact_address(address, location, dynamic=False):
     :param boolean dynamic: should this be considered a dynamic contact address
     """
     from smc.elements.helpers import location_helper
-    json = {}
     location_ref = location_helper(location)
     contact_addresses = [{'address': address,
                           'dynamic': dynamic,
                           'location_ref': location_ref}]
-    json.update(contact_addresses=contact_addresses)
-    return json
-
-class ContactAddress(object):
-    """
-    Contact Addresses are used to by Locations to identify the IP address/es 
-    assigned to the location. This identifies how an engine, SMC, Log Server, 
-    or any element can be contacted when behind a NAT connection.
-    
-    .. note:: Contact Addresses for servers (Management/Log Server) do not use
-              this same object definition
-    
-    :param list addresses: list of IP addresses for contact address
-    :param str location: location href to map this contact address to
-    :param boolean dynamic: should this be considered a dynamic contact address
-    """
-    def __init__(self, address, location, dynamic=False):
-        from smc.elements.helpers import location_helper
-        location_ref = location_helper(location)
-        self.contact_addresses = [{'address': address,
-                                   'dynamic': dynamic,
-                                   'location_ref': location_ref}]
+    return {'contact_addresses': contact_addresses}
