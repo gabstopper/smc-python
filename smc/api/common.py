@@ -32,6 +32,7 @@ class RequestHandler(object):
     
     def _make_request(self):
         err = None
+        result = None
         try:
             if self.method == 'GET':
                 if not self.href:

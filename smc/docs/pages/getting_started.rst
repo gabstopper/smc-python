@@ -76,12 +76,15 @@ If storing in a user profile configuration file, the syntax is:
 .. code-block:: python
 
    [smc]
-   smc_address=1.1.1.1
-   smc_apikey=xxxxxxxxxxxxxxxxxxxxxxxxx
-   smc_port=8082 (optional; default:8082)
-   smc_cert='/Users/davidlepage/home/mycacert.pem'
-   ssl_on
-   
+   smc_address=172.18.1.150
+   smc_apikey=xxxxxxxxxxxxxxxxxxx
+   smc_port=8082
+   smc_ssl=True
+   verify_ssl=True
+   ssl_cert_file='/Users/davidlepage/home/mycacert.pem'
+
+.. seealso:: :py:func:`smc.api.configloader.load_from_file`
+  
 Once the session has been successfully obtained, there is no reason to re-authenticate a new session
 unless `logout` has been called.
 

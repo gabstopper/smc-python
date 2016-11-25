@@ -114,17 +114,20 @@ class Session(object):
         else:
             try:
                 cfg = load_from_file()
+                logger.debug("Config read has data: %s", cfg)
                 self._url = cfg.get('url')
                 self._api_key = cfg.get('api_key')
                 api_version = cfg.get('api_version')
                 verify = cfg.get('verify')
+                timeout = cfg.get('timeout')
+                if timeout:
+                    self._timeout = timeout
             except ConfigLoadError:
                 raise
     
         self.cache.get_api_entry(self.url, api_version, 
                                  timeout=self.timeout,
                                  verify=verify)
-
         s = requests.session() #no session yet
         r = s.post(self.cache.get_entry_href('login'),
                    json={'authenticationkey': self.api_key},

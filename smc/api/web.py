@@ -35,6 +35,7 @@ class SMCAPIConnection(object):
         """
         if self.session:
             try:
+                method = method.upper() if method else ''
                 if method == 'GET':
                     if request.filename: #File download request
                         return self.file_download(request)
@@ -71,6 +72,7 @@ class SMCAPIConnection(object):
                         logger.debug("Asynchronous response received, monitor progress at link: {}"
                                      .format(response.content))
                     else:
+                        print "OP failure, response: %s" % vars(response)
                         raise SMCOperationFailure(response)
                     
                 elif method == 'PUT':
@@ -95,6 +97,9 @@ class SMCAPIConnection(object):
                         raise SMCOperationFailure(response)
                     
                     logger.debug("Delete returned: {}".format(response.headers))
+                
+                else: #Unsupported method
+                    return SMCResult(msg='Unsupported method: %s' % method)
                 
             except SMCOperationFailure:
                 raise        

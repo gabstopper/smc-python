@@ -54,3 +54,10 @@ Fix some documentation referencing moved modules
 $version 0.3.9
 Remove ContactAddress class for function
 Fix packaging requirements
+First tag release
+
+$version 0.3.10
+return SMCResult from group.update_members
+Fix KeyboardInterrupt triggers uninitialized result var in _make_request()
+Add catch all for http methods, return unsupported method
+rewrite of configloader and changed .smcrc format to better support input from external sources

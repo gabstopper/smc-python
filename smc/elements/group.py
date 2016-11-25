@@ -20,7 +20,7 @@ class GroupMixin(Element):
         :param list members: list of new members for group
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        self.modify_attribute(element=members)
+        return self.modify_attribute(element=members)
     
     def obtain_members(self):
         """
@@ -32,9 +32,11 @@ class GroupMixin(Element):
     
     def empty_members(self):
         """
-        :return: None
+        Empty members from group
+        
+        :return: :py:class:`smc.api.web.SMCResult`
         """
-        self.modify_attribute(element=[])
+        return self.modify_attribute(element=[])
 
 class Group(GroupMixin):
     """ 
