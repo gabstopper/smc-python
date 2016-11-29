@@ -24,6 +24,7 @@ self.meta. The UnicodeMixin will print the object representation as unicode from
 the self._name attribute. 
 """
 from collections import namedtuple
+import smc.compat as compat
 from smc.api.common import SMCRequest
 from smc.api.exceptions import ElementNotFound
 import smc.actions.search as search
@@ -123,7 +124,10 @@ class Element(UnicodeMixin):
         """
         Name of element
         """
-        return bytes_to_unicode(self._name)
+        if compat.PY3:
+            return self._name
+        else:
+            return bytes_to_unicode(self._name)
 
     def delete(self):
         """
@@ -180,7 +184,7 @@ class Element(UnicodeMixin):
         if element.json:
             if element.json.get('system') == True:
                 return SMCResult(msg='Cannot modify system element: %s' % self.name)
-            for k, v in kwargs.iteritems():
+            for k, v in kwargs.items():
                 target_value = element.json.get(k)
                 if isinstance(target_value, dict): #update dict leaf
                     element.json[k].update(v)
@@ -198,8 +202,12 @@ class Element(UnicodeMixin):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
   
     def __repr__(self):
-        return repr(unicode(self))
-    
+        if compat.PY3:
+            return '{0}(name={1})'.format(self.__class__.__name__, self.name)
+        else:
+            return repr(unicode(self))  # @UndefinedVariable
+        
+      
 class Meta(namedtuple('Meta', 'name href type')):
     """
     Internal namedtuple used to store top level element information. When 

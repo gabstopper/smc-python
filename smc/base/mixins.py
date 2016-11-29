@@ -17,3 +17,4 @@ class UnicodeMixin(object):
         __str__ = lambda x: x.__unicode__()
     else:
         __str__ = lambda x: unicode_to_bytes(unicode(x))
+        #__str__ = lambda x: str(x).encode('utf-8')

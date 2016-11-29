@@ -1,6 +1,7 @@
 """
 Utility functions used in different areas of smc-python
 """
+from ..compat import PY3
 
 def save_to_file(filename, content):
     """
@@ -36,6 +37,7 @@ def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
     """
     Helper to convert unicode strings to bytes for data that needs to be written to
     on output stream (i.e. terminal)
+    For Python 3 this should be called str_to_bytes
     
     :param str s: string to encode
     :param str encoding: utf-8 by default
@@ -43,6 +45,7 @@ def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
     :return: byte string utf-8 encoded
     """
     return s if isinstance(s, str) else s.encode(encoding, errors)
+    
 
 def bytes_to_unicode(s, encoding='utf-8', errors='replace'):
     """
@@ -53,4 +56,7 @@ def bytes_to_unicode(s, encoding='utf-8', errors='replace'):
     :param str errors: what to do when decoding fails
     :return: unicode utf-8 string
     """
-    return s if isinstance(s, unicode) else s.decode(encoding, errors)
+    if PY3:
+        return str(s,'utf-8') if isinstance(s, bytes) else s
+    else:
+        return s if isinstance(s, unicode) else s.decode(encoding, errors)  # @UndefinedVariable

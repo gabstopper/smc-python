@@ -30,11 +30,9 @@ class NodeInterface(object):
         self.outgoing = False
         self.primary_mgt = False
         self.primary_heartbeat = False
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value) 
     
     def modify_attribute(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
     
     def __repr__(self):
@@ -68,11 +66,9 @@ class SingleNodeInterface(object):
         self.nodeid = nodeid
         self.outgoing = False
         self.primary_mgt = False
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
 
     def modify_attribute(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
     
     def __repr__(self):
@@ -99,11 +95,9 @@ class ClusterVirtualInterface(object):
         self.network_value = network_value
         self.nicid = interface_id
         self.auth_request = False
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
     
     def modify_attribute(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
     
     def __repr__(self):
@@ -136,8 +130,6 @@ class InlineInterface(object):
         self.nicid = interface_id
         self.logical_interface_ref = logical_interface_ref
         self.zone_ref = zone_ref
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
             
     def add_vlan(self, vlan_id):
         try:
@@ -147,7 +139,7 @@ class InlineInterface(object):
             pass
     
     def modify_attribute(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
     
     def __repr__(self):
@@ -171,9 +163,7 @@ class CaptureInterface(object):
         self.inspect_unspecified_vlans = True
         self.logical_interface_ref = logical_interface_ref
         self.nicid = interface_id
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
-    
+
     def modify_attribute(self, **kwargs):
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
@@ -211,11 +201,9 @@ class DHCPInterface(object):
         self.primary_mgt = False
         self.automatic_default_route = False
         self.reverse_connection = False
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
 
     def modify_attribute(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
     
     def __repr__(self):
@@ -245,9 +233,6 @@ class VlanInterface(object):
         self.virtual_resource_name = virtual_resource_name
         self.interfaces = []
         self.zone_ref = zone_ref
-        
-        for key, value in kwargs.iteritems():
-            setattr(self, key, value)
 
 class TunnelInterface(object):
     """
@@ -455,7 +440,7 @@ class PhysicalInterface(object):
                 'vlanInterfaces': [],
                 'zone_ref': None }
                      
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             self.data.update({key: value})
 
     def add(self, interface_id, virtual_mapping=None, 
@@ -815,7 +800,7 @@ class PhysicalInterface(object):
         node_interface, etc.
         """
         for interface in self.data.get('interfaces'):
-            for _k, v in interface.iteritems():
+            for _k, v in interface.items():
                 v.update(kwargs)
 
     def describe(self):

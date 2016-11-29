@@ -72,7 +72,6 @@ class SMCAPIConnection(object):
                         logger.debug("Asynchronous response received, monitor progress at link: {}"
                                      .format(response.content))
                     else:
-                        print "OP failure, response: %s" % vars(response)
                         raise SMCOperationFailure(response)
                     
                 elif method == 'PUT':
@@ -93,7 +92,7 @@ class SMCAPIConnection(object):
                 elif method == 'DELETE':
                     response = self.session.delete(request.href)
                     response.encoding = 'utf-8'
-                    if response.status_code != 204:
+                    if response.status_code != 204 or response.status_code != 200:
                         raise SMCOperationFailure(response)
                     
                     logger.debug("Delete returned: {}".format(response.headers))
@@ -102,7 +101,7 @@ class SMCAPIConnection(object):
                     return SMCResult(msg='Unsupported method: %s' % method)
                 
             except SMCOperationFailure:
-                raise        
+                raise
             except requests.exceptions.RequestException as e:
                 raise SMCConnectionError(
                                 "Connection problem to SMC, ensure the "
@@ -112,8 +111,7 @@ class SMCAPIConnection(object):
                 return SMCResult(response)
         else:
             raise SMCConnectionError("No session found. Please login to continue")
-            
-    
+   
     def file_download(self, request):
         """
         Called when GET request specifies a filename to retrieve.
@@ -167,11 +165,12 @@ class SMCResult(object):
     
     Instance attributes:
     
-    :ivar etag: etag from HTTP GET, representing unique value from server
-    :ivar href: href of location header if it exists
-    :ivar content: content if return was application/octet
-    :ivar msg: error message, if set
-    :ivar json: element full json
+    :ivar str etag: etag from HTTP GET, representing unique value from server
+    :ivar str href: href of location header if it exists
+    :ivar str content: content if return was application/octet
+    :ivar str msg: error message, if set
+    :ivar int code: http code
+    :ivar dict json: element full json
     """
     def __init__(self, respobj=None, msg=None):
         self.etag = None

@@ -1,2 +1,14 @@
 /__init__.pyc
-/tester.pyc
+/create.pyc
+/engine_license.pyc
+/operationfailure.pyc
+/remove.pyc
+/search.pyc
+/util_helper.pyc
+/web_api.pyc
+/helpers.pyc
+*.pyc
+.smcrc
+
+
+/tests/

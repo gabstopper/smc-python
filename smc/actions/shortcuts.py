@@ -18,7 +18,6 @@ In order to view error messages, do the following in your calling script::
     logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(levelname)s: %(message)s')
     
 """
-from __future__ import absolute_import
 import logging
 import smc.elements.network as network
 import smc.elements.service as service

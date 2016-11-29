@@ -1,4 +1,4 @@
-[![Documentation Status](https://readthedocs.org/projects/smc-python/badge/?version=latest)](http://smc-python.readthedocs.io/en/latest/?badge=latest) [![GitHub release](https://img.shields.io/badge/version-0.3.9-brightgreen.svg)](https://github.com/gabstopper/smc-python/blob/master/smc/CHANGELOG)
+[![Documentation Status](https://readthedocs.org/projects/smc-python/badge/?version=latest)](http://smc-python.readthedocs.io/en/latest/?badge=latest) [![GitHub release](https://img.shields.io/badge/version-0.4-brightgreen.svg)](https://github.com/gabstopper/smc-python/blob/master/smc/CHANGELOG)
 ### smc-python
 
 Python based library to provide the ability to interact with the Stonesoft Management Center API.
@@ -23,8 +23,9 @@ Some of the functionality you get with the SMC Python API:
 
 ##### Requirements
 
-Python 2.6, 2.7
-Requests module
+Python 2.7
+Python 3.4, 3.5 (version >- 0.4)
+Requests 
 Security Management Center version 5.10, 6.0+
 
 ##### Getting Started
@@ -50,7 +51,7 @@ Before any commands are run, you must obtain a login session. Once commands are 
 ```python
 from smc import session
 
-session.login('http://1.1.1.1:8082', 'EiGpKD4QxlLJ25dbBEp20001')
+session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxx')
 ....do stuff....
 session.logout()
 ```

@@ -217,4 +217,4 @@ class Alias(Element):
 
     def resolve(self):
         href = find_link_by_name('resolve', self.link)
-        print href
+        print(href)

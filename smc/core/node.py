@@ -96,11 +96,12 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         params = {'license_item_id': license_item_id}
-        result = prepared_request(
-                    href=find_link_by_name('bind', self.link), 
-                    params=params).create()
-        if result.msg:
-            raise LicenseError(result.msg)
+        href = find_link_by_name('bind', self.link)
+        if href:
+            result = prepared_request(href=href, 
+                                      params=params).create()
+            if result.msg:
+                raise LicenseError(result.msg)
         
     def unbind_license(self):
         """ 
@@ -109,10 +110,11 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError` 
         """
-        result = prepared_request(
-                    href=find_link_by_name('unbind', self.link)).create()
-        if result.msg:
-            raise LicenseError(result.msg)
+        href = find_link_by_name('unbind', self.link)
+        if href:
+            result = prepared_request(href=href).create()
+            if result.msg:
+                raise LicenseError(result.msg)
     
     def cancel_unbind_license(self):
         """ 
@@ -121,10 +123,11 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        result = prepared_request(
-                    href=find_link_by_name('cancel_unbind', self.link)).create()
-        if result.msg:
-            raise LicenseError(result.msg)
+        href = find_link_by_name('cancel_unbind', self.link)
+        if href:
+            result = prepared_request(href=href).create()
+            if result.msg:
+                raise LicenseError(result.msg)
     
     def initial_contact(self, enable_ssh=True, time_zone=None, 
                         keyboard=None, 
@@ -283,9 +286,11 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('reset_user_db', self.link),
-                    params=params).update()
+        href = find_link_by_name('reset_user_db', self.link)
+        if not href:
+            raise NodeCommandFailed('Reset userdb not supported on this node type')
+        result = prepared_request(href=href,
+                                  params=params).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
     
@@ -307,8 +312,10 @@ class Node(Element):
         :return: list of dict items with diagnostic info; key 'diagnostics'
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        href = find_link_by_name('diagnostic', self.link)
         params={'filter_enabled': filter_enabled}
+        href = find_link_by_name('diagnostic', self.link)
+        if not href:
+            raise NodeCommandFailed('Diagnostic not supported on this node type')
         result = search.element_by_href_as_smcresult(href, params)
         if result.msg:
             raise NodeCommandFailed(result.msg)
@@ -391,9 +398,11 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'enable': enable, 'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('ssh', self.link),
-                    params=params).update()
+        href = find_link_by_name('ssh', self.link)
+        if not href:
+            raise NodeCommandFailed('SSH not supported on this node type')
+        result = prepared_request(href=href,
+                                  params=params).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
 
@@ -409,9 +418,12 @@ class Node(Element):
         """
         json = {'value': pwd}
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('change_ssh_pwd', self.link),
-                    params=params, json=json).update()
+        href = find_link_by_name('change_ssh_pwd', self.link)
+        if not href:
+            raise NodeCommandFailed('Change SSH pwd not supported on this node type')
+        result = prepared_request(href=href,
+                                  params=params, 
+                                  json=json).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
 
@@ -423,8 +435,10 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        result = prepared_request(
-                    href=find_link_by_name('time_sync', self.link)).update()
+        href = find_link_by_name('time_sync', self.link)
+        if not href:
+            raise NodeCommandFailed('Time sync not supported on this node type')
+        result = prepared_request(href=href).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
       
@@ -487,7 +501,7 @@ class NodeStatus(object):
         self.status = None
         self.version = None
         
-        for k,v in kwargs.iteritems():
+        for k,v in kwargs.items():
             setattr(self, k, v)
 
     def __getattr__(self, value):

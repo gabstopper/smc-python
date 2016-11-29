@@ -61,3 +61,8 @@ return SMCResult from group.update_members
 Fix KeyboardInterrupt triggers uninitialized result var in _make_request()
 Add catch all for http methods, return unsupported method
 rewrite of configloader and changed .smcrc format to better support input from external sources
+
+$version 0.3.11
+python 3.4.3 and python 3.5.1 tested successfully
+misc compat fixes to support py3
+unittest's - coverage = 92%

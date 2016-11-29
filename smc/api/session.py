@@ -75,7 +75,8 @@ class Session(object):
         return self._timeout
     
     def login(self, url=None, api_key=None, api_version=None,
-              timeout=None, verify=True, **kwargs):
+              timeout=None, verify=True, alt_filepath=None, 
+              **kwargs):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
@@ -92,6 +93,7 @@ class Session(object):
         :param api_version (optional): specify api version
         :param int timeout: (optional): specify a timeout for initial connect; (default 10)
         :param str|boolean verify: verify SSL connections using cert (default: verify=True)
+        :param str alt_filepath: If using .smcrc, alternate file+path
 
         For SSL connections, you can disable validation of the SMC SSL certificate by setting 
         verify=False, however this is not a recommended practice.
@@ -113,7 +115,8 @@ class Session(object):
                 self._timeout = timeout
         else:
             try:
-                cfg = load_from_file()
+                cfg = load_from_file(alt_filepath) if alt_filepath\
+                    is not None else load_from_file()
                 logger.debug("Config read has data: %s", cfg)
                 self._url = cfg.get('url')
                 self._api_key = cfg.get('api_key')

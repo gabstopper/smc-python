@@ -43,6 +43,7 @@ class SMCOperationFailure(SMCException):
     :ivar smcresult: :py:class:`smc.api.web.SMCResult` object for consistent returns
     """
     def __init__(self, response=None):
+        # Response is type <class 'requests.models.Response'>
         self.response = response
         self.code = None
         self.smcresult = smc.api.web.SMCResult()
@@ -66,13 +67,9 @@ class SMCOperationFailure(SMCException):
         self.smcresult.code = self.code
         
         if details:
-            #details = ' '.join(details).encode('utf-8') \
-            #    if isinstance(details, list) else details.encode('utf-8')
-            #print "Details is of type: %s" % type(details)
             details = unicode_to_bytes(' '.join(details)) \
                 if isinstance(details, list) else unicode_to_bytes(details)
         if message:
-            #message = message.encode('utf-8')
             message = unicode_to_bytes(message)
         
         if message and details:

@@ -17,7 +17,7 @@ class GroupMixin(Element):
         members, call :meth:`~obtain_members`, save the list and rebuild a new
         list, then call :meth:`~update_members`.
         
-        :param list members: list of new members for group
+        :param list members: list of new members for group, as href
         :return: :py:class:`smc.api.web.SMCResult`
         """
         return self.modify_attribute(element=members)

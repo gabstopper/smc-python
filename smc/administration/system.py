@@ -18,7 +18,6 @@ from smc.elements.other import prepare_blacklist
 from smc.actions.tasks import task_handler, Task
 from smc.base.model import Meta, prepared_request
 from smc.administration.updates import EngineUpgrade, UpdatePackage
-from smc.api.common import SMCRequest
 
 class System(object):
     """
@@ -153,7 +152,7 @@ class System(object):
                         find_link_by_name('license_check_for_new', self.link))
         
     def delete_license(self):
-        print "PUT delete license"
+        raise NotImplementedError
     
     def visible_virtual_engine_mapping(self):
         """ Return list of dictionary mappings for master engines and virtual engines 

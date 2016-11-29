@@ -2,9 +2,13 @@
 Configuration Loader
 """
 import os
-import codecs
-from ConfigParser import SafeConfigParser, NoOptionError, NoSectionError
+import io
 from smc.api.exceptions import ConfigLoadError
+
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser  # @UnusedImport
 
 def load_from_file(alt_filepath=None):
     """ Attempt to read the SMC configuration from a 
@@ -55,7 +59,8 @@ def load_from_file(alt_filepath=None):
                     'ssl_cert_file',
                     'timeout']
     
-    parser = SafeConfigParser(defaults={'smc_port':'8082',
+    parser = configparser.SafeConfigParser(defaults={
+                                        'smc_port':'8082',
                                         'smc_api': None,
                                         'smc_ssl': 'false',
                                         'verify_ssl': 'false',
@@ -73,9 +78,10 @@ def load_from_file(alt_filepath=None):
     section = 'smc'
     config_dict = {}
     try:
-        with codecs.open(full_path, 'r', encoding='utf-8') as f:
+        
+        with io.open(full_path, 'rt', encoding='UTF-8') as f:
             parser.readfp(f)
-    
+
         #Get required settings, if not found it will raise err
         for name in required:
             config_dict[name] = parser.get(section, name)
@@ -87,10 +93,10 @@ def load_from_file(alt_filepath=None):
                 else: #str
                     config_dict[name] = parser.get(section, name)
 
-    except NoOptionError as e:
+    except configparser.NoOptionError as e:
         raise ConfigLoadError('Failed loading credentials from configuration '
                               'file: {}; {}'.format(path,e))
-    except NoSectionError as e:
+    except configparser.NoSectionError as e:
         raise ConfigLoadError('Failed loading credential file from: {}, check the '
                               'path and verify contents are correct.'.format(path, e))
     except IOError as e:

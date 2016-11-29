@@ -26,6 +26,7 @@ import logging
 from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
     fetch_json_by_name, fetch_entry_point, fetch_json_by_post
 from smc import session
+from smc.api.exceptions import UnsupportedEntryPoint
 
 logger = logging.getLogger(__name__)
 
@@ -294,9 +295,10 @@ def element_entry_point(name):
     :return: href: else None
     """
     if name:   
-        element = fetch_entry_point(name)
-        if element:
-            return element
+        try:
+            return fetch_entry_point(name)
+        except UnsupportedEntryPoint:
+            pass
 
 def search_unused():
     """ Search for all unused elements 

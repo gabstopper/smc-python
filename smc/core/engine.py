@@ -1,6 +1,6 @@
 import smc.actions.search as search
 from smc.elements.helpers import domain_helper
-from smc.base.model import Meta, Element, ElementCreator, prepared_request
+from smc.base.model import Meta, Element, prepared_request
 from smc.base.util import find_link_by_name
 from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
@@ -510,7 +510,7 @@ class Engine(Element):
                             wait_for_finish=wait_for_finish,
                             sleep=sleep)
 
-    def upload(self, policy, wait_for_finish=False, sleep=3):
+    def upload(self, policy=None, wait_for_finish=False, sleep=3):
         """ 
         Upload policy to engine. This is used when a new policy is required
         for an engine, or this is the first time a policy is pushed to an engine.
@@ -524,7 +524,7 @@ class Engine(Element):
             for message in task:
                 print message
         
-        :param str policy: name of policy to upload to engine
+        :param str policy: name of policy to upload to engine; if None, current policy
         :param boolean wait_for_finish: whether to wait for async responses
         :param int sleep: number of seconds to sleep if wait_for_finish=True
         :return: generator yielding updates on progress

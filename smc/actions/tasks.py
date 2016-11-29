@@ -28,7 +28,7 @@ class Task(object):
         self.progress = None
         self.follower = None
 
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
     @property

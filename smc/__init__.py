@@ -2,7 +2,7 @@ import logging
 from smc.api.session import Session
 
 __author__ = 'David LePage'
-__version__ = '0.3.8'
+__version__ = '0.4'
 
 # Default SMC Session
 session = Session()
@@ -27,10 +27,11 @@ def set_stream_logger(name='smc', level=logging.DEBUG, format_string=None):
 try:  # Python 2.7+
     from logging import NullHandler
 except ImportError:
+    print("Import error")
     class NullHandler(logging.Handler):
         def emit(self, record):
             pass
 
-logging.getLogger('smc').addHandler(NullHandler())
+logging.getLogger(__name__).addHandler(NullHandler())
 
 

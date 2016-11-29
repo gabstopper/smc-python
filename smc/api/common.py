@@ -4,10 +4,10 @@ Middle tier helper module to wrap CRUD operations and catch exceptions
 SMCRequest is the general data structure that is sent to the prepared_request
 method in smc.api.web.SMCConnection to submit the data to the SMC. 
 """
-
 import logging
 from smc import session
-from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
+from smc.api.exceptions import SMCOperationFailure, SMCConnectionError,\
+    UnsupportedEntryPoint
 from smc.base.util import unicode_to_bytes
 
 logger = logging.getLogger(__name__)
@@ -44,12 +44,12 @@ class RequestHandler(object):
         except SMCConnectionError as e:
             err = e
         except TypeError as e:
-            err = str(e)
+            err = e
         except IOError as e:
             err = e
         finally:
             if err:
-                raise
+                raise err
             logger.debug(result)
             return result
 
@@ -78,7 +78,7 @@ class SMCRequest(RequestHandler):
         #: JSON data to send in request
         self.json = {} if json is None else json
 
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
     @method('POST')
@@ -108,18 +108,13 @@ def fetch_entry_point(name):
 
     :method: GET
     :param str name: valid element entry point, i.e. 'host', 'iprange', etc
-    :return: :py:class:`smc.api.web.SMCResult`
+    :return: str href pulled from API cache
     """
     try:
-        entry_href = session.cache.get_entry_href(name) #from entry point cache
-        if not entry_href:
-            logger.error("Entry point specified was not found: %s" % name)
-            return None
-        return entry_href
-    
-    except SMCOperationFailure as e:
-        logger.error("Failure occurred fetching element: %s" % e)
-    except SMCConnectionError as e:
+        return session.cache.get_entry_href(name) #from entry point cache
+    except UnsupportedEntryPoint:
+        raise
+    except SMCConnectionError:
         raise
 
 def fetch_href_by_name(name,

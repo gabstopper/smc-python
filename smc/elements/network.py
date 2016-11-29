@@ -52,7 +52,6 @@ class Host(Element):
                     'ipv6_address': ipv6_address,
                     'secondary': secondary,
                     'comment': comment}
-        
         return ElementCreator(cls)
 
     @property
