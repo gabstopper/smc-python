@@ -24,6 +24,7 @@ class SMCAPIConnection(object):
     def __init__(self, session):
         self._session = session
         self.timeout = self._session.timeout
+        self.cache = self._session.cache
       
     @property
     def session(self):
@@ -45,15 +46,17 @@ class SMCAPIConnection(object):
                                                 timeout=self.timeout)
                     response.encoding = 'utf-8'
 
+                    #if response.status_code == 304:
+                    #   print("Return element from cache: %s" % request.href)
+                    #    print(self.cache(request.href))
+                    
                     if response.status_code != 200:
                         logger.error("HTTP get returned non-http 200 code [{}] "
                                      "for href: {}".format(response.status_code, 
                                                            request.href))
                         raise SMCOperationFailure(response)
-                    try:
-                        logger.debug(u"Get returned: {}".format(response.text))
-                    except UnicodeEncodeError:
-                        pass
+                    
+                    logger.debug(u"Get returned: {}".format(response.text))
                         
                 elif method == 'POST':
                     if request.files: #File upload request

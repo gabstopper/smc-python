@@ -83,6 +83,11 @@ class Layer3Firewall(object):
 class Layer2Firewall(object):
     """
     Creates a Layer 2 Firewall with a default inline interface pair
+    To instantiate and create, call 'create' classmethod as follows::
+    
+        engine = Layer2Firewall.create(name='myinline', 
+                                       mgmt_ip='1.1.1.1', 
+                                       mgmt_network='1.1.1.0/24')
     """
     node_type = 'fwlayer2_node'
     

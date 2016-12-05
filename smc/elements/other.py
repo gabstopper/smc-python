@@ -129,7 +129,8 @@ def prepare_contact_address(address, location, dynamic=False):
     
     :param list addresses: list of IP addresses for contact address
     :param str location: location href to map this contact address to
-    :param boolean dynamic: should this be considered a dynamic contact address
+    :param boolean dynamic: should this be considered a dynamic contact address. This
+           can be used to define an FQDN as address value.
     """
     from smc.elements.helpers import location_helper
     location_ref = location_helper(location)

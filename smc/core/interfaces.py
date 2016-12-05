@@ -418,7 +418,7 @@ class PhysicalInterface(object):
     This should be used to add interfaces to an engine after it has been created.
     First get the engine context by loading the engine then get the engine property for 
     physical interface::
-        
+
         engine = Engine('myfw').load()
         engine.physical_interface.add_single_node_interface(.....)
         engine.physical_interface.add(5) #single unconfigured physical interface
@@ -479,8 +479,6 @@ class PhysicalInterface(object):
         if is_mgmt:
             vars(intf).update(auth_request=True, outgoing=True,
                               primary_mgt=True)
-            #intf.modify_attribute(auth_request=True, outgoing=True,
-            #                      primary_mgt=True)
         self.data.update(interface_id=interface_id,
                          interfaces=[{SingleNodeInterface.typeof: vars(intf)}],
                          zone_ref=zone_ref)
@@ -505,7 +503,6 @@ class PhysicalInterface(object):
         intf = NodeInterface(interface_id, address, network_value, 
                              nodeid=nodeid, **kwargs)
         if is_mgmt:
-            #intf.modify_attribute(primary_mgt=True, outgoing=True)
             vars(intf).update(primary_mgt=True, outgoing=True)
             
         self.data.update(interface_id=interface_id,
@@ -574,9 +571,7 @@ class PhysicalInterface(object):
             vars(dhcp).update(primary_mgt=True,
                               reverse_connection=True,
                               automatic_default_route=True)
-            #dhcp.modify_attribute(primary_mgt=True,
-            #                      reverse_connection=True,
-            #                      automatic_default_route=True)
+     
         self.data.update(interface_id=interface_id,
                          interfaces=[{DHCPInterface.typeof: vars(dhcp)}],
                          zone_ref=zone_ref)
@@ -610,12 +605,8 @@ class PhysicalInterface(object):
                            {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}],
                     zone_ref=zone_helper('Heartbeat'))
         """
-        #self.data.setdefault('cvi_mode', 'packetdispatch')
-        #self.data.setdefault('macaddress', macaddress)
-    
         cvi = ClusterVirtualInterface(interface_id, cluster_virtual, cluster_mask)
         if is_mgmt:
-            #cvi.modify_attribute(auth_request=True)
             vars(cvi).update(auth_request=True)
         
         interfaces=[]
@@ -629,8 +620,6 @@ class PhysicalInterface(object):
             if is_mgmt:
                 vars(intf).update(primary_mgt=True, outgoing=True,
                                   primary_heartbeat=True)
-                #intf.modify_attribute(primary_mgt=True, outgoing=True,
-                #                      primary_heartbeat=True)
             interfaces.append({NodeInterface.typeof: vars(intf)})
         self.data.update(cvi_mode=cvi_mode,
                          macaddress=macaddress,

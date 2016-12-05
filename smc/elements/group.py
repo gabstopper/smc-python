@@ -66,7 +66,7 @@ class Group(GroupMixin):
         :param str name: Name of element
         :param list members: group members by element names
         :param str comment: optional comment
-        :return: :py:class:`smc.qpi.web.SMCResult`
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         comment = None if comment is None else comment
         members = [] if members is None else members

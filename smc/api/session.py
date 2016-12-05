@@ -1,7 +1,6 @@
 """
 Session module for tracking existing connection state to SMC
 """
-import re
 import json
 import logging
 import requests
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class Session(object):
     def __init__(self):
-        self._cache = None
+        self._cache = SessionCache()
         self._session = None
         self._connection = None
         self._url = None
@@ -45,20 +44,7 @@ class Session(object):
 
     @property
     def cache(self):
-        if self._cache is not None:
-            return self._cache
-        else:
-            self._cache = SessionCache()
-            return self._cache
-
-    @property
-    def element_filters(self):
-        """ Filters for entry points in the elements node. 
-        These can be used as search filter_contexts.
-        
-        :return: list available filters
-        """
-        return self.cache.get_element_filters()
+        return self._cache
     
     @property
     def url(self):
@@ -191,6 +177,7 @@ class SessionCache(object):
     def __init__(self):
         self.api_entry = None
         self.api_version = None
+        self._entry_points = None
 
     def get_api_entry(self, url, api_version=None, timeout=10,
                       verify=True):
@@ -257,7 +244,13 @@ class SessionCache(object):
             raise SMCConnectionError("No entry points found, it is likely "
                                      "there is no valid login session.")
 
-    def get_element_filters(self):
+    @property
+    def entry_points(self):
+        if self._entry_points is None:
+            self._entry_points = [entry.get('rel') for entry in self.api_entry]
+        return self._entry_points
+    
+    def get_entry_points(self):
         """
         Build a list of filter contexts for entry points related to elements.
         These filters can be used in the filter_context parameter on search methods 
@@ -265,12 +258,8 @@ class SessionCache(object):
         
         :return: list names of each available filter context on the element node
         """
-        regex = self.get_entry_href('elements') + r"/(.*)"
-        element_filters=[m.group(1)
-                         for ep in self.api_entry
-                         for m in re.finditer(regex, ep.get('href'))]
-        return element_filters
-
+        return [entry.get('rel') for entry in self.api_entry]
+        
     def get_all_entry_points(self):
         """ Returns all entry points into SMC api """
         return self.api_entry

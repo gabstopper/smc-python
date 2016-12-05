@@ -260,7 +260,7 @@ def all_elements_by_type(name):
     """ Get specified elements based on the entry point verb from SMC api
     To get the entry points available, you can get these from the session::
     
-        session.cache.get_all_entry_points()
+        session.cache.entry_points
         
     Execution will get the entry point for the element type, then get all elements that
     match.

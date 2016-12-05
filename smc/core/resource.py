@@ -217,4 +217,5 @@ class Alias(Element):
 
     def resolve(self):
         href = find_link_by_name('resolve', self.link)
-        print(href)
+        # SMC API seems to have an issue with this
+        return href

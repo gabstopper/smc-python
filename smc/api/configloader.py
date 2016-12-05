@@ -61,7 +61,7 @@ def load_from_file(alt_filepath=None):
     
     parser = configparser.SafeConfigParser(defaults={
                                         'smc_port':'8082',
-                                        'smc_api': None,
+                                        'api_version': None,
                                         'smc_ssl': 'false',
                                         'verify_ssl': 'false',
                                         'smc_cert_file': None,
@@ -134,18 +134,23 @@ def transform_login(config):
                               config.get('smc_port'))
     
     timeout = config.get('timeout')
-    try:
-        if timeout:
-            int_timeout = int(timeout)
-        else:
-            int_timeout = None
-    except ValueError:
-        int_timeout = None
+    if timeout:
+        try:    
+            timeout = int(timeout)
+        except ValueError:
+            timeout = None
     
+    api_version = config.get('api_version')
+    if api_version:
+        try:
+            api_version = float(api_version)
+        except ValueError:
+            api_version = None
+
     transformed.update(url=url,
                        api_key=config.get('smc_apikey'),
-                       api_version=config.get('api_version'),
+                       api_version=api_version,
                        verify=verify,
-                       timeout=int_timeout)
+                       timeout=timeout)
     return transformed
 

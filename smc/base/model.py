@@ -40,25 +40,6 @@ def ElementCreator(cls):
     return SMCRequest(href=search.element_entry_point(cls.typeof), 
                       json=cls.json).create()
 
-'''
-class ElementCache(object):
-    def __init__(self, cache=None):
-        self._cache = cache
-    def __get__(self, instance, cls=None):
-        if not instance:
-            return self
-        if not self._cache:
-            print "Cache didnt exist, getting"
-            result = search.element_by_href_as_smcresult(instance.href)
-            if result.json:
-                self._cache = result.json
-                instance.etag = result.etag
-        return self._cache
-    def __set__(self, instance, value):
-        print "Setting element cache"
-        self._cache = value
-'''
-    
 class ElementETag(object):
     """
     ETag for the element. The etag needs to be used when updating
@@ -113,7 +94,6 @@ class Element(UnicodeMixin):
     """
     href = ElementLocator()
     etag = ElementETag()
-    #cache = ElementCache()
     
     def __init__(self, name, meta=None):
         self._name = name #<str>

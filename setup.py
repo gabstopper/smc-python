@@ -5,7 +5,7 @@ def readme():
         return f.read()
     
 setup(name='smc-python',
-      version='0.4',
+      version='0.4.1',
       description='Python based API to Stonesoft Security Management Center',
       url='http://github.com/gabstopper/smc-python',
       author='David LePage',
@@ -14,7 +14,7 @@ setup(name='smc-python',
       setup_requires=['requests'],
       packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
       install_requires=[
-          'requests>=2.12.0'
+          'requests==2.12.0'
       ],
       include_package_data=True,
       classifiers=[

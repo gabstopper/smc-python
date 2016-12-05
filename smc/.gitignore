@@ -11,4 +11,4 @@
 .smcrc
 
 
-/tests/
+/tests/test_*

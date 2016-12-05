@@ -40,7 +40,7 @@ constructor. Otherwise the latest API version available will be used:
 
    from smc import session
    session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
-   api_version='5.10')
+                 api_version='5.10')
 
 In order to use SSL connections, you must first associated a private key and certificate
 with the SMC API server. This is done under the Management Server properties, SMC API.
@@ -54,7 +54,7 @@ Using SSL and specify certificate for verifying:
 
    from smc import session
    session.login(url='https://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
-   				 verify='/Users/davidlepage/home/mycacert.pem')
+                 verify='/Users/davidlepage/home/mycacert.pem')
    
 Using SSL to the SMC without SSL validation (NOT recommended)
 
@@ -62,42 +62,56 @@ Using SSL to the SMC without SSL validation (NOT recommended)
 
    from smc import session
    session.login(url='https://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001',
-   				 verify=False)
+                 verify=False)
 
-When storing in a file, using session.login with no arguments:
-
-.. code-block:: python
-	
-	session.login()
-	session.logout()
-
-If storing in a user profile configuration file, the syntax is:
+It is possible to store the SMC connection information in ~/.smcrc in order to simplify
+the login as well as eliminate the need to populate scripts with api key information. 
+Syntax for ~/.smcrc:
 
 .. code-block:: python
 
    [smc]
    smc_address=172.18.1.150
    smc_apikey=xxxxxxxxxxxxxxxxxxx
+   api_version=6.1
    smc_port=8082
    smc_ssl=True
    verify_ssl=True
    ssl_cert_file='/Users/davidlepage/home/mycacert.pem'
+   
+Then from launching scripts, you can do:
 
-.. seealso:: :py:func:`smc.api.configloader.load_from_file`
-  
+.. code-block:: python
+	
+	session.login()
+	session.logout()
+
+.. note:: It is possible to override the location of .smcrc by using the 'altpath=<path' in
+          the login construtor.
+
+.. code-block:: python
+
+   session.login(altpath='/home/somedir/test')
+
 Once the session has been successfully obtained, there is no reason to re-authenticate a new session
 unless `logout` has been called.
 
-.. note:: If you have a longer running application where the session may time out due to long delays 
-		  between calls, the smc-python API will re-authenticate the session automatically as long as a previous 
-		  session was already obtained and stored in the session cache.
-
+.. note:: The SMC will automatically purge idle sessions after a configurable amount of time.
+		  
 To enable logging from smc-python, a convenience method is provided to show stream logging:
 
 .. code-block:: python
 
    from smc import set_stream_logger
    set_stream_logger(level=logging.DEBUG, format_string=None)
+   
+Another option is to add the following lines to your script:
+
+.. code-block:: python
+
+   import logging
+   logging.getLogger()
+   logging.basicConfig(level=logging.DEBUG, format='......')
 
 Resources
 ---------
@@ -295,8 +309,8 @@ Creating engines are done using the Firewall specific base classes in :py:mod:`s
 
 Nodes are individual devices represented as properties of an engine element. 
 In the case of single device deployments, there is only one node. For clusters, there will be at a minimum 
-2 nodes, max of 16. The :py:mod:`smc.elements.engines:node` class represents the interface to managing and 
-sending commands individually to a node in a cluster. 
+2 nodes, max of 16. The :py:mod:`smc.core.node` class represents the interface to managing and 
+sending commands individually to a node in a cluster.
 
 By default, each constructor will have default values for the interface used for management (interface 0).
 This can be overridden as necessary.
@@ -797,8 +811,8 @@ To create a new policy:
 
 .. code-block:: python
 
-   FirewallPolicy.create('newpolicy', 'template=href_to_template')
-   
+   FirewallPolicy.create('newpolicy', template=”Firewall Template”)
+  
 Getting the template is easiest through the collection.describe_* methods
 
 .. code-block:: python
