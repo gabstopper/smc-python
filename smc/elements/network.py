@@ -271,7 +271,7 @@ class Expression(Element):
         
         :param str name: name of sub-expression
         :param list ne_ref: network elements references
-        :param str operator: |exclusion (negation)|union|intersection (default: union)
+        :param str operator: exclusion (negation), union, intersection (default: union)
         :return: JSON of subexpression. Use in :func:`~create` constructor
         """
         ne_ref = [] if ne_ref is None else ne_ref
@@ -372,6 +372,7 @@ class IPList(Element):
         if location:
             iplist = location[0]
             iplist.upload(filename='/path/to/iplist.zip')
+
     """
     typeof = 'ip_list'
     
@@ -386,8 +387,8 @@ class IPList(Element):
         Filename is required for zip downloads.
         
         :param str filename: Name of file to save to (required for zip)
-        :param str as_type: type of format to download in: |txt|json|zip (default)
-        :raises: IOError: if problem writing to destination filename
+        :param str as_type: type of format to download in: txt,json,zip (default: zip)
+        :raises: IOError if problem writing to destination filename
         :return: :py:class:`smc.api.web.SMCResult`
         """
         headers=None

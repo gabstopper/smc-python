@@ -37,28 +37,28 @@ To search only for a host with name 'test'::
 
 To search for all hosts with 'test' in the name::
 
-    for host in describe_hosts(name=['test'], exact_match=False):
+    for host in describe_host(name=['test'], exact_match=False):
         print host
         
 It may be useful to do a wildcard search for an element type and view the entire
 object info::
 
-    for host in describe_networks(name=['1.1.1.0'], exact_match=False):
+    for host in describe_network(name=['1.1.1.0'], exact_match=False):
         print host.name, host.describe() #returned Element
 
 Modify a specific Element type by changing the name::
 
-    for host in describe_hosts(name=['myhost']):
+    for host in describe_host(name=['myhost']):
         if host:
             host.modify_attribute(name='mynewname')   
             
 It is also possible to use wildcards when searching for a specific host, without
 setting the exact_match=False flag. For example::
 
-    for x in describe_hosts(name=['TOR*']):
+    for x in describe_host(name=['TOR*']):
         print x.describe()
         
-    for y in describe_hosts(name=['TOR'], exact_match=False):
+    for y in describe_host(name=['TOR'], exact_match=False):
         print y
         
 Both will work, however the first option will only find items starting with TOR*, whereas
@@ -286,7 +286,7 @@ def describe_community_access_list(name=None, exact_match=True):
     """
     return generic_list_builder('community_access_list', name, exact_match)
 
-'''
+
 def describe_ei_executable(name=None, exact_match=True):
     """ 
     Describe ei_executable entries on the SMC
@@ -294,7 +294,6 @@ def describe_ei_executable(name=None, exact_match=True):
     :return: :py:class:`smc.base.model.Element` 
     """
     return generic_list_builder('ei_executable', name, exact_match)
-'''
 
 def describe_application_risk_tag(name=None, exact_match=True):
     """ 

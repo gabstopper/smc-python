@@ -636,7 +636,7 @@ class InternalGateway(Element):
     def gateway_certificate_request(self):
         """
         :method: GET
-        :return list
+        :return: list
         """
         return search.element_by_href_as_json(
                 find_link_by_name('gateway_certificate_request', self.link))    
@@ -650,7 +650,7 @@ class InternalGateway(Element):
         :param: :py:class:`~smc.vpn.elements.VPNCertificate` certificate_request: 
                 certificate request created
         :return: None
-        :raises:`smc.api.exceptions.CertificateError`
+        :raises: :py:class:`smc.api.exceptions.CertificateError`
         """
         result = prepared_request(
                     href=find_link_by_name('generate_certificate', self.link),

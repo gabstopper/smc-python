@@ -186,7 +186,7 @@ class Element(UnicodeMixin):
             return '{0}(name={1})'.format(self.__class__.__name__, self.name)
         else:
             return repr(unicode(self))  # @UndefinedVariable
-        
+            
       
 class Meta(namedtuple('Meta', 'name href type')):
     """

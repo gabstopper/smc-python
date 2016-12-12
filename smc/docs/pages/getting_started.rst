@@ -29,7 +29,7 @@ Example of providing the connect information through the constructor:
 
    from smc import session
 
-   session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
+   session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxx')
    ....do stuff....
    session.logout()
 
@@ -39,7 +39,7 @@ constructor. Otherwise the latest API version available will be used:
 .. code-block:: python
 
    from smc import session
-   session.login(url='http://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
+   session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxx', 
                  api_version='5.10')
 
 In order to use SSL connections, you must first associated a private key and certificate
@@ -53,7 +53,7 @@ Using SSL and specify certificate for verifying:
 .. code-block:: python
 
    from smc import session
-   session.login(url='https://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', 
+   session.login(url='https://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxx', 
                  verify='/Users/davidlepage/home/mycacert.pem')
    
 Using SSL to the SMC without SSL validation (NOT recommended)
@@ -61,7 +61,7 @@ Using SSL to the SMC without SSL validation (NOT recommended)
 .. code-block:: python
 
    from smc import session
-   session.login(url='https://1.1.1.1:8082', api_key='EiGpKD4QxlLJ25dbBEp20001',
+   session.login(url='https://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxxx',
                  verify=False)
 
 It is possible to store the SMC connection information in ~/.smcrc in order to simplify
@@ -86,8 +86,8 @@ Then from launching scripts, you can do:
 	session.login()
 	session.logout()
 
-.. note:: It is possible to override the location of .smcrc by using the 'altpath=<path' in
-          the login construtor.
+.. note:: It is possible to override the location of .smcrc by using the 'altpath' argument in
+          the login constructor.
 
 .. code-block:: python
 
@@ -809,7 +809,7 @@ Policies
 
 To create a new policy:
 
-.. code-block:: python
+Example of creating a basic layer 3 policy::
 
    FirewallPolicy.create('newpolicy', template=”Firewall Template”)
   
@@ -838,7 +838,24 @@ Example rule creation:
 
 See :py:mod:`smc.examples.firewall_policy` for a full example 
 
-Create a NAT rule for a firewall policy using source NAT (outbound NAT example):
+
+NAT can be applied as dynamic source NAT or static destination NAT.
+
+For dynamic source NAT, provide the following dict:
+
+.. code-block:: python
+        
+   dynamic_src_nat={'element': 'http://1.1.1.1',
+                    'ip_descriptor': '1.1.1.1',
+                    'max_port': 65535,
+                    'min_port': 1024}
+
+Either element or ip_descriptor fields are required. If both are provided, element will take
+precendence. Min and Max ports are used to specify PAT.
+Element is the href for the element itself, whereas ip_descriptor is simply an IP address value
+and does not need to be a specific element in SMC.
+
+Create a NAT rule for a firewall policy using source NAT (outbound NAT example) to IP 2.2.2.2:
 
 .. code-block:: python
 
@@ -848,8 +865,43 @@ Create a NAT rule for a firewall policy using source NAT (outbound NAT example):
                                        sources='any', 
                                        destinations='any', 
                                        services='any',
-                                       dynamic_src_nat='10.0.0.245')
-                                    
+                                       dynamic_src_nat={'ip_descriptor': '2.2.2.2'})
+
+For static destination NAT, provide the following dict:
+
+.. code-block:: python
+
+   static_dst_nat = {'original_value': {'max_port': 80,
+                                        'min_port': 80},
+                     'translated_value': {'element': element,
+                                          'ip_descriptor': ip_descriptor,
+                                          'max_port': 8080,
+                                          'min_port': 8080}}
+
+Either element or ip_descriptor fields are required. If both are provided, element will take
+precendence. Min and Max ports are used to destination address for the translation. These are
+optional unless port redirection is required as well.
+
+.. note:: By default the service determines the port/s that are used for forwarding to the 
+          remote host. If the service uses HTTP on port 80, the redirect by default will be
+          port 80. Use min/max ports in 'translated_value' to redirect to a different port.
+                                          
+Create a Destination NAT rule, translated to '3.3.3.3'::
+        
+	policy.fw_ipv4_nat_rules.create(name='dstnat', 
+                                    sources='any', 
+                                    destinations=[host],
+                                    services='any',
+                                    static_dst_nat={'translated_value': {
+                                                    'ip_descriptor': '3.3.3.3'}})
+                                                                                                                    
+Create an any/any no NAT rule::
+   
+   policy.fw_ipv4_nat_rules.create(name='nonat', 
+                                   sources='any', 
+                                   destinations='any', 
+                                   services='any')
+                                                                           
 For additional NAT related options, see: :py:class:`smc.policy.rule.IPv4NATRule`
 
 VPN Policy

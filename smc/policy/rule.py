@@ -220,36 +220,86 @@ class IPv4Rule(Rule):
         
 class IPv4NATRule(Rule):
     """
-    Manipulate NAT Rules for relevant policy types. For the most
-    part the rule structure is the same as any other rule type with
-    the exception of defining the NAT field.
+    Manipulate NAT Rules for relevant policy types. Rule requirements are 
+    similar to a normal rule with exception of the NAT field. 
+    When specifying the destination or source NAT, you can use the string value
+    IP address or the element href.
     
-    For example, adding a NAT rule for a layer 3 FW policy::
+    It is possible to do source and destination NAT in the same rule, although it 
+    is not possible to do static source NAT and dynamic source NAT together.
+    
+    Adding a Dynamic Source NAT rule for a layer 3 FW policy::
     
         network = Network.create('internal', '172.18.1.0/24').href
         policy = FirewallPolicy('Amazon Cloud')
-        policy.fw_ipv4_nat_rules.create(name='mynatrule', 
+        policy.fw_ipv4_nat_rules.create(name='sourcenat', 
                                         sources=[network], 
                                         destinations='any', 
                                         services='any',
-                                        dynamic_src_nat='10.0.0.245')
+                                        dynamic_src_nat={'ip_descriptor': '2.2.2.2'})
+                                        
+    Destination NAT, translated to '3.3.3.3'::
+        
+        policy.fw_ipv4_nat_rules.create(name='dstnat', 
+                                        sources='any', 
+                                        destinations=[host],
+                                        services='any',
+                                        static_dst_nat={'translated_value': {
+                                                            'ip_descriptor': '3.3.3.3'}}) 
+    
+    Create an any/any no NAT rule::
+    
+        policy.fw_ipv4_nat_rules.create(name='nonat', 
+                                        sources='any', 
+                                        destinations='any', 
+                                        services='any')
+                                            
     """                                         
     def __init__(self, meta=None):
         self.meta = meta
   
     def create(self, name, sources=None, destinations=None, services=None,
-               dynamic_src_nat=None, max_port=65535, min_port=1024, 
+               dynamic_src_nat=None, static_src_nat=None, static_dst_nat=None,
                is_disabled=False):
         """
         Create a NAT rule
+       
+        Source dynamic NAT data structure::
+        
+            dynamic_src_nat={'element': 'http://1.1.1.1',
+                             'ip_descriptor': '',
+                             'max_port': 65535,
+                             'min_port': 1024}
+        
+        For dynamic source NAT provide either 'element' or 'ip_descriptor'.
+        If both are provided, element will take precedence. Min and Max
+        ports are optional and are used to define the ports used for PAT.
+        
+        Static dest NAT data structure::
+        
+            static_dst_nat = {'original_value': {'max_port': '',
+                                                 'min_port': ''},
+                              'translated_value': {'element': element,
+                                                   'ip_descriptor': ip_descriptor,
+                                                   'max_port': '',
+                                                   'min_port': ''}}
+        
+        For static destination NAT provide either 'element' or 'ip_descriptor'
+        for the 'translated_value' dict key. If both are provided, element will 
+        take precedence. All other fields are optional, including 'original_value'
+        key.
+        Min and Max ports are optional and used for redirection to/from a specific
+        port. If the service port for a rule uses HTTP on port 80, dest PAT will
+        default to port 80 unless min/max ports are used. If port ranges are needed,
+        use min/max ports to specify the source (original) and destiantion (translated)
+        values. If a single port needs to be redirected, set min/max to the same values.
         
         :param str name: name of NAT rule
         :param list sources: list of source href's
         :param list destinations: list of destination href's
         :param list services: list of service href's
-        :param str dynamic_src_nat: ip of dynamic source nat address
-        :param int max_port: max port number for PAT
-        :param int min_port: min port number for PAT
+        :param dict dynamic_src_nat: ip or element href of dynamic source nat address
+        :param dict static_dst_nat: ip or element href of host to redirect to
         :param boolean is_disabled: whether to disable rule or not
         :return: :py:class:`smc.api.web.SMCResult`
         """
@@ -257,15 +307,60 @@ class IPv4NATRule(Rule):
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
-        if dynamic_src_nat:
-            dyn_nat = {'options': {'dynamic_src_nat':
-                                    {'automatic_proxy': True,
-                                     'translation_values':
-                                        [{'ip_descriptor': dynamic_src_nat,
-                                          'max_port': max_port,
-                                          'min_port': min_port}]}}}
-            rule_values.update(dyn_nat)
+        options = {'log_accounting_info_mode': False,
+                   'log_closing_mode': True,
+                   'log_level': 'undefined',
+                   'log_payload_additionnal': False,
+                   'log_payload_excerpt': False,
+                   'log_payload_record': False,
+                   'log_severity': -1}
 
+        if dynamic_src_nat:
+            
+            dyn_nat = {'dynamic_src_nat': {}}
+            
+            values = []
+            values.append(dynamic_src_nat)
+            translation_values = {'automatic_proxy': True,
+                                  'translation_values': values}
+            dyn_nat.update(dynamic_src_nat=translation_values)
+            options.update(dyn_nat)
+    
+        elif static_src_nat:
+            
+            if isinstance(sources, list) and sources:
+                source = sources[0]
+                
+                stat_nat = {'static_src_nat': {}}
+                original_value={'automatic_proxy': True,
+                                'original_value': {'element': source},
+                                'translated_value': static_src_nat}
+                
+                stat_nat.update(static_src_nat=original_value)
+                options.update(stat_nat)
+
+        if static_dst_nat:
+            
+            if isinstance(destinations, list) and destinations:
+                dest = destinations[0] #Destination should be 1-to-1
+                
+                original_value = {'element': dest}
+
+                translated_value = {'element': None,
+                                    'ip_descriptor': None}
+                if 'original_value' in static_dst_nat:
+                    original_value.update(static_dst_nat.get('original_value'))
+                
+                if 'translated_value' in static_dst_nat:
+                    translated_value.update(static_dst_nat.get('translated_value'))
+                    
+                dst_nat = {'static_dst_nat': {'automatic_proxy': True,
+                                              'original_value': original_value,
+                                              'translated_value': translated_value}}
+                
+                options.update(dst_nat)
+           
+        rule_values.update(options=options)
         return prepared_request(href=self.href, json=rule_values).create()
     
 class IPv4Layer2Rule(Rule):

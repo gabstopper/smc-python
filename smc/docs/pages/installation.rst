@@ -1,5 +1,5 @@
 Installation
-===========
+============
 
 Install the package by using a package manager such as pip.
 

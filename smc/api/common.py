@@ -147,6 +147,7 @@ def fetch_href_by_name(name,
     else:
         if not result.msg:
             result.msg = "No results found for: {}".format(unicode_to_bytes(name))
+        result.json = []
     return result
 
 def fetch_json_by_name(name):

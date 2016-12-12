@@ -28,8 +28,8 @@ OSPFProfile is applied at the engine and has an OSPFDomainSetting reference:
     
     *OSPFProfile --> OSPFDomainSetting*
     
-OSPFArea is applied to an engine routing node and has an OSPFInterfaceSetting
-reference:
+OSPFArea is applied to an engine routing node and has an OSPFInterfaceSetting reference:
+
     *OSPFArea --> OSPFInterfaceSetting*
 
 OSPFArea with message-digest authentication also has a OSPFKeyChain reference:
