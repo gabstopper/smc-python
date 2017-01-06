@@ -209,30 +209,132 @@ Engine
 
 .. automodule:: smc.core.engine
    :members:
-   :exclude-members: create
+   :exclude-members: create, VirtualResource, InternalEndpoint, InternalGateway
+   :show-inheritance:
+
+Alias
++++++
+
+.. autoclass:: smc.core.resource.Alias
+   :members:
+   :show-inheritance:
+   
+Dynamic Routing
++++++++++++++++
+Represents classes responsible for configuring dynamic routing protocols
+
+OSPF
+****
+
+.. automodule:: smc.routing.ospf
+	:members:
+
+AccessList
+**********
+
+.. automodule:: smc.routing.access_list
+	:members:
+	:show-inheritance:
+
+PrefixList
+**********
+
+.. automodule:: smc.routing.prefix_list
+	:members:
+	:show-inheritance:
+
+Interfaces
+++++++++++
+Represents classes responsible for configuring interfaces on engines
+
+.. automodule:: smc.core.interfaces
+    :members:
+
+Physical Interface
+******************
+
+.. autoclass:: PhysicalInterface
+   :members:
+
+SingleNodeInterface
+*******************
+
+.. autofunction:: SingleNodeInterface
+
+NodeInterface
+*************
+
+.. autofunction:: NodeInterface
+ 
+InlineInterface
+***************
+
+.. autofunction:: InlineInterface
+ 
+CaptureInterface
+****************
+
+.. autofunction:: CaptureInterface
+  
+VlanInterface
+*************
+
+.. autofunction:: VlanInterface
+
+ClusterVirtualInterface
+***********************
+
+.. autofunction:: ClusterVirtualInterface
+
+TunnelInterface
+***************
+
+.. autoclass:: TunnelInterface
+   :members:
+
+VirtualPhysicalInterface
+************************
+
+.. autoclass:: VirtualPhysicalInterface
+   :members:
+   :show-inheritance:
+     
+InternalEndpoint
+++++++++++++++++
+
+.. autoclass:: smc.core.engine.InternalEndpoint
+   :members:
    :show-inheritance:
    
 InternalGateway
 +++++++++++++++
 
-.. autoclass:: InternalGateway
+.. autoclass:: smc.core.engine.InternalGateway
    :members:
    :show-inheritance:
 
-InternalEndpoint
-++++++++++++++++
+Node
+++++
 
-.. autoclass:: InternalEndpoint
-   :members:
+.. automodule:: smc.core.node
+   :members: Node
+   :exclude-members: create
    :show-inheritance:
+ 
+Snapshot
+++++++++
 
+.. autoclass:: smc.core.resource.Snapshot
+	:members:
+	:show-inheritance:
+	
 VirtualResource
 +++++++++++++++
 
-.. autoclass:: VirtualResource
+.. autoclass:: smc.core.engine.VirtualResource
 	:members:
 	:show-inheritance:
-   
+
 Resources
 +++++++++
 
@@ -252,28 +354,7 @@ RouteTable
 .. autoclass:: RouteTable
 	:members:
 
-Alias
-*****
 
-.. autoclass:: Alias
-   :members:
-   :show-inheritance:
-
-Snapshot
-********
-
-.. autoclass:: Snapshot
-	:members:
-	:show-inheritance:
-
-Node
-++++
-
-.. automodule:: smc.core.node
-   :members: Node
-   :exclude-members: create
-   :show-inheritance:
-         
 Engine Types
 ------------
 
@@ -322,121 +403,6 @@ MasterEngineCluster
 
 .. autoclass:: MasterEngineCluster
 	:members:
-
-Interfaces
-----------
-Represents classes responsible for configuring interfaces on engines
-
-.. automodule:: smc.core.interfaces
-    :members:
-
-Physical Interface
-++++++++++++++++++
-
-.. autoclass:: PhysicalInterface
-   :members:
-
-SingleNodeInterface
-+++++++++++++++++++
-
-.. autoclass:: SingleNodeInterface
-   :members:
-
-NodeInterface
-+++++++++++++
-
-.. autoclass:: NodeInterface
-   :members:
-  
-InlineInterface
-+++++++++++++++
-
-.. autoclass:: InlineInterface
-   :members:
-  
-CaptureInterface
-++++++++++++++++
-
-.. autoclass:: CaptureInterface
-   :members:
-  
-VlanInterface
-+++++++++++++
-
-.. autoclass:: VlanInterface
-   :members:
-
-ClusterVirtualInterface
-+++++++++++++++++++++++
-
-.. autoclass:: ClusterVirtualInterface
-   :members:
-
-TunnelInterface
-+++++++++++++++
-
-.. autoclass:: TunnelInterface
-   :members:
-
-VirtualPhysicalInterface
-++++++++++++++++++++++++
-
-.. autoclass:: VirtualPhysicalInterface
-   :members:
-   :show-inheritance:
-
-Dynamic Routing
----------------
-Represents classes responsible for configuring dynamic routing protocols
-
-.. automodule:: smc.routing
-    :members:
-
-OSPF
-++++
-
-.. automodule:: smc.routing.ospf
-	:members:
-
-IPAccessList
-++++++++++++
-
-.. automodule:: smc.routing.access_list
-	:members: IPAccessList
-	:show-inheritance:
-
-IPv6AccessList
-++++++++++++++
-
-.. automodule:: smc.routing.access_list
-	:members: IPv6AccessList
-	:show-inheritance:
-
-AccessList
-++++++++++
-
-.. automodule:: smc.routing.access_list
-	:members: AccessList
-
-IPPrefixList
-++++++++++++
-
-.. automodule:: smc.routing.prefix_list
-	:members: IPPrefixList
-	:show-inheritance:
-
-IPv6PrefixList
-++++++++++++++
-
-.. automodule:: smc.routing.prefix_list
-	:members: IPv6PrefixList
-	:show-inheritance:
-	
-PrefixList
-++++++++++
-
-.. automodule:: smc.routing.prefix_list
-	:members: PrefixList
 
 Policy
 ------
@@ -589,10 +555,10 @@ PackageUpdate
 
 
 Tasks
------
++++++
 
-.. automodule:: smc.actions.tasks
-   :members: TaskMonitor, TaskDownload
+.. automodule:: smc.administration.tasks
+    :members: TaskMonitor, TaskDownload, Task, task_history, task_status
 
 Collection
 ----------

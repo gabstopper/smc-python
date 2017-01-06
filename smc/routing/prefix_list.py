@@ -1,5 +1,6 @@
 """
-IP Prefix list
+IP Prefix module represnts prefix lists that can be used to filter networks for
+OSPF routing.
 """
 import smc.actions.search as search
 from smc.base.model import ElementCreator, Element, prepared_request

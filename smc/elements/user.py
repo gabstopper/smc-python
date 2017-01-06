@@ -82,3 +82,20 @@ class AdminUser(Element):
         """
         href = find_link_by_name('enable_disable', self.link)
         return prepared_request(href=href).update()
+
+class ApiClient(Element):
+    """
+    Represents an API Client
+    
+    Exporting of ApiClient is the only supported operation
+    """
+    typeof = 'api_client'
+
+    def __init__(self, name, meta=None):
+        Element.__init__(self, name, meta)
+        pass
+    
+    def export(self, filename='element.zip', wait_for_finish=False):
+        
+        return Element.export(self, filename=filename, 
+                              wait_for_finish=wait_for_finish)

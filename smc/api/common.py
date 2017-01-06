@@ -50,7 +50,7 @@ class RequestHandler(object):
         finally:
             if err:
                 raise err
-            logger.debug(result)
+            logger.debug('result: {}'.format(result))
             return result
 
 class SMCRequest(RequestHandler):
@@ -77,7 +77,7 @@ class SMCRequest(RequestHandler):
         self.etag = etag
         #: JSON data to send in request
         self.json = {} if json is None else json
-
+        
         for k, v in kwargs.items():
             setattr(self, k, v)
 

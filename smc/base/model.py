@@ -10,7 +10,7 @@ Element class relationship::
         Element (object)
         |-----------------------------------------------|
       href = ElementLocator()                 (Inheriting classes)
-      etag = ElementEtag()
+      cache = ElementCache()
       meta = Meta(href,name,type)
       name                                    
       delete()                                
@@ -24,14 +24,16 @@ self.meta. The UnicodeMixin will print the object representation as unicode from
 the self._name attribute. 
 """
 from collections import namedtuple
+import smc.core
 import smc.compat as compat
 from smc.api.common import SMCRequest
-from smc.api.exceptions import ElementNotFound
 import smc.actions.search as search
+from smc.api.exceptions import ElementNotFound, LoadEngineFailed
 from .util import bytes_to_unicode, unicode_to_bytes, find_link_by_name
 from .mixins import UnicodeMixin
-from smc.actions.tasks import Task, task_handler
 from smc.api.web import SMCResult
+    
+cache_hit = 0
 
 def prepared_request(**kwargs):
     return SMCRequest(**kwargs)
@@ -40,21 +42,6 @@ def ElementCreator(cls):
     return SMCRequest(href=search.element_entry_point(cls.typeof), 
                       json=cls.json).create()
 
-class ElementETag(object):
-    """
-    ETag for the element. The etag needs to be used when updating
-    an element. When the initial href is fetched from ElementLocator,
-    this is grabbing a top level search return and will not have the
-    specific elements etag. So this is a seperate descriptor that can 
-    be used in case it is needed. It will use the elements href attribute
-    as the target.
-    """
-    def __init__(self, etag=None):
-        self._etag = etag        
-    def __get__(self, instance, owner):
-        return  search.element_by_href_as_smcresult(
-                                            instance.href).etag
-    
 class ElementLocator(object):
     """
     There are two ways to get an elements location, either through the 
@@ -83,22 +70,58 @@ class ElementLocator(object):
                 raise ElementNotFound('Cannot find specified element: {}, type: {}'
                                       .format(unicode_to_bytes(instance.name), 
                                               instance.typeof))
+            elif isinstance(instance, smc.core.engine.Engine):
+                element = search.element_info_as_json_with_filter(instance.name, 
+                                                                 'engine_clusters')
+                if element:
+                    instance.meta = Meta(**element[0])
+                    return instance.meta.href
+                raise LoadEngineFailed('Cannot load engine name: {}, ensure the '
+                                       'name is correct and that the engine exists.'
+                                       .format(instance.name))
             else:
                 raise ElementNotFound('This class does not have the required attribute '
                                       'and cannot be referenced directly, type: {}'
                                       .format(instance))
-    
+
+class ElementCache(object):
+    def __init__(self):
+        self._cache = None #tuple (etag, json)
+ 
+    def __get__(self, instance, owner):
+        try:
+            if instance._cache is not None:
+                result = prepared_request(headers={'Etag': instance._cache[0]}, 
+                                          href=instance.href).read()
+                if result.code == 304:
+                    global cache_hit
+                    cache_hit += 1
+                    return instance._cache
+                else:
+                    instance._cache = (result.etag, result.json)
+        except AttributeError:
+            result = search.element_by_href_as_smcresult(instance.href)
+            instance._cache = (result.etag, result.json)
+        return instance._cache
+                                            
 class Element(UnicodeMixin):
     """
     Base element with common methods shared by inheriting classes
     """
     href = ElementLocator()
-    etag = ElementETag()
-    
+    cache = ElementCache()
+
     def __init__(self, name, meta=None):
         self._name = name #<str>
         self.meta = meta
 
+    @property
+    def etag(self):
+        """
+        ETag for this element
+        """
+        return self.cache[0]
+        
     @property
     def name(self):
         """
@@ -119,12 +142,20 @@ class Element(UnicodeMixin):
 
     def describe(self):
         """
-        Describe the elements dict view::
+        Describe the elements as dict, for example::
             
             print engine.internal_gateway.describe()
-        """  
-        return search.element_by_href_as_json(self.href)
-
+        """
+        return self.cache[1]
+    
+    def get_attr_by_name(self, attr):
+        """
+        Retrieve a specific attribute by name
+        
+        :return: attr value or None if it doesn't exist
+        """
+        return self.cache[1].get(attr)
+  
     def export(self, filename='element.zip', wait_for_finish=False):
         """
         Export this element
@@ -133,12 +164,13 @@ class Element(UnicodeMixin):
         :param str filename: filename to store exported element
         :param boolean wait_for_finish: wait for update msgs (default: False)
         :return: generator yielding updates on progress, or [] if element cannot
-                 be exported due to system element
+                 be exported, like for system elements
         """
+        from smc.administration.tasks import Task, task_handler
         href = find_link_by_name('export', self.link)
         if href is not None:
             element = SMCRequest(
-                        href=find_link_by_name('export', self.link),
+                        href=href,
                         filename=filename).create()
             task = task_handler(Task(**element.json), 
                                 wait_for_finish=wait_for_finish, 
@@ -149,8 +181,7 @@ class Element(UnicodeMixin):
 
     @property
     def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
+        return self.cache[1].get('link')
     
     def modify_attribute(self, **kwargs):
         """
@@ -160,23 +191,20 @@ class Element(UnicodeMixin):
         :raises: :py:class:`smc.api.exceptions.ElementNotFound`   
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        element = search.element_by_href_as_smcresult(self.href)
-        if element.json:
-            if element.json.get('system') == True:
-                return SMCResult(msg='Cannot modify system element: %s' % self.name)
-            for k, v in kwargs.items():
-                target_value = element.json.get(k)
-                if isinstance(target_value, dict): #update dict leaf
-                    element.json[k].update(v)
-                elif isinstance(target_value, list): #replace list
-                    element.json[k] = v
-                else: #single key/value
-                    element.json.update({k: v}) #replace str
-            return SMCRequest(href=self.href, 
-                              json=element.json,
-                              etag=element.etag).update()
-        else:
-            return SMCResult(msg='No JSON returned for element: %s' % self.name)
+        etag, element = self.cache
+        if element.get('system') == True:
+            return SMCResult(msg='Cannot modify system element: %s' % self.name)
+        for k, v in kwargs.items():
+            target_value = element.get(k)
+            if isinstance(target_value, dict): #update dict leaf
+                element[k].update(v)
+            elif isinstance(target_value, list): #replace list
+                element[k] = v
+            else: #single key/value
+                element.update({k: v}) #replace str
+        return SMCRequest(href=self.href, 
+                          json=element,
+                          etag=etag).update()
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)

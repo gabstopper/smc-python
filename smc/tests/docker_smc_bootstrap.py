@@ -17,6 +17,7 @@ Type=notify
 ExecStart=
 ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:4243 -H unix:///var/run/docker.sock
 
+systemctl start docker
 """
 import sys
 import json

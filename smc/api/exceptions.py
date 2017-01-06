@@ -69,6 +69,8 @@ class SMCOperationFailure(SMCException):
         if details:
             details = unicode_to_bytes(' '.join(details)) \
                 if isinstance(details, list) else unicode_to_bytes(details)
+            # Some error messages from SMC include line breaks
+            details = details.replace('\n', ' ').rstrip()
         if message:
             message = unicode_to_bytes(message)
         

@@ -31,7 +31,7 @@ class Node(Element):
     Instance attributes:
     
     :ivar name: name of node
-    :ivar node_type: type of node, i.e. firewall_node, etc
+    :ivar type: type of node, i.e. firewall_node, etc
     :ivar nodeid: node id, useful for commanding engines
     :ivar disabled: whether node is disabled or not
     :ivar href: href of this resource
@@ -41,19 +41,24 @@ class Node(Element):
 
     @property
     def name(self):
+        """
+        Node name
+        """
         return self.meta.name
 
     @property
-    def node_type(self):
+    def type(self):
+        """ 
+        Node type
+        """
         return self.meta.type
-    
-    @property
-    def nodeid(self):
-        return self.json.get('nodeid')
 
     @property
-    def link(self):
-        return self.json.get('link')
+    def nodeid(self):
+        """
+        ID of this node
+        """
+        return self.cache[1].get('nodeid')
 
     @classmethod
     def create(cls, name, node_type, nodeid=1):
@@ -315,7 +320,8 @@ class Node(Element):
         params={'filter_enabled': filter_enabled}
         href = find_link_by_name('diagnostic', self.link)
         if not href:
-            raise NodeCommandFailed('Diagnostic not supported on this node type')
+            raise NodeCommandFailed('Diagnostic not supported on this node type: {}'
+                                    .format(self.type))
         result = search.element_by_href_as_smcresult(href, params)
         if result.msg:
             raise NodeCommandFailed(result.msg)
@@ -400,7 +406,8 @@ class Node(Element):
         params = {'enable': enable, 'comment': comment}
         href = find_link_by_name('ssh', self.link)
         if not href:
-            raise NodeCommandFailed('SSH not supported on this node type')
+            raise NodeCommandFailed('SSH not supported on this node type: {}'
+                                    .format(self.type))
         result = prepared_request(href=href,
                                   params=params).update()
         if result.msg:
@@ -420,7 +427,8 @@ class Node(Element):
         params = {'comment': comment}
         href = find_link_by_name('change_ssh_pwd', self.link)
         if not href:
-            raise NodeCommandFailed('Change SSH pwd not supported on this node type')
+            raise NodeCommandFailed('Change SSH pwd not supported on this node type: {}'
+                                    .format(self.type))
         result = prepared_request(href=href,
                                   params=params, 
                                   json=json).update()
@@ -437,7 +445,8 @@ class Node(Element):
         """
         href = find_link_by_name('time_sync', self.link)
         if not href:
-            raise NodeCommandFailed('Time sync not supported on this node type')
+            raise NodeCommandFailed('Time sync not supported on this node type: {}'
+                                    .format(self.type))
         result = prepared_request(href=href).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
@@ -450,14 +459,6 @@ class Node(Element):
         """
         return search.element_by_href_as_json(
                 find_link_by_name('certificate_info', self.link))
-    
-    def __getattr__(self, attr):
-        if attr == 'json':
-            setattr(self, 'json', \
-                        search.element_by_href_as_json(self.href))
-            return self.json
-        raise AttributeError('Unsupported node command: {}'
-                             .format(attr))
 
 class NodeStatus(object):
     """

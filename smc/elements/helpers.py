@@ -5,6 +5,7 @@ constructors.
 import smc.actions.search as search
 from smc.elements.network import Zone
 from smc.elements.other import LogicalInterface, Location
+from smc.api.exceptions import ElementNotFound
       
 def location_helper(name):
     """
@@ -14,11 +15,18 @@ def location_helper(name):
     :param str name
     :return str href: href of location
     """
-    location = [x
-                for x in search.all_elements_by_type('location')
-                if x.get('name') == name]
+    location = None
+    try: #SMC >= 6.1.1, locations now searchable
+        location = Location(name).href
+    except ElementNotFound:
+        location_lst = [x
+                        for x in search.all_elements_by_type('location')
+                        if x.get('name') == name]
+        # SMC <= SMC 6.1
+        if location_lst:
+            location = location_lst[0].get('href')
     if location:
-        return location[0].get('href')    
+        return location
     else:
         return Location.create(name).href
 

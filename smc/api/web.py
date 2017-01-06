@@ -45,18 +45,15 @@ class SMCAPIConnection(object):
                                                 headers=request.headers, 
                                                 timeout=self.timeout)
                     response.encoding = 'utf-8'
-
-                    #if response.status_code == 304:
-                    #   print("Return element from cache: %s" % request.href)
-                    #    print(self.cache(request.href))
                     
-                    if response.status_code != 200:
-                        logger.error("HTTP get returned non-http 200 code [{}] "
+                    if response.status_code not in (200, 304):
+                        logger.error("HTTP get returned HTTP code [{}] "
                                      "for href: {}".format(response.status_code, 
                                                            request.href))
                         raise SMCOperationFailure(response)
                     
-                    logger.debug(u"Get returned: {}".format(response.text))
+                    if response.text:
+                        logger.debug(u"response: {}".format(response.text))
                         
                 elif method == 'POST':
                     if request.files: #File upload request
@@ -95,10 +92,9 @@ class SMCAPIConnection(object):
                 elif method == 'DELETE':
                     response = self.session.delete(request.href)
                     response.encoding = 'utf-8'
-                    if response.status_code != 204 or response.status_code != 200:
-                        raise SMCOperationFailure(response)
                     
-                    logger.debug("Delete returned: {}".format(response.headers))
+                    if response.status_code not in (200, 204):
+                        raise SMCOperationFailure(response)
                 
                 else: #Unsupported method
                     return SMCResult(msg='Unsupported method: %s' % method)

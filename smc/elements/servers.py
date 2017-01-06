@@ -48,7 +48,7 @@ class ManagementServer(Element):
             return result.get('multi_contact_addresses')
         else:
             return []
-
+        
     def add_contact_address(self, contact_address, location):
         """
         Add a contact address to this management server::
@@ -68,6 +68,19 @@ class ManagementServer(Element):
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
 
+    def remove_contact_address(self, location):
+        """
+        Remove contact address by name of location. You can obtain all contact
+        addresses by calling :py:func:`contact_addresses`.
+        
+        :param str location: href of location
+        """
+        json = _remove_contact_address(self.contact_addresses(), location)
+        
+        return prepared_request(
+                    href=find_link_by_name('contact_addresses', self.link),
+                    json=json, etag=self.etag).update()
+        
 class LogServer(Element):
     """
     Log Server elements are used to receive log data from the security engines
@@ -123,7 +136,20 @@ class LogServer(Element):
         return prepared_request(
                     href=find_link_by_name('contact_addresses', self.link),
                     json=addresses, etag=self.etag).update()
+    
+    def remove_contact_address(self, location):
+        """
+        Remove contact address by name of location. You can obtain all contact
+        addresses by calling :py:func:`contact_addresses`.
         
+        :param str location: href of location
+        """
+        json = _remove_contact_address(self.contact_addresses(), location)
+        
+        return prepared_request(
+                    href=find_link_by_name('contact_addresses', self.link),
+                    json=json, etag=self.etag).update()
+                    
 def _add_contact_address(addresses, contact_address, location):
     """
     :param list addresses: existing contact addresses from call to 
@@ -137,5 +163,18 @@ def _add_contact_address(addresses, contact_address, location):
     
     addresses = [] if not addresses else addresses
     addresses.append(addr)
+    return {'multi_contact_addresses': addresses}
+
+def _remove_contact_address(addresses, location):
+    """
+    Remove contact address 
+    
+    :param list addresses: existing contact addresses from call to
+           contact_addresses()
+    :param str location: location name to remove
+    """
+    addresses = [locations for locations in addresses 
+                 if locations['location_ref'] != location]
+        
     return {'multi_contact_addresses': addresses}
             

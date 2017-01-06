@@ -40,7 +40,7 @@ class RoutingNode(Element):
         for routing_node in engine.routing.all():
             print routing_node.name, routing_node.network
 
-    :ivar str name: name of routing node
+    :ivar str name: interface name of routing node
     :ivar list network: list of networks on this interface
     """
     def __init__(self, meta=None, data=None):
@@ -132,7 +132,51 @@ class RouteTable(object):
         
         :return: list dict of route entries
         """
-        return self.routes.get('routing_monitoring_entry')
+        return [Route(**route) 
+                for route in self.routes.get('routing_monitoring_entry')]
+
+class Route(object):
+    """ 
+    Represents a route found in the route table. 
+    
+    :ivar gateway: gateway for this route
+    :ivar network: network/cidr for this route
+    :ivar type: type of route, (static, connected, dynamic)
+    :ivar src_if: source interface id
+    :ivar dst_if: destination interface id
+    """
+    def __init__(self, route_gateway=None, route_netmask=None, 
+                 route_network=None, route_type=None, dst_if=None, 
+                 src_if=None, **kwargs):
+        self._route_gateway = route_gateway
+        self._route_netmask = route_netmask
+        self._route_network = route_network
+        self._route_type = route_type
+        self._dst_if = dst_if
+        self._src_if = src_if
+    
+    @property
+    def gateway(self):
+        return self._route_gateway
+    
+    @property
+    def network(self):
+        return '{}/{}'.format(self._route_network, self._route_netmask)
+
+    @property
+    def type(self):
+        return self._route_type
+    
+    @property
+    def src_if(self):
+        return self._src_if
+    
+    @property
+    def dst_if(self):
+        return self._dst_if
+
+    def __repr__(self):
+        return '{0}(network={1})'.format(self.__class__.__name__, self.network)
     
 class Snapshot(Element):
     """

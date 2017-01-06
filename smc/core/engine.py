@@ -1,4 +1,5 @@
 import smc.actions.search as search
+from smc.compat import min_smc_version
 from smc.elements.helpers import domain_helper
 from smc.base.model import Meta, Element, prepared_request
 from smc.base.util import find_link_by_name
@@ -8,8 +9,8 @@ from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
 from smc.core.node import Node
 from smc.core.resource import Alias, Snapshot, Routing, RouteTable
 from smc.core.interfaces import PhysicalInterface, Interface,\
-    VirtualPhysicalInterface, TunnelInterface
-from smc.actions.tasks import task_handler, Task
+    VirtualPhysicalInterface, TunnelInterface, InterfaceEnum
+from smc.administration.tasks import task_handler, Task
 from smc.elements.other import prepare_blacklist
 from smc.vpn.elements import VPNSite
 from smc.api.common import SMCRequest
@@ -19,9 +20,8 @@ class Engine(Element):
     Instance attributes:
     
     :ivar name: name of engine
-    :ivar meta: meta information about the engine
+    :ivar type: type of engine
     :ivar dict json: raw engine json
-    :ivar node_type: type of node in engine
     :ivar href: href of the engine
     :ivar etag: current etag
     :ivar link: list link to engine resources
@@ -133,54 +133,46 @@ class Engine(Element):
         """
         try:
             if not self.meta:
-                result = search.element_info_as_json(self.name)
-                if result and len(result) == 1:
-                    self.meta = Meta(**result[0])
-                else: #error
-                    if result:
-                        names = [name.get('name') for name in result 
-                                 if name.get('name')]
-                    else:
-                        names = []
-                    raise LoadEngineFailed('Cannot load engine name: {}, ensure the '
-                                           'name is correct and that the engine exists. '
-                                           'Search returned: {}'
-                                           .format(self._name, names))
-            result = search.element_by_href_as_json(self.meta.href)
-            if result.get('nodes'):
-                self.json = result
-                self._name = self.json.get('name')
-                return self
-            else:
-                raise LoadEngineFailed('Cannot load engine name: {}, please ensure the name ' 
-                                       'is correct. An element was returned but was of type: '
-                                       '{}'.format(self._name, self.meta.type))
+                if not min_smc_version(6.1):
+                    result = search.element_info_as_json(self.name)
+                    if result and len(result) == 1:
+                        self.meta = Meta(**result[0])
+                        result = search.element_by_href_as_json(self.href)
+                        if not result.get('nodes'):
+                            raise LoadEngineFailed('Cannot load engine name: {}, please ensure the name ' 
+                                                   'is correct. An element was returned but was of type: '
+                                                   '{}'.format(self._name, self.meta.type))
+                    else: #error
+                        if result:
+                            names = [name.get('name') for name in result 
+                                     if name.get('name')]
+                        else:
+                            names = []
+                        raise LoadEngineFailed('Cannot load engine name: {}, ensure the '
+                                               'name is correct and that the engine exists. '
+                                               'Search returned: {}'
+                                               .format(self._name, names))
+            self.cache
+            return self    
+
         except LoadEngineFailed:
             raise
 
     @property
-    def link(self):
-        return self.json.get('link')
-
+    def version(self):
+        """
+        Version of this engine
+        """
+        return self.cache[1].get('engine_version')
+        
     @property
-    def node_type(self):
+    def type(self):
         """
-        Return the node types for this engine. Each engine will have
-        only one node type so just return on the first one
-        
-        :return: str node type
+        Engine type
         """
-        for node in self.nodes:
-            return node.node_type
-
-    def reload(self):
-        """ 
-        Reload json into context, same as :func:`load`. This retrieves the
-        new setting json from the SMC.
-        
-        :return: None
-        """
-        return self.load()
+        if not self.meta:
+            self.load()    
+        return self.meta.type
     
     def rename(self, name):
         """
@@ -193,7 +185,8 @@ class Engine(Element):
                                                .format(name))
         for node in self.nodes:
             node.modify_attribute(name='{} node {}'.format(name, node.nodeid))
-    
+        self._name = self.cache[1].get('name')
+        
     @property
     def nodes(self):
         """
@@ -307,7 +300,7 @@ class Engine(Element):
                 print route
         
         :method: GET
-        :return: :py:class:`smc.core.resource.RouteTable`
+        :return: list :py:class:`smc.core.resource.Route`
         """
         try:
             result = search.element_by_href_as_json(
@@ -343,7 +336,7 @@ class Engine(Element):
         if not result:
             raise UnsupportedEngineFeature('This engine does not support an internal '
                                            'gateway for VPN, engine type: {}'\
-                                           .format(self.node_type))
+                                           .format(self.type))
         for gw in result:
             igw = InternalGateway(meta=Meta(**gw))
         return igw
@@ -363,7 +356,7 @@ class Engine(Element):
         if not href:
             raise UnsupportedEngineFeature('This engine does not support virtual '
                                            'resources; engine type: {}'\
-                                           .format(self.node_type))
+                                           .format(self.type))
         return VirtualResource(meta=Meta(href=href))
             
     @property    
@@ -379,7 +372,7 @@ class Engine(Element):
         See :py:class:`smc.core.interfaces.Interface` for more info
         """
         href = find_link_by_name('interfaces', self.link)
-        return Interface(meta=Meta(href=href))
+        return InterfaceEnum(meta=Meta(href=href))
 
     @property
     def physical_interface(self):
@@ -398,7 +391,7 @@ class Engine(Element):
         if not href: #not supported by virtual engines
             raise UnsupportedInterfaceType('Engine type: {} does not support the '
                                            'physical interface type'\
-                                           .format(self.node_type))
+                                           .format(self.type))
         return PhysicalInterface(meta=Meta(href=href))
 
     @property    
@@ -423,7 +416,7 @@ class Engine(Element):
             raise UnsupportedInterfaceType('Only virtual engines support the '
                                            'virtual physical interface type. Engine '
                                            'type is: {}'
-                                           .format(self.node_type))
+                                           .format(self.type))
         return VirtualPhysicalInterface(meta=Meta(href=href))
 
     @property
@@ -440,7 +433,7 @@ class Engine(Element):
             raise UnsupportedInterfaceType('Tunnel interfaces are only supported on '
                                            'layer 3 single engines or clusters; '
                                            'Engine type is: {}'
-                                           .format(self.node_type))
+                                           .format(self.type))
         return TunnelInterface(meta=Meta(href=href))
 
     def modem_interface(self):
@@ -563,9 +556,6 @@ class Engine(Element):
         href = find_link_by_name('snapshots', self.link)
         return [Snapshot(meta=Meta(**snapshot))
                 for snapshot in search.element_by_href_as_json(href)]
-
-    def __getattr__(self, value):
-        raise AttributeError("You must first load the engine to access resources!")
 
 class InternalGateway(Element):
     """ 

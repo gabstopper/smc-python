@@ -23,7 +23,7 @@ overidden.
 from smc.base.util import find_link_by_name
 from smc.api.exceptions import TaskRunFailed
 from smc.base.model import prepared_request
-from smc.actions.tasks import task_handler, Task
+from smc.administration.tasks import task_handler, Task
 from smc.base.model import Element
 
 class Policy(Element):

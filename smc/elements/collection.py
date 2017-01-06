@@ -4,7 +4,7 @@ element data.
 
 Each describe function allows two possible (optional) parameters:
 
-* name: search for (str or list)
+* name: search for (str or list of str)
 * exact_match: True|False, whether to match exactly on name field
 
 Each function returns a list of objects based on the specified element type. Most
@@ -52,8 +52,8 @@ Modify a specific Element type by changing the name::
         if host:
             host.modify_attribute(name='mynewname')   
             
-It is also possible to use wildcards when searching for a specific host, without
-setting the exact_match=False flag. For example::
+It is also possible to use wildcards when searching, without setting the 
+exact_match=False flag. For example::
 
     for x in describe_host(name=['TOR*']):
         print x.describe()
@@ -61,7 +61,7 @@ setting the exact_match=False flag. For example::
     for y in describe_host(name=['TOR'], exact_match=False):
         print y
         
-Both will work, however the first option will only find items starting with TOR*, whereas
+Both will work, however the first option will only find items starting with TOR, whereas
 the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
 
 This module is generated dynamically based on SMC API entry points mounted at
@@ -70,6 +70,7 @@ the http://<smc>/api/elements node.
     :param str|list name: str name or list of names to retrieve
     :param boolean exact_match: True|False, whether to match specifically on name field
            or do a wildcard search (default: True)
+    :return: list return type determined by describe method
 """
 from smc import session
 import smc.elements.servers as servers
@@ -90,6 +91,22 @@ import smc.policy.file_filtering as file_filtering
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
 from smc.routing.access_list import IPv6AccessList, IPAccessList
 from smc.routing.prefix_list import IPPrefixList, IPv6PrefixList
+
+def min_smc_version(arg_version):
+    """
+    Check the function supports the minimum version of SMC
+    specified in the decorator. For example, @smc_version(6.1) 
+    specifies to require version 6.1 or greater. This is meant for
+    functions returning a list. If not right version, return []
+    """
+    def original_func(f):
+        def wrapped_f(*args, **kwargs):
+            if session.api_version >= arg_version:
+                return f(*args, **kwargs)
+            else:
+                return []
+        return wrapped_f
+    return original_func
 
 def describe_sub_ipv6_fw_policy(name=None, exact_match=True):
     """ 
@@ -219,7 +236,7 @@ def describe_api_client(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('api_client', name, exact_match)
+    return generic_list_builder('api_client', name, exact_match, user.ApiClient)
 
 def describe_tls_match_situation(name=None, exact_match=True):
     """ 
@@ -1718,7 +1735,7 @@ def describe_search_rule(name=None, exact_match=True):
     """
     return generic_list_builder('search_rule', name, exact_match)
 
-
+@min_smc_version(6.1)
 def describe_sidewinder_tag(name=None, exact_match=True):
     """ 
     Describe sidewinder_tag entries on the SMC
@@ -1727,11 +1744,9 @@ def describe_sidewinder_tag(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('sidewinder_tag', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('sidewinder_tag', name, exact_match)
 
+@min_smc_version(6.1)
 def describe_ip_list(name=None, exact_match=True):
     """ 
     Describe ip_list entries on the SMC
@@ -1740,11 +1755,9 @@ def describe_ip_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.IPList` 
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('ip_list', name, exact_match, network.IPList)
-    else:
-        return []
+    return generic_list_builder('ip_list', name, exact_match, network.IPList)
 
+@min_smc_version(6.1)
 def describe_ip_list_group(name=None, exact_match=True):
     """ 
     Describe ip_list_group entries on the SMC
@@ -1753,11 +1766,9 @@ def describe_ip_list_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('ip_list_group', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('ip_list_group', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_url_list_application(name=None, exact_match=True):
     """ 
     Describe url_list_application entries on the SMC
@@ -1766,11 +1777,9 @@ def describe_url_list_application(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.URLListApplication` 
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('url_list_application', name, exact_match, network.URLListApplication)
-    else:
-        return []
+    return generic_list_builder('url_list_application', name, exact_match, network.URLListApplication)
 
+@min_smc_version(6.1)
 def describe_country(name=None, exact_match=True):
     """ 
     Describe country entries on the SMC
@@ -1779,11 +1788,9 @@ def describe_country(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('country', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('country', name, exact_match)
 
+@min_smc_version(6.1)
 def describe_sidewinder_logging_profile(name=None, exact_match=True):
     """ 
     Describe sidewinder_logging_profile entries on the SMC
@@ -1792,11 +1799,9 @@ def describe_sidewinder_logging_profile(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('sidewinder_logging_profile', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('sidewinder_logging_profile', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_url_category(name=None, exact_match=True):
     """ 
     Describe url_category entries on the SMC
@@ -1805,11 +1810,9 @@ def describe_url_category(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('url_category', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('url_category', name, exact_match)
 
+@min_smc_version(6.1)  
 def describe_sidewinder_logging_profile_settings(name=None, exact_match=True):
     """ 
     Describe sidewinder_logging_profile_settings entries on the SMC
@@ -1818,11 +1821,9 @@ def describe_sidewinder_logging_profile_settings(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('sidewinder_logging_profile_settings', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('sidewinder_logging_profile_settings', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_security_group(name=None, exact_match=True):
     """ 
     Describe security_group entries on the SMC
@@ -1831,11 +1832,9 @@ def describe_security_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('security_group', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('security_group', name, exact_match)
 
+@min_smc_version(6.1)
 def describe_location(name=None, exact_match=True):
     """ 
     Describe location entries on the SMC
@@ -1844,11 +1843,9 @@ def describe_location(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.other.Location` 
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('location', name, exact_match, other.Location)
-    else:
-        return []
+    return generic_list_builder('location', name, exact_match, other.Location)
 
+@min_smc_version(6.1)   
 def describe_threatseeker_server(name=None, exact_match=True):
     """ 
     Describe threatseeker_server entries on the SMC
@@ -1857,11 +1854,9 @@ def describe_threatseeker_server(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('threatseeker_server', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('threatseeker_server', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_url_category_group(name=None, exact_match=True):
     """ 
     Describe url_category_group entries on the SMC
@@ -1870,11 +1865,9 @@ def describe_url_category_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('url_category_group', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('url_category_group', name, exact_match)
 
+@min_smc_version(6.1)   
 def describe_ip_country_group(name=None, exact_match=True):
     """ 
     Describe ip_country_group entries on the SMC
@@ -1883,11 +1876,9 @@ def describe_ip_country_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('ip_country_group', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('ip_country_group', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_known_host(name=None, exact_match=True):
     """ 
     Describe known_host entries on the SMC
@@ -1896,11 +1887,9 @@ def describe_known_host(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('known_host', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('known_host', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_ssh_profile(name=None, exact_match=True):
     """ 
     Describe ssh_profile entries on the SMC
@@ -1909,11 +1898,9 @@ def describe_ssh_profile(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('ssh_profile', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('ssh_profile', name, exact_match)
 
+@min_smc_version(6.1)    
 def describe_known_host_list(name=None, exact_match=True):
     """ 
     Describe known_host_list entries on the SMC
@@ -1922,11 +1909,56 @@ def describe_known_host_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    if session.api_version >= 6.1:
-        return generic_list_builder('known_host_list', name, exact_match)
-    else:
-        return []
+    return generic_list_builder('known_host_list', name, exact_match)
 
+@min_smc_version(6.1) 
+def describe_engines(name=None, exact_match=True):
+    """
+    Display all engines, regardless of engine type
+    
+    ..note :: Requires SMC API version 6.1
+    
+    :return: :py:class:`smc.core.engine.Engine`
+    """
+    name = name if name else '*'
+    return generic_list_builder('engine_clusters', name, exact_match, engine.Engine)
+
+@min_smc_version(6.1) 
+def describe_layer2_engines(name=None, exact_match=True):
+    """
+    Display all layer 2 engines
+    
+    ..note :: Requires SMC API version 6.1
+    
+    :return: :py:class:`smc.core.engine.Engine`
+    """
+    name = name if name else '*'
+    return generic_list_builder('layer2_clusters', name, exact_match, engine.Engine)
+
+@min_smc_version(6.1) 
+def describe_layer3_engines(name=None, exact_match=True):
+    """
+    Display all layer 3 engines
+    
+    ..note :: Requires SMC API version 6.1
+    
+    :return: :py:class:`smc.core.engine.Engine`
+    """
+    name = name if name else '*'
+    return generic_list_builder('fw_clusters', name, exact_match, engine.Engine)
+
+@min_smc_version(6.1) 
+def describe_ips_engines(name=None, exact_match=True):
+    """
+    Display all IPS engines
+    
+    ..note :: Requires SMC API version 6.1
+    
+    :return: :py:class:`smc.core.engine.Engine`
+    """
+    name = name if name else '*'
+    return generic_list_builder('ips_clusters', name, exact_match, engine.Engine)
+                               
 def generic_list_builder(typeof, name=None, exact_match=True, klazz=element.Element):
     """
     Build the query to SMC based on parameters
@@ -1944,7 +1976,7 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=element.Elem
     :return: list :py:class:`smc.base.model.Element`
     """
     global element
-    result=[]
+    result = []
     if not name:
         lst = fetch_json_by_href(
                     session.cache.get_entry_href(typeof)).json

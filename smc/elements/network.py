@@ -57,17 +57,52 @@ class Host(Element):
     @property
     def address(self):
         """ IP Address of this host """
-        return self.describe().get('address')
+        return self.cache[1].get('address')
+    
+    @property
+    def ipv6_address(self):
+        """ IPv6 Address of this host """
+        return self.cache[1].get('ipv6_address')
+    
+    @ipv6_address.setter
+    def ipv6_address(self, value):
+        """ Set IPv6 Address for host
         
+        :param str value: ipv6 address
+        :return: list secondary host addresses assigned
+        """
+        return self.modify_attribute(ipv6_address=value)
+          
     @address.setter
     def address(self, value):
         """ Set IP Address for this host 
         
-        :param str value: ip address
+        :param str value: ipv4 address
         :return: :py:class:`smc.api.web.SMCResult`
         """
         return self.modify_attribute(address=value)
 
+    @property
+    def secondary(self):
+        """ Secondary addresses for this host
+        
+        :return: list secondary host addresses assigned
+        """
+        return self.cache[1].get('secondary')
+    
+    @secondary.setter
+    def secondary(self, value):
+        """ Set secondary addresses
+        
+        :param list value: list of addresses, overwrites
+        :param tuple value: (list, True|False): Append
+        """
+        (addresses), preserve = value[:1], value[1:]
+        if preserve:
+            addresses = addresses[0]
+            addresses.extend(self.secondary)
+        return self.modify_attribute(secondary=addresses)  
+        
 class AddressRange(Element):
     """ 
     Class representing a IpRange object used in access rules
@@ -405,7 +440,7 @@ class IPList(Element):
         href=find_link_by_name('ip_address_list', self.link)
        
         return prepared_request(href=href, filename=filename,
-                            headers=headers).read()
+                                headers=headers).read()
     
     def upload(self, filename=None, json=None, as_type='zip'):
         """

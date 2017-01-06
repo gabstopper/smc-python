@@ -15,7 +15,7 @@ To load the configuration for system, do::
 import smc.actions.search as search
 from smc.base.util import find_link_by_name
 from smc.elements.other import prepare_blacklist
-from smc.actions.tasks import task_handler, Task
+from .tasks import task_handler, Task
 from smc.base.model import Meta, prepared_request
 from smc.administration.updates import EngineUpgrade, UpdatePackage
 

@@ -77,8 +77,8 @@ class Layer3Firewall(object):
             return Engine(name).load()
         else:
             raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'
-                                     .format(result.msg))
+                                     'reason: {}.'
+                                     .format(result.msg, engine))
 
 class Layer2Firewall(object):
     """
@@ -147,8 +147,7 @@ class Layer2Firewall(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'
+            raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))   
 
 class IPS(object):
@@ -213,8 +212,7 @@ class IPS(object):
         if result.href:
             return Engine(name).load()
         else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'
+            raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))
         
 class Layer3VirtualEngine(object):
@@ -259,15 +257,16 @@ class Layer3VirtualEngine(object):
         """
         virt_resource_href = None #need virtual resource reference
         master_engine = Engine(master_engine).load()
+        
         for virt_resource in master_engine.virtual_resource.all():
             if virt_resource.name == virtual_resource:
                 virt_resource_href = virt_resource.href
                 break
         if not virt_resource_href:
             raise CreateEngineFailed('Cannot find associated virtual resource for '
-                                      'VE named: {}. You must first create a virtual '
-                                      'resource for the master engine before you can associate '
-                                      'a virtual engine. Cannot add VE'.format(name))
+                                     'VE named: {}. You must first create a virtual '
+                                     'resource for the master engine before you can associate '
+                                     'a virtual engine. Cannot add VE'.format(name))
         new_interfaces=[]   
         for interface in interfaces:       
             physical = VirtualPhysicalInterface()
@@ -278,8 +277,9 @@ class Layer3VirtualEngine(object):
 
             #set auth request and outgoing on one of the interfaces
             if interface.get('interface_id') == outgoing_intf:
-                physical.modify_attribute(outgoing=True,
-                                          auth_request=True)
+                intf = physical.data.get('interfaces')[0]
+                physical.modify_interface(intf, {'outgoing': True,
+                                                 'auth_request': True})
             new_interfaces.append({VirtualPhysicalInterface.typeof: physical.data})
            
             engine = Engine.create(name=name,
@@ -417,10 +417,15 @@ class MasterEngine(object):
         """             
         physical = PhysicalInterface()
         physical.add_node_interface(mgmt_interface, 
-                                    mgmt_ip, mgmt_netmask)
-        physical.modify_attribute(primary_mgt=True,
-                                  primary_heartbeat=True,
-                                  outgoing=True)
+                                    mgmt_ip, mgmt_netmask,
+                                    primary_mgt=True, #Add mgmt kwargs
+                                    primary_heartbeat=True,
+                                    outgoing=True)
+        
+        intf = physical.data.get('interfaces')[0]
+        physical.modify_interface(intf, {'primary_mgt': True,
+                                         'primary_heartbeat': True,
+                                         'outgoing': True})
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -515,89 +520,3 @@ class MasterEngineCluster(object):
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'
                                      .format(result.msg))
-
-'''
-class AWSLayer3Firewall(object):
-    """
-    Create AWSLayer3Firewall in SMC. This is a Layer3Firewall instance that uses
-    a DHCP address for the management interface. Management is expected to be
-    on interface 0 and interface eth0 on the AWS AMI. 
-    When a Layer3Firewall uses a DHCP interface for management, a second interface
-    is required to be the interface for Auth Requests. This second interface information
-    is obtained by creating the network interface through the AWS SDK, and feeding that
-    to the constructor. This can be statically assigned as well.
-    """
-    node_type = 'firewall_node'
-    
-    def __init__(self, name):
-        pass
-        
-    @classmethod
-    def create(cls, name, interfaces,
-               dynamic_interface=0,
-               dynamic_index=1, 
-               log_server_ref=None, 
-               domain_server_address=None,
-               default_nat = True, 
-               zone_ref=None,
-               is_mgmt=False):
-        """ 
-        Create AWS Layer 3 Firewall. This will implement a DHCP
-        interface for dynamic connection back to SMC. The initial_contact
-        information will be used as user-data to initialize the EC2 instance. 
-        
-        :param str name: name of fw in SMC
-        :param list interfaces: dict items specifying interfaces to create
-        :param int dynamic_index: dhcp interface index (First DHCP Interface, etc)
-        :param int dynamic_interface: interface ID to use for dhcp
-        :return Engine
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
-        Example interfaces::
-            
-            [{ 'address': '1.1.1.1', 
-               'network_value': '1.1.1.0/24', 
-               'interface_id': 1
-             },
-             { 'address': '2.2.2.2',
-               'network_value': '2.2.2.0/24',
-               'interface_id': 2
-            }]   
-        """
-        new_interfaces = []
-
-        dhcp_physical = PhysicalInterface()
-        dhcp_physical.add_dhcp_interface(dynamic_interface,
-                                         dynamic_index, primary_mgt=True)
-        new_interfaces.append({PhysicalInterface.typeof: dhcp_physical.data})
-        
-        auth_request = 0
-        for interface in interfaces:
-            if interface.get('interface_id') == dynamic_interface:
-                continue #In case this is defined, skip dhcp_interface id
-            physical = PhysicalInterface()
-            physical.add_single_node_interface(interface.get('interface_id'),
-                                               interface.get('address'), 
-                                               interface.get('network_value'))
-            if not auth_request: #set this on first interface that is not the dhcp_interface
-                physical.modify_attribute(auth_request=True)
-                auth_request = 1
-            new_interfaces.append({PhysicalInterface.typeof: physical.data})
-        
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=new_interfaces, 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=log_server_ref,
-                               nodes=1)    
-        if default_nat:
-            engine.setdefault('default_nat', True)
-       
-        href = search.element_entry_point('single_fw')
-        result = prepared_request(href=href, 
-                            json=engine).create()
-        if result.href:
-            return Engine(name).load()
-        else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'.format(result.msg))
-'''

@@ -1,18 +1,57 @@
 import time
 import re
-import smc.base.model
+from smc.base.model import prepared_request
 import smc.actions.search as search
 from smc.base.util import find_link_by_name
 from smc.api.exceptions import TaskRunFailed
 
 clean_html = re.compile(r'<.*?>')
 
+def task_history():
+    """
+    Get all tasks stored by the SMC 
+    
+    Example of aborting an existing task by follower link::
+    
+        for task in task_history():
+            if task.follower == task:
+                task.abort()
+    
+    Abort any in progress tasks::
+    
+        for task in task_history():
+            if task.in_progress:
+                task.abort()
+        
+    :return: :py:class:`~Task`
+    """
+    task_href = search.element_entry_point('task_progress')
+    return [Task(**search.element_by_href_as_json(task.get('href'))) 
+            for task in search.element_by_href_as_json(task_href)]
+
+def task_status(follower):
+    """        
+    Return the task specified.
+    
+    Return specific task::
+    
+        task = task_status('http://......')
+    
+    :param str follower: task follower link
+    :return: :py:class:`~Task`
+    """
+    for task in task_history():
+        if task.follower == follower:
+            return task
+    
 class Task(object):
     """
     Task representation. This is generic and the format is used for 
     any calls to SMC that return an asynchronous follower link to
     check the status of the task. Use this as input to the task_handler
     generator to control displaying updates to the user.
+    
+    Task has the following attributes:
     
     :ivar boolean success: True|False
     :ivar str last_message: message returned from SMC
@@ -23,21 +62,28 @@ class Task(object):
     """
     def __init__(self, **kwargs):
         self.success = False
+        self.type = None
         self.last_message = None
         self.in_progress = None
         self.progress = None
         self.follower = None
+        self.resource = None
 
         for k, v in kwargs.items():
             setattr(self, k, v)
 
     @property
     def result(self):
+        """
+        ** read only result **
+        """
         return find_link_by_name('result', self.link)
 
-    @property
     def abort(self):
-        return smc.base.model.prepared_request(
+        """
+        Abort existing task
+        """
+        return prepared_request(
                     href=find_link_by_name('abort', self.link)).delete()
 
     def __getattr__(self, value):
@@ -47,12 +93,15 @@ class Task(object):
         """ 
         return None
 
+    def __repr__(self):
+        return '{0}(type={1})'.format(self.__class__.__name__, self.type)
+    
 class TaskMonitor(object):
     """
     Provides the ability to monitor an asynchronous task based on the 
     follower href returned from the SMC. In case of longer running 
     operations, you may want to call this later for status. Call the
-    task monitor simply by::
+    task monitor by::
     
         task = TaskMonitor(follower_href).watch()
         for message in task:
@@ -88,9 +137,8 @@ class TaskDownload(object):
     
     def run(self):
         try:
-            return smc.base.model.prepared_request(
-                                            href=self.result,
-                                            filename=self.filename).read()
+            return prepared_request(href=self.result,
+                                    filename=self.filename).read()
         except IOError as io:
             raise TaskRunFailed("Export task failed with message: {}"
                                 .format(io))
@@ -100,7 +148,7 @@ def task_handler(task, wait_for_finish=False,
     """ Handles asynchronous operations called on engine or node levels
     
     :method: POST
-    :param Task task: py:class:`smc.actions.tasks.Task`
+    :param Task task: py:class:`smc.administration.tasks.Task`
     :param boolean wait_for_finish: whether to wait for it to finish or not
     :param boolean display_msg: whether to return display messages or not
     :param int sleep: sleep interval
@@ -135,4 +183,3 @@ def task_handler(task, wait_for_finish=False,
             time.sleep(sleep)
     else:
         yield task.follower
-

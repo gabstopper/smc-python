@@ -3,7 +3,7 @@ Functionality related to updating dynamic update packages and
 engine upgrades
 """
 from smc.base.util import find_link_by_name
-from smc.actions.tasks import Task, task_handler
+from .tasks import Task, task_handler
 import smc.actions.search as search
 from smc.base.model import prepared_request
 

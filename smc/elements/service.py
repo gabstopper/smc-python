@@ -1,7 +1,7 @@
 """
 Module reprenting service related elements in the SMC
 """
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, Meta
 
 class TCPService(Element):
     """ 
@@ -39,7 +39,19 @@ class TCPService(Element):
                     'comment': comment}
         
         return ElementCreator(cls)
-
+    
+    @property
+    def protocol_agent(self):
+        """ Protocol Agent for this service
+        
+        :return: :py:class:`smc.elements.service.Protocol` or None
+        """
+        href = self.describe().get('protocol_agent_ref')
+        if href:
+            from smc.actions.search import element_name_by_href
+            name = element_name_by_href(href)
+            return Protocol(name, meta=Meta(href=href))
+    
 class UDPService(Element):
     """ 
     UDP Services can use a range of ports or single port. If using

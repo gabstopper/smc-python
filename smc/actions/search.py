@@ -239,17 +239,17 @@ def element_as_smcresult_use_filter(name, _filter):
         if element.json:
             return element_by_href_as_smcresult(element.json.pop().get('href'))
 
-def element_href_by_batch(list_to_find, _filter=None):
+def element_href_by_batch(list_to_find, filter=None):  # @ReservedAssignment
     """ Find batch of entries by name. Reduces number of find calls from
     calling class. 
     
     :param list list_to_find: list of names to find
-    :param _filter: optional filter, i.e. 'tcp_service', 'host', etc
+    :param filter: optional filter, i.e. 'tcp_service', 'host', etc
     :return: list: {name: href, name: href}, href may be None if not found
     """
     try:
-        if _filter:
-            return [{k:element_href_use_filter(k, _filter)
+        if filter:
+            return [{k:element_href_use_filter(k, filter)
                     for k in list_to_find}]
         else:
             return [{k:element_href(k) for k in list_to_find}] 
