@@ -108,7 +108,7 @@ class Element(UnicodeMixin):
     """
     Base element with common methods shared by inheriting classes
     """
-    href = ElementLocator()
+    href = ElementLocator() #: href for this element
     cache = ElementCache()
 
     def __init__(self, name, meta=None):

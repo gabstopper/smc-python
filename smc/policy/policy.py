@@ -17,7 +17,7 @@ overidden.
 
 .. note:: It is not required to call open() and save() on SMC API >= 6.1. It is 
           also optional on earlier versions but if longer running operations are 
-          needed, calling open() will lock the policy from external modifications
+          needed, calling open() will lock the policy from test_external modifications
           until save() is called.
 """
 from smc.base.util import find_link_by_name
@@ -100,8 +100,51 @@ class Policy(Element):
         return prepared_request(
                 href=find_link_by_name('force_unlock', self.link)).create()
     
-    def search_rule(self, parameter):
-        pass
+    def search_rule(self, search):
+        """
+        Search a rule for a rule tag or name value
+        Result will be the meta data for rule (name, href, type)
+        
+        Searching for a rule in specific policy::
+        
+            f = FirewallPolicy(policy)
+            search = f.search_rule(searchable)
+        
+        :param str search: search string
+        :return: list rule elements matching criteria
+        """
+        result = prepared_request(
+                        href=find_link_by_name('search_rule', self.link),
+                        params={'filter': search}).read()
+        if result.json:
+            results = _get_rule_class(result.json)
+            return results
+        else: return []
    
     def search_category_tags_from_element(self):
         pass
+
+def _get_rule_class(meta):
+    """
+    Temporary
+    Need to sort a sensible map for rules that share the same class template
+    Maybe nest in child classes
+    """
+    import inspect
+    import smc.policy.rule
+    from smc.base.model import Meta
+    intf_map = dict((klazz.typeof, klazz) 
+                    for _, klazz in inspect.getmembers(smc.policy.rule)
+                    if inspect.isclass(klazz) and hasattr(klazz, 'typeof'))
+    
+    results = []
+    for data in meta:
+        if data.get('type').endswith('_ethernet_rule'):
+            results.append(intf_map.get('ethernet_rule')(meta=Meta(**data)))
+        elif data.get('type').startswith('ips_ipv4_access_rule'):
+            results.append(intf_map.get('layer2_ipv4_access_rule')(meta=Meta(**data)))
+        else:
+            if intf_map.get(data.get('type')): #Some rule types not implemented
+                results.append(intf_map.get(data.get('type'))(meta=Meta(**data)))
+    return results
+    

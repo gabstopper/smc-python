@@ -391,7 +391,7 @@ class Node(Element):
         params = {'include_core_files': include_core_files,
                   'include_slapcat_output': include_slapcat_output}
         result = prepared_request(href=find_link_by_name('sginfo', self.link),
-                            filename=filename).read()
+                                  filename=filename).read()
    
     def ssh(self, enable=True, comment=None):
         """ 
@@ -423,7 +423,6 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        json = {'value': pwd}
         params = {'comment': comment}
         href = find_link_by_name('change_ssh_pwd', self.link)
         if not href:
@@ -431,7 +430,7 @@ class Node(Element):
                                     .format(self.type))
         result = prepared_request(href=href,
                                   params=params, 
-                                  json=json).update()
+                                  json={'value': pwd}).update()
         if result.msg:
             raise NodeCommandFailed(result.msg)
 
@@ -453,7 +452,9 @@ class Node(Element):
       
     def certificate_info(self):
         """ 
-        Get the certificate info of this node.
+        Get the certificate info of this node. This can return None if the 
+        engine type does not directly have a certificate, like a virtual engine
+        where the master engine manages certificates.
         
         :return: dict with links to cert info
         """

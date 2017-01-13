@@ -811,7 +811,7 @@ To create a new policy:
 
 Example of creating a basic layer 3 policy::
 
-   FirewallPolicy.create('newpolicy', template=”Firewall Template”)
+   FirewallPolicy.create('newpolicy', template='Firewall Template')
   
 Getting the template is easiest through the collection.describe_* methods
 

@@ -150,28 +150,6 @@ class Session(object):
                 #SSL VERIFY FAILED error from requests module. Not sure why, will have
                 #to investigate
                 logger.error("SSL exception thrown during logout: %s", e)       
-    
-    def http_unauthorized(self):
-        """
-        Refresh SMC session if it timed out. This may be the case if the CLI
-        is being used and the user was idle. SMC has a time out value for API
-        client sessions (configurable). Refresh will use the previously saved url
-        and apikey and get a new session and http_unauthorized the api_entry cache
-        """
-        self.__http_401 += 1
-        if self.session is not None: #user has logged in previously
-            logger.info("Session http_unauthorized called, received an HTTP 401 unauthorized")
-            if self.__http_401 >= 2:
-                #Exit to prevent inadvertent looping if an http 401 was received.
-                #Try to re-authenticate once in case of longer running app's that may
-                #have had the SMC session time out
-                raise SMCConnectionError("Unauthorized. Too many HTTP 401 requests received.")
-            self.login(url=self.url, 
-                       api_key=self.api_key, 
-                       api_version=self.api_version)
-        else:
-            raise SMCConnectionError("No previous SMC session found. "
-                                     "This will require a new login attempt")
 
 class SessionCache(object):
     def __init__(self):
@@ -204,6 +182,7 @@ class SessionCache(object):
             
             r = requests.get('%s/api' % (smc_url), timeout=timeout, 
                              verify=verify)
+
             if r.status_code==200:
                 j = json.loads(r.text)
                 self.api_version = api_version

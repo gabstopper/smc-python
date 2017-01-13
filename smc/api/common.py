@@ -51,6 +51,7 @@ class RequestHandler(object):
             if err:
                 raise err
             logger.debug('result: {}'.format(result))
+            #print("Result: %s" % result)
             return result
 
 class SMCRequest(RequestHandler):

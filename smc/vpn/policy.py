@@ -153,7 +153,7 @@ class VPNPolicy(Element):
         """ 
         Add SMC managed internal gateway to the Central Gateways of this VPN
         
-        :param gateway: href for internal gateway or external gateway.
+        :param gateway: href for internal gateway or test_external gateway.
                If this is another SMC managed gateway, you can retrieve the 
                href after loading the engine. 
                See :py:class:`smc.core.engines.Engine.internal_gateway`
@@ -168,10 +168,10 @@ class VPNPolicy(Element):
         """
         Add gateway node as a satellite gateway for this VPN. You must first
         have the gateway object created. This is typically used when you either 
-        want a hub-and-spoke topology or the external gateway is a non-SMC 
+        want a hub-and-spoke topology or the test_external gateway is a non-SMC 
         managed device.
         
-        :param gateway: href for internal gateway or external gateway.
+        :param gateway: href for internal gateway or test_external gateway.
                If this is another SMC managed gateway, you can retrieve the 
                href after loading the engine. 
                See :py:class:`smc.core.engines.Engine.internal_gateway` 

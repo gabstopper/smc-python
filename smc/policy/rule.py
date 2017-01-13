@@ -57,76 +57,13 @@ class Rule(Element):
         
         :return: class type based on rule type 
         """
-        #return self class instance by calling type
         return [type(self)(meta=Meta(**rule))
                 for rule in search.element_by_href_as_json(self.href)]
     
-    def _rule_l2_common(self, logical_interfaces):
-        """
-        Common values for layer 2 ethernet / IPS rule parameters.
-        In particular, logical interfaces are an additional parameter that 
-        can be used as a rule match parameter.
-        """
-        rule_values = {}
-        if logical_interfaces is None:
-            rule_values.update(logical_interfaces={'any': True})
-        else:
-            try:
-                logicals=[]
-                for interface in logical_interfaces:
-                    logicals.append(LogicalInterface(interface).href)
-                rule_values.update(logical_interfaces=
-                                            {'logical_interface': logicals})
-            except ElementNotFound:
-                raise MissingRequiredInput('Cannot find Logical interface specified '
-                                           ': {}'.format(logical_interfaces))
-        return rule_values
-    
-    def _rule_common(self, sources, destinations, services):
-        """
-        Common values for rules. These will apply to all rule types, 
-        including NAT.
-        """
-        rule_values = { 
-                'sources': {'src': []},
-                'destinations': {'dst': []},
-                'services': {'service': []}}
-
-        if sources is not None:
-            if isinstance(sources, str) and sources.lower() == 'any':
-                rule_values.update(sources={'any': True})
-            else:
-                rule_values.update(sources={'src': sources})
-        else:
-            rule_values.update(sources={'none': True})
-
-        if destinations is not None:
-            if isinstance(destinations, str) and destinations.lower() == 'any':
-                rule_values.update(destinations={'any': True})
-            else:
-                rule_values.update(destinations={'dst': destinations})
-        else:
-            rule_values.update(destinations={'none': True})
-                
-        if services is not None:
-            if isinstance(services, str) and services.lower() == 'any':
-                rule_values.update(services={'any': True})
-            else:
-                rule_values.update(services={'service': services})
-        else:
-            rule_values.update(services={'none': True})
-            
-        return rule_values
-
 class IPv4Rule(Rule):
     """ 
     Represents an IPv4 Rule for a layer 3 engine.
     
-    Access the policy required, and add a rule::
-        
-            for policy in describe_fw_policy():
-                print policy
-                
     Create a rule::
 
         policy = FirewallPolicy('mypolicy')
@@ -166,6 +103,8 @@ class IPv4Rule(Rule):
     
     :ivar name: name of rule
     """
+    typeof = 'fw_ipv4_access_rule'
+    
     def __init__(self, meta=None):
         self.meta = meta
 
@@ -191,7 +130,7 @@ class IPv4Rule(Rule):
         actions = ['allow', 'continue', 'discard', 'refuse', 
                    'enforce_vpn', 'apply_vpn', 'blacklist']
 
-        rule_values = self._rule_common(sources, destinations, services)
+        rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
 
         if action not in actions:
@@ -216,7 +155,7 @@ class IPv4Rule(Rule):
         rule_values.update(is_disabled=is_disabled)
 
         return prepared_request(href=self.href,
-                            json=rule_values).create()
+                                json=rule_values).create()
         
 class IPv4NATRule(Rule):
     """
@@ -254,13 +193,15 @@ class IPv4NATRule(Rule):
                                         destinations='any', 
                                         services='any')
                                             
-    """                                         
+    """
+    typeof = 'fw_ipv4_nat_rule'
+    
     def __init__(self, meta=None):
         self.meta = meta
   
     def create(self, name, sources=None, destinations=None, services=None,
                dynamic_src_nat=None, static_src_nat=None, static_dst_nat=None,
-               is_disabled=False):
+               is_disabled=False, used_on=None):
         """
         Create a NAT rule
        
@@ -277,12 +218,14 @@ class IPv4NATRule(Rule):
         
         Static dest NAT data structure::
         
-            static_dst_nat = {'original_value': {'max_port': '',
-                                                 'min_port': ''},
-                              'translated_value': {'element': element,
-                                                   'ip_descriptor': ip_descriptor,
-                                                   'max_port': '',
-                                                   'min_port': ''}}
+            static_dst_nat={'original_value': {'element': 'http://1.1.1.1/foo',
+                                               'ip_descriptor': '192.168.4.254',
+                                               'max_port': 1234,
+                                               'min_port': 1234},
+                            'translated_value': {'element': 'http://1.1.1.1/bar',
+                                                 'ip_descriptor': '1.2.3.4',
+                                                 'max_port': 5677,
+                                                 'min_port': 5677}}}
         
         For static destination NAT provide either 'element' or 'ip_descriptor'
         for the 'translated_value' dict key. If both are provided, element will 
@@ -301,9 +244,10 @@ class IPv4NATRule(Rule):
         :param dict dynamic_src_nat: ip or element href of dynamic source nat address
         :param dict static_dst_nat: ip or element href of host to redirect to
         :param boolean is_disabled: whether to disable rule or not
+        :param str used_on: href of security engine where this NAT rule applies
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        rule_values = self._rule_common(sources, destinations, services)
+        rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
@@ -340,7 +284,7 @@ class IPv4NATRule(Rule):
                 options.update(stat_nat)
 
         if static_dst_nat:
-            
+
             if isinstance(destinations, list) and destinations:
                 dest = destinations[0] #Destination should be 1-to-1
                 
@@ -357,9 +301,9 @@ class IPv4NATRule(Rule):
                 dst_nat = {'static_dst_nat': {'automatic_proxy': True,
                                               'original_value': original_value,
                                               'translated_value': translated_value}}
-                
                 options.update(dst_nat)
-           
+
+        rule_values.update(used_on=used_on)
         rule_values.update(options=options)
         return prepared_request(href=self.href, json=rule_values).create()
     
@@ -375,6 +319,8 @@ class IPv4Layer2Rule(Rule):
                                                destinations='any', 
                                                services='any')
     """
+    typeof = 'layer2_ipv4_access_rule'
+
     def __init__(self, meta=None):
         self.meta = meta
     
@@ -389,14 +335,14 @@ class IPv4Layer2Rule(Rule):
         :param list destinations: list of destination href's
         :param list services: list of service href's
         :param list logical_interfaces: logical interfaces by name
-        :param str action: |allow|continue|discard|refuse|blacklist
+        :param str action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
         :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.MissingReuqiredInput` when options are
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         """
-        rule_values = self._rule_common(sources, destinations, services)
+        rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
@@ -408,7 +354,7 @@ class IPv4Layer2Rule(Rule):
         rule_values.update(action={'action': action,
                                    'connection_tracking_options':{}})
     
-        rule_values.update(self._rule_l2_common(logical_interfaces))
+        rule_values.update(_rule_l2_common(logical_interfaces))
 
         return prepared_request(href=self.href, json=rule_values).create()
 
@@ -426,7 +372,10 @@ class EthernetRule(Rule):
                                             logical_interfaces=['dmz'], 
                                             sources='any',
                                             action='discard')
-    """                          
+
+    """
+    typeof = 'ethernet_rule'
+                              
     def __init__(self, meta=None):
         self.meta = meta
 
@@ -441,14 +390,14 @@ class EthernetRule(Rule):
         :param list destinations: list of destination href's
         :param list services: list of service href's
         :param list logical_interfaces: logical interfaces by name
-        :param str action: |allow|continue|discard|refuse|blacklist
+        :param str action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
         :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.MissingReuqiredInput` when options are
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         """
-        rule_values = self._rule_common(sources, destinations, services)
+        rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
@@ -460,7 +409,7 @@ class EthernetRule(Rule):
         rule_values.update(action={'action': action,
                                    'connection_tracking_options':{}})
     
-        rule_values.update(self._rule_l2_common(logical_interfaces))
+        rule_values.update(_rule_l2_common(logical_interfaces))
 
         return prepared_request(href=self.href, json=rule_values).create()
     
@@ -471,3 +420,60 @@ class IPv6Rule(object):
 class IPv6NATRule(object):
     def __init__(self):
         pass
+
+def _rule_l2_common(logical_interfaces):
+        """
+        Common values for layer 2 ethernet / IPS rule parameters.
+        In particular, logical interfaces are an additional parameter that 
+        can be used as a rule match parameter.
+        """
+        rule_values = {}
+        if logical_interfaces is None:
+            rule_values.update(logical_interfaces={'any': True})
+        else:
+            try:
+                logicals=[]
+                for interface in logical_interfaces:
+                    logicals.append(LogicalInterface(interface).href)
+                rule_values.update(logical_interfaces=
+                                            {'logical_interface': logicals})
+            except ElementNotFound:
+                raise MissingRequiredInput('Cannot find Logical interface specified '
+                                           ': {}'.format(logical_interfaces))
+        return rule_values
+
+def _rule_common(sources, destinations, services):
+        """
+        Common values for rules. These will apply to all rule types, 
+        including NAT.
+        """
+        rule_values = { 
+                'sources': {'src': []},
+                'destinations': {'dst': []},
+                'services': {'service': []}}
+
+        if sources is not None:
+            if isinstance(sources, str) and sources.lower() == 'any':
+                rule_values.update(sources={'any': True})
+            else:
+                rule_values.update(sources={'src': sources})
+        else:
+            rule_values.update(sources={'none': True})
+
+        if destinations is not None:
+            if isinstance(destinations, str) and destinations.lower() == 'any':
+                rule_values.update(destinations={'any': True})
+            else:
+                rule_values.update(destinations={'dst': destinations})
+        else:
+            rule_values.update(destinations={'none': True})
+                
+        if services is not None:
+            if isinstance(services, str) and services.lower() == 'any':
+                rule_values.update(services={'any': True})
+            else:
+                rule_values.update(services={'service': services})
+        else:
+            rule_values.update(services={'none': True})
+            
+        return rule_values    

@@ -132,7 +132,7 @@ class OSPFArea(Element):
         :param str interface_settings_ref: reference to :py:class:`.OSPFInterfaceSetting`
         :param str name: area id
         :param int area_default_cost: default cost for this area
-        :param str area_type: normal|stub|not_so_stubby|totally_stubby|
+        :param str area_type: \|normal\|stub\|not_so_stubby\|totally_stubby\|
                totally_not_so_stubby
         :param str outbound_filters_ref: reference to 
                :py:class:`~smc.routing.access_list.IPAccessList`
@@ -141,7 +141,7 @@ class OSPFArea(Element):
         :param shortcut_capable_area: True|False
         :param list ospfv2_virtual_links_endpoints_container: virtual link endpoints
         :param list ospf_abr_substitute_container: substitute types: 
-               |aggregate|not_advertise|substitute_with
+               \|aggregate\|not_advertise\|substitute_with
         :return: :py:class:`smc.api.web.SMCResult`
         """
         cls.json={'name': name,
@@ -198,13 +198,13 @@ class OSPFInterfaceSetting(Element):
         :param str name: name of interface settings
         :param int dead_interval: in seconds
         :param str hello_interval: in seconds
-        :param str hello_interval_type: |normal|fast_hello
+        :param str hello_interval_type: \|normal\|fast_hello
         :param int dead_multipler: fast hello packet multipler
         :param boolean mtu_mismatch_detection: True|False
         :param int retransmit_interval: in seconds
         :param int router_priority: set priority
         :param int transmit_delay: in seconds
-        :param str authentication_type: password|message_digest
+        :param str authentication_type: \|password\|message_digest
         :param str password: max 8 chars (required when 
                authentication_type='password')
         :param str key_chain_ref: reference to key chain (required when 

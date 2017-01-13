@@ -96,22 +96,19 @@ class EngineUpgrade(PackageMixin):
 class UpdatePackage(PackageMixin):
     """
     Container for managing update packages on SMC
-
-    Example of checking for new Update Packages, picking a specific
-    package, and waiting for activation::
     
     Download and activate a package::
         
         system = System()
-        print system.last_activated_package
+        print(system.last_activated_package)
         
         for package in system.update_package():
-            if package.name == 'Update Package 788':
-                for msg in package.download(wait_for_finish=True):
+            if package.name == 'Update Package 788': #Use specific package
+                for msg in package.download(wait_for_finish=True): 
                     print msg
-                package.activate()
-                        
-    :ivar state: state of the package                 
+                package.activate() #Activate it on SMC
+    
+    :ivar state: state of the package               
     """
     def __init__(self, meta=None):
         self.meta = meta

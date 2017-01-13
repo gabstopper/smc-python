@@ -32,7 +32,7 @@ Example rule deletion::
     policy = FirewallPolicy('Amazon Cloud')
     for rule in policy.fw_ipv4_access_rules.all():
         if rule.name == 'mynewrule':
-            print rule.delete()
+            rule.delete()
 """
 from smc.actions.search import element_name_by_href
 from smc.base.util import find_link_by_name

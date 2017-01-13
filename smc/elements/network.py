@@ -323,7 +323,7 @@ class Expression(Element):
         
         :param str name: name of expression
         :param list ne_ref: network element references for expression
-        :param str operator: |exclusion (negation)|union|intersection 
+        :param str operator: \|exclusion (negation)\|union\|intersection 
                (default: exclusion)
         :param dict sub_expression: sub expression used
         :param str comment: optional comment

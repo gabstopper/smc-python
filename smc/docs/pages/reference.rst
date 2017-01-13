@@ -1,5 +1,6 @@
+*********
 Reference
-=========
+*********
 
 Element
 -------
@@ -248,49 +249,15 @@ Interfaces
 Represents classes responsible for configuring interfaces on engines
 
 .. automodule:: smc.core.interfaces
-    :members:
-
+	:members: Interface
+	:exclude-members: modify_interface
+	
 Physical Interface
 ******************
 
 .. autoclass:: PhysicalInterface
-   :members:
-
-SingleNodeInterface
-*******************
-
-.. autofunction:: SingleNodeInterface
-
-NodeInterface
-*************
-
-.. autofunction:: NodeInterface
- 
-InlineInterface
-***************
-
-.. autofunction:: InlineInterface
- 
-CaptureInterface
-****************
-
-.. autofunction:: CaptureInterface
-  
-VlanInterface
-*************
-
-.. autofunction:: VlanInterface
-
-ClusterVirtualInterface
-***********************
-
-.. autofunction:: ClusterVirtualInterface
-
-TunnelInterface
-***************
-
-.. autoclass:: TunnelInterface
-   :members:
+    :members: 
+    :show-inheritance:
 
 VirtualPhysicalInterface
 ************************
@@ -298,6 +265,55 @@ VirtualPhysicalInterface
 .. autoclass:: VirtualPhysicalInterface
    :members:
    :show-inheritance:
+
+TunnelInterface
+***************
+
+.. autoclass:: TunnelInterface
+    :members:
+    :show-inheritance:
+ 
+Sub-Interfaces
+++++++++++++++
+Sub Interfaces are components of Interfaces and apply to the top level interface type.
+For example, a DHCP interface is a PhysicalInterface and is created at that level. 
+
+To create a DHCP interface, use the engines physical interface node:
+
+.. code-block:: python
+
+   engine = Engine('myengine')
+   engine.physical_interface.add_dhcp_interface(interface_id=5, dynamic_index=0)
+
+SingleNodeInterface
+*******************
+
+.. autofunction:: SingleNodeInterface
+  
+NodeInterface
+*************
+
+.. autofunction:: NodeInterface
+    
+InlineInterface
+***************
+
+.. autofunction:: InlineInterface
+    
+CaptureInterface
+****************
+
+.. autofunction:: CaptureInterface
+    
+VlanInterface
+*************
+
+.. autofunction:: VlanInterface
+    
+ClusterVirtualInterface
+***********************
+
+.. autofunction:: ClusterVirtualInterface
      
 InternalEndpoint
 ++++++++++++++++
@@ -354,6 +370,11 @@ RouteTable
 .. autoclass:: RouteTable
 	:members:
 
+Route
+*****
+
+.. autoclass:: Route
+    :members:
 
 Engine Types
 ------------
@@ -519,19 +540,18 @@ VPNCertificate
 .. autoclass:: smc.vpn.elements.VPNCertificate
    :members:
    :show-inheritance:
-  
-Users
------
-
-.. automodule:: smc.elements.user
-   :members: 
-   :show-inheritance:
 
 Administration
 --------------
 
 .. automodule:: smc.administration.system
 	:members:
+
+Tasks
++++++
+
+.. automodule:: smc.administration.tasks
+    :members: TaskMonitor, TaskDownload, Task, task_history, task_status
 
 Updates
 ++++++++
@@ -552,14 +572,14 @@ PackageUpdate
 .. autoclass:: UpdatePackage
 	:members:
 	:show-inheritance:
-
-
-Tasks
+	
+Users
 +++++
 
-.. automodule:: smc.administration.tasks
-    :members: TaskMonitor, TaskDownload, Task, task_history, task_status
-
+.. automodule:: smc.elements.user
+   :members: 
+   :show-inheritance:
+ 
 Collection
 ----------
 

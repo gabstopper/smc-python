@@ -22,7 +22,7 @@ class ManagementServer(Element):
     Or load it directly if the name is known and show any contact addresses::
     
         mgmt = ManagementServer('Management Server')
-        print mgmt.contact_addresses()
+        mgmt.contact_addresses()
             
     :param name: name of management server
     """
@@ -54,7 +54,7 @@ class ManagementServer(Element):
         Add a contact address to this management server::
 
             mgt = ManagementServer('Management Server')
-            print mgt.add_contact_address('33.3.3.3', 'MyNewLocation')
+            mgt.add_contact_address('33.3.3.3', 'MyNewLocation')
                 
         :param str contact_address: IP address used as contact address
         :param str location: Name of location to use, will be created if
@@ -96,7 +96,7 @@ class LogServer(Element):
     Or load it directly if the name is known::
     
         server = LogServer('Log Server 1.1.1.1')
-        print server.contact_addresses()
+        server.contact_addresses()
     """
     typeof = 'log_server'
  
@@ -123,7 +123,7 @@ class LogServer(Element):
         Add a contact address to the Log Server::
         
             server = LogServer('LogServer 172.18.1.25')
-            print server.add_contact_address('44.44.44.4', 'ARmoteLocation')
+            server.add_contact_address('44.44.44.4', 'ARmoteLocation')
         
         :param str contact_address: IP address used as contact address
         :param str location: Name of location to use, will be created if

@@ -10,21 +10,21 @@ class ExternalGateway(Element):
     This will specify details such as the endpoint IP, enabled, 
     balancing mode, etc.
     
-    Create the external gateway and view configuration::
+    Create the test_external gateway and view configuration::
     
         mygw = ExternalGateway.create('mygateway')
         mygw.describe()
 
-    Later get configuration for external gateway::
+    Later get configuration for test_external gateway::
     
         mygw = ExternalGateway('mygateway')
         
     :ivar gateway_profile: link to top level enabled gateway crypto
-    :ivar name: name of external gateway
+    :ivar name: name of test_external gateway
     :ivar trust_all_cas: True|False (default True)
     :ivar vpn_site: vpn_sites associated
     
-    :param str name: name of external gateway
+    :param str name: name of test_external gateway
     """
     typeof = 'external_gateway'
     
@@ -37,7 +37,7 @@ class ExternalGateway(Element):
         """ 
         Create new External Gateway
         
-        :param str name: name of external gateway
+        :param str name: name of test_external gateway
         :param boolean trust_all_cas: whether to trust all internal CA's
                (default: True)
         :return: :py:class:`smc.vpn.elements.ExternalGateway`
@@ -49,7 +49,7 @@ class ExternalGateway(Element):
         if result.href:
             return ExternalGateway(name)
         else:
-            raise CreateElementFailed('Failed creating external gateway, '
+            raise CreateElementFailed('Failed creating test_external gateway, '
                                       'reason: {}'.format(result.msg))
     
     @property
@@ -71,7 +71,7 @@ class ExternalGateway(Element):
         An External Endpoint is the IP based definition for the
         destination VPN peers. There may be multiple per External
         Gateway. 
-        Add a new endpoint to an existing external gateway::
+        Add a new endpoint to an existing test_external gateway::
             
             for x in describe_external_gateways():
                 external_gw = x.load()
@@ -91,7 +91,7 @@ class ExternalEndpoint(Element):
     of :py:class:`smc.vpn.elements.ExternalGateway` and should not be called 
     directly.
     
-    :ivar name: name of external endpoint
+    :ivar name: name of test_external endpoint
     :ivar href: pass in href to init which will have engine insert location   
     """
     def __init__(self, meta=None):
@@ -100,10 +100,10 @@ class ExternalEndpoint(Element):
     def create(self, name, address, enabled=True, balancing_mode='active',
                ipsec_vpn=True, nat_t=False, dynamic=False):
         """
-        Create an external endpoint. Define common settings for that
+        Create an test_external endpoint. Define common settings for that
         specify the address, enabled, nat_t, name, etc.
         
-        :param str name: name of external endpoint
+        :param str name: name of test_external endpoint
         :param str address: address of remote host
         :param boolean enabled: True|False (default: True)
         :param str balancing_mode: active
@@ -128,7 +128,7 @@ class ExternalEndpoint(Element):
 
     def all(self):
         """
-        Show all defined external endpoints
+        Show all defined test_external endpoints
         
         :return: list :py:class:`smc.vpn.elements.ExternalEndpoint`
         """
@@ -137,7 +137,7 @@ class ExternalEndpoint(Element):
 
 class VPNSite(Element):
     """
-    VPN Site information for an internal or external gateway
+    VPN Site information for an internal or test_external gateway
     Sites are used to encapsulate hosts or networks as 'protected' for VPN
     policy configuration.
     
@@ -158,7 +158,7 @@ class VPNSite(Element):
 
     def create(self, name, site_element):
         """
-        Create a VPN site for an internal or external gateway
+        Create a VPN site for an internal or test_external gateway
 
         :param str name: name of site
         :param list site_element: list of protected networks/hosts

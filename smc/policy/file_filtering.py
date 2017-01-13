@@ -1,48 +1,34 @@
 from smc.policy.policy import Policy
-from smc.base.model import Meta, prepared_request
+from smc.base.model import Meta, Element
 from smc.base.util import find_link_by_name
 import smc.actions.search as search
 
-class FileRule(object):
+class FileFilteringRule(Element):
     def __init__(self, meta):
         self.meta = meta
     
     @property
     def name(self):
-        return self.meta.name
+        return self.meta.name if self.meta else None
     
-    @property
-    def href(self):
-        return self.meta.href
-    
-    def create(self, name):
+    def create(self):
         pass
     
-    def describe(self):
-        return search.element_by_href_as_json(self.href)
+    def add_after(self):
+        pass
     
-    def delete(self):
-        return prepared_request(href=self.href).delete()
+    def add_before(self):
+        pass
     
     def all(self):
-        return [FileRule(meta=Meta(**rule))
+        """
+        Return all file filtering rules::
+        
+            for rule in FileFiltering('mypolicy).
+        """ 
+        return [type(self)(meta=Meta(**rule))
                 for rule in search.element_by_href_as_json(self.href)]
-       
-    def __unicode__(self):
-        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
-    def __repr__(self):
-        return repr(unicode(self))
-    
-class FileFilteringRule(object):
-    def __init__(self):
-        pass
-    
-    @property
-    def file_filtering_rules(self):
-        href = find_link_by_name('file_filtering_rules', self.link)
-        return FileRule(meta=Meta(href=href))
-    
+        
 class FileFilteringPolicy(FileFilteringRule, Policy):
     """ 
     The File Filtering Policy references a specific file based policy for 
@@ -64,3 +50,8 @@ class FileFilteringPolicy(FileFilteringRule, Policy):
     def export(self):
         #Not valid on file filtering policy
         pass
+    
+    @property
+    def file_filtering_rules(self):
+        href = find_link_by_name('file_filtering_rules', self.link)
+        return FileFilteringRule(meta=Meta(href=href))

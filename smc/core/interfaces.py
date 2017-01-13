@@ -1,4 +1,5 @@
 from copy import deepcopy
+from functools import wraps
 import smc.actions.search as search
 from smc.base.util import find_link_by_name
 from smc.base.model import Meta, prepared_request
@@ -13,7 +14,7 @@ def NodeInterface(interface_id, address, network_value,
     used to define the node specific address for each node member (wrapped in a cluster
     virtual interface).
     
-    :param int interfaceid: interface id
+    :param int interface_id: interface id
     :param str address: ip address of the interface
     :param str network_value: network/netmask, i.e. x.x.x.x/24
     :param int nodeid: for clusters, used to identify the node number
@@ -75,9 +76,9 @@ def ClusterVirtualInterface(interface_id, address,
     balancing or high availability. Each engine will still also have a 'node' 
     interface for communication to/from the engine itself.
     
+    :param int interface_id: nic id to use for physical interface
     :param str address: address of CVI
     :param str network_value: network for CVI
-    :param int nicid: nic id to use for physical interface
     :return: dict
     """
     intf = {'address': address,
@@ -118,7 +119,7 @@ def InlineInterface(interface_id, logical_interface_ref,
         intf.update({k: v})
     return {'inline_interface': intf}
 
-def add_vlan_to_inline(inline_intf, vlan_id):
+def add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):
     """
     Modify InlineInterface to add VLAN by ID
     
@@ -130,7 +131,10 @@ def add_vlan_to_inline(inline_intf, vlan_id):
         nicid = vals.get('nicid')
         try:
             first, last = nicid.split('-')
-            nicid = '{}.{}-{}.{}'.format(first, str(vlan_id), last, str(vlan_id))
+            if vlan_id2 is None:
+                nicid = '{}.{}-{}.{}'.format(first, str(vlan_id), last, str(vlan_id))
+            else:
+                nicid = '{}.{}-{}.{}'.format(first, str(vlan_id), last, str(vlan_id2))
         except ValueError:
             pass
     vals.update(nicid=nicid)
@@ -144,7 +148,7 @@ def CaptureInterface(interface_id, logical_interface_ref, **kwargs):
     layer 2 or IPS engine roles. It enables the NGFW to capture traffic on
     the wire without actually blocking it (although blocking is possible).
     
-    :param int interfaceid: the interface id
+    :param int interface_id: the interface id
     :param str logical_ref: logical interface reference, must be unique from 
            inline intfs
     :return: dict
@@ -192,9 +196,9 @@ def DHCPInterface(interface_id, dynamic_index=1, nodeid=1,
 
 
 def VlanInterface(interface_id, vlan_id,
-                 virtual_mapping=None,
-                 virtual_resource_name=None,
-                 zone_ref=None, **kwargs):
+                  virtual_mapping=None,
+                  virtual_resource_name=None,
+                  zone_ref=None, **kwargs):
     """ 
     VLAN Interface 
     These interfaces can be applied on all engine types but will be bound to
@@ -224,6 +228,7 @@ def commit(method):
     being created and a direct call to SMC is not required.
     Interface info is stored in data attribute.
     """
+    @wraps(method)
     def decorated(self, *args, **kwargs):
         method(self, *args, **kwargs)
         if not self.href:
@@ -236,12 +241,24 @@ def commit(method):
 
 class Interface(object):
     """
-    Top level representation of all interface types
+    Top level representation of all base interface types. Base interface types
+    are: Physical, VirtualPhysical and Tunnel Interface. All other interface
+    types are considered sub-interfaces and will be used depending on the type
+    of engine. For example, an Inline Interface is a Physical Interface, and can
+    only be used on Layer 2 Firewall or IPS Engines. 
+    
+    When adding additional interfaces to an engine, you will likely use a physical
+    interface or tunnel interface type.
     """
     def __init__(self, meta=None):
         self.meta = meta
     
     def delete(self):
+        """
+        Delete this interface
+        
+        :return: `smc.api.web.SMCResult`
+        """
         return prepared_request(href=self.href).delete()
     
     def describe(self):
@@ -304,17 +321,29 @@ class Interface(object):
         :param values: dict to update
         :return: sub-interface dict
         """
-        for typeof, val in interface.items():
-            print("Modifying interface: %s, %s, with: %s" % (typeof, val, values))
+        for typeof, val in interface.items():  # @UnusedVariable
             val.update(values)
         return interface
     
     def all(self):
+        """
+        Return all interfaces of any type
+        
+        For example::
+        
+            for interface in engine.interface.all():
+                print(interface, interface.name)
+                
+        :return: list `smc.core.interfaces.Interface` type
+        """
         return [type(self)(meta=Meta(**intf))
                 for intf in search.element_by_href_as_json(self.href)]
     
     @property
     def name(self):
+        """
+        Name of this interface
+        """
         return self.meta.name if self.meta else None
 
     @property
@@ -430,6 +459,7 @@ class PhysicalInterface(Interface):
     """
     Physical Interfaces on NGFW. This represents the following base configuration for
     the following interface types:
+
         * Single Node Interface
         * Node Interface
         * Capture Interface
@@ -469,7 +499,8 @@ class PhysicalInterface(Interface):
             virtual_resource_name=None):
         """ 
         Add single physical interface with interface_id. Use other methods
-        to fully add an interface configuration based on engine type
+        to fully add an interface configuration based on engine type.
+        Virtual mapping and resource are only used in Virtual Engines.
         
         :param int interface_id: interface id
         :param int virtual_mapping: virtual firewall mapping
@@ -560,7 +591,7 @@ class PhysicalInterface(Interface):
         """
         Add an inline interface pair
         
-        :param int interface_id: interface identifier
+        :param str interface_id: interface id; '1-2', '3-4', etc
         :param str logical_interface_ref: logical interface reference
         :param zone_ref_intf1: zone for inline interface 1
         :param zone_ref_intf2: zone for inline interface 2
@@ -669,6 +700,7 @@ class PhysicalInterface(Interface):
         :param list nodes: interface node list
         :param boolean is_mgmt: is this a management interface
         :param zone_ref: zone to use, if any
+        :return: :py:class:`smc.api.web.SMCResult`
         """
         interfaces=[]
         for node in nodes:
@@ -692,8 +724,8 @@ class PhysicalInterface(Interface):
                                           network_value, vlan_id, 
                                           zone_ref=None):
         """
-        Add a vlan to single node interface. Will create interface if it 
-        doesn't exist
+        Add a vlan to single node interface. Interface is created if 
+        it doesn't already exist.
         
         :param int interface_id: interface identifier
         :param str address: ip address
@@ -715,7 +747,8 @@ class PhysicalInterface(Interface):
                                    virtual_mapping=None, virtual_resource_name=None,
                                    zone_ref=None):
         """
-        Add vlan to node interface. Creates interface if it doesn't exist.
+        Add vlan to node interface. Interface is created if 
+        it doesn't already exist.
         
         :param int interface_id: interface identifier
         :param int vlan_id: vlan identifier
@@ -735,15 +768,18 @@ class PhysicalInterface(Interface):
                          vlanInterfaces=[vlan])
    
     @commit    
-    def add_vlan_to_inline_interface(self, interface_id, vlan_id, 
+    def add_vlan_to_inline_interface(self, interface_id, vlan_id,
+                                     vlan_id2=None,
                                      logical_interface_ref=None,
                                      zone_ref_intf1=None,
                                      zone_ref_intf2=None):
         """
-        Add a vlan to inline interface, will create inline if it doesn't exist
+        Add a VLAN to inline interface. Interface is created if 
+        it doesn't already exist.
         
         :param str interface_id: interfaces for inline pair, '1-2', '5-6'
-        :param int vlan_id: vlan identifier
+        :param int vlan_id: vlan identifier for interface 1
+        :param int vlan_id2: vlan identifier for interface 2 (if none, vlan_id used)
         :param str logical_interface_ref: logical interface reference to use
         :param str zone_ref_intf1: zone for inline interface 1
         :param str zone_ref_intf2: zone for inline interface 2
@@ -751,20 +787,19 @@ class PhysicalInterface(Interface):
         
         See :py:class:`~InlineInterface` for more information 
         """
-        #TODO: Unique VLAN per inline  
         first_intf = interface_id.split('-')[0]
         vlan = VlanInterface(first_intf, vlan_id, zone_ref=zone_ref_intf1)
+        
         inline_intf = InlineInterface(interface_id, 
                                       logical_interface_ref,
                                       zone_ref=zone_ref_intf2)
         copied_intf = deepcopy(inline_intf)
-        vlan.get('interfaces').append(add_vlan_to_inline(inline_intf, vlan_id))
+        vlan.get('interfaces').append(add_vlan_to_inline(inline_intf, vlan_id, vlan_id2))
           
         self.data.update(interfaces=[copied_intf],
                          vlanInterfaces=[vlan],
                          interface_id=first_intf)
-
-    
+        
 class VirtualPhysicalInterface(PhysicalInterface):
     """ 
     VirtualPhysicalInterface
@@ -803,7 +838,7 @@ class InterfaceEnum(object):
             if intf_map.get(intf_type):
                 interfaces.append(intf_map[intf_type](meta=Meta(**interface)))
             else:
-                interfaces.append(type(self)(meta=Meta(**interface)))
+                interfaces.append(Interface(meta=Meta(**interface)))
         return interfaces
 
 

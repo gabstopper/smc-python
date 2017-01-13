@@ -77,4 +77,13 @@ add docker bootstrap for unittest automation
 
 $version 0.4.2
 dynamic destination NAT and dynamic source NAT
-coverage = 93%
+unittests - coverage = 93%
+
+$version 0.4.3
+element cache descriptor
+api client export
+locations are now directly searchable (SMC >= 6.1.1) 
+unique VLANs on inline interfaces
+add 'used_on' field to NAT rules
+policy search_rule
+unittests - coverage = 97%

@@ -10,7 +10,7 @@ Some of the functionality you get with the SMC Python API:
 * Create any engine types; single firewall, cluster firewalls, ips engines, layer 2 firewalls, master engine and virtual engines.
 * Engine operations such as enabling/disabling AV, GTI, default NAT, Contact Addresses, etc
 * Interface configurations
-* Routing configurations
+* Routing configurations (OSPF, Static)
 * Engine level commands such as rebooting, going offline, policy push, enable/disable SSH, etc.
 * Create and modify all network element objects such as Host, Network, Address Ranges, Domain Names, etc.
 * Policy control (create rules, delete rules) for layer 3 firewall policies
@@ -18,6 +18,7 @@ Some of the functionality you get with the SMC Python API:
 * Management / Log Server settings configuration
 * Admin User creation and modification
 * System level controls; update system packages, update engines, global blacklisting, etc
+* Tasks
 * Search operations for any object type by name, href and by filter
 * Collections interface to view all objects by type
 
@@ -30,17 +31,21 @@ Python 3.4, 3.5 (version >- 0.4)
 
 Requests 
 
-Security Management Center version 5.10, 6.0+
+Security Management Center version 5.10, 6.0, 6.1, 6.1.1
 
 ##### Getting Started
 
 Installing package
 
-use pip
+Use pip:
 
 `pip install git+https://github.com/gabstopper/smc-python.git`
 
-download the latest tarball: [smc-python](https://github.com/gabstopper/smc-python/archive/master.zip), unzip and run
+Specific version:
+
+`pip install -e git://github.com/gabstopper/smc-python.git@v0.4.2#egg=smc-python-0.4.2`
+
+Download the latest tarball: [smc-python](https://github.com/gabstopper/smc-python/archive/master.zip), unzip and run:
 
 `python setup.py install`
 

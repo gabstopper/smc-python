@@ -9,7 +9,7 @@ Welcome to smc-python's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 5
 
    pages/intro
    pages/installation

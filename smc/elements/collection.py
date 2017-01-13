@@ -624,7 +624,8 @@ def describe_application_situation(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('application_situation', name, exact_match)
+    return generic_list_builder('application_situation', name, exact_match, 
+                                service.ApplicationSituation)
 
 def describe_single_fw(name=None, exact_match=True):
     """ 

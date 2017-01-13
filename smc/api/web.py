@@ -34,24 +34,26 @@ class SMCAPIConnection(object):
         """
         Send request to SMC
         """
+        #print("Send request called: %s" % vars(request))
         if self.session:
             try:
                 method = method.upper() if method else ''
                 if method == 'GET':
                     if request.filename: #File download request
                         return self.file_download(request)
+                
                     response = self.session.get(request.href, 
                                                 params=request.params,
                                                 headers=request.headers, 
                                                 timeout=self.timeout)
                     response.encoding = 'utf-8'
-                    
+                    #print("Response: %s" % vars(response))
                     if response.status_code not in (200, 304):
                         logger.error("HTTP get returned HTTP code [{}] "
                                      "for href: {}".format(response.status_code, 
                                                            request.href))
                         raise SMCOperationFailure(response)
-                    
+                
                     if response.text:
                         logger.debug(u"response: {}".format(response.text))
                         
@@ -63,7 +65,7 @@ class SMCAPIConnection(object):
                                                  headers=request.headers,
                                                  params=request.params)
                     response.encoding = 'utf-8'
-
+                    #print("Response: %s" % vars(response))
                     if response.status_code == 200 or response.status_code == 201:
                         logger.debug("Success, returning link for new element: {}"
                                      .format(response.headers.get('location')))
@@ -118,7 +120,7 @@ class SMCAPIConnection(object):
         logger.debug(vars(request))
         response = self.session.get(request.href, params=request.params, 
                                     headers=request.headers, stream=True)
-
+        
         if response.status_code == 200:
             logger.debug("Streaming to file... Content length: {}"
                          .format(len(response.content)))
