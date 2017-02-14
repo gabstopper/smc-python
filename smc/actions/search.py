@@ -63,10 +63,13 @@ def element_as_json(name):
             return element.json
 
 def element_as_json_with_filter(name, _filter):
-    """ Get specified element json data by name with filter
+    """ 
+    Get specified element json data by name with filter.
+    Filter can be any valid element type.
     
     :param name: name of element
-    :param _filter: element filter
+    :param _filter: element filter, host, network, tcp_service,
+                    network_elements, services, services_and_applications, etc
     :return: json data representing element, else None
     """
     if name:
@@ -275,7 +278,6 @@ def all_elements_by_type(name):
     """
     if name:
         entry = element_entry_point(name)
-    
         if entry: #in case an invalid entry point is specified
             result = element_by_href_as_json(entry)
             return result

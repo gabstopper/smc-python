@@ -78,10 +78,9 @@ def load_from_file(alt_filepath=None):
     section = 'smc'
     config_dict = {}
     try:
-        
         with io.open(full_path, 'rt', encoding='UTF-8') as f:
             parser.readfp(f)
-
+        
         #Get required settings, if not found it will raise err
         for name in required:
             config_dict[name] = parser.get(section, name)

@@ -1,199 +1,59 @@
+"""
+Interface module encapsulates interface types for security engines.
+All interface have a 'top level' such as Physical or Tunnel Interface. 
+These top level interfaces have certain common settings that can be 
+modified such as assigning a zone.
+
+IP addresses, netmask, management settings, VLANs, etc are part of an 
+interfaces 'sub' interface. Sub interfaces can be retrieved from an engine
+reference and call to :func:`~smc.core.interfaces.Interface.sub_interfaces`
+
+The interface hierarchy resembles:
+
+::
+
+    Physical/Tunnel Interface
+            |
+        Sub Interface (SingleNodeInterface, NodeInterface, InlineInterface, etc)
+            |
+        Attributes (address, network_value, vlan_id, etc)
+
+Sub interfaces are documented in :py:mod:`smc.core.sub_interfaces`.
+
+VLANs are properties of specific interfaces and can also be retrieved by 
+first getting the top level interface, and calling :func:`~smc.core.interfaces.Interface.vlan_interfaces` 
+to view or modify specific aspects of a VLAN, such as addresses, etc.
+"""
 from copy import deepcopy
 from functools import wraps
 import smc.actions.search as search
 from smc.base.util import find_link_by_name
 from smc.base.model import Meta, prepared_request
+import smc.core.sub_interfaces
+from smc.api.exceptions import EngineCommandFailed
+from smc.elements.other import ContactAddress
+from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface, 
+                                     ClusterVirtualInterface, InlineInterface,
+                                     CaptureInterface, _add_vlan_to_inline)
 
-def NodeInterface(interface_id, address, network_value,
-                  nodeid=1, **kwargs):
+def create(method):
     """
-    Node Interface
-    Node dedicated interface (NDI) is used on specific engine types and represents an interface
-    used for management (ips and layer 2 engines), or non-traffic type interfaces. For 
-    Layer 2 Firewall/IPS these are used as individual interfaces. On clusters, these are
-    used to define the node specific address for each node member (wrapped in a cluster
-    virtual interface).
-    
-    :param int interface_id: interface id
-    :param str address: ip address of the interface
-    :param str network_value: network/netmask, i.e. x.x.x.x/24
-    :param int nodeid: for clusters, used to identify the node number
-    :return: dict
+    If metadata doesn't exist, this is because an Engine is 
+    being created and a direct call to SMC is not required.
+    Interface info is stored in data attribute.
     """
-    intf = {'address': address,
-            'network_value': network_value,
-            'nicid': interface_id,
-            'auth_request': False,
-            'backup_heartbeat': False,
-            'nodeid': nodeid,
-            'outgoing': False,
-            'primary_mgt': False,
-            'primary_heartbeat': False}
-    
-    for k, v in kwargs.items():
-        intf.update({k: v})
-    return {'node_interface': intf}
+    @wraps(method)
+    def decorated(self, *args, **kwargs):
+        method(self, *args, **kwargs)
+        if not self.href:
+            return self._data
+        else:
+            result = prepared_request(href=self.href, 
+                                      json=self._data).create()
+            if result.msg:
+                raise EngineCommandFailed(result.msg)
 
-    
-def SingleNodeInterface(interface_id, address, network_value, 
-                            nodeid=1, **kwargs):
-    """
-    SingleNodeInterface
-    This interface is used by single node Layer 3 Firewalls. This type of interface
-    can be a management interface as well as a non-management routed interface.
-    
-    :param int interface_id: interface id
-    :param str address: address of this interface
-    :param str network_value: network of this interface in cidr x.x.x.x/24
-    :param int nodeid: if a cluster, identifies which node this is for
-    :return: dict
-    """
-    intf = {'address': address,
-            'auth_request': False,
-            'auth_request_source': False,
-            'auth_request_source': False,
-            'primary_heartbeat': False,
-            'backup_heartbeat': False,
-            'backup_mgt': False,
-            'dynamic': False,
-            'network_value': network_value,
-            'nicid': interface_id,
-            'nodeid': nodeid,
-            'outgoing': False,
-            'primary_mgt': False}
-
-    for k, v in kwargs.items():
-        intf.update({k: v})
-    return {'single_node_interface': intf}
-
-
-def ClusterVirtualInterface(interface_id, address, 
-                            network_value, **kwargs):
-    """
-    ClusterVirtualInterface
-    These interfaces (CVI) are used on cluster devices and applied to layer 3
-    interfaces. They specify a 'VIP' (or shared IP) to be used for traffic load
-    balancing or high availability. Each engine will still also have a 'node' 
-    interface for communication to/from the engine itself.
-    
-    :param int interface_id: nic id to use for physical interface
-    :param str address: address of CVI
-    :param str network_value: network for CVI
-    :return: dict
-    """
-    intf = {'address': address,
-            'network_value':network_value,
-            'nicid': interface_id,
-            'auth_request': False}
-    
-    for k, v in kwargs.items():
-        intf.update({k: v})
-    return {'cluster_virtual_interface': intf}
-
-
-def InlineInterface(interface_id, logical_interface_ref, 
-                    zone_ref=None, **kwargs):
-    """
-    InlineInterface
-    This interface type is used on layer 2 or IPS related engines. It requires
-    that you specify two interfaces to be part of the inline pair. These interfaces
-    do not need to be sequential. It is also possible to add VLANs and zones to the
-    inline interfaces.
-    The logical interface reference needs to be unique for inline and capture interfaces
-    when they are applied on the same engine.
-    
-    See :py:class:`PhysicalInterface` for methods related to adding VLANs
-    
-    :param str interface_id: two interfaces, i.e. '1-2', '4-5', '7-10', etc
-    :param str logical_ref: logical interface reference
-    :param str zone_ref: reference to zone, set on second inline pair
-    :return: dict
-    """
-    intf = {'failure_mode': 'normal',
-            'inspect_unspecified_vlans': True,
-            'nicid': interface_id,
-            'logical_interface_ref': logical_interface_ref,
-            'zone_ref': zone_ref}
-    
-    for k, v in kwargs.items():
-        intf.update({k: v})
-    return {'inline_interface': intf}
-
-def add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):
-    """
-    Modify InlineInterface to add VLAN by ID
-    
-    :param inline_intf: InlineInterface dict
-    :param str vlan_id: VLAN id
-    :return: InlineInterface with VLAN configuration
-    """
-    for _, vals in inline_intf.items():
-        nicid = vals.get('nicid')
-        try:
-            first, last = nicid.split('-')
-            if vlan_id2 is None:
-                nicid = '{}.{}-{}.{}'.format(first, str(vlan_id), last, str(vlan_id))
-            else:
-                nicid = '{}.{}-{}.{}'.format(first, str(vlan_id), last, str(vlan_id2))
-        except ValueError:
-            pass
-    vals.update(nicid=nicid)
-    return inline_intf
-
-
-def CaptureInterface(interface_id, logical_interface_ref, **kwargs):
-    """ 
-    Capture Interface (SPAN)
-    This is a single physical interface type that can be installed on either
-    layer 2 or IPS engine roles. It enables the NGFW to capture traffic on
-    the wire without actually blocking it (although blocking is possible).
-    
-    :param int interface_id: the interface id
-    :param str logical_ref: logical interface reference, must be unique from 
-           inline intfs
-    :return: dict
-    """
-    intf = {'inspect_unspecified_vlans': True,
-            'logical_interface_ref': logical_interface_ref,
-            'nicid': interface_id}
-    
-    for k, v in kwargs.items():
-        intf.update({k: v})
-    return {'capture_interface': intf}
-
-
-def DHCPInterface(interface_id, dynamic_index=1, nodeid=1,
-                  **kwargs):
-    """
-    DHCP Interface
-    This interface is typically applied on remote devices that require
-    a dynamic IP address. The dynamic index specifies which interface
-    index is used for the DHCP interface. This would be important if you had
-    multiple DHCP interfaces on a single engine.
-    The interface ID identifies which physical interface DHCP will be associated
-    with.
-    
-    .. note:: When the DHCP interface will be the primary mgt interface, you must
-              create a secondary physical interface and set auth_request=True. 
-    
-    :param interface_id: interface to use for DHCP
-    :param dynamic_index: DHCP index (when using multiple DHCP interfaces)
-    :return: dict
-    """
-    intf = {'auth_request': False,
-            'outgoing': False,
-            'dynamic': True,
-            'dynamic_index': dynamic_index,
-            'nicid': interface_id,
-            'nodeid': nodeid,
-            'primary_mgt': False,
-            'automatic_default_route': False,
-            'reverse_connection': False}
-    
-    for k, v in kwargs.items():
-        intf.update({k: v})
-    return {'single_node_interface': intf}
-
+    return decorated  
 
 def VlanInterface(interface_id, vlan_id,
                   virtual_mapping=None,
@@ -220,46 +80,191 @@ def VlanInterface(interface_id, vlan_id,
             'interfaces': [],
             'zone_ref': zone_ref}
     return intf
+    
+class InterfaceCommon(object):
+    @property
+    def aggregate_mode(self):
+        """
+        LAGG configuration for this physical interface.
+        Options are HA (failover) or LB (load balancing)
+        
+        :param str value: 'lb' or 'ha'
+        :rtype: str
+        """
+        return self.data.get('aggregate_mode')
+        
+    @aggregate_mode.setter
+    def aggregate_mode(self, value):
+        self.data['aggregate_mode'] = value
+    
+    @property
+    def comment(self):
+        """
+        Optional comment
+        
+        :param str value: comment
+        :return: str
+        """
+        return self.data.get('comment')
+    
+    @comment.setter
+    def comment(self, value):
+        self.data['comment'] = value
+    
+    @property
+    def interface_id(self):
+        """
+        The Interface ID automatically maps to a physical network port
+        of the same number during the initial configuration of the engine, 
+        but the mapping can be changed as necessary.
+        
+        :param str value: interface_id
+        :rtype: str
+        """
+        return self.data.get('interface_id')
+    
+    @interface_id.setter
+    def interface_id(self, value):
+        self.data['interface_id'] = value
+    
+    @property
+    def mtu(self):
+        """
+        Set MTU on interface. Enter a value between 400-65535. 
+        The same MTU is automatically applied to any VLANs 
+        created under this physical interface
+        
+        :param int value: MTU
+        :rtype: int
+        """
+        return self.data.get('mtu')
+    
+    @mtu.setter
+    def mtu(self, value):
+        self.data['mtu'] = value
+    
+    @property
+    def second_interface_id(self):
+        """
+        The second interface in a LAGG configuration
+        
+        :param str value: interface_id of LAGG interface
+        :rtype: str
+        """
+        return self.data.get('second_interface_id')
+    
+    @second_interface_id.setter
+    def second_interface_id(self, value):
+        self.data['second_interface_id'] = value
 
-
-def commit(method):
-    """
-    If metadata doesn't exist, this is because an Engine is 
-    being created and a direct call to SMC is not required.
-    Interface info is stored in data attribute.
-    """
-    @wraps(method)
-    def decorated(self, *args, **kwargs):
-        method(self, *args, **kwargs)
-        if not self.href:
-            return self.data
+    @property
+    def virtual_mapping(self):
+        """
+        The virtual mapping id. Required if Virtual Resource chosen.
+        See :py:class:`smc.core.engine.VirtualResource.vfw_id`
+        
+        :param int value: vfw_id
+        :rtype: int
+        """
+        if self.data.get('virtual_mapping'):
+            return int(self.data.get('virtual_mapping'))
+    
+    @virtual_mapping.setter
+    def virtual_mapping(self, value):
+        self.data['virtual_mapping'] = value
+    
+    @property
+    def virtual_resource_name(self):
+        """
+        Virtual Resource name used on Master Engine to map a virtual engine.
+        See :py:class:`smc.core.engine.VirtualResource.name`
+        
+        :param str value: virtual resource name
+        :rtype: str
+        """
+        return self.data.get('virtual_resource_name')
+    
+    @virtual_resource_name.setter
+    def virtual_resource_name(self, value):
+        self.data['virtual_resource_name'] = value
+    
+    @property
+    def zone_ref(self):
+        """
+        Zone for this physical interface. 
+        
+        :param str value: href of zone, set to None to remove existing zone
+        :rtype: str
+        """
+        return self.data.get('zone_ref')
+    
+    @zone_ref.setter
+    def zone_ref(self, value):
+        if value is None:
+            self.data.pop('zone_ref', None)
         else:
-            return prepared_request(href=self.href, 
-                                    json=self.data).create()
-    return decorated  
-
-
+            self.data['zone_ref'] = value
+    
 class Interface(object):
     """
     Top level representation of all base interface types. Base interface types
     are: Physical, VirtualPhysical and Tunnel Interface. All other interface
     types are considered sub-interfaces and will be used depending on the type
-    of engine. For example, an Inline Interface is a Physical Interface, and can
+    of engine. For example, an Inline Interface is a Physical Interface, but can
     only be used on Layer 2 Firewall or IPS Engines. 
     
-    When adding additional interfaces to an engine, you will likely use a physical
-    interface or tunnel interface type.
+    Note that when modifying existing interface information changes can only be
+    made to a single interface at once. Some changes like switching management
+    interfaces is currently not supported.
     """
-    def __init__(self, meta=None):
+    def __init__(self, meta=None, **kwargs):
         self.meta = meta
+        self._cache = None  #Element Cache
+        self._engine = kwargs.get('engine') #Engine reference
+  
+    def cache(self, force_refresh=False):
+        # No meta can occur when the interfaces are being created as part
+        # of engine creation. Otherwise initial cache is retrieved and 
+        # any modifications are done to cache. When save() is called, the
+        # cache ETag is used to GET the element to determine if changes were
+        # made in the interim. If changes are made, apply changes made to
+        # cache against refreshed version of element.
+        if self._cache is None:
+            result = search.element_by_href_as_smcresult(self.meta.href)
+            self._cache = (result.etag, result.json)
+        elif self._cache and force_refresh:
+            result = prepared_request(headers={'Etag': self._cache[0]}, 
+                                      href=self.meta.href).read()
+            if result.code != 304:
+                #TODO: If a setting is removed from server side but was 
+                #present during original fetch in json, it is re-inserted. The only 
+                #case the I could see could be removed is 'zone_ref'. However as 
+                #of SMC 6.1.1 removing a zone from assigned interface does not work.
+                result.json.update(self._cache[1])
+                self._cache = (result.etag, result.json)
+        return self._cache
+              
+    @property
+    def data(self):
+        if self.meta:
+            return self.cache()[1]
+        else:
+            return self._data
+    
+    @property
+    def etag(self):
+        return self.cache()[0]
     
     def delete(self):
         """
         Delete this interface
         
-        :return: `smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
+        :return: None
         """
-        return prepared_request(href=self.href).delete()
+        result = prepared_request(href=self.href).delete()
+        if result.msg:
+            raise EngineCommandFailed(result.msg)
     
     def describe(self):
         """
@@ -267,78 +272,51 @@ class Interface(object):
         
         :return: dict of interface json
         """
-        return search.element_by_href_as_json(self.href)
+        return self.data
 
     def contact_addresses(self):
         """
         View the contact address/es for this physical interface.
-        The displayed output is in json format. Use :meth:`~add_contact_address`
-        to add a new contact address to the interface.
+        Use :meth:`~add_contact_address` to add a new contact 
+        address to the interface.
         
-        :return: dict of contact addresses
+        :return: list :py:class:`smc.elements.other.ContactAddress`
         """
-        return search.element_by_href_as_json(
+        result = search.element_by_href_as_json(
                     find_link_by_name('contact_addresses', self.link))
+        if result:
+            return [ContactAddress(addr) for addr in result.get('contact_addresses')]
+        else:
+            return []
     
-    def add_contact_address(self, contact_address, engine_etag):
+    def add_contact_address(self, contact_address, *args):
         """
-        Add a contact address to this physical interface
-        Contact address is the return of 
-        :py:func:`smc.elements.other.prepare_contact_address`.
+        Add a contact address to this physical interface.
         
-        :param contact_address: :py:func:`smc.elements.other.prepare_contact_address`
-        :param engine_etag: etag for engine, required for update
+        Adding contact address to interface 0::
         
-        You can obtain the engine_etag after loading the engine and by
-        the etag property. 
-        If the contact address should be the default contact address, you
-        can obtain that using location_helper. Assuming the engine has a 
-        location set of 'Internet'::
-        
-            engine = Engine('testfw').load()
+            engine = Engine('testfw')
             for interface in engine.interface.all():
                 if interface.name == 'Interface 0':
-                    contact_address = prepare_contact_address('53.2.4.3', 'Default')
-                    interface.add_contact_address(contact_address, engine.etag)
+                    addr = ContactAddress.create('13.13.13.13', location='MyLocation')
+                    interface.add_contact_address(addr)
         
+        :param contact_address: :py:class:`smc.elements.other.ContactAddress`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         href = find_link_by_name('contact_addresses', self.link)
         existing = search.element_by_href_as_json(href)
         if existing:
-            existing.get('contact_addresses').append(
-                            contact_address.get('contact_addresses')[0])
+            existing.get('contact_addresses').append(contact_address['contact_addresses'][0])
         else:
             existing = contact_address
 
-        return prepared_request(href=href, json=existing, 
-                                etag=engine_etag).update()
-
-    def modify_interface(self, interface, values):
-        """
-        Modify sub-interface attributes. 
-        
-        :param interface: sub-interface dict (SingleNodeInterface, etc)
-        :param values: dict to update
-        :return: sub-interface dict
-        """
-        for typeof, val in interface.items():  # @UnusedVariable
-            val.update(values)
-        return interface
-    
-    def all(self):
-        """
-        Return all interfaces of any type
-        
-        For example::
-        
-            for interface in engine.interface.all():
-                print(interface, interface.name)
-                
-        :return: list `smc.core.interfaces.Interface` type
-        """
-        return [type(self)(meta=Meta(**intf))
-                for intf in search.element_by_href_as_json(self.href)]
-    
+        result = prepared_request(href=href, json=existing, 
+                                  etag=self._engine.etag).update()
+        if result.msg:
+            raise EngineCommandFailed(result.msg)
+ 
     @property
     def name(self):
         """
@@ -349,21 +327,174 @@ class Interface(object):
     @property
     def href(self):
         return self.meta.href if self.meta else None
-    
+
+    def get(self, interface_id):
+        """
+        Get the interface by id, if known. The interface is 
+        retrieved from the top level Physical or Tunnel Interface.
+        If interface type is unknown, use engine.interface
+        for retrieving::
+        
+            engine = Engine('testfw')
+            p = engine.physical_interface.get(0)
+            print(p.name, p.typeof, p.address, p.network_value)
+            .....
+        
+        :return: interface object by type (Physical, Tunnel, PhysicalVlanInterface)
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed` if interface not found
+        """
+        interface_id = str(interface_id)
+        for interface in search.element_by_href_as_json(self.meta.href):
+            intf_type = interface.get('type') #Keep type
+            intf = _InterfaceFactory(intf_type)(meta=Meta(**interface),
+                                                engine=self._engine)
+
+            if intf.data.get('interface_id') == interface_id:
+                return intf
+        raise EngineCommandFailed('Interface id {} not found'.format(interface_id))
+     
     @property
     def link(self):
-        if self.href:
-            result = search.element_by_href_as_json(self.href)
-            return result.get('link')
-        else:
-            raise AttributeError('You must access interface information through '
-                                 'an engine reference.')
-            
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, self.meta.name)
-        
+        return self.data.get('link')        
     
-class TunnelInterface(Interface):
+    @property
+    def has_vlan(self):
+        """
+        Whether this interface has VLAN interfaces
+        
+        :return: boolean True if vlan interfaces exist
+        """
+        return bool(self.data.get('vlanInterfaces'))
+
+    def save(self):
+        """
+        Save this interface information back to SMC. When saving
+        the interface, call save on the topmost level of the interface.
+        
+        Example of changing the IP address of an interface::
+        
+            engine = Engine('testfw')
+            for intf in engine.interface.all():
+                if intf.name == 'Interface 0':
+                    for subif in intf.sub_interfaces():
+                        if subif.address == '172.18.1.80':
+                            subif.address = '172.18.1.100'
+                    intf.save()
+
+        :return: :py:class:`smc.api.web.SMCResult`
+        """
+        self.cache(force_refresh=True)
+        return prepared_request(href=self.href, json=self.data,
+                                etag=self.etag).update()
+
+    def vlan_interfaces(self):
+        """
+        Access VLAN interfaces for this interface. 
+        
+        Retrieve interface and view vlan interfaces::
+        
+            engine = Engine('testfw')
+            for intf in engine.interface.all():
+                if intf.has_vlan:
+                    print(intf.vlan_interfaces()) #Show VLANs
+        
+        :return: list :py:class:`smc.core.interfaces.PhysicalVlanInterface`
+        """
+        if self.has_vlan:
+            return [PhysicalVlanInterface(vlan)
+                    for vlan in self.data.get('vlanInterfaces')]
+        return []
+        
+    def sub_interfaces(self):
+        """
+        Access sub interfaces with sub-interface information. Single 
+        engines will typically only have 1 sub-interface, however interfaces 
+        with VLANs, clusters, or multiple IP's assigned will have multiple.
+        It is not required to use this method to access interface attributes.
+        However, it is required to make modifications to the right interface.
+        
+        Retrieve interface and type, with address and network::
+        
+            engine = Engine('testfw')
+            for intf in engine.interface.all():
+                for x in intf.sub_interfaces():
+                    print(x) #Show sub interfaces by type
+                    if x.address == '1.1.1.1':
+                        x.address = '1.1.1.5'    #Change the IP address
+                intf.save() #Save to top level interface 
+        
+        :return: list :py:mod:`smc.core.sub_interfaces` by type
+        """    
+        results = []
+        
+        data = self.data
+        def inner(data):
+            if data.get('interfaces'):
+                # It's an interface definition
+                for intf in data['interfaces']:
+                    for if_type, values in intf.items():
+                        results.append(_InterfaceFactory(if_type)(values))
+            elif data.get('vlanInterfaces'):
+                for vlan in data.get('vlanInterfaces'):
+                    inner(vlan)
+            else:
+                if self.typeof == TunnelInterface.typeof:
+                    pass
+                else: #PhysicalInterface
+                    if '.' in data.get('interface_id'):
+                        results.append(PhysicalVlanInterface(data))
+        
+        inner(data)
+        return results
+     
+    def all(self):
+        """
+        Return all interfaces for this engine. This is a common entry
+        point to viewing interface information.
+        
+        Retrieve specific information about an interface::
+        
+            engine = Engine('myengine')
+            for x in engine.physical_interface.all():
+                print(x.name, x.address, x.network_value)
+            
+        :return: list :py:class:`smc.elements.interfaces.Interface`
+        """
+        interfaces=[]
+        
+        for interface in search.element_by_href_as_json(self.meta.href):
+            intf_type = interface.get('type')
+            intf = _InterfaceFactory(intf_type)
+            if intf:
+                interfaces.append(intf(meta=Meta(**interface),
+                                       engine=self._engine))
+            else:
+                interfaces.append(Interface(meta=Meta(**interface),
+                                            engine=self._engine))
+        return interfaces
+                    
+    def __iter__(self):
+        print("Iter in parent......")
+        if self.data.get('interfaces'):
+            for intf in self.data['interfaces']:
+                for if_type, values in intf.items():
+                    yield _InterfaceFactory(if_type)(values)
+        if self.data.get('vlanInterfaces'):
+            for intf in self.data['vlanInterfaces']:
+                yield PhysicalVlanInterface(intf)
+        
+    def __getattr__(self, name):
+        print("getattr in parent: %s" % name)
+        return [getattr(intfs, name) for intfs in iter(self)]
+        
+    def __str__(self):
+        return '{0}(name={1})'.format(self.__class__.__name__, self.name)
+    
+    def __repr__(self):
+        return str(self)
+
+   
+class TunnelInterface(InterfaceCommon, Interface):
     """
     TunnelInterface
     This interface type represents a tunnel interface that is typically used for
@@ -376,11 +507,11 @@ class TunnelInterface(Interface):
     typeof = 'tunnel_interface'
     
     def __init__(self, meta=None, **kwargs):
-        Interface.__init__(self, meta)
-        self.data = {'interface_id': None,
-                     'interfaces': []}
+        Interface.__init__(self, meta, **kwargs)
+        self._data = {'interface_id': None,
+                      'interfaces': []}
 
-    @commit
+    @create
     def add_single_node_interface(self, tunnel_id, address, network_value, 
                                   nodeid=1,
                                   zone_ref=None, **kwargs):
@@ -393,13 +524,16 @@ class TunnelInterface(Interface):
         :param str network_value: network cidr for interface
         :param int nodeid: nodeid, used only for clusters
         :param str zone_ref: zone reference for interface
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        intf = SingleNodeInterface(tunnel_id, address, network_value, **kwargs)
-        self.data.update(interface_id=tunnel_id,
-                         interfaces=[intf],
-                         zone_ref=zone_ref)
+        intf = SingleNodeInterface.create(tunnel_id, address, network_value, 
+                                          **kwargs)
+        self._data.update(interface_id=tunnel_id,
+                          interfaces=[intf()],
+                          zone_ref=zone_ref)
        
-    @commit
+    @create
     def add_cluster_virtual_interface(self, tunnel_id, address, network_value,
                                       zone_ref=None, **kwargs):
         """
@@ -413,13 +547,15 @@ class TunnelInterface(Interface):
         :param str address: ip address for tunnel cvi
         :param str network_value: network cidr for address
         :param str zone_ref: zone reference for interface (optional)
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        cvi = ClusterVirtualInterface(tunnel_id, address, network_value)
-        self.data.update(interface_id=tunnel_id,
-                         interfaces=[cvi],
-                         zone_ref=zone_ref)
+        cvi = ClusterVirtualInterface.create(tunnel_id, address, network_value)
+        self._data.update(interface_id=tunnel_id,
+                          interfaces=[cvi()],
+                          zone_ref=zone_ref)
 
-    @commit
+    @create
     def add_cluster_virtual_and_node_interfaces(self, tunnel_id, address, 
                                                 network_value, nodes,
                                                 zone_ref=None, **kwargs):
@@ -439,23 +575,25 @@ class TunnelInterface(Interface):
         :param str address: ip address for tunnel cvi
         :param str network_value: network cidr for address
         :param list nodes: dict of nodes {address, network_value, nodeid}
-        :param str zone_ref: zone reference for interface (optional) 
+        :param str zone_ref: zone reference for interface (optional)
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        cvi = ClusterVirtualInterface(tunnel_id, address, network_value)
+        cvi = ClusterVirtualInterface.create(tunnel_id, address, network_value)
         interfaces=[]
-        interfaces.append(cvi)
+        interfaces.append(cvi())
         for node in nodes:
-            ndi = NodeInterface(interface_id=tunnel_id, 
-                                address=node.get('address'), 
-                                network_value=node.get('network_value'),
-                                nodeid=node.get('nodeid'))
-            interfaces.append(ndi)
-        self.data.update(interface_id=tunnel_id,
-                         interfaces=interfaces,
-                         zone_ref=zone_ref)
+            ndi = NodeInterface.create(interface_id=tunnel_id, 
+                                       address=node.get('address'), 
+                                       network_value=node.get('network_value'),
+                                       nodeid=node.get('nodeid'))
+            interfaces.append(ndi())
+        self._data.update(interface_id=tunnel_id,
+                          interfaces=interfaces,
+                          zone_ref=zone_ref)
 
 
-class PhysicalInterface(Interface):
+class PhysicalInterface(InterfaceCommon, Interface):
     """
     Physical Interfaces on NGFW. This represents the following base configuration for
     the following interface types:
@@ -472,7 +610,7 @@ class PhysicalInterface(Interface):
     First get the engine context by loading the engine then get the engine property for 
     physical interface::
 
-        engine = Engine('myfw').load()
+        engine = Engine('myfw')
         engine.physical_interface.add_single_node_interface(.....)
         engine.physical_interface.add(5) #single unconfigured physical interface
         engine.physical_interface.add_node_interface(....)
@@ -484,17 +622,13 @@ class PhysicalInterface(Interface):
     typeof = 'physical_interface'
     
     def __init__(self, meta=None, **kwargs):
-        Interface.__init__(self, meta)
-        self.data = {
-                'interface_id': None,
-                'interfaces': [],
-                'vlanInterfaces': [],
-                'zone_ref': None }
-                     
-        for key, value in kwargs.items():
-            self.data.update({key: value})
+        Interface.__init__(self, meta, **kwargs)
+        self._data = {'interface_id': None,
+                      'interfaces': [],
+                      'vlanInterfaces': [],
+                      'zone_ref': None}
     
-    @commit    
+    @create    
     def add(self, interface_id, virtual_mapping=None, 
             virtual_resource_name=None):
         """ 
@@ -507,13 +641,14 @@ class PhysicalInterface(Interface):
                See :py:class:`smc.core.engine.VirtualResource.vfw_id`
         :param str virtual_resource_name: virtual resource name
                See :py:class:`smc.core.engine.VirtualResource.name`
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        self.data.update(interface_id=interface_id,
-                         virtual_mapping=virtual_mapping,
-                         virtual_resource_name=virtual_resource_name)
+        self._data.update(interface_id=interface_id,
+                          virtual_mapping=virtual_mapping,
+                          virtual_resource_name=virtual_resource_name)
     
-    @commit      
+    @create      
     def add_single_node_interface(self, interface_id, address, network_value, 
                                   zone_ref=None, is_mgmt=False, **kwargs):
         """
@@ -524,26 +659,30 @@ class PhysicalInterface(Interface):
         :param str network_value: network cidr
         :param str zone_ref: zone reference
         :param boolean is_mgmt: should management be enabled
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
-        See :py:class:`~SingleNodeInterface` for more information
+        See :py:class:`smc.core.sub_interfaces.SingleNodeInterface` for more information
         """
-        intf = SingleNodeInterface(interface_id, address, network_value, 
-                                   **kwargs)
+        intf = SingleNodeInterface.create(interface_id, address, network_value, 
+                                          **kwargs)
         if is_mgmt:
-            intf = self.modify_interface(intf, {'auth_request': True,
-                                                'outgoing': True,
-                                                'primary_mgt': True})    
-        self.data.update(interface_id=interface_id,
-                         interfaces=[intf],
-                         zone_ref=zone_ref)
+            intf.auth_request = True
+            intf.outgoing = True
+            intf.primary_mgt = True
+   
+        self._data.update(interface_id=interface_id,
+                          interfaces=[intf()],
+                          zone_ref=zone_ref)
  
-    @commit
+    @create
     def add_node_interface(self, interface_id, address, network_value,
                            zone_ref=None, nodeid=1, is_mgmt=False, 
                            **kwargs):
         """
-        Add a node interface to engine
+        Add a node interface to engine. Node interfaces are used on
+        all engine types except single fw engines. For inline and IPS
+        engines, this interface type represents a layer 3 routed interface.
         
         :param int interface_id: interface identifier
         :param str address: ip address
@@ -551,40 +690,42 @@ class PhysicalInterface(Interface):
         :param str zone_ref: zone reference
         :param int nodeid: node identifier, used for cluster nodes
         :param boolean is_mgmt: enable management
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
-        See :py:class:`~NodeInterface` for more information 
+        See :py:class:`smc.core.sub_interfaces.NodeInterface` for more information 
         """
-        ndi = NodeInterface(interface_id, address, network_value, 
-                             nodeid=nodeid, **kwargs)
+        ndi = NodeInterface.create(interface_id, address, network_value, 
+                                   nodeid=nodeid, **kwargs)
         if is_mgmt:
-            ndi = self.modify_interface(ndi, {'outgoing': True,
-                                              'primary_mgt': True})
-            
-        self.data.update(interface_id=interface_id,
-                         interfaces=[ndi],
-                         zone_ref=zone_ref)
+            ndi.outgoing = True
+            ndi.primary_mgt = True
+       
+        self._data.update(interface_id=interface_id,
+                          interfaces=[ndi()],
+                          zone_ref=zone_ref)
 
-    @commit
+    @create
     def add_capture_interface(self, interface_id, logical_interface_ref, 
                               zone_ref=None, **kwargs):
         """
-        Add a capture interface
+        Add a capture interface. Supported only on Layer 2 and IPS engines.
         
         :param int interface_id: interface identifier
         :param str logical_interface_ref: logical interface reference
         :param str zone_ref: zone reference
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
-        See :py:class:`~CaptureInterface` for more information 
+        See :py:class:`smc.core.sub_interfaces.CaptureInterface` for more information 
         """
-        intf = CaptureInterface(interface_id, logical_interface_ref, 
-                                **kwargs)
-        self.data.update(interface_id=interface_id,
-                         interfaces=[intf],
-                         zone_ref=zone_ref)
+        intf = CaptureInterface.create(interface_id, logical_interface_ref, 
+                                       **kwargs)
+        self._data.update(interface_id=interface_id,
+                          interfaces=[intf()],
+                          zone_ref=zone_ref)
 
-    @commit    
+    @create    
     def add_inline_interface(self, interface_id, logical_interface_ref, 
                              zone_ref_intf1=None,
                              zone_ref_intf2=None):
@@ -595,20 +736,22 @@ class PhysicalInterface(Interface):
         :param str logical_interface_ref: logical interface reference
         :param zone_ref_intf1: zone for inline interface 1
         :param zone_ref_intf2: zone for inline interface 2
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
-        See :py:class:`~InlineInterface` for more information  
+        See :py:class:`smc.core.sub_interfaces.InlineInterface` for more information  
         """
-        inline_intf = InlineInterface(interface_id, 
-                                      logical_interface_ref=logical_interface_ref,
-                                      zone_ref=zone_ref_intf2) #second intf zone
-        self.data.update(interface_id=interface_id.split('-')[0],
-                         interfaces=[inline_intf],
-                         zone_ref=zone_ref_intf1)
+        inline_intf = InlineInterface.create(
+                                    interface_id, 
+                                    logical_interface_ref=logical_interface_ref,
+                                    zone_ref=zone_ref_intf2) #second intf zone
+        self._data.update(interface_id=interface_id.split('-')[0],
+                          interfaces=[inline_intf()],
+                          zone_ref=zone_ref_intf1)
 
-    @commit
+    @create
     def add_dhcp_interface(self, interface_id, dynamic_index, 
-                           primary_mgt=False, zone_ref=None, nodeid=1):
+                           primary_mgmt=False, zone_ref=None, nodeid=1):
         """
         Add a DHCP interface
         
@@ -617,29 +760,31 @@ class PhysicalInterface(Interface):
         :param boolean primary_mgt: whether to make this primary mgt
         :param str zone_ref: zone reference for interface
         :param int nodeid: node identifier
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
         See :py:class:`~DHCPInterface` for more information 
         """ 
-        dhcp = DHCPInterface(interface_id,
-                             dynamic_index,
-                             nodeid=nodeid)
-        if primary_mgt:
-            dhcp = self.modify_interface(dhcp, {'primary_mgt': True,
-                                                'reverse_connection': True,
-                                                'automatic_default_route': True})
-
-        self.data.update(interface_id=interface_id,
-                         interfaces=[dhcp],
-                         zone_ref=zone_ref)
+        intf = SingleNodeInterface.create_dhcp(interface_id,
+                                               dynamic_index,
+                                               nodeid=nodeid)
+        if primary_mgmt:
+            intf.primary_mgt = True
+            intf.reverse_connection = True
+            intf.automatic_default_route = True
+            
+        self._data.update(interface_id=interface_id,
+                          interfaces=[intf()],
+                          zone_ref=zone_ref)
   
-    @commit
+    @create
     def add_cluster_virtual_interface(self, interface_id, cluster_virtual, 
                                       cluster_mask, macaddress, nodes, 
                                       cvi_mode='packetdispatch', 
                                       zone_ref=None, is_mgmt=False):
         """
-        Add cluster virtual interface
+        Add cluster virtual interface. A "CVI" interface is used as a VIP
+        address for clustered engines.
         
         :param int interface_id: physical interface identifier
         :param int cluster_virtual: CVI address (VIP) for this interface
@@ -649,7 +794,8 @@ class PhysicalInterface(Interface):
         :param str cvi_mode: packetdispatch is recommended setting
         :param str zone_ref: if present, is promoted to top level physical interface
         :param boolean is_mgmt: default False, should this be management enabled
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
         Adding a cluster virtual to an existing engine would look like::
         
@@ -662,30 +808,31 @@ class PhysicalInterface(Interface):
                            {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}],
                     zone_ref=zone_helper('Heartbeat'))
         """
-        cvi = ClusterVirtualInterface(interface_id, cluster_virtual, cluster_mask)
+        cvi = ClusterVirtualInterface.create(interface_id, cluster_virtual, cluster_mask)
         if is_mgmt:
-            cvi = self.modify_interface(cvi, {'auth_request': True})
+            cvi.auth_request = True
         
         interfaces=[]
-        interfaces.append(cvi)
+        interfaces.append(cvi())
         
         for node in nodes:
-            ndi = NodeInterface(interface_id=interface_id, 
-                                address=node.get('address'), 
-                                network_value=node.get('network_value'),
-                                nodeid=node.get('nodeid'))
+            ndi = NodeInterface.create(interface_id=interface_id, 
+                                       address=node.get('address'), 
+                                       network_value=node.get('network_value'),
+                                       nodeid=node.get('nodeid'))
             if is_mgmt:
-                ndi = self.modify_interface(ndi, {'primary_mgt': True,
-                                                  'outgoing': True,
-                                                  'primary_heartbeat': True})
-            interfaces.append(ndi)
-        self.data.update(cvi_mode=cvi_mode,
-                         macaddress=macaddress,
-                         interface_id=interface_id,
-                         interfaces=interfaces,
-                         zone_ref=zone_ref)
+                ndi.primary_mgt = True
+                ndi.outgoing = True
+                ndi.primary_heartbeat = True
+            
+            interfaces.append(ndi())
+        self._data.update(cvi_mode=cvi_mode,
+                          macaddress=macaddress,
+                          interface_id=interface_id,
+                          interfaces=interfaces,
+                          zone_ref=zone_ref)
     
-    @commit
+    @create
     def add_cluster_interface_on_master_engine(self, interface_id,
                                                macaddress, nodes, 
                                                is_mgmt=False,
@@ -700,55 +847,94 @@ class PhysicalInterface(Interface):
         :param list nodes: interface node list
         :param boolean is_mgmt: is this a management interface
         :param zone_ref: zone to use, if any
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         interfaces=[]
         for node in nodes:
-            ndi = NodeInterface(interface_id=interface_id, 
-                                address=node.get('address'), 
-                                network_value=node.get('network_value'),
-                                nodeid=node.get('nodeid'))
+            ndi = NodeInterface.create(interface_id=interface_id, 
+                                       address=node.get('address'), 
+                                       network_value=node.get('network_value'),
+                                       nodeid=node.get('nodeid'))
             if is_mgmt:
-                ndi = self.modify_interface(ndi, {'primary_mgt': True,
-                                                  'outgoing': True,
-                                                  'primary_heartbeat': True})
-            interfaces.append(ndi)
-        
-        self.data.update(interface_id=interface_id,
-                         interfaces=interfaces,
-                         macaddress=macaddress,
-                         zone_ref=zone_ref)
+                ndi.primary_mgt = True
+                ndi.outgoing = True
+                ndi.primary_heartbeat = True
+            
+            interfaces.append(ndi())
+        self._data.update(interface_id=interface_id,
+                          interfaces=interfaces,
+                          macaddress=macaddress,
+                          zone_ref=zone_ref)
 
-    @commit          
+    @create          
     def add_vlan_to_single_node_interface(self, interface_id, address, 
                                           network_value, vlan_id, 
                                           zone_ref=None):
         """
-        Add a vlan to single node interface. Interface is created if 
-        it doesn't already exist.
+        Add a vlan and IP address to a single firewall engine.
         
         :param int interface_id: interface identifier
         :param str address: ip address
         :param str network_value: network cidr
         :param int vlan_id: vlan identifier 
         :param str zone_ref: zone reference
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
-        See :py:class:`~SingleNodeInterface` for more information 
+        See :py:class:`smc.core.sub_interfaces.SingleNodeInterface` for more information 
         """
         vlan = VlanInterface(interface_id, vlan_id, zone_ref=zone_ref)
-        sni = SingleNodeInterface(vlan.get('interface_id'), address, network_value)
-        vlan.get('interfaces').append(sni)
-        self.data.update(interface_id=interface_id,
-                         vlanInterfaces=[vlan])
- 
-    @commit
+        sni = SingleNodeInterface.create(vlan.get('interface_id'), address, 
+                                         network_value)
+        vlan.get('interfaces').append(sni())
+        self._data.update(interface_id=interface_id,
+                          vlanInterfaces=[vlan])
+        
+    def add_ipaddress_to_vlan_interface(self, interface_id, address, network_value,
+                                        vlan_id, nodeid=1, **kwargs):
+        """
+        When an existing VLAN exists but has no IP address assigned, use this to
+        add an ip address to the VLAN.
+        This assumes that the engine context exists as the interface specified 
+        This is only supported on layer 3 interfaces.
+        
+        :param str interface_id: interface to modify
+        :param str address: ip address for vlan
+        :param str network_value: network for address (i.e. 255.255.255.0)
+        :param int vlan_id: id of vlan
+        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed` for invalid interface
+        """
+        if not self.meta:
+            raise EngineCommandFailed('Adding a vlan to existing interface requires '
+                                      'an engine reference.')
+        
+        if self._engine.type == 'single_fw':
+            intf = SingleNodeInterface.create(interface_id, address, network_value, nodeid,
+                                              nicid='{}.{}'.format(interface_id, vlan_id))
+        else:
+            intf = NodeInterface.create(interface_id, address, network_value, nodeid,
+                                        nicid='{}.{}'.format(interface_id, vlan_id))
+        
+        p = self.get(interface_id)
+        for vlan in p.sub_interfaces():
+            if isinstance(vlan, PhysicalVlanInterface):
+                if vlan.interface_id == '{}.{}'.format(interface_id, vlan_id):
+                    vlan.data['interfaces'] = [intf()]
+           
+        return prepared_request(href=p.href, json=p.data,
+                                etag=p.etag).update()
+        
+    @create
     def add_vlan_to_node_interface(self, interface_id, vlan_id, 
-                                   virtual_mapping=None, virtual_resource_name=None,
+                                   virtual_mapping=None, 
+                                   virtual_resource_name=None,
                                    zone_ref=None):
         """
-        Add vlan to node interface. Interface is created if 
-        it doesn't already exist.
+        Add vlan to a layer 3 interface. Interface is created if 
+        it doesn't already exist. This can be used on any engine
+        type.
         
         :param int interface_id: interface identifier
         :param int vlan_id: vlan identifier
@@ -756,18 +942,17 @@ class PhysicalInterface(Interface):
                See :py:class:`smc.core.engine.VirtualResource.vfw_id`
         :param str virtual_resource_name: name of virtual resource
                See :py:class:`smc.core.engine.VirtualResource.name`
-        :return: :py:class:`smc.api.web.SMCResult`
-        
-        See :py:class:`~NodeInterface` for more information 
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
         vlan = VlanInterface(interface_id, vlan_id, 
                              virtual_mapping,
                              virtual_resource_name,
                              zone_ref)
-        self.data.update(interface_id=interface_id,
-                         vlanInterfaces=[vlan])
+        self._data.update(interface_id=interface_id,
+                          vlanInterfaces=[vlan])
    
-    @commit    
+    @create    
     def add_vlan_to_inline_interface(self, interface_id, vlan_id,
                                      vlan_id2=None,
                                      logical_interface_ref=None,
@@ -783,23 +968,144 @@ class PhysicalInterface(Interface):
         :param str logical_interface_ref: logical interface reference to use
         :param str zone_ref_intf1: zone for inline interface 1
         :param str zone_ref_intf2: zone for inline interface 2
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
+        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         
-        See :py:class:`~InlineInterface` for more information 
+        See :py:class:`smc.core.sub_interfaces.InlineInterface` for more information 
         """
         first_intf = interface_id.split('-')[0]
         vlan = VlanInterface(first_intf, vlan_id, zone_ref=zone_ref_intf1)
         
-        inline_intf = InlineInterface(interface_id, 
-                                      logical_interface_ref,
-                                      zone_ref=zone_ref_intf2)
-        copied_intf = deepcopy(inline_intf)
-        vlan.get('interfaces').append(add_vlan_to_inline(inline_intf, vlan_id, vlan_id2))
+        inline_intf = InlineInterface.create(interface_id, 
+                                             logical_interface_ref,
+                                             zone_ref=zone_ref_intf2)
+        copied_intf = deepcopy(inline_intf())
+        vlan.get('interfaces').append(_add_vlan_to_inline(inline_intf(), 
+                                                          vlan_id, 
+                                                          vlan_id2))
           
-        self.data.update(interfaces=[copied_intf],
-                         vlanInterfaces=[vlan],
-                         interface_id=first_intf)
+        self._data.update(interfaces=[copied_intf],
+                          vlanInterfaces=[vlan],
+                          interface_id=first_intf)
+
+    def __call__(self):
+        return {self.typeof: self._data}
+
+    @property
+    def cvi_mode(self):
+        """
+        HA Cluster mode. Not valid for non-cluster engines.
         
+        :param str value: packetdispatch, unicast, multicast, multicastgmp
+        :rtype: str
+        """
+        return self.data.get('cvi_mode')
+    
+    @cvi_mode.setter
+    def cvi_mode(self, value):
+        self.data['cvi_mode'] = value
+   
+    @property
+    def macaddress(self):
+        """
+        MAC Address for cluster virtual interface.
+        Only valid for cluster engines.
+        
+        :param str value: macaddress
+        :rtype: str
+        """
+        return self.data.get('macaddress')
+    
+    @macaddress.setter
+    def macaddress(self, value):
+        self.data['macaddress'] = value
+
+    @property
+    def multicast_ip(self):
+        """
+        Enter a multicast address, that is, an IP address from the 
+        range 224.0.0.0-239.255.255.255.
+        The address is used for automatically calculating a MAC address. 
+        Required only if multicastigmp cvi mode is selected as the cvi_mode.
+        
+        :param str value: address
+        :rtype: str 
+        """
+        return self.data.get('multicast_ip')
+    
+    @multicast_ip.setter
+    def multicast_ip(self, value):
+        self.data['multicast_ip'] = value
+    
+    @property
+    def virtual_engine_vlan_ok(self):
+        """
+        Whether to allow VLAN creation on the Virtual Engine.
+        Only valid for master engine.
+        
+        :param boolean value: enable/disable
+        :rtype: boolean
+        """
+        return self.data.get('virtual_engine_vlan_ok')
+    
+    @virtual_engine_vlan_ok.setter
+    def virtual_engine_vlan_ok(self, value):
+        self.data['virtual_engine_vlan_ok'] = value
+
+        
+class PhysicalVlanInterface(PhysicalInterface):
+    """
+    This is a container class used when enumerating vlan interfaces
+    from the top level physical interface. In some cases, a physical
+    interface may be created with a VLAN which has no IP address
+    assigned, as would be the case with Inline Interfaces or layer 3
+    engines without an IP yet assigned.
+    """
+    typeof = 'physical_vlan_interface'
+    
+    def __init__(self, data, meta=None):
+        PhysicalInterface.__init__(self, meta)
+        self.meta = Meta(href=None)
+        self._cache = (None, data)
+    
+    @property
+    def vlan_id(self):
+        """
+        VLAN interface on the top level VLAN physical interface.
+        
+        :param str|int value: new vlan id
+        """
+        v = self.interface_id.split('.')
+        if len(v) > 1:
+            return v[1]
+        
+    @vlan_id.setter
+    def vlan_id(self, value):
+        intf_id = self.interface_id.split('.')
+        intf_id[1] = str(value)
+        self.interface_id =  ('.').join(intf_id)
+        for subintf in iter(self):
+            if subintf:
+                subintf.nicid = ('.').join(intf_id)
+            
+    def __iter__(self):
+        if self.data.get('interfaces'):
+            for intf in self.data['interfaces']:
+                for if_type, values in intf.items():
+                    yield _InterfaceFactory(if_type)(values)
+        yield []
+        
+    def __getattr__(self, name):
+        for interface in iter(self):
+            if interface:
+                return getattr(interface, name)
+        
+    def __str__(self):
+        return '{0}(address={1},vlan_id={2})'.format(self.__class__.__name__, 
+                                                     self.address, self.vlan_id)
+    def __repr__(self):
+        return str(self)
+    
 class VirtualPhysicalInterface(PhysicalInterface):
     """ 
     VirtualPhysicalInterface
@@ -808,10 +1114,6 @@ class VirtualPhysicalInterface(PhysicalInterface):
     Single Node Interface as the physical interface sub-type.
     When creating the VE, one of the interfaces must be designated as the source
     for Auth Requests and Outgoing. 
-    
-    :param int interface_id: interface id for this virtual interface
-    :param list intfdict: dictionary representing interface information
-    :param str zone_ref: zone for top level physical interface
     """
     typeof = 'virtual_physical_interface'
     
@@ -819,35 +1121,19 @@ class VirtualPhysicalInterface(PhysicalInterface):
         PhysicalInterface.__init__(self, meta, **kwargs)
         pass
 
-                    
-class InterfaceEnum(object):
-    def __init__(self, meta):
-        self.meta = meta
-        
-    def all(self):
-        """
-        Return all interfaces for this engine. This will be an Interface
-        object that provides the 3 attributes, href, name and type.
-        
-        :return: list :py:class:smc.elements.interfaces.Interface`
-        """
-        interfaces=[]
-        intf_map = interface_map()
-        for interface in search.element_by_href_as_json(self.meta.href):
-            intf_type = interface.get('type')
-            if intf_map.get(intf_type):
-                interfaces.append(intf_map[intf_type](meta=Meta(**interface)))
-            else:
-                interfaces.append(Interface(meta=Meta(**interface)))
-        return interfaces
+import sys, inspect
+_intf_map = dict((klazz.typeof, klazz) 
+                 for i in [sys.modules[__name__], smc.core.sub_interfaces]
+                 for _, klazz in inspect.getmembers(i, inspect.isclass)
+                 if hasattr(klazz, 'typeof'))
 
+def _InterfaceFactory(name):
+    return _intf_map.get(name)
 
-def interface_map():
-    """
-    Map helper to get interface class by typeof attribute
-    """
-    import inspect, sys
-    intf_map = dict((klazz.typeof, klazz) 
-                    for _, klazz in inspect.getmembers(sys.modules[__name__])
-                    if inspect.isclass(klazz) and hasattr(klazz, 'typeof'))
-    return intf_map
+def _interface_helper(data):
+        """
+        Return sub interface instance
+        """
+        for intf in data['interfaces']:
+            for if_type, values in intf.items():
+                return _InterfaceFactory(if_type)(values)

@@ -51,8 +51,7 @@ class Policy(Element):
         href is returned when calling this method. If wait_for_finish is
         True, this generator function will return the new messages as they
         arrive.
-        
-        :method: POST
+
         :param engine: name of device to upload policy to
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
@@ -72,8 +71,7 @@ class Policy(Element):
         edits that may require more time. Simple create or deleting elements
         generally can be done without locking via open.
         This is only used in SMC API 6.0 and below
-        
-        :method: GET
+
         :return: :py:class:`smc.api.web.SMCResult` or None if SMC API >= 6.1
         """
         href = find_link_by_name('open', self.link)
@@ -83,8 +81,7 @@ class Policy(Element):
     def save(self):
         """ Save policy that was modified
         This is only used in SMC API v6.0 and below.
-        
-        :method: POST
+
         :return: :py:class:`smc.api.web.SMCResult` or None if SMC API >= 6.1
         """
         href = find_link_by_name('save', self.link)
@@ -93,8 +90,7 @@ class Policy(Element):
 
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
-        
-        :method: POST
+
         :return: :py:class:`smc.api.web.SMCResult`
         """
         return prepared_request(
@@ -117,25 +113,26 @@ class Policy(Element):
                         href=find_link_by_name('search_rule', self.link),
                         params={'filter': search}).read()
         if result.json:
-            results = _get_rule_class(result.json)
+            results = _RuleTypeFactory(result.json)
             return results
         else: return []
    
     def search_category_tags_from_element(self):
         pass
 
-def _get_rule_class(meta):
+def _RuleTypeFactory(meta):
     """
     Temporary
     Need to sort a sensible map for rules that share the same class template
     Maybe nest in child classes
     """
     import inspect
-    import smc.policy.rule
+    import smc.policy.rule, smc.policy.rule_nat
     from smc.base.model import Meta
     intf_map = dict((klazz.typeof, klazz) 
-                    for _, klazz in inspect.getmembers(smc.policy.rule)
-                    if inspect.isclass(klazz) and hasattr(klazz, 'typeof'))
+                    for i in [smc.policy.rule, smc.policy.rule_nat]
+                    for _, klazz in inspect.getmembers(i, inspect.isclass)
+                    if hasattr(klazz, 'typeof'))
     
     results = []
     for data in meta:

@@ -4,7 +4,7 @@ and resources are available to that particular engine.
 
 For example, to load an engine and run node level commands::
 
-    engine = Engine('myfw').load()
+    engine = Engine('myfw')
     for node in engine.nodes:
         node.reboot()
         node.bind_license()
@@ -21,7 +21,7 @@ from smc.base.model import Element, prepared_request
 class Node(Element):
     """ 
     Node settings to make each engine node controllable individually.
-    When Engine().load() is called, setattr will set all instance attributes
+    When Engine() is loaded, setattr will set all instance attributes
     with the contents of the node json. Very few would benefit from being
     modified with exception of 'name'. To change a top level attribute, you
     would call node.modify_attribute(name='value')
@@ -140,8 +140,7 @@ class Node(Element):
                         filename=None):
         """ 
         Allows to save the initial contact for for the specified node
-        
-        :method: POST
+ 
         :param boolean enable_ssh: flag to know if we allow the ssh daemon on the 
                specified node
         :param str time_zone: optional time zone to set on the specified node 
@@ -157,7 +156,6 @@ class Node(Element):
             raise NodeCommandFailed('Initial contact not supported on this node type')
         result = prepared_request(href=href,
                                   params={'enable_ssh': enable_ssh}).create()
-      
         if result.content:
             if filename:
                 try:
@@ -172,8 +170,7 @@ class Node(Element):
         """ 
         Gets the appliance status for the specified node for the specific 
         supported engine 
-        
-        :method: GET
+
         :return: list of status information
         """
         result = search.element_by_href_as_smcresult(
@@ -186,8 +183,7 @@ class Node(Element):
         """ 
         Basic status for individual node. Specific information such as node 
         name dynamic package version, configuration status, platform and version.
-        
-        :method: GET
+
         :return: :py:class:`~NodeStatus`
         """
         result = search.element_by_href_as_smcresult(
@@ -201,8 +197,7 @@ class Node(Element):
         Executes a Go-Online operation on the specified node 
         typically done when the node has already been forced offline 
         via :func:`go_offline`
-        
-        :method: PUT
+
         :param str comment: (optional) comment to audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -217,8 +212,7 @@ class Node(Element):
     def go_offline(self, comment=None):
         """ 
         Executes a Go-Offline operation on the specified node
-        
-        :method: PUT
+
         :param str comment: optional comment to audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -234,8 +228,7 @@ class Node(Element):
         """ 
         Executes a Go-Standby operation on the specified node. 
         To get the status of the current node/s, run :func:`status`
-        
-        :method: PUT
+
         :param str comment: optional comment to audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -250,8 +243,7 @@ class Node(Element):
     def lock_online(self, comment=None):
         """ 
         Executes a Lock-Online operation on the specified node
-        
-        :method: PUT
+
         :param str comment: comment for audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -267,8 +259,7 @@ class Node(Element):
         """ 
         Executes a Lock-Offline operation on the specified node
         Bring back online by running :func:`go_online`.
-        
-        :method: PUT
+
         :param str comment: comment for audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -284,8 +275,7 @@ class Node(Element):
         """ 
         Executes a Send Reset LDAP User DB Request operation on this
         node.
-        
-        :method: PUT
+
         :param str comment: comment to audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -305,14 +295,13 @@ class Node(Element):
         
         Get all diagnostic/debug settings::
             
-            engine = Engine('myfw').load()
+            engine = Engine('myfw')
             for node in engine:
                 for diag in node.diagnostic():
                     print diag
                     
         Add filter_enabled=True argument to see only enabled settings
-        
-        :method: GET
+
         :param boolean filter_enabled: returns all enabled diagnostics
         :return: list of dict items with diagnostic info; key 'diagnostics'
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -365,8 +354,7 @@ class Node(Element):
     def reboot(self, comment=None):
         """ 
         Send reboot command to this node.
-        
-        :method: PUT
+
         :param str comment: comment to audit
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
@@ -380,24 +368,23 @@ class Node(Element):
         
     def sginfo(self, include_core_files=False,
                include_slapcat_output=False,
-               filename='sginfo.zip'):
+               filename='sginfo.gz'):
         """ 
         Get the SG Info of the specified node 
-        
-        :method: GET
+
         :param include_core_files: flag to include or not core files
         :param include_slapcat_output: flag to include or not slapcat output
         """
-        params = {'include_core_files': include_core_files,
-                  'include_slapcat_output': include_slapcat_output}
-        result = prepared_request(href=find_link_by_name('sginfo', self.link),
-                                  filename=filename).read()
+        #params = {'include_core_files': include_core_files,
+        #          'include_slapcat_output': include_slapcat_output}
+        #result = prepared_request(href=find_link_by_name('sginfo', self.link),
+        #                          filename=filename).read()
+        raise NotImplementedError
    
     def ssh(self, enable=True, comment=None):
         """ 
         Enable or disable SSH
-        
-        :method: PUT
+
         :param boolean enable: enable or disable SSH daemon
         :param str comment: optional comment for audit
         :return: None
@@ -416,8 +403,7 @@ class Node(Element):
     def change_ssh_pwd(self, pwd=None, comment=None):
         """
         Executes a change SSH password operation on the specified node 
-        
-        :method: PUT
+
         :param str pwd: changed password value
         :param str comment: optional comment for audit log
         :return: None
@@ -438,7 +424,6 @@ class Node(Element):
         """ 
         Send a time sync command to this node.
 
-        :method: PUT
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """

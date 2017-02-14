@@ -1,7 +1,6 @@
 '''
 Exceptions Module
 '''
-import json
 import smc.api.web
 from smc.base.util import unicode_to_bytes
 
@@ -48,21 +47,25 @@ class SMCOperationFailure(SMCException):
         self.code = None
         self.smcresult = smc.api.web.SMCResult()
         if response is not None:
-            self.format_ex()
+            self._unpack_response()
     
-    def format_ex(self):
+    def _unpack_response(self):
         details = None
         self.code = self.response.status_code
         if self.response.headers.get('content-type') == 'application/json':
-            data = json.loads(self.response.text)
-            #status = data.get('status', None)
-            message = data.get('message', None)
-            details = data.get('details', None)
+            try:
+                data = self.response.json()
+            except ValueError:
+                message = 'No valid message returned from SMC server'
+            else:
+                #status = data.get('status', None)
+                message = data.get('message', None)
+                details = data.get('details', None)
         else: #it's not json
             if self.response.text:
                 message = self.response.text
             else:
-                message = "HTTP error code: %s, no message" % self.code
+                message = "No message returned from SMC server"
        
         self.smcresult.code = self.code
         
@@ -71,6 +74,7 @@ class SMCOperationFailure(SMCException):
                 if isinstance(details, list) else unicode_to_bytes(details)
             # Some error messages from SMC include line breaks
             details = details.replace('\n', ' ').rstrip()
+    
         if message:
             message = unicode_to_bytes(message)
         
@@ -132,11 +136,22 @@ class CreateElementFailed(SMCException):
     """
     pass
 
+class InvalidRuleValue(SMCException):
+    """
+    Used within rule creation methods to prevent invalid submissions
+    """
+    pass
+
+class CreateRuleFailed(SMCException):
+    """    
+    Indicates a failed response when creating a rule of any type.
+    """
+    pass
+
 class ElementNotFound(SMCException):
     """
     Generic exception when an attempt is made to load an element 
-    that is not found. This is only relavant for elements that 
-    require the .load() method
+    that is not found.
     """
     pass
 

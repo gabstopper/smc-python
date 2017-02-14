@@ -133,10 +133,7 @@ A list of current resources are:
 
 * Engine: encapsulates all engine types; :py:class:`smc.elements.engine.Engine`
 
-Much of the functionality is encapsulated into these top level resources. For example, after loading 
-a VPNPolicy, you can add external endpoints (for External Gateways), add VPN Sites, enable/disable sites, etc.
-
-Other elements such as network elements can be retrieved by referencing the element type directly, or
+Other elements can be retrieved by referencing the element type directly, or
 by using describe methods to get the context of the element. 
 
 For example, getting the available host elements through collections:
@@ -358,7 +355,10 @@ Using alternative inline interface pair (mgmt on interface 0):
 
     from smc.core.engines import IPS
    
-    IPS.create('myfirewall', '1.1.1.1', '1.1.1.0/24', inline_interface='5-6')
+    IPS.create(name='myfirewall', 
+    		   mgmt_ip='1.1.1.1', 
+    		   mgmt_network='1.1.1.0/24', 
+    		   inline_interface='5-6')
  
 Once you have created your engine, it is possible to use any of the engine or node level commands
 to control the nodes.
@@ -379,12 +379,12 @@ virtual engine allocation:
 
    engine = MasterEngine.create(name='api-master',
                        			mgmt_ip='1.1.1.1',
-                       			mgmt_netmask='1.1.1.0/24',
+                       			mgmt_network='1.1.1.0/24',
                        			master_type='firewall', 
                        			domain_server_address=['8.8.4.4', '7.7.7.7'])
                        
-   engine.physical_interface.add(interface_id=1)
-   engine.physical_interface.add(interface_id=2)
+   engine.physical_interface.add(1)
+   engine.physical_interface.add(2)
    
 
 See :py:class:`smc.core.engines.MasterEngine` for more details.
@@ -406,7 +406,7 @@ To create the virtual resource:
 
 .. code-block:: python
         
-   		engine.virtual_resource_add(virtual_engine_name='ve-1', vfw_id=1)
+   		engine.virtual_resource.create(name='ve-1', vfw_id=1)
            
 See :py:func:`smc.elements.engine.Engine.virtual_resource_add` for more information.
 
@@ -448,17 +448,16 @@ constructor as follows:
 .. code-block:: python
 
    engine = FirewallCluster.create(name='mycluster', 
-                                    cluster_virtual='1.1.1.1', 
-                                    cluster_mask='1.1.1.0/24',
-                                    cluster_nic=0,
-                                    macaddress='02:02:02:02:02:02',
-                                    nodes=[{'address': '1.1.1.2', 'network_value': '1.1.1.0/24', 'nodeid':1},
-                                           {'address': '1.1.1.3', 'network_value': '1.1.1.0/24', 'nodeid':2},
-                                           {'address': '1.1.1.4', 'network_value': '1.1.1.0/24', 'nodeid':3}],
-                                    domain_server_address=['1.1.1.1'], 
-                                    zone_ref=zone_helper('Internal'))
+                                   cluster_virtual='1.1.1.1', 
+                                   cluster_mask='1.1.1.0/24',
+                                   cluster_nic=0,
+                                   macaddress='02:02:02:02:02:02',
+                                   nodes=[{'address': '1.1.1.2', 'network_value': '1.1.1.0/24', 'nodeid':1},
+                                          {'address': '1.1.1.3', 'network_value': '1.1.1.0/24', 'nodeid':2},
+                                          {'address': '1.1.1.4', 'network_value': '1.1.1.0/24', 'nodeid':3}],
+                                   domain_server_address=['1.1.1.1'], 
+                                   zone_ref=zone_helper('Internal'))
                              
-
 Creating MasterEngine Cluster
 +++++++++++++++++++++++++++++
 
@@ -524,7 +523,7 @@ IPS engines have two types of interfaces for traffic inspection: the Capture Int
 Layer 2 Firewalls only have Inline Interfaces for traffic inspection.
 
 .. note:: When creating your engine instance, the correct type/s of interfaces are created automatically
-          without having to specify the type. However, this will be relavant when adding interfaces to an
+          without having to specify the type. However, this may be relavant when adding interfaces to an
           existing device after creation.
 
 To access interface information on existing engines, or to add to an existing engine, you must first load the
@@ -538,12 +537,12 @@ loaded via:
 
     from smc.elements.engines import Engine
     
-    engine = Engine('myengine').load()
+    engine = Engine('myengine')
 	
 It is not possible to add certain interface types based on the node type. For example, it is not 
 possible to add inline or capture interfaces to layer 3 FW engines. However, this is handled
 automatically by the SMC API and SMCResult will indicate whether the operation/s succeeds or fails
-and why.
+with the reason.
 
 Adding interfaces are handled by property methods on the engine class. 
 
@@ -551,7 +550,7 @@ To add a single node interface to an existing engine as Interface 10:
 
 .. code-block:: python
 
-   engine = Engine('myengine').load()
+   engine = Engine('myengine')
    engine.physical_interface.add_single_node_interface(10, '33.33.33.33', '33.33.33.0/24')
 
 Node Interface's are used on IPS, Layer2 Firewall, Virtual and Cluster Engines and represent either a
@@ -561,7 +560,7 @@ To add a node interface to an existing engine:
 
 .. code-block:: python
 
-   engine = Engine('myengine').load()
+   engine = Engine('myengine')
    engine.physical_interface.add_node_interface(10, '32.32.32.32', '32.32.32.0/24')
    
 Inline interfaces can only be added to Layer 2 Firewall or IPS engines. An inline interface consists
@@ -574,7 +573,7 @@ To add an inline interface to an existing engine:
 .. code-block:: python
 
    logical_interface = logical_intf_helper('MyLogicalInterface') #get logical interface reference
-   engine = Engine('myengine').load()
+   engine = Engine('myengine')
    engine.physical_interface.add_inline_interface('5-6', logical_interface_ref=logical_intf)
    
 .. note:: Use :py:func:`smc.elements.helpers.logical_intf_helper('name')` which will find the existing
@@ -662,8 +661,7 @@ To see additional information on interfaces, :py:class:`smc.elements.interfaces`
 Deleting Interfaces
 +++++++++++++++++++
 
-Deleting interfaces is done at the engine level. In order to delete an interface, you must first call
-load() on the engine to get the context of the engine.
+Deleting interfaces by referencing the interface from the engine context.
 
 Once you have loaded the engine, you can display all available interfaces by calling using the 
 engine level property interface:
@@ -676,7 +674,7 @@ To view all assigned interfaces to the engine:
 
 .. code-block:: python
 
-   engine = Engine('engine').load()
+   engine = Engine('engine')
    for interface in engine.interface.all():
      print interface.name, interface.type
      
@@ -684,35 +682,86 @@ Deleting an assigned layer 3 physical interface:
 
 .. code-block:: python
 
-   engine = Engine('myfirewall').load()
+   engine = Engine('myfirewall')
    for interface in engine.interface.all():
      if interface.name = 'Interface 2':
        interface.delete()
 
 To see additional information on interfaces, :py:class:`smc.elements.interfaces` reference documentation
 
+Finding Interface and VLAN info
++++++++++++++++++++++++++++++++
+
+Top level interface types hold basic settings about the interface, and sub-interfaces define the actual
+configuration itself, such as IP Addresses, Netmask, which node the interface is assigned to, etc.
+To obtain more information about a given interface such as sub-interfaces or vlans, use the interface
+vlan_interfaces() and sub_interfaces() resources. 
+
+To find all sub-interfaces for a given interface:
+
+.. code-block:: python
+
+   engine = Engine('myfw')
+   for interface in engine.interface.all():
+     if interface.has_vlan:
+       print(interface.vlan_interfaces())	# Show vlans if any
+     print(interface.sub_interfaces()	# Show sub-interfaces
+
+Display addresses for specific interfaces:
+
+.. code-block:: python
+
+   engine = Engine('testfw')
+   for interface in engine.interface.all():
+     if interface.name == 'Interface 0':
+       print(interface.address, interface.network_value)
+
 Modifying Interfaces
 ++++++++++++++++++++
 
-To modify an existing interface, you can specify key/value pairs to change specific settings. This should be
-used with care as changing existing settings may affect other settings. For example, when an interface is 
+To modify an existing interface, you will first need to obtain a reference to the interface. There are some
+modifications that may have dependencies on other settings. For example, when an interface is 
 configured with an IP address, the SMC will automatically create a route entry mapping that physical interface
 to the directly connected network. Changing the IP will leave the old network definition from the previously
-assigned interface and would need to be removed. 
+assigned interface and would also need to be removed. 
 
 Example of changing the IP address of an existing single node interface (for layer 3 firewalls):
 
 .. code-block:: python
 
-   engine = Engine('myfirewall').load()
+   engine = Engine('testfw')
+   for interface in engine.interface.all():
+     if interface.name == 'Interface 0':
+       for intf in interface.sub_interfaces():
+         if intf.address == '172.18.1.105':
+           intf.address = '172.18.1.200'
+       interface.save()
+       
+Change the zone on the top level Physical Interface:
+
+.. code-block:: python
+
+   engine = Engine('myfirewall')
    for interface in engine.interface.all():
      if interface.name == 'Interface 2':
-       my_interface = interface.describe()
-       my_interface.modify_attribute({zone_ref:'My New Zone'})
+       interface.zone_ref = 'My New Zone'
+       interface.save()
        
-.. note:: Key/value pairs can be viewed by viewing the output of
-          interface.describe()
+.. note:: Save must be called on the interface itself or changes will only be made to a local copy of
+	      the element.
 
+Change a VLAN on a single FW node under Interface 2:
+
+.. code-block:: python
+
+   engine = Engine('testfw')
+   for interface in engine.interface.all():
+     if interface.name == 'Interface 2':
+       for vlan in interface.vlan_interfaces():
+         if vlan.vlan_id == '22':
+           vlan.vlan_id = '100'
+       interface.save()
+            
 Adding routes
 +++++++++++++
 
@@ -767,18 +816,17 @@ export configuration, blacklisting, adding routes, route monitoring, and add or 
 
 .. code-block:: python
 
-   engine = Engine('myengine').load()
+   engine = Engine('myengine')
    engine.generate_snapshot() #generate a policy snapshot
    engine.export(filename='/Users/davidlepage/export.xml') #generate policy export
    engine.refresh() #refresh policy
    engine.routing_monitoring() 	#get route table status
    ....
 
-For all available commands for engines, see :py:class:`smc.elements.engines.Engine`
+For all available commands for engines, see :py:class:`smc.core.engine`
    
-Node level commands are specific commands targeted at the engine nodes directly. In the case of a cluster, 
-most node level commands require sending node=<nodename> to each constructor. This is to enforce a command is
-targeting a specific node such as the case with sending the 'reboot' command for example.
+Node level commands are specific commands targeted at the engine nodes directly. In the case of a cluster, you
+can control the correct node by iterating :py:class:`smc.core.engine.Engine.nodes` list.
 
 Node level commands allow actions such as fetch license, bind license, initial contact, appliance status, 
 go online, go offline, go standby, lock online, lock offline, reset user db, diagnostics, reboot, sginfo, 
@@ -786,7 +834,7 @@ ssh (enable/disable/change pwd), and time sync.
 
 .. code-block:: python
 
-   engine = Engine('myengine').load()
+   engine = Engine('myengine')
    for node in engine.nodes:
      print node
    
@@ -850,8 +898,10 @@ For dynamic source NAT, provide the following dict:
                     'max_port': 65535,
                     'min_port': 1024}
 
-Either element or ip_descriptor fields are required. If both are provided, element will take
-precendence. Min and Max ports are used to specify PAT.
+Either attribute 'element' or 'ip_descriptor' is required. If both are provided, the element reference 
+will take precedence. Min and Max ports are used to specify PAT start and end ports.
+These are optional unless port redirection is required as well.
+
 Element is the href for the element itself, whereas ip_descriptor is simply an IP address value
 and does not need to be a specific element in SMC.
 
@@ -867,7 +917,7 @@ Create a NAT rule for a firewall policy using source NAT (outbound NAT example) 
                                        services='any',
                                        dynamic_src_nat={'ip_descriptor': '2.2.2.2'})
 
-For static destination NAT, provide the following dict:
+Create static destination NAT redirecting port 80 to port 8080:
 
 .. code-block:: python
 
@@ -877,10 +927,6 @@ For static destination NAT, provide the following dict:
                                           'ip_descriptor': ip_descriptor,
                                           'max_port': 8080,
                                           'min_port': 8080}}
-
-Either element or ip_descriptor fields are required. If both are provided, element will take
-precendence. Min and Max ports are used to destination address for the translation. These are
-optional unless port redirection is required as well.
 
 .. note:: By default the service determines the port/s that are used for forwarding to the 
           remote host. If the service uses HTTP on port 80, the redirect by default will be
@@ -1037,7 +1083,7 @@ For example, fire off a policy update on an engine and get the asynchronous foll
 
 .. code-block:: python
 
-   engine = Engine('myfw').load()
+   engine = Engine('myfw')
    follower_href = engine.refresh()
    task = TaskMonitor(follower_href).watch()
    for message in task:

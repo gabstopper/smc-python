@@ -33,8 +33,6 @@ from .util import bytes_to_unicode, unicode_to_bytes, find_link_by_name
 from .mixins import UnicodeMixin
 from smc.api.web import SMCResult
     
-cache_hit = 0
-
 def prepared_request(**kwargs):
     return SMCRequest(**kwargs)
 
@@ -84,6 +82,8 @@ class ElementLocator(object):
                                       'and cannot be referenced directly, type: {}'
                                       .format(instance))
 
+cachehit = 0
+
 class ElementCache(object):
     def __init__(self):
         self._cache = None #tuple (etag, json)
@@ -94,8 +94,6 @@ class ElementCache(object):
                 result = prepared_request(headers={'Etag': instance._cache[0]}, 
                                           href=instance.href).read()
                 if result.code == 304:
-                    global cache_hit
-                    cache_hit += 1
                     return instance._cache
                 else:
                     instance._cache = (result.etag, result.json)
@@ -108,13 +106,25 @@ class Element(UnicodeMixin):
     """
     Base element with common methods shared by inheriting classes
     """
-    href = ElementLocator() #: href for this element
+    href = ElementLocator()
     cache = ElementCache()
 
     def __init__(self, name, meta=None):
         self._name = name #<str>
         self.meta = meta
 
+    @classmethod
+    def _load(cls, etag, data, meta):
+        """
+        Alternate class loader. Some elements are referenced only by
+        href when retrieving such as rule services/destinations, etc. 
+        To return an object type, the raw json is retrieved and then
+        mapped to the class type.
+        """
+        c = cls(meta.name, meta=meta)
+        c._cache = (etag, data)
+        return c
+    
     @property
     def etag(self):
         """
@@ -160,7 +170,6 @@ class Element(UnicodeMixin):
         """
         Export this element
         
-        :method: POST
         :param str filename: filename to store exported element
         :param boolean wait_for_finish: wait for update msgs (default: False)
         :return: generator yielding updates on progress, or [] if element cannot
@@ -208,14 +217,10 @@ class Element(UnicodeMixin):
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
-  
+    
     def __repr__(self):
-        if compat.PY3:
-            return '{0}(name={1})'.format(self.__class__.__name__, self.name)
-        else:
-            return repr(unicode(self))  # @UndefinedVariable
-            
-      
+        return str(self)
+
 class Meta(namedtuple('Meta', 'name href type')):
     """
     Internal namedtuple used to store top level element information. When 

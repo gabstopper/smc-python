@@ -28,23 +28,23 @@ Some additional generic search examples follow...
 To search for all host objects::
 
     for host in describe_host():
-        print host.name, host.href
+        print(host.name, host.href)
         
 To search only for a host with name 'test'::
 
     for host in describe_host(name='test'):
-        print host.href
+        print(host.href)
 
 To search for all hosts with 'test' in the name::
 
     for host in describe_host(name=['test'], exact_match=False):
-        print host
+        print(host)
         
 It may be useful to do a wildcard search for an element type and view the entire
 object info::
 
     for host in describe_network(name=['1.1.1.0'], exact_match=False):
-        print host.name, host.describe() #returned Element
+        print(host.name, host.describe()) #returned Element
 
 Modify a specific Element type by changing the name::
 
@@ -56,10 +56,10 @@ It is also possible to use wildcards when searching, without setting the
 exact_match=False flag. For example::
 
     for x in describe_host(name=['TOR*']):
-        print x.describe()
+        print(x.describe())
         
     for y in describe_host(name=['TOR'], exact_match=False):
-        print y
+        print(y)
         
 Both will work, however the first option will only find items starting with TOR, whereas
 the second option could find items such as 'DHCP Broadcast OriginaTOR', etc.
@@ -1789,7 +1789,7 @@ def describe_country(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    return generic_list_builder('country', name, exact_match)
+    return generic_list_builder('country', name, exact_match, network.Country)
 
 @min_smc_version(6.1)
 def describe_sidewinder_logging_profile(name=None, exact_match=True):
@@ -1877,7 +1877,7 @@ def describe_ip_country_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    return generic_list_builder('ip_country_group', name, exact_match)
+    return generic_list_builder('ip_country_group', name, exact_match, network.IPCountryGroup)
 
 @min_smc_version(6.1)    
 def describe_known_host(name=None, exact_match=True):

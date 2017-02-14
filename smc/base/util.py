@@ -17,7 +17,7 @@ def save_to_file(filename, content):
     path = os.path.abspath(filename)
     with open(path, "w") as text_file:
         text_file.write("{}".format(content))
-
+    
 def find_link_by_name(link_name, linklist):
     """
     Utility method to find the reference link based on 

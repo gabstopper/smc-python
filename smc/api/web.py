@@ -8,8 +8,8 @@ https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
 """
 import os.path
 import requests
-import json
 import logging
+import smc.api.counter  # @UnusedImport
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,11 @@ class SMCAPIConnection(object):
     
     :param session: :py:class:`smc.api.session.Session` object
     """
+    GET = 'GET'
+    PUT = 'PUT'
+    POST = 'POST'
+    DELETE = 'DELETE'
+    
     def __init__(self, session):
         self._session = session
         self.timeout = self._session.timeout
@@ -34,64 +39,58 @@ class SMCAPIConnection(object):
         """
         Send request to SMC
         """
-        #print("Send request called: %s" % vars(request))
         if self.session:
             try:
                 method = method.upper() if method else ''
-                if method == 'GET':
+                
+                if method == SMCAPIConnection.GET:
                     if request.filename: #File download request
                         return self.file_download(request)
-                
+                    
                     response = self.session.get(request.href, 
                                                 params=request.params,
                                                 headers=request.headers, 
                                                 timeout=self.timeout)
                     response.encoding = 'utf-8'
-                    #print("Response: %s" % vars(response))
+                    
+                    logger.debug(vars(response))
                     if response.status_code not in (200, 304):
-                        logger.error("HTTP get returned HTTP code [{}] "
-                                     "for href: {}".format(response.status_code, 
-                                                           request.href))
                         raise SMCOperationFailure(response)
-                
-                    if response.text:
-                        logger.debug(u"response: {}".format(response.text))
+                    if response.status_code == 304:
+                        smc.api.counter.cache_hit += 1
                         
-                elif method == 'POST':
+                        
+                elif method == SMCAPIConnection.POST:
                     if request.files: #File upload request
                         return self.file_upload(request)
+                    
                     response = self.session.post(request.href,
-                                                 data=json.dumps(request.json),
+                                                 #data=json.dumps(request.json),
+                                                 json=request.json,
                                                  headers=request.headers,
                                                  params=request.params)
                     response.encoding = 'utf-8'
-                    #print("Response: %s" % vars(response))
-                    if response.status_code == 200 or response.status_code == 201:
-                        logger.debug("Success, returning link for new element: {}"
-                                     .format(response.headers.get('location')))
-                    elif response.status_code == 202:
-                        #asynchronous
-                        logger.debug("Asynchronous response received, monitor progress at link: {}"
-                                     .format(response.content))
-                    else:
-                        raise SMCOperationFailure(response)
                     
-                elif method == 'PUT':
+                    logger.debug(vars(response))
+                    if response.status_code not in (200, 201, 202):
+                        # 202 is asynchronous response with follower link
+                        raise SMCOperationFailure(response)
+                        
+                elif method == SMCAPIConnection.PUT:
                     #Etag should be set in request object
                     request.headers.update(Etag=request.etag)
 
                     response = self.session.put(request.href,
-                                                data=json.dumps(request.json),
+                                                #data=json.dumps(request.json),
+                                                json=request.json,
                                                 params=request.params,
                                                 headers=request.headers)
-                        
+                    
+                    logger.debug(vars(response))    
                     if response.status_code != 200:
                         raise SMCOperationFailure(response)
                     
-                    logger.debug("Successful modification, headers returned: {}"
-                                 .format(response.headers))
-                
-                elif method == 'DELETE':
+                elif method == SMCAPIConnection.DELETE:
                     response = self.session.delete(request.href)
                     response.encoding = 'utf-8'
                     
@@ -118,8 +117,10 @@ class SMCAPIConnection(object):
         Called when GET request specifies a filename to retrieve.
         """
         logger.debug(vars(request))
-        response = self.session.get(request.href, params=request.params, 
-                                    headers=request.headers, stream=True)
+        response = self.session.get(request.href, 
+                                    params=request.params, 
+                                    headers=request.headers, 
+                                    stream=True)
         
         if response.status_code == 200:
             logger.debug("Streaming to file... Content length: {}"
@@ -129,10 +130,13 @@ class SMCAPIConnection(object):
                 logger.debug("Operation: {}, saving to file: {}"
                              .format(request.href, path))
                 with open(path, "wb") as handle:
-                    for data in response.iter_content():
-                        handle.write(data)
+                    for chunk in response.iter_content(chunk_size=1024):
+                        if chunk:
+                            handle.write(chunk)
+                            handle.flush()
             except IOError as e:
                 raise IOError('Error attempting to save to file: {}'.format(e))
+                #return SMCResult(msg=e)
             result = SMCResult(response)
             result.content = path
             return result
@@ -179,15 +183,19 @@ class SMCResult(object):
         self.content = None
         self.msg = msg #Only set in case of error
         self.code = None
-        self.json = self.extract(respobj) # list or dict
+        self.json = self._unpack_response(respobj) # list or dict
 
-    def extract(self, response):
+    def _unpack_response(self, response):
         if response:
             self.code = response.status_code
             self.href = response.headers.get('location')
             self.etag = response.headers.get('ETag')
             if response.headers.get('content-type') == 'application/json':
-                result = json.loads(response.text)
+                try:
+                    #result = json.loads(response.text)
+                    result = response.json()
+                except ValueError:
+                    result = None
                 if result:
                     if 'result' in result:
                         self.json = result.get('result')
@@ -197,13 +205,12 @@ class SMCResult(object):
                     self.json = []
                 return self.json
             elif response.headers.get('content-type') == 'application/octet-stream':
-                self.content = response.text
+                self.content = response.text if response.text else None
             elif response.headers.get('content-type') == 'text/plain':
-                self.content = response.text
+                self.content = response.text if response.text else None
 
     def __str__(self):
         sb=[]
         for key in self.__dict__:
-            #print "key: {}, value: {}".format(key, self.__dict__[key])
             sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
         return ', '.join(sb)

@@ -160,7 +160,7 @@ def task_handler(task, wait_for_finish=False,
     to the result after complete.
     To obtain messages as they arrive, call generator::
     
-        engine = Engine('myfw').load()
+        engine = Engine('myfw')
         for msg in engine.upload('mypolicy', wait_for_finish=True)
             print msg
     """

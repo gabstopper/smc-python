@@ -53,8 +53,7 @@ class AdminUser(Element):
 
     def change_password(self, password):
         """ Change admin password
-        
-        :method: PUT
+
         :param str password: new password
         :return: :py:class:`smc.api.web.SMCResult`
         """
@@ -65,8 +64,7 @@ class AdminUser(Element):
     def change_engine_password(self, password):
         """ Change Engine password for engines on allowed
         list.
-        
-        :method: PUT
+
         :param str password: password for engine level
         :return: :py:class:`smc.api.web.SMCResult`
         """
@@ -77,7 +75,6 @@ class AdminUser(Element):
     def enable_disable(self):
         """ Toggle enable and disable of administrator account
         
-        :method: PUT
         :return: :py:class:`smc.api.web.SMCResult`
         """
         href = find_link_by_name('enable_disable', self.link)

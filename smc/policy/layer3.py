@@ -39,7 +39,8 @@ from smc.base.util import find_link_by_name
 from smc.base.model import Meta, ElementCreator
 from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFailed
 from smc.policy.policy import Policy
-from smc.policy.rule import IPv4Rule, IPv4NATRule, IPv6Rule, IPv6NATRule
+from smc.policy.rule import IPv4Rule, IPv6Rule
+from smc.policy.rule_nat import IPv4NATRule, IPv6NATRule
 
 class FirewallRule(object):
     """
@@ -62,7 +63,7 @@ class FirewallRule(object):
         """
         IPv4NAT Rule entry point
         
-        :return: :py:class:`smc.policy.rule.IPv4NATRule`
+        :return: :py:class:`smc.policy.rule_nat.IPv4NATRule`
         """
         href = find_link_by_name('fw_ipv4_nat_rules', self.link)
         return IPv4NATRule(meta=Meta(href=href))

@@ -22,7 +22,7 @@ To create a new policy, use::
                                         action='continue')
                                         
     for rule in policy.ips_ipv4_access_rules.all():
-        print rule
+        print(rule)
 
 Example rule deletion::
 
@@ -134,7 +134,7 @@ class IPSTemplatePolicy(IPSRule, Policy):
     
         policy = IPSPolicy('InlineIPS')
         for rule in policy.template.ips_ipv4_access_rules.all():
-            print rule
+            print(rule)
     """
     typeof = 'ips_template_policy'
     

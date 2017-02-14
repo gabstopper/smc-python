@@ -205,6 +205,12 @@ Location
    :members:
    :show-inheritance:
 
+ContactAddress
+**************
+
+.. autoclass:: ContactAddress
+	:members:
+
 Engine
 ------
 
@@ -229,7 +235,7 @@ OSPF
 
 .. automodule:: smc.routing.ospf
 	:members:
-
+	
 AccessList
 **********
 
@@ -251,13 +257,23 @@ Represents classes responsible for configuring interfaces on engines
 .. automodule:: smc.core.interfaces
 	:members: Interface
 	:exclude-members: modify_interface
+
+.. autoclass:: InterfaceCommon
+	:members:
 	
-Physical Interface
-******************
+PhysicalInterface
+*****************
 
 .. autoclass:: PhysicalInterface
     :members: 
     :show-inheritance:
+
+PhysicalVlanInterface
+*********************
+
+.. autoclass:: PhysicalVlanInterface
+	:members:
+	:show-inheritance:
 
 VirtualPhysicalInterface
 ************************
@@ -275,46 +291,48 @@ TunnelInterface
  
 Sub-Interfaces
 ++++++++++++++
-Sub Interfaces are components of Interfaces and apply to the top level interface type.
-For example, a DHCP interface is a PhysicalInterface and is created at that level. 
+Interfaces will have sub-interfaces that define aspects such as IP addresses,
+VLANs or cluster virtual IPs. The sub-interface allows access to modify these
+settings through property access.
 
-To create a DHCP interface, use the engines physical interface node:
+.. automodule:: smc.core.sub_interfaces
 
-.. code-block:: python
+ClusterVirtualInterface
+***********************
 
-   engine = Engine('myengine')
-   engine.physical_interface.add_dhcp_interface(interface_id=5, dynamic_index=0)
+.. autoclass:: ClusterVirtualInterface
+	:members:
+	:exclude-members: create
+
+InlineInterface
+***************
+
+.. autoclass:: InlineInterface
+   :members:
+   :exclude-members: create
+   
+CaptureInterface
+****************
+
+.. autoclass:: CaptureInterface
+	:members:
+	:exclude-members: create
+
+NodeInterface
+*************
+
+.. autoclass:: NodeInterface
+	:members:
+	:exclude-members: create
 
 SingleNodeInterface
 *******************
 
-.. autofunction:: SingleNodeInterface
-  
-NodeInterface
-*************
-
-.. autofunction:: NodeInterface
-    
-InlineInterface
-***************
-
-.. autofunction:: InlineInterface
-    
-CaptureInterface
-****************
-
-.. autofunction:: CaptureInterface
-    
-VlanInterface
-*************
-
-.. autofunction:: VlanInterface
-    
-ClusterVirtualInterface
-***********************
-
-.. autofunction:: ClusterVirtualInterface
-     
+.. autoclass:: SingleNodeInterface
+	:members:
+	:show-inheritance:
+	:exclude-members: create, create_dhcp
+	
 InternalEndpoint
 ++++++++++++++++
 
@@ -460,46 +478,137 @@ FileFilteringPolicy
    :members:
    :show-inheritance:
 
-Rules
------
-Represents classes responsible for configuring rule types
+Policy Rules
+------------
+Represents classes responsible for configuring rule types.
 
 .. automodule:: smc.policy.rule
 
+Rule
+++++
+
+.. autoclass:: Rule
+	:members:
+	:show-inheritance:
+
 IPv4Rule
-++++++++
+********
 
 .. autoclass:: IPv4Rule
    :members:
    :show-inheritance:
 
-IPv4NATRule
-+++++++++++
-
-.. autoclass:: IPv4NATRule
-   :members:
-   :show-inheritance:
-
 IPv4Layer2Rule
-++++++++++++++
+**************
 
 .. autoclass:: IPv4Layer2Rule
    :members:
    :show-inheritance:
   
 EthernetRule
-++++++++++++
+************
 
 .. autoclass:: EthernetRule
    :members:
    :show-inheritance:
-   
-Rule
-++++
 
-.. autoclass:: Rule
+NATRule
++++++++
+
+.. autoclass:: smc.policy.rule_nat.NATRule
+	:members:
+	:show-inheritance:
+
+IPv4NATRule
+***********
+
+.. autoclass:: smc.policy.rule_nat.IPv4NATRule
    :members:
    :show-inheritance:
+   
+RuleElements
+++++++++++++
+
+.. automodule:: smc.policy.rule_elements
+.. autoclass:: smc.policy.rule_elements.RuleElement
+	:members:
+	
+Source
+******
+
+.. autoclass:: Source
+	:members:
+	:show-inheritance:
+	
+Destination
+***********
+
+.. autoclass:: Destination
+	:members:
+	:show-inheritance:
+	
+Service
+*******
+
+.. autoclass:: Service
+	:members:
+	:show-inheritance:
+	
+Action
+******
+
+.. autoclass:: Action
+	:members:
+	:show-inheritance:
+	
+ConnectionTracking
+******************
+
+.. autoclass:: ConnectionTracking
+	:members:
+	:show-inheritance:
+	
+LogOptions
+**********
+
+.. autoclass:: LogOptions
+	:members:
+	:show-inheritance:
+	
+AuthenticationOptions
+*********************
+
+.. autoclass:: AuthenticationOptions
+	:members:
+	:show-inheritance:
+
+NATRuleElements
++++++++++++++++
+
+.. automodule:: smc.policy.rule_nat
+.. autoclass:: NAT
+	:members:
+
+DynamicSourceNAT
+****************
+
+.. autoclass:: DynamicSourceNAT
+	:members:
+	:show-inheritance:
+	
+StaticSourceNAT
+***************
+
+.. autoclass:: StaticSourceNAT
+	:members:
+	:show-inheritance:
+	
+DynamicSourceNAT
+****************
+
+.. autoclass:: DynamicSourceNAT
+	:members:
+	:show-inheritance:
 
 VPN
 ---

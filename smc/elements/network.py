@@ -75,11 +75,6 @@ class Host(Element):
           
     @address.setter
     def address(self, value):
-        """ Set IP Address for this host 
-        
-        :param str value: ipv4 address
-        :return: :py:class:`smc.api.web.SMCResult`
-        """
         return self.modify_attribute(address=value)
 
     @property
@@ -92,11 +87,7 @@ class Host(Element):
     
     @secondary.setter
     def secondary(self, value):
-        """ Set secondary addresses
         
-        :param list value: list of addresses, overwrites
-        :param tuple value: (list, True|False): Append
-        """
         (addresses), preserve = value[:1], value[1:]
         if preserve:
             addresses = addresses[0]
@@ -214,8 +205,8 @@ class Network(Element):
     
     def __init__(self, name, meta=None):
         Element.__init__(self, name, meta) 
-        pass       
-        
+        pass
+    
     @classmethod
     def create(cls, name, ipv4_network=None, ipv6_network=None, 
                comment=None):
@@ -529,11 +520,28 @@ class Zone(Element):
         cls.json = {'name': name,
                     'comment': comment}
         return ElementCreator(cls)
-    
+        
 class Country(Element):
     """
     Country elements cannot be created, only viewed
     
     .. note:: Country requires SMC API version >= 6.1
     """
-    pass
+    typeof = 'country'
+    
+    def __init__(self, name, meta=None):
+        Element.__init__(self, name, meta)
+        pass
+
+class IPCountryGroup(Element):
+    """
+    IP Country Group
+    
+    .. note:: IP Country Group requires SMC API version >= 6.1
+    """
+    typeof = 'ip_country_group'
+    
+    def __init__(self, name, meta=None):
+        Element.__init__(self, name, meta)
+        pass
+    

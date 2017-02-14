@@ -4,7 +4,7 @@ from smc.api.exceptions import EngineCommandFailed
 from smc.base.util import find_link_by_name
 from smc.base.model import Element, prepared_request
 
-class Routing(Element):
+class Routing(object):
     """
     Routing represents the top level routing node from the engine. This
     is the full routing json for the engine node. This is obtained from
@@ -16,10 +16,6 @@ class Routing(Element):
     def __init__(self, meta=None):
         self.meta = meta
 
-    @property
-    def name(self):
-        return self.meta.name
-
     def all(self):
         """
         Get all interfaces that can act as routing nodes
@@ -27,7 +23,8 @@ class Routing(Element):
         :return: list :py:class:`~RoutingNode`
         """
         return [RoutingNode(meta=self.meta, data=interface)
-                for interface in self.describe().get('routing_node')]
+                for interface in element_by_href_as_json(self.meta.href)
+                .get('routing_node')]
 
 class RoutingNode(Element):
     """
@@ -119,7 +116,7 @@ class RouteTable(object):
     RouteTable returns a raw view of the engines routing table.
     It is referenced by::
     
-        engine = Engine('myengine').load()
+        engine = Engine('myengine')
         for route in engine.routing_monitoring.all():
             print route
     """
@@ -175,7 +172,7 @@ class Route(object):
     def dst_if(self):
         return self._dst_if
 
-    def __repr__(self):
+    def __str__(self):
         return '{0}(network={1})'.format(self.__class__.__name__, self.network)
     
 class Snapshot(Element):
@@ -226,7 +223,7 @@ class Alias(Element):
     unique value depending on the engine it is applied on. 
     Show the engine aliases and their resolved values::
     
-        engine = Engine('sg_vm').load()
+        engine = Engine('sg_vm')
         for alias in engine.alias_resolving():
             print alias.name, alias.resolved_value
     

@@ -6,6 +6,7 @@ used by API functions or methods.
 For example, Blacklist can be applied to an engine directly or system wide. This class
 will define the format when calling blacklist functions.
 """
+import smc.actions.search as search
 from smc.base.model import Element, ElementCreator
 
 class Location(Element):
@@ -94,7 +95,68 @@ class MacAddress(Element):
                     'address': mac_address,
                     'comment': comment}
         return ElementCreator(cls)
-       
+
+class ContactAddress(object):
+    """
+    A ContactAddress is used by elements to provide an alternate
+    address for communication between engine and management/log server.
+    This is typically used when the SMC sits behind a NAT address and 
+    the SMC needs to contact the engine directly (this is a default behavior).
+    In this case, you would add the public IP in front of the engine as a 
+    contact address to the engine interface.
+    
+    .. note:: Contact Addresses for servers (Management/Log Server) do not use
+              this same object definition
+    """
+    def __init__(self, data):
+        self.data = data
+    
+    @classmethod
+    def create(cls, address, location='Default', dynamic=False):
+        """
+        Create a new contact address.
+        
+        :param str address: IP Address of contact address
+        :param str location: Location element to associate with address
+        :param boolean dynamic: Is this a dynamic address
+        :return: dict contact address
+        """
+        from smc.elements.helpers import location_helper
+        location_ref = location_helper(location)
+        address = [{'address': address,
+                    'dynamic': dynamic,
+                    'location_ref': location_ref}]
+        return {'contact_addresses': address}
+    
+    @property
+    def address(self):
+        """
+        Address of the contact address
+        
+        :rtype: str
+        """
+        return self.data.get('address')
+    
+    @property
+    def dynamic(self):
+        """
+        Is this a dynamic IP based contact address
+        
+        :rtype: boolean
+        """
+        return bool(self.data.get('dynamic') == 'true')
+    
+    @property
+    def location(self):
+        """    
+        Each contact address has a location associated which is attached
+        to the management/log server to identify when to use the 
+        contact address. This is that location element.
+        
+        :rtype: str
+        """
+        return search.element_name_by_href(self.data.get('location_ref'))
+           
 def prepare_blacklist(src, dst, duration=3600):
     """ 
     Add a blacklist entry by source / destination
@@ -117,24 +179,3 @@ def prepare_blacklist(src, dst, duration=3600):
     json.update(end_point1=end_point1)
     json.update(end_point2=end_point2)
     return json
-
-def prepare_contact_address(address, location, dynamic=False):
-    """
-    Contact Addresses are used to by Locations to identify the IP address/es 
-    assigned to the location. This identifies how an engine, SMC, Log Server, 
-    or any element can be contacted when behind a NAT connection.
-    
-    .. note:: Contact Addresses for servers (Management/Log Server) do not use
-              this same object definition
-    
-    :param list addresses: list of IP addresses for contact address
-    :param str location: location href to map this contact address to
-    :param boolean dynamic: should this be considered a dynamic contact address. This
-           can be used to define an FQDN as address value.
-    """
-    from smc.elements.helpers import location_helper
-    location_ref = location_helper(location)
-    contact_addresses = [{'address': address,
-                          'dynamic': dynamic,
-                          'location_ref': location_ref}]
-    return {'contact_addresses': contact_addresses}

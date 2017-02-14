@@ -9,6 +9,7 @@ from smc import session
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError,\
     UnsupportedEntryPoint
 from smc.base.util import unicode_to_bytes
+from smc.api.counter import countcalls
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def method(method):
         return wrapper
     return _method
     
-class RequestHandler(object):
+class _RequestHandler(object):
     def __init__(self, **kwargs):
         self._method = None
         self.files = None
@@ -50,11 +51,10 @@ class RequestHandler(object):
         finally:
             if err:
                 raise err
-            logger.debug('result: {}'.format(result))
-            #print("Result: %s" % result)
+            logger.debug(result)
             return result
 
-class SMCRequest(RequestHandler):
+class SMCRequest(_RequestHandler):
     """
     SMCRequest represents the data structure that will be submitted to the web
     layer for submission to the SMC API.
@@ -67,7 +67,7 @@ class SMCRequest(RequestHandler):
     """
     def __init__(self, href=None, json=None, params=None, filename=None,
                  etag=None, **kwargs):
-        RequestHandler.__init__(self)
+        _RequestHandler.__init__(self)
         #: Filename if a file download is requested
         self.filename = filename
         #: dictionary of query parameters
@@ -83,18 +83,22 @@ class SMCRequest(RequestHandler):
             setattr(self, k, v)
 
     @method('POST')
+    @countcalls
     def create(self):
         return self._make_request()
     
     @method('DELETE')
+    @countcalls
     def delete(self):
         return self._make_request()
     
     @method('PUT')
+    @countcalls
     def update(self):
         return self._make_request()
-
+    
     @method('GET')
+    @countcalls
     def read(self):
         return self._make_request()
         
@@ -115,8 +119,6 @@ def fetch_entry_point(name):
         return session.cache.get_entry_href(name) #from entry point cache
     except UnsupportedEntryPoint:
         raise
-    except SMCConnectionError:
-        raise
 
 def fetch_href_by_name(name,
                        filter_context=None,
@@ -131,7 +133,8 @@ def fetch_href_by_name(name,
     
     :method: GET
     :param str name: element name, can use * as wildcard
-    :param str filter_context: further filter request, i.e. 'host', 'group', 'single_fw'
+    :param str filter_context: further filter request, i.e. 'host', 'group', 'single_fw',
+                               network_elements, services, services_and_applications
     :param boolean exact_match: Do an exact match by name, note this still can return multiple entries
     :param str domain: specify domain in which to query
     :return: :py:class:`smc.api.web.SMCResult`

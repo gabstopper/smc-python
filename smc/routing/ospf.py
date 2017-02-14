@@ -5,7 +5,7 @@ on the engine and adding the routing elements on the interfaces at the
 engine routing level.
 Adding static routes can be done directly against the engine by using::
 
-    engine = Engine('myengine).load()
+    engine = Engine('myengine)
     engine.add_route(gw, network)
     
 For adding OSPF configurations, several steps are required:

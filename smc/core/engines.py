@@ -1,8 +1,10 @@
 import smc.actions.search as search
-from smc.core.interfaces import PhysicalInterface, VirtualPhysicalInterface
+from smc.core.interfaces import PhysicalInterface, VirtualPhysicalInterface,\
+    _interface_helper
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed
-from smc.base.model import prepared_request
+from smc.base.model import prepared_request, Meta
+from smc.elements.helpers import logical_intf_helper
 
 class Layer3Firewall(object):
     """
@@ -14,7 +16,7 @@ class Layer3Firewall(object):
                                        mgmt_network='1.1.1.0/24')
                                        
     Set additional constructor values as necessary.       
-    """ 
+    """
     node_type = 'firewall_node'
     
     def __init__(self, name):
@@ -22,8 +24,8 @@ class Layer3Firewall(object):
 
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network, 
+               mgmt_interface=0,
                log_server_ref=None,
-               mgmt_interface=0, 
                default_nat=False,
                reverse_connection=False,
                domain_server_address=None, zone_ref=None,
@@ -60,8 +62,7 @@ class Layer3Firewall(object):
 
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
-                               physical_interfaces=[
-                                    {PhysicalInterface.typeof: physical.data}], 
+                               physical_interfaces=[physical()], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=1, enable_gti=enable_gti,
@@ -74,7 +75,8 @@ class Layer3Firewall(object):
         href = search.element_entry_point('single_fw')
         result = prepared_request(href=href, json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href, 
+                                               type='single_fw'))
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}.'
@@ -126,12 +128,12 @@ class Layer2Firewall(object):
                                     is_mgmt=True,
                                     zone_ref=zone_ref)
         
-        intf_href = search.element_href_use_filter(logical_interface, 'logical_interface')
+        intf_href = logical_intf_helper(logical_interface)
         
         inline = PhysicalInterface()
         inline.add_inline_interface(inline_interface, intf_href)
-        interfaces.append({PhysicalInterface.typeof: physical.data})
-        interfaces.append({PhysicalInterface.typeof: inline.data})    
+        interfaces.append(physical())
+        interfaces.append(inline())     
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -145,7 +147,8 @@ class Layer2Firewall(object):
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href,
+                                               type='single_layer2'))
         else:
             raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))   
@@ -191,12 +194,12 @@ class IPS(object):
                                     is_mgmt=True,
                                     zone_ref=zone_ref)
               
-        intf_href = search.element_href_use_filter(logical_interface, 'logical_interface')
-      
+        intf_href = logical_intf_helper(logical_interface)
+        
         inline = PhysicalInterface()
         inline.add_inline_interface(inline_interface, intf_href)
-        interfaces.append({PhysicalInterface.typeof: physical.data})
-        interfaces.append({PhysicalInterface.typeof: inline.data}) 
+        interfaces.append(physical())
+        interfaces.append(inline())  
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -210,7 +213,8 @@ class IPS(object):
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href,
+                                               type='single_ips'))
         else:
             raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))
@@ -254,9 +258,10 @@ class Layer3VirtualEngine(object):
         :param str ospf_profile: optional OSPF profile to use on engine, by ref   
         :return: :py:class:`smc.core.engine.Engine`
         :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
+                 :py:class:`smc.api.exceptions.LoadEngineFailed`: master engine not found
         """
         virt_resource_href = None #need virtual resource reference
-        master_engine = Engine(master_engine).load()
+        master_engine = Engine(master_engine)
         
         for virt_resource in master_engine.virtual_resource.all():
             if virt_resource.name == virtual_resource:
@@ -277,10 +282,11 @@ class Layer3VirtualEngine(object):
 
             #set auth request and outgoing on one of the interfaces
             if interface.get('interface_id') == outgoing_intf:
-                intf = physical.data.get('interfaces')[0]
-                physical.modify_interface(intf, {'outgoing': True,
-                                                 'auth_request': True})
-            new_interfaces.append({VirtualPhysicalInterface.typeof: physical.data})
+                intf = _interface_helper(physical.data)
+                intf.outgoing = True
+                intf.auth_request = True
+
+            new_interfaces.append(physical())
            
             engine = Engine.create(name=name,
                                node_type=cls.node_type,
@@ -297,7 +303,8 @@ class Layer3VirtualEngine(object):
         href = search.element_entry_point('virtual_fw')
         result = prepared_request(href=href, json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href,
+                                               type='virtual_fw'))
         else:
             raise CreateEngineFailed('Could not create the virtual engine, '
                                      'reason: {}'
@@ -345,14 +352,14 @@ class FirewallCluster(object):
         Example nodes parameter input::
             
             [{'address':'5.5.5.2', 
-            'network_value':'5.5.5.0/24', 
-            'nodeid':1},
-            {'address':'5.5.5.3', 
-            'network_value':'5.5.5.0/24', 
-            'nodeid':2},
-            {'address':'5.5.5.4', 
-            'network_value':'5.5.5.0/24', 
-            'nodeid':3}]
+              'network_value':'5.5.5.0/24', 
+              'nodeid':1},
+             {'address':'5.5.5.3', 
+              'network_value':'5.5.5.0/24', 
+              'nodeid':2},
+             {'address':'5.5.5.4', 
+              'network_value':'5.5.5.0/24', 
+              'nodeid':3}]
           
         """
         physical = PhysicalInterface()
@@ -366,8 +373,7 @@ class FirewallCluster(object):
         
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
-                               physical_interfaces=[
-                                        {PhysicalInterface.typeof: physical.data}], 
+                               physical_interfaces=[physical()], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=len(nodes), enable_gti=enable_gti,
@@ -378,7 +384,8 @@ class FirewallCluster(object):
         result = prepared_request(href=href,
                                   json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href,
+                                               type='fw_cluster'))
         else:
             raise CreateEngineFailed('Could not create the firewall, '
                                      'reason: {}'
@@ -395,7 +402,7 @@ class MasterEngine(object):
         pass
     
     @classmethod
-    def create(cls, name, master_type, mgmt_ip, mgmt_netmask,
+    def create(cls, name, master_type, mgmt_ip, mgmt_network,
                mgmt_interface=0, 
                log_server_ref=None, 
                domain_server_address=None, enable_gti=False,
@@ -406,7 +413,7 @@ class MasterEngine(object):
         :param str name: name of master engine engine
         :param str master_type: firewall|
         :param str mgmt_ip: ip address for management interface
-        :param str mgmt_netmask: full netmask for management
+        :param str mgmt_network: full netmask for management
         :param str mgmt_interface: interface to use for mgmt (default: 0)
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
@@ -417,20 +424,14 @@ class MasterEngine(object):
         """             
         physical = PhysicalInterface()
         physical.add_node_interface(mgmt_interface, 
-                                    mgmt_ip, mgmt_netmask,
-                                    primary_mgt=True, #Add mgmt kwargs
+                                    mgmt_ip, mgmt_network,
+                                    primary_mgt=True,
                                     primary_heartbeat=True,
                                     outgoing=True)
         
-        intf = physical.data.get('interfaces')[0]
-        physical.modify_interface(intf, {'primary_mgt': True,
-                                         'primary_heartbeat': True,
-                                         'outgoing': True})
-        
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
-                               physical_interfaces=[
-                                        {PhysicalInterface.typeof: physical.data}], 
+                               physical_interfaces=[physical()], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=1, enable_gti=enable_gti,
@@ -438,12 +439,13 @@ class MasterEngine(object):
         
         engine.update(master_type=master_type,
                       cluster_mode='standby')
-
+        
         href = search.element_entry_point('master_engine')
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href,
+                                               type='master_engine'))
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'
@@ -485,14 +487,14 @@ class MasterEngineCluster(object):
         Example nodes parameter input::
             
             [{'address':'5.5.5.2', 
-            'network_value':'5.5.5.0/24', 
-            'nodeid':1},
-            {'address':'5.5.5.3', 
-            'network_value':'5.5.5.0/24', 
-            'nodeid':2},
-            {'address':'5.5.5.4', 
-            'network_value':'5.5.5.0/24', 
-            'nodeid':3}]
+              'network_value':'5.5.5.0/24', 
+              'nodeid':1},
+             {'address':'5.5.5.3', 
+              'network_value':'5.5.5.0/24', 
+              'nodeid':2},
+             {'address':'5.5.5.4', 
+              'network_value':'5.5.5.0/24', 
+              'nodeid':3}]
         """
         physical = PhysicalInterface()
         physical.add_cluster_interface_on_master_engine(
@@ -502,12 +504,12 @@ class MasterEngineCluster(object):
                                             is_mgmt=True)
         engine = Engine.create(name=name,
                                node_type=cls.node_type,
-                               physical_interfaces=[
-                                        {PhysicalInterface.typeof: physical.data}], 
+                               physical_interfaces=[physical()], 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
                                nodes=len(nodes), enable_gti=enable_gti,
                                enable_antivirus=enable_antivirus)
+
         engine.update(master_type=master_type,
                       cluster_mode='standby')
         
@@ -515,7 +517,8 @@ class MasterEngineCluster(object):
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name).load()
+            return Engine(name=name, meta=Meta(name=name, href=result.href,
+                                               type='master_engine'))
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'
