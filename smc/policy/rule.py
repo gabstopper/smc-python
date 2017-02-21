@@ -64,10 +64,6 @@ class Rule(Element):
         Name attribute of rule element
         """
         return self.meta.name
-    
-    @property
-    def data(self):
-        return self.cache[1]
 
     def add_after(self):
         pass
@@ -169,11 +165,33 @@ class Rule(Element):
     
     @property
     def services(self):
+        """
+        Services assigned to this rule
+        
+        :return: :py:class:`smc.policy.rule_elements.Service`
+        """
         return Service(self.data.get('services'))
     
     @property
     def sources(self):
+        """
+        Sources assigned to this rule
+        
+        :return: :py:class:`smc.policy.rule_elements.Source`
+        """
         return Source(self.data.get('sources'))
+    
+    #@property
+    #def time_range(self):
+    #    """
+    #    Time range/s assigned to this rule. May be None if 
+    #    no time range configured.
+    #    
+    #    :return: :py:class:`smc.policy.rule_elements.TimeRange`
+    #    """
+    #    trange = self.data.get('time_range')
+    #    if trange:
+    #        return TimeRange(self.data.get('time_range'))
     
     def all(self):
         """

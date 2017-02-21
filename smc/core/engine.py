@@ -153,7 +153,7 @@ class Engine(Element):
                                                'name is correct and that the engine exists. '
                                                'Search returned: {}'
                                                .format(self._name, names))
-            self.cache
+            self.cache()
             return self    
 
         except LoadEngineFailed:
@@ -164,7 +164,7 @@ class Engine(Element):
         """
         Version of this engine
         """
-        return self.cache[1].get('engine_version')
+        return self.attr_by_name('engine_version')
         
     @property
     def type(self):
@@ -185,7 +185,7 @@ class Engine(Element):
                                                .format(name))
         for node in self.nodes:
             node.modify_attribute(name='{} node {}'.format(name, node.nodeid))
-        self._name = self.cache[1].get('name')
+        self._name = self.data.get('name')
         
     @property
     def nodes(self):
@@ -298,12 +298,14 @@ class Engine(Element):
                 print route
       
         :return: list :py:class:`smc.core.resource.Route`
-        :raises: `smc.api.exceptions.EngineCommandFailed` if engine timeout
+        :raises: `smc.api.exceptions.EngineCommandFailed`: routes cannot be retrieved
         """
         try:
-            result = search.element_by_href_as_json(
+            result = search.element_by_href_as_smcresult(                                            
                         find_link_by_name('routing_monitoring', self.link))
-            return RouteTable(result)
+            if result.msg:
+                raise EngineCommandFailed(result.msg)
+            return RouteTable(result.json)
         except SMCConnectionError:
             raise EngineCommandFailed('Timed out waiting for routes')
                          

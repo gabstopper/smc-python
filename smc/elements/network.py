@@ -57,12 +57,12 @@ class Host(Element):
     @property
     def address(self):
         """ IP Address of this host """
-        return self.cache[1].get('address')
+        return self.attr_by_name('address')
     
     @property
     def ipv6_address(self):
         """ IPv6 Address of this host """
-        return self.cache[1].get('ipv6_address')
+        return self.attr_by_name('ipv6_address')
     
     @ipv6_address.setter
     def ipv6_address(self, value):
@@ -83,16 +83,11 @@ class Host(Element):
         
         :return: list secondary host addresses assigned
         """
-        return self.cache[1].get('secondary')
+        return self.attr_by_name('secondary')
     
     @secondary.setter
     def secondary(self, value):
-        
-        (addresses), preserve = value[:1], value[1:]
-        if preserve:
-            addresses = addresses[0]
-            addresses.extend(self.secondary)
-        return self.modify_attribute(secondary=addresses)  
+        return self.modify_attribute(secondary=value)  
         
 class AddressRange(Element):
     """ 
@@ -418,20 +413,21 @@ class IPList(Element):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         headers=None
-        if as_type == 'zip':
-            if filename is None:
-                raise MissingRequiredInput('Filename must be specified when '
-                                           'downloading IPList as a zip file.')
-            filename = '{}'.format(filename)
-        elif as_type == 'txt':
-            headers={'accept':'text/plain'}
-        elif as_type == 'json':
-            headers = {'accept': 'application/json'}
-        #Find the entry point link for the IPList
-        href=find_link_by_name('ip_address_list', self.link)
-       
-        return prepared_request(href=href, filename=filename,
-                                headers=headers).read()
+        if as_type in ['zip', 'txt', 'json']:
+            if as_type == 'zip':
+                if filename is None:
+                    raise MissingRequiredInput('Filename must be specified when '
+                                               'downloading IPList as a zip file.')
+                filename = '{}'.format(filename)
+            elif as_type == 'txt':
+                headers={'accept':'text/plain'}
+            elif as_type == 'json':
+                headers = {'accept': 'application/json'}
+            #Find the entry point link for the IPList
+            href=find_link_by_name('ip_address_list', self.link)
+           
+            return prepared_request(href=href, filename=filename,
+                                    headers=headers).read()
     
     def upload(self, filename=None, json=None, as_type='zip'):
         """

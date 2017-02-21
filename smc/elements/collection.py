@@ -91,7 +91,7 @@ import smc.policy.file_filtering as file_filtering
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
 from smc.routing.access_list import IPv6AccessList, IPAccessList
 from smc.routing.prefix_list import IPPrefixList, IPv6PrefixList
-
+    
 def min_smc_version(arg_version):
     """
     Check the function supports the minimum version of SMC
@@ -771,13 +771,13 @@ def describe_ssl_vpn_sso_domain(name=None, exact_match=True):
     """
     return generic_list_builder('ssl_vpn_sso_domain', name, exact_match)
 
-def describe_vulnerability_type(name=None, exact_match=True):
-    """ 
-    Describe vulnerability_type entries on the SMC
-    
-    :return: :py:class:`smc.base.model.Element` 
-    """
-    return generic_list_builder('vulnerability_type', name, exact_match)
+#def describe_vulnerability_tag(name=None, exact_match=True):
+#    """ 
+#    Describe vulnerability_type entries on the SMC
+#    
+#    :return: :py:class:`smc.base.model.Element` 
+#    """
+#    return generic_list_builder('vulnerability_type', name, exact_match)
 
 def describe_icmp_service(name=None, exact_match=True):
     """ 

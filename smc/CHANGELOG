@@ -88,6 +88,17 @@ add 'used_on' field to NAT rules
 policy search_rule
 unittests - coverage = 97%
 
-$version 0.5.0
+$version 0.4.4
 rule rewritten to support introspection and modifications, property access on interfaces
 interface introspection and modifications, property access on rule elements
+
+$version 0.4.5
+validate smc 6.1.2
+Ethernet rules supported in smc 6.1.2 (prior versions cause 'Database problem' error
+When aborting a policy upload and subsequently attempting to delete policy, you may get the following error:
+NAT rules were previously ignored by smc validation after adding; resolved in smc 6.1.2
+describe_vulnerability_type renamed to vulnerability_tag in SMC version 6.1.2
+Static source NAT works and requires SMC version 6.1.2 or greater
+All NAT operations should use SMC version 6.1.2
+Support adding additional IP's to node and single node interfaces
+

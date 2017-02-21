@@ -685,8 +685,11 @@ PackageUpdate
 Users
 +++++
 
+.. autoclass:: smc.elements.user.UserCommon
+	:members:
+
 .. automodule:: smc.elements.user
-   :members: 
+   :members:
    :show-inheritance:
  
 Collection

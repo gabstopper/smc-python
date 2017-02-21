@@ -124,11 +124,17 @@ class IPService(Element):
 class EthernetService(Element):
     """ 
     Represents an ethernet based service in SMC
-    Ethernet service only supports adding 'eth'2 frame type. 
-    Ethertype should be the ethernet2 ethertype code in decimal 
-    (hex to decimal) format
+    Ethernet service only supports adding eth2 frame type. 
+    Ethertype field should be the ethernet2 ethertype hex code 
+    converted into decimal format. 
     
-    **Not Yet Fully Implemented**
+    Create an ethernet rule for DEC DNS which has an ethernet type
+    hex code of 803C, and a decimal conversion value of 32828:
+    
+        EthernetService.create(name='myService', ethertype='32828')
+    
+    .. note:: Ethernet Services are only available as of SMC version 6.1.2
+    
     """
     typeof = 'ethernet_service'
     

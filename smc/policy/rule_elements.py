@@ -635,6 +635,10 @@ class TimeRange(object):
     
     @property
     def day_ranges(self):
+        """
+        Set the day range validity for this rule. Day range values
+        are: mo,tu,we,th,fr,sa,su
+        """
         return self.data.get('day_ranges')
     
     @day_ranges.setter
@@ -651,6 +655,10 @@ class TimeRange(object):
         
     @property
     def month_range_start(self):
+        """
+        Set month range values. Valid months are:
+        jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec
+        """
         return self.data.get('month_range_start')
     
     @month_range_start.setter
@@ -667,7 +675,9 @@ _network_elements = dict((klazz.typeof, klazz)
         
 def ElementFactory(element):
     """
-    Return a network element or service object by type
+    Return a network element or service object by type. This is used
+    when retrieving rule elements that will be only href and provides
+    the object for simpler use.
     """
     j = fetch_json_by_href(element)
     name = j.json.get('name')

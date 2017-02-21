@@ -42,14 +42,14 @@ class RoutingNode(Element):
     """
     def __init__(self, meta=None, data=None):
         self.meta = meta
-        self.data = data #routing node json
+        self._data = data #routing node json
 
     @property
     def name(self):
-        return self.data.get('name')
+        return self._data.get('name')
 
     def describe(self):
-        return self.data
+        return self._data
 
     @property
     def network(self):
@@ -58,7 +58,7 @@ class RoutingNode(Element):
         
         :return: list networks associated with this routing node
         """
-        return [node.get('ip') for node in self.data.get('routing_node')]
+        return [node.get('ip') for node in self._data.get('routing_node')]
 
     def add_ospf_area(self, ospf_area, communication_mode='NOT_FORCED',
                       unicast_ref=None):
@@ -95,7 +95,7 @@ class RoutingNode(Element):
             data.update(routing_node=[{'href': unicast_ref,
                                        'level': 'any'}])
         
-        for network in self.data.get('routing_node'):
+        for network in self._data.get('routing_node'):
             network.get('routing_node').append(data)     
         #Re-retrieve top level routing engine json. The etag must be 
         #sent from the top routing node since the SMC API doesn't 
@@ -104,8 +104,8 @@ class RoutingNode(Element):
         json = node.json
         routing_node = json.get('routing_node') #Get routing node
         for interface in routing_node:
-            if interface.get('key') == self.data.get('key'):
-                interface.update(self.data)  #replace based on key index
+            if interface.get('key') == self._data.get('key'):
+                interface.update(self._data)  #replace based on key index
 
         return prepared_request(href=self.href,
                                 json=json, 

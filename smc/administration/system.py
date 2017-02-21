@@ -18,6 +18,7 @@ from smc.elements.other import prepare_blacklist
 from .tasks import task_handler, Task
 from smc.base.model import Meta, prepared_request
 from smc.administration.updates import EngineUpgrade, UpdatePackage
+from smc.api.common import fetch_json_by_post
 
 class System(object):
     """
@@ -162,9 +163,20 @@ class System(object):
         return search.element_by_href_as_json(
                         find_link_by_name('visible_virtual_engine_mapping', self.link))
     
-    def references_by_element(self):
-        # Refer to smc.actions.search.element_references
-        return find_link_by_name('references_by_element', self.link)
+    def references_by_element(self, element_href):
+        """
+        Return all references to element specified.
+        
+        :param str element_href: element reference
+        :return: list list of references where element is used
+        """
+        href = find_link_by_name('references_by_element', self.link)
+        result = fetch_json_by_post(href=href,
+                                    json={'value': element_href})
+        if result.json:
+            return result.json
+        else:
+            return []
     
     def export_elements(self, filename='export_elements.zip', typeof='all',
                         wait_for_finish=False):

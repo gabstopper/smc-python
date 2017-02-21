@@ -8,7 +8,27 @@ engine access.
 from smc.base.util import find_link_by_name
 from smc.base.model import Element, ElementCreator, prepared_request
 
-class AdminUser(Element):
+class UserCommon(object):
+    def enable_disable(self):
+        """ Toggle enable and disable of administrator account
+        
+        :return: :py:class:`smc.api.web.SMCResult`
+        """
+        href = find_link_by_name('enable_disable', self.link)
+        return prepared_request(href=href).update()
+
+    def change_password(self, password):
+        """ Change user password
+
+        :param str password: new password
+        :return: :py:class:`smc.api.web.SMCResult`
+        """
+        href = find_link_by_name('change_password', self.link)
+        return prepared_request(href=href, 
+                                params={'password': password}).update()
+                                
+
+class AdminUser(UserCommon, Element):
     """ Represents an Adminitrator account on the SMC
     Use the constructor to create the user.
 
@@ -26,10 +46,9 @@ class AdminUser(Element):
     If modifications are required after you can access the admin and
     make changes::
 
-        for admin in collection.describe_admin_user():
-            if admin.name == 'dlepage':
-                admin.change_password('mynewpassword1')
-                admin.enable_disable()
+        admin = AdminUser('dlepage')
+        admin.change_password('mynewpassword1')
+        admin.enable_disable()
     """
     typeof = 'admin_user'
 
@@ -51,16 +70,6 @@ class AdminUser(Element):
         
         return ElementCreator(cls)
 
-    def change_password(self, password):
-        """ Change admin password
-
-        :param str password: new password
-        :return: :py:class:`smc.api.web.SMCResult`
-        """
-        href = find_link_by_name('change_password', self.link)
-        params = {'password': password}
-        return prepared_request(href=href, params=params).update()
-    
     def change_engine_password(self, password):
         """ Change Engine password for engines on allowed
         list.
@@ -69,22 +78,12 @@ class AdminUser(Element):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         href = find_link_by_name('change_engine_password', self.link)
-        params = {'password': password}
-        return prepared_request(href=href, params=params).update()
-    
-    def enable_disable(self):
-        """ Toggle enable and disable of administrator account
-        
-        :return: :py:class:`smc.api.web.SMCResult`
-        """
-        href = find_link_by_name('enable_disable', self.link)
-        return prepared_request(href=href).update()
+        return prepared_request(href=href, 
+                                params={'password': password}).update()
 
-class ApiClient(Element):
+class ApiClient(UserCommon, Element):
     """
     Represents an API Client
-    
-    Exporting of ApiClient is the only supported operation
     """
     typeof = 'api_client'
 
@@ -92,7 +91,3 @@ class ApiClient(Element):
         Element.__init__(self, name, meta)
         pass
     
-    def export(self, filename='element.zip', wait_for_finish=False):
-        
-        return Element.export(self, filename=filename, 
-                              wait_for_finish=wait_for_finish)

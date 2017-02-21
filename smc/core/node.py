@@ -58,7 +58,8 @@ class Node(Element):
         """
         ID of this node
         """
-        return self.cache[1].get('nodeid')
+        #return self.cache[1].get('nodeid')
+        return self.attr_by_name('nodeid')
 
     @classmethod
     def create(cls, name, node_type, nodeid=1):

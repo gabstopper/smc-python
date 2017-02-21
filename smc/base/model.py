@@ -40,6 +40,41 @@ def ElementCreator(cls):
     return SMCRequest(href=search.element_entry_point(cls.typeof), 
                       json=cls.json).create()
 
+cachehit = 0
+
+class Cache(object):
+    """    
+    Cache can be applied at the element level to provide an
+    interface to the elements raw json. If modifications are
+    made, they are made to the cache. When saved back to SMC,
+    the cache is resolved against the element by re-fetching
+    the element. If no changes happened on the server side, 
+    the changes are submitted, otherwise changes are merged.
+    """
+    __slots__ = ('_cache', 'instance')
+        
+    def __init__(self, instance, etag=None, json=None):
+        self.instance = instance
+        if json is not None: 
+            self._cache = (etag, json)
+        else:
+            self._cache = None
+        
+    def __call__(self, *args, **kwargs):
+        if self._cache is None:
+            result = search.element_by_href_as_smcresult(self.instance.href)
+            self._cache = (result.etag, result.json)
+        elif self._cache and kwargs.get('force_refresh'):
+            result = prepared_request(headers={'Etag': self._cache[0]}, 
+                                      href=self.instance.href).read()
+            if result.code != 304:
+                result.json.update(self._cache[1])
+                self._cache = (result.etag, result.json)
+            else:
+                global cachehit
+                cachehit += 1
+        return self._cache
+    
 class ElementLocator(object):
     """
     There are two ways to get an elements location, either through the 
@@ -81,33 +116,12 @@ class ElementLocator(object):
                 raise ElementNotFound('This class does not have the required attribute '
                                       'and cannot be referenced directly, type: {}'
                                       .format(instance))
-
-cachehit = 0
-
-class ElementCache(object):
-    def __init__(self):
-        self._cache = None #tuple (etag, json)
- 
-    def __get__(self, instance, owner):
-        try:
-            if instance._cache is not None:
-                result = prepared_request(headers={'Etag': instance._cache[0]}, 
-                                          href=instance.href).read()
-                if result.code == 304:
-                    return instance._cache
-                else:
-                    instance._cache = (result.etag, result.json)
-        except AttributeError:
-            result = search.element_by_href_as_smcresult(instance.href)
-            instance._cache = (result.etag, result.json)
-        return instance._cache
                                             
 class Element(UnicodeMixin):
     """
     Base element with common methods shared by inheriting classes
     """
     href = ElementLocator()
-    cache = ElementCache()
 
     def __init__(self, name, meta=None):
         self._name = name #<str>
@@ -122,16 +136,28 @@ class Element(UnicodeMixin):
         mapped to the class type.
         """
         c = cls(meta.name, meta=meta)
-        c._cache = (etag, data)
+        c._cache = Cache(c, etag, data)
         return c
     
+    @property
+    def cache(self):
+        attr = getattr(self, '_cache', None)
+        if attr is None:
+            attr = self._cache = Cache(self)
+        return attr
+        
+    @property
+    def data(self):
+        return self.cache()[1]
+
     @property
     def etag(self):
         """
         ETag for this element
         """
-        return self.cache[0]
-        
+        return self.cache(force_refresh=True)[0]
+        #return self.cache()[0]
+    
     @property
     def name(self):
         """
@@ -156,15 +182,15 @@ class Element(UnicodeMixin):
             
             print engine.internal_gateway.describe()
         """
-        return self.cache[1]
+        return self.data
     
-    def get_attr_by_name(self, attr):
+    def attr_by_name(self, attr):
         """
         Retrieve a specific attribute by name
         
         :return: attr value or None if it doesn't exist
         """
-        return self.cache[1].get(attr)
+        return self.data.get(attr)
   
     def export(self, filename='element.zip', wait_for_finish=False):
         """
@@ -190,8 +216,8 @@ class Element(UnicodeMixin):
 
     @property
     def link(self):
-        return self.cache[1].get('link')
-    
+        return self.data.get('link')
+        
     def modify_attribute(self, **kwargs):
         """
         Modify the attribute / value pair
@@ -200,7 +226,7 @@ class Element(UnicodeMixin):
         :raises: :py:class:`smc.api.exceptions.ElementNotFound`   
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        etag, element = self.cache
+        element = self.data
         if element.get('system') == True:
             return SMCResult(msg='Cannot modify system element: %s' % self.name)
         for k, v in kwargs.items():
@@ -213,7 +239,7 @@ class Element(UnicodeMixin):
                 element.update({k: v}) #replace str
         return SMCRequest(href=self.href, 
                           json=element,
-                          etag=etag).update()
+                          etag=self.etag).update()
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)

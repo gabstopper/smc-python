@@ -28,7 +28,7 @@ from copy import deepcopy
 from functools import wraps
 import smc.actions.search as search
 from smc.base.util import find_link_by_name
-from smc.base.model import Meta, prepared_request
+from smc.base.model import Meta, prepared_request, Cache
 import smc.core.sub_interfaces
 from smc.api.exceptions import EngineCommandFailed
 from smc.elements.other import ContactAddress
@@ -45,9 +45,11 @@ def create(method):
     @wraps(method)
     def decorated(self, *args, **kwargs):
         method(self, *args, **kwargs)
-        if not self.href:
+        if not self.href: #has no location
             return self._data
         else:
+            if hasattr(self, '_update'): #exit decorator
+                return
             result = prepared_request(href=self.href, 
                                       json=self._data).create()
             if result.msg:
@@ -219,41 +221,19 @@ class Interface(object):
     """
     def __init__(self, meta=None, **kwargs):
         self.meta = meta
-        self._cache = None  #Element Cache
+        self._cache = Cache(self)
         self._engine = kwargs.get('engine') #Engine reference
-  
-    def cache(self, force_refresh=False):
-        # No meta can occur when the interfaces are being created as part
-        # of engine creation. Otherwise initial cache is retrieved and 
-        # any modifications are done to cache. When save() is called, the
-        # cache ETag is used to GET the element to determine if changes were
-        # made in the interim. If changes are made, apply changes made to
-        # cache against refreshed version of element.
-        if self._cache is None:
-            result = search.element_by_href_as_smcresult(self.meta.href)
-            self._cache = (result.etag, result.json)
-        elif self._cache and force_refresh:
-            result = prepared_request(headers={'Etag': self._cache[0]}, 
-                                      href=self.meta.href).read()
-            if result.code != 304:
-                #TODO: If a setting is removed from server side but was 
-                #present during original fetch in json, it is re-inserted. The only 
-                #case the I could see could be removed is 'zone_ref'. However as 
-                #of SMC 6.1.1 removing a zone from assigned interface does not work.
-                result.json.update(self._cache[1])
-                self._cache = (result.etag, result.json)
-        return self._cache
-              
+   
     @property
     def data(self):
         if self.meta:
-            return self.cache()[1]
+            return self._cache()[1]
         else:
             return self._data
     
     @property
     def etag(self):
-        return self.cache()[0]
+        return self._cache()[0]
     
     def delete(self):
         """
@@ -383,7 +363,7 @@ class Interface(object):
 
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        self.cache(force_refresh=True)
+        self._cache(force_refresh=True)
         return prepared_request(href=self.href, json=self.data,
                                 etag=self.etag).update()
 
@@ -474,7 +454,6 @@ class Interface(object):
         return interfaces
                     
     def __iter__(self):
-        print("Iter in parent......")
         if self.data.get('interfaces'):
             for intf in self.data['interfaces']:
                 for if_type, values in intf.items():
@@ -484,7 +463,6 @@ class Interface(object):
                 yield PhysicalVlanInterface(intf)
         
     def __getattr__(self, name):
-        print("getattr in parent: %s" % name)
         return [getattr(intfs, name) for intfs in iter(self)]
         
     def __str__(self):
@@ -513,8 +491,7 @@ class TunnelInterface(InterfaceCommon, Interface):
 
     @create
     def add_single_node_interface(self, tunnel_id, address, network_value, 
-                                  nodeid=1,
-                                  zone_ref=None, **kwargs):
+                                  nodeid=1, zone_ref=None, **kwargs):
         """
         Creates a tunnel interface with sub-type single_node_interface. This is
         to be used for single layer 3 firewall instances.
@@ -529,10 +506,22 @@ class TunnelInterface(InterfaceCommon, Interface):
         """
         intf = SingleNodeInterface.create(tunnel_id, address, network_value, 
                                           **kwargs)
+
+        if self.href: #From an engine reference
+            try:
+                intf_ref = self.get(tunnel_id) #Does interface already exist?
+                self._data.update(intf_ref.data)
+                self._data['interfaces'].append(intf())
+                self._update = True
+                return prepared_request(href=intf_ref.href, json=self._data,
+                                        etag=intf_ref.etag).update()
+            except EngineCommandFailed:
+                pass
+       
         self._data.update(interface_id=tunnel_id,
                           interfaces=[intf()],
                           zone_ref=zone_ref)
-       
+
     @create
     def add_cluster_virtual_interface(self, tunnel_id, address, network_value,
                                       zone_ref=None, **kwargs):
@@ -652,7 +641,8 @@ class PhysicalInterface(InterfaceCommon, Interface):
     def add_single_node_interface(self, interface_id, address, network_value, 
                                   zone_ref=None, is_mgmt=False, **kwargs):
         """
-        Adds a single node interface to engine in context
+        Adds a single node interface to engine in context.
+        Address can be either IPv4 or IPv6.
         
         :param int interface_id: interface id
         :param str address: ip address
@@ -670,11 +660,22 @@ class PhysicalInterface(InterfaceCommon, Interface):
             intf.auth_request = True
             intf.outgoing = True
             intf.primary_mgt = True
-   
+        
+        if self.href: #From an engine reference
+            try:
+                intf_ref = self.get(interface_id) #Does interface already exist?
+                self._data.update(intf_ref.data)
+                self._data['interfaces'].append(intf())
+                self._update = True
+                return prepared_request(href=intf_ref.href, json=self._data,
+                                        etag=intf_ref.etag).update()
+            except EngineCommandFailed:
+                pass
+
         self._data.update(interface_id=interface_id,
                           interfaces=[intf()],
                           zone_ref=zone_ref)
- 
+
     @create
     def add_node_interface(self, interface_id, address, network_value,
                            zone_ref=None, nodeid=1, is_mgmt=False, 
@@ -695,14 +696,25 @@ class PhysicalInterface(InterfaceCommon, Interface):
         
         See :py:class:`smc.core.sub_interfaces.NodeInterface` for more information 
         """
-        ndi = NodeInterface.create(interface_id, address, network_value, 
-                                   nodeid=nodeid, **kwargs)
+        intf = NodeInterface.create(interface_id, address, network_value, 
+                                    nodeid=nodeid, **kwargs)
         if is_mgmt:
-            ndi.outgoing = True
-            ndi.primary_mgt = True
-       
+            intf.outgoing = True
+            intf.primary_mgt = True
+        
+        if self.href:
+            try:
+                intf_ref = self.get(interface_id) #Does interface already exist?
+                self._data.update(intf_ref.data)
+                self._data['interfaces'].append(intf())
+                self._update = True
+                return prepared_request(href=intf_ref.href, json=self._data,
+                                        etag=intf_ref.etag).update()
+            except EngineCommandFailed:
+                pass
+
         self._data.update(interface_id=interface_id,
-                          interfaces=[ndi()],
+                          interfaces=[intf()],
                           zone_ref=zone_ref)
 
     @create
@@ -906,7 +918,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed` for invalid interface
         """
-        if not self.meta:
+        if not self.href:
             raise EngineCommandFailed('Adding a vlan to existing interface requires '
                                       'an engine reference.')
         
@@ -1066,8 +1078,8 @@ class PhysicalVlanInterface(PhysicalInterface):
     def __init__(self, data, meta=None):
         PhysicalInterface.__init__(self, meta)
         self.meta = Meta(href=None)
-        self._cache = (None, data)
-    
+        self._cache = Cache(self, None, data)
+
     @property
     def vlan_id(self):
         """
@@ -1099,13 +1111,14 @@ class PhysicalVlanInterface(PhysicalInterface):
         for interface in iter(self):
             if interface:
                 return getattr(interface, name)
-        
+
     def __str__(self):
         return '{0}(address={1},vlan_id={2})'.format(self.__class__.__name__, 
                                                      self.address, self.vlan_id)
+
     def __repr__(self):
         return str(self)
-    
+
 class VirtualPhysicalInterface(PhysicalInterface):
     """ 
     VirtualPhysicalInterface
