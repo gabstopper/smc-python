@@ -4,6 +4,7 @@ filters based on IPv4 or IPv6 access lists such as OSPF and BGP.
 """
 from smc.base.model import Element, ElementCreator, prepared_request
 import smc.actions.search as search
+from smc.api.exceptions import ModificationFailed
 
 class AccessList(Element):
     """
@@ -30,7 +31,8 @@ class AccessList(Element):
 
         :param str name: name of IP Access List
         :param list entries: access control entry
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         access_list_entry = []
         if entries:
@@ -52,7 +54,8 @@ class AccessList(Element):
         :param str subnet: network address in cidr format
         :param str action: permit|deny
         :raises: :py:class:`smc.api.exceptions.ElementNotFound`
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
                     'action': action,
@@ -61,14 +64,17 @@ class AccessList(Element):
         acl = search.element_by_href_as_smcresult(self.href)
         acl.json.get('entries').append(json)
         
-        return prepared_request(href=self.href, json=acl.json,
-                                etag=acl.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self.href, json=acl.json,
+                         etag=acl.etag).update()
 
     def remove_entry(self, subnet):
         """
         Remove an AccessList entry by subnet
 
         :param str subnet: subnet match to remove
+        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         acl = search.element_by_href_as_smcresult(self.href)
         acl.json['entries'][:] = [entry
@@ -76,8 +82,9 @@ class AccessList(Element):
                                   if entry.get('{}_entry'.format(self.typeof))\
                                   .get('subnet') != subnet]
 
-        return prepared_request(href=self.href, json=acl.json,
-                                etag=acl.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self.href, json=acl.json,
+                         etag=acl.etag).update()
 
     def view(self):
         """

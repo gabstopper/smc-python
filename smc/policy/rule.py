@@ -40,15 +40,15 @@ For example, access policy information for a known Layer 3 policy:
 
 """
 import smc.actions.search as search
-from smc.base.model import Meta, Element, prepared_request
+from smc.base.model import Meta, SubElement, prepared_request
 from smc.elements.other import LogicalInterface
 from smc.vpn.policy import VPNPolicy
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
-    CreateRuleFailed
+    CreateRuleFailed, PolicyCommandFailed
 from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
     Service, AuthenticationOptions
 
-class Rule(Element):
+class Rule(object):
     """ 
     Top level rule construct with methods required to modify common 
     behavior of any rule types. To retrieve a rule, access by reference::
@@ -158,10 +158,12 @@ class Rule(Element):
         After making changes to a rule element, you must call save
         to apply the changes.
         
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
+        :return: None
         """
-        return prepared_request(href=self.href, json=self.data,
-                                etag=self.etag).update()
+        prepared_request(PolicyCommandFailed,
+                         href=self.href, json=self.data,
+                         etag=self.etag).update()
     
     @property
     def services(self):
@@ -203,7 +205,7 @@ class Rule(Element):
         return [type(self)(meta=Meta(**rule))
                 for rule in search.element_by_href_as_json(self.href)]
     
-class IPv4Rule(Rule):
+class IPv4Rule(Rule, SubElement):
     """ 
     Represents an IPv4 Rule for a layer 3 engine.
     
@@ -254,7 +256,7 @@ class IPv4Rule(Rule):
     typeof = 'fw_ipv4_access_rule'
     
     def __init__(self, meta=None):
-        self.meta = meta
+        super(IPv4Rule, self).__init__(meta)
         self.actions = ['allow', 'discard', 'continue', 
                         'refuse', 'jump', 'apply_vpn', 
                         'enforce_vpn', 'forward_vpn', 
@@ -278,7 +280,7 @@ class IPv4Rule(Rule):
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
-        :return: None
+        :return: str href: href of new rule
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
@@ -306,12 +308,11 @@ class IPv4Rule(Rule):
         rule_values.update(auth_options())
         rule_values.update(is_disabled=is_disabled)
         
-        result = prepared_request(href=self.href,
-                                  json=rule_values).create()
-        if result.msg:
-            raise CreateRuleFailed(result.msg)
+        return prepared_request(CreateRuleFailed,
+                                href=self.href,
+                                json=rule_values).create().href
         
-class IPv4Layer2Rule(Rule):
+class IPv4Layer2Rule(Rule, SubElement):
     """
     Create IPv4 rules for Layer 2 Firewalls
     
@@ -326,7 +327,7 @@ class IPv4Layer2Rule(Rule):
     typeof = 'layer2_ipv4_access_rule'
 
     def __init__(self, meta=None):
-        self.meta = meta
+        super(IPv4Layer2Rule, self).__init__(meta)
         self.actions = ['allow', 'continue', 'discard', 
                         'refuse', 'jump', 'blacklist']
         
@@ -347,7 +348,7 @@ class IPv4Layer2Rule(Rule):
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
-        :return: None
+        :return: str href: href of new rule
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
@@ -359,12 +360,11 @@ class IPv4Layer2Rule(Rule):
     
         rule_values.update(_rule_l2_common(logical_interfaces))
         
-        result = prepared_request(href=self.href, 
-                                  json=rule_values).create()
-        if result.msg:
-            raise CreateRuleFailed(result.msg)
-
-class EthernetRule(Rule):
+        return prepared_request(CreateRuleFailed,
+                                href=self.href, 
+                                json=rule_values).create().href
+    
+class EthernetRule(Rule, SubElement):
     """
     Ethernet Rule represents a policy on a layer 2 or IPS engine.
     
@@ -383,7 +383,7 @@ class EthernetRule(Rule):
     typeof = 'ethernet_rule'
                               
     def __init__(self, meta=None):
-        self.meta = meta
+        super(EthernetRule, self).__init__(meta)
         self.actions = ['allow', 'discard']
     
     def create(self, name, sources=None, destinations=None, 
@@ -403,7 +403,7 @@ class EthernetRule(Rule):
                  specified the need additional setting, i.e. use_vpn action requires a
                  vpn policy be specified.
         :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
-        :return: None
+        :return: str href: href of new rule
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
@@ -415,14 +415,24 @@ class EthernetRule(Rule):
 
         rule_values.update(_rule_l2_common(logical_interfaces))
 
-        result = prepared_request(href=self.href, 
-                                  json=rule_values).create()
-        if result.msg:
-            raise CreateRuleFailed(result.msg)
-
-class IPv6Rule(Rule):
+        return prepared_request(CreateRuleFailed,
+                                href=self.href, 
+                                json=rule_values).create().href
+        
+class IPv6Rule(IPv4Rule):
+    """
+    IPv6 access rule defines sources and destinations that must be
+    in IPv6 format. 
+    
+    .. note:: It is possible to submit a source or destination in
+              IPv4 format, however this will fail validation when
+              attempting to push policy.
+    """
+    typeof = 'fw_ipv6_access_rule'
+    
     def __init__(self, meta=None):
-        pass
+        super(IPv6Rule, self).__init__(meta)
+        pass        
        
 def _rule_l2_common(logical_interfaces):
         """

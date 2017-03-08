@@ -5,7 +5,7 @@ allow for modifications of existing groups and their members.
 """
 from smc.base.model import Element, ElementCreator
 
-class GroupMixin(Element):
+class GroupMixin(object):
     """
     Methods associated with handling modification of Group 
     objects for existing elements
@@ -38,7 +38,7 @@ class GroupMixin(Element):
         """
         return self.modify_attribute(element=[])
 
-class Group(GroupMixin):
+class Group(GroupMixin, Element):
     """ 
     Class representing a Group object used in access rules
     Groups can hold other network element types as well as
@@ -55,7 +55,7 @@ class Group(GroupMixin):
     typeof = 'group'
 
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Group, self).__init__(name, meta)
         pass
         
     @classmethod
@@ -76,7 +76,7 @@ class Group(GroupMixin):
         
         return ElementCreator(cls)
 
-class ServiceGroup(GroupMixin):
+class ServiceGroup(GroupMixin, Element):
     """ 
     Represents a service group in SMC. Used for grouping
     objects by service. Services can be "mixed" TCP/UDP/ICMP/
@@ -92,7 +92,7 @@ class ServiceGroup(GroupMixin):
     typeof = 'service_group'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(ServiceGroup, self).__init__(name, meta)
         pass
 
     @classmethod
@@ -112,7 +112,7 @@ class ServiceGroup(GroupMixin):
         
         return ElementCreator(cls)
 
-class TCPServiceGroup(GroupMixin):
+class TCPServiceGroup(GroupMixin, Element):
     """ 
     Represents a TCP Service group
     
@@ -125,7 +125,7 @@ class TCPServiceGroup(GroupMixin):
     typeof = 'tcp_service_group'
        
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(TCPServiceGroup, self).__init__(name, meta)
         pass
         
     @classmethod
@@ -145,7 +145,7 @@ class TCPServiceGroup(GroupMixin):
         
         return ElementCreator(cls)
 
-class UDPServiceGroup(GroupMixin):
+class UDPServiceGroup(GroupMixin, Element):
     """ 
     UDP Service Group 
     Used for storing UDP Services or UDP Service Groups.
@@ -159,7 +159,7 @@ class UDPServiceGroup(GroupMixin):
     typeof = 'udp_service_group'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(UDPServiceGroup, self).__init__(name, meta)
         pass
         
     @classmethod
@@ -179,7 +179,7 @@ class UDPServiceGroup(GroupMixin):
         
         return ElementCreator(cls)
 
-class IPServiceGroup(GroupMixin):
+class IPServiceGroup(GroupMixin, Element):
     """ 
     IP Service Group
     Used for storing IP Services or IP Service Groups
@@ -188,7 +188,7 @@ class IPServiceGroup(GroupMixin):
     typeof = 'ip_service_group'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(IPServiceGroup, self).__init__(name, meta)
         pass
         
     @classmethod

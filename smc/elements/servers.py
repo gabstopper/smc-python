@@ -1,11 +1,10 @@
 """"
 Module that represents server based configurations
 """
-import smc.actions.search as search
-from smc.base.util import find_link_by_name
 from smc.base.model import prepared_request
 from smc.elements.helpers import location_helper
 from smc.base.model import Element
+from smc.api.exceptions import ModificationFailed
 
 class ManagementServer(Element):
     """
@@ -29,8 +28,8 @@ class ManagementServer(Element):
     typeof = 'mgt_server'
 
     def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+        super(ManagementServer, self).__init__(name, meta)
+        pass
 
     def search_category_tags_from_element(self):
         pass
@@ -42,8 +41,7 @@ class ManagementServer(Element):
        
         :return: list dict of contact addresses {location_ref,addresses}
         """
-        result = search.element_by_href_as_json(
-                            find_link_by_name('contact_addresses', self.link))
+        result = self._get_resource_by_link('contact_addresses')
         if result:
             return result.get('multi_contact_addresses')
         else:
@@ -59,14 +57,15 @@ class ManagementServer(Element):
         :param str contact_address: IP address used as contact address
         :param str location: Name of location to use, will be created if
                it doesn't exist
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address, 
                                          location=location)
-        return prepared_request(
-                    href=find_link_by_name('contact_addresses', self.link),
-                    json=addresses, etag=self.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('contact_addresses'),
+                         json=addresses, etag=self.etag).update()
 
     def remove_contact_address(self, location):
         """
@@ -74,12 +73,14 @@ class ManagementServer(Element):
         addresses by calling :py:func:`contact_addresses`.
         
         :param str location: href of location
+        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         json = _remove_contact_address(self.contact_addresses(), location)
         
-        return prepared_request(
-                    href=find_link_by_name('contact_addresses', self.link),
-                    json=json, etag=self.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('contact_addresses'),
+                         json=json, etag=self.etag).update()
         
 class LogServer(Element):
     """
@@ -101,8 +102,8 @@ class LogServer(Element):
     typeof = 'log_server'
  
     def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+        super(LogServer, self).__init__(name, meta)
+        pass
 
     def contact_addresses(self):
         """
@@ -111,8 +112,7 @@ class LogServer(Element):
         
         :return: list dict of contact addresses {location_ref,addresses}
         """
-        result = search.element_by_href_as_json(
-                            find_link_by_name('contact_addresses', self.link))
+        result = self._get_resource_by_link('contact_addresses')
         if result:
             return result.get('multi_contact_addresses')
         else:
@@ -128,14 +128,15 @@ class LogServer(Element):
         :param str contact_address: IP address used as contact address
         :param str location: Name of location to use, will be created if
                it doesn't exist
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         addresses = _add_contact_address(self.contact_addresses(), 
                                          contact_address=contact_address,
                                          location=location)
-        return prepared_request(
-                    href=find_link_by_name('contact_addresses', self.link),
-                    json=addresses, etag=self.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('contact_addresses'),
+                         json=addresses, etag=self.etag).update()
     
     def remove_contact_address(self, location):
         """
@@ -143,12 +144,14 @@ class LogServer(Element):
         addresses by calling :py:func:`contact_addresses`.
         
         :param str location: href of location
+        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         json = _remove_contact_address(self.contact_addresses(), location)
         
-        return prepared_request(
-                    href=find_link_by_name('contact_addresses', self.link),
-                    json=json, etag=self.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('contact_addresses'),
+                         json=json, etag=self.etag).update()
                     
 def _add_contact_address(addresses, contact_address, location):
     """

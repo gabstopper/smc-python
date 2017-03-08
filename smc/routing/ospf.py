@@ -142,7 +142,8 @@ class OSPFArea(Element):
         :param list ospfv2_virtual_links_endpoints_container: virtual link endpoints
         :param list ospf_abr_substitute_container: substitute types: 
                \|aggregate\|not_advertise\|substitute_with
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json={'name': name,
                   'area_id': area_id,
@@ -209,7 +210,8 @@ class OSPFInterfaceSetting(Element):
                authentication_type='password')
         :param str key_chain_ref: reference to key chain (required when 
                authentication_type='message_digest')
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json={'name': name,
                   'authentication_type': authentication_type,
@@ -258,7 +260,8 @@ class OSPFKeyChain(Element):
         
         :param str name: Name of key chain
         :param list key_chain_entry: list of key chain entries
-        :return: :py:class:`smc.qpi.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         key_chain_entry = [] if key_chain_entry is None else key_chain_entry
         cls.json={'name': name,
@@ -314,7 +317,8 @@ class OSPFProfile(Element):
         :param int inter_distance: routes learned from different areas (O IA)
         :param int intra_distance: routes learned from same area (O)
         :param list redistribution_entry:
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json={'name': name,
                   'domain_settings_ref': domain_settings_ref,
@@ -366,7 +370,8 @@ class OSPFDomainSetting(Element):
         :param int max_hold_time: in milliseconds
         :param int shutdown_max_metric_lsa: in seconds
         :param int startup_max_metric_lsa: in seconds
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json={'name': name,
                   'abr_type': abr_type,

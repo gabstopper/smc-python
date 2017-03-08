@@ -22,8 +22,9 @@ metadata::
     name: name of element
 
 Some additional generic search examples follow...
-
-    import smc.elements.collection
+    ::
+    
+        import smc.elements.collection
     
 To search for all host objects::
 
@@ -73,24 +74,11 @@ the http://<smc>/api/elements node.
     :return: list return type determined by describe method
 """
 from smc import session
-import smc.elements.servers as servers
-import smc.vpn.policy as vpn_policy
-import smc.vpn.elements as vpn_elements
 import smc.elements.network as network
-import smc.elements.group as group
-import smc.elements.service as service
-import smc.elements.other as other
 import smc.base.model as element
-import smc.elements.user as user
 import smc.core.engine as engine
-import smc.policy.ips as ips
-import smc.policy.layer3 as layer3
-import smc.policy.layer2 as layer2
-import smc.policy.inspection as inspection
-import smc.policy.file_filtering as file_filtering
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
-from smc.routing.access_list import IPv6AccessList, IPAccessList
-from smc.routing.prefix_list import IPPrefixList, IPv6PrefixList
+from smc.base.resource import Registry
     
 def min_smc_version(arg_version):
     """
@@ -236,7 +224,7 @@ def describe_api_client(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('api_client', name, exact_match, user.ApiClient)
+    return generic_list_builder('api_client', name, exact_match)
 
 def describe_tls_match_situation(name=None, exact_match=True):
     """ 
@@ -268,7 +256,7 @@ def describe_vpn_profile(name=None, exact_match=True):
     
     :return: :py:class:`smc.vpn.elements.VPNProfile` 
     """
-    return generic_list_builder('vpn_profile', name, exact_match, vpn_elements.VPNProfile)
+    return generic_list_builder('vpn_profile', name, exact_match)
 
 def describe_appliance_information(name=None, exact_match=True):
     """ 
@@ -284,8 +272,7 @@ def describe_ipv6_access_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('ipv6_access_list', name, exact_match,
-                                IPv6AccessList)
+    return generic_list_builder('ipv6_access_list', name, exact_match)
 
 def describe_single_layer2(name=None, exact_match=True):
     """ 
@@ -350,7 +337,7 @@ def describe_expression(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.Expression` 
     """
-    return generic_list_builder('expression', name, exact_match, network.Expression)
+    return generic_list_builder('expression', name, exact_match)
 
 def describe_ei_application_situation(name=None, exact_match=True):
     """ 
@@ -390,7 +377,8 @@ def describe_local_cluster_ndi_for_ipv6_only_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_ndi_for_ipv6_only_alias', name, exact_match)
+    return generic_list_builder('local_cluster_ndi_for_ipv6_only_alias', name, exact_match,
+                                network.Alias)
 
 def describe_internal_user_domain(name=None, exact_match=True):
     """ 
@@ -406,8 +394,7 @@ def describe_ipv6_prefix_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('ipv6_prefix_list', name, exact_match,
-                                IPv6PrefixList)
+    return generic_list_builder('ipv6_prefix_list', name, exact_match)
 
 def describe_report_template(name=None, exact_match=True):
     """ 
@@ -431,7 +418,8 @@ def describe_valid_vpn_dhcp_servers_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('valid_vpn_dhcp_servers_alias', name, exact_match)
+    return generic_list_builder('valid_vpn_dhcp_servers_alias', name, exact_match,
+                                network.Alias)
 
 def describe_auth_server_user_domain(name=None, exact_match=True):
     """ 
@@ -455,8 +443,7 @@ def describe_fw_template_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('fw_template_policy', name, exact_match,
-                                layer3.FirewallTemplatePolicy)
+    return generic_list_builder('fw_template_policy', name, exact_match)
 
 def describe_ea_server(name=None, exact_match=True):
     """ 
@@ -488,7 +475,8 @@ def describe_interface_nic_x_ip_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('interface_nic_x_ip_alias', name, exact_match)
+    return generic_list_builder('interface_nic_x_ip_alias', name, exact_match,
+                                network.Alias)
 
 def describe_user_response(name=None, exact_match=True):
     """ 
@@ -528,7 +516,8 @@ def describe_interface_nic_x_net_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('interface_nic_x_net_alias', name, exact_match)
+    return generic_list_builder('interface_nic_x_net_alias', name, exact_match,
+                                network.Alias)
 
 def describe_application_usage_group_tag(name=None, exact_match=True):
     """ 
@@ -552,7 +541,7 @@ def describe_tcp_service(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.TCPService` 
     """
-    return generic_list_builder('tcp_service', name, exact_match, service.TCPService)
+    return generic_list_builder('tcp_service', name, exact_match)
 
 def describe_bgp_connection_profile(name=None, exact_match=True):
     """ 
@@ -616,7 +605,8 @@ def describe_local_cluster_dyn_interface_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_dyn_interface_alias', name, exact_match)
+    return generic_list_builder('local_cluster_dyn_interface_alias', name, exact_match,
+                                network.Alias)
 
 def describe_application_situation(name=None, exact_match=True):
     """ 
@@ -624,8 +614,7 @@ def describe_application_situation(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('application_situation', name, exact_match, 
-                                service.ApplicationSituation)
+    return generic_list_builder('application_situation', name, exact_match)
 
 def describe_single_fw(name=None, exact_match=True):
     """ 
@@ -665,7 +654,8 @@ def describe_valid_vpn_dhcp_enabled_interface_addresses_alias(name=None, exact_m
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('valid_vpn_dhcp_enabled_interface_addresses_alias', name, exact_match)
+    return generic_list_builder('valid_vpn_dhcp_enabled_interface_addresses_alias', name, 
+                                exact_match, network.Alias)
 
 def describe_qos_class(name=None, exact_match=True):
     """ 
@@ -745,7 +735,7 @@ def describe_mac_address(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.MacAddress` 
     """
-    return generic_list_builder('mac_address', name, exact_match, other.MacAddress)
+    return generic_list_builder('mac_address', name, exact_match)
 
 def describe_tcp_service_group(name=None, exact_match=True):
     """ 
@@ -753,7 +743,7 @@ def describe_tcp_service_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.group.TCPServiceGroup` 
     """
-    return generic_list_builder('tcp_service_group', name, exact_match, group.TCPServiceGroup)
+    return generic_list_builder('tcp_service_group', name, exact_match)
 
 def describe_report_file(name=None, exact_match=True):
     """ 
@@ -785,7 +775,7 @@ def describe_icmp_service(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.ICMPService` 
     """
-    return generic_list_builder('icmp_service', name, exact_match, service.ICMPService)
+    return generic_list_builder('icmp_service', name, exact_match)
 
 def describe_cis_server(name=None, exact_match=True):
     """ 
@@ -801,7 +791,8 @@ def describe_dynamic_interface_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('dynamic_interface_alias', name, exact_match)
+    return generic_list_builder('dynamic_interface_alias', name, exact_match,
+                                network.Alias)
 
 def describe_service_group(name=None, exact_match=True):
     """ 
@@ -809,7 +800,7 @@ def describe_service_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.group.ServiceGroup` 
     """
-    return generic_list_builder('service_group', name, exact_match, group.ServiceGroup)
+    return generic_list_builder('service_group', name, exact_match)
 
 def describe_local_cluster_alias(name=None, exact_match=True):
     """ 
@@ -817,7 +808,8 @@ def describe_local_cluster_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_alias', name, exact_match)
+    return generic_list_builder('local_cluster_alias', name, exact_match,
+                                network.Alias)
 
 def describe_interface_zone(name=None, exact_match=True):
     """ 
@@ -825,7 +817,7 @@ def describe_interface_zone(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.Zone` 
     """
-    return generic_list_builder('interface_zone', name, exact_match, network.Zone)
+    return generic_list_builder('interface_zone', name, exact_match)
 
 def describe_internal_user(name=None, exact_match=True):
     """ 
@@ -849,7 +841,7 @@ def describe_udp_service_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.group.UDPServiceGroup` 
     """
-    return generic_list_builder('udp_service_group', name, exact_match, group.UDPServiceGroup)
+    return generic_list_builder('udp_service_group', name, exact_match)
 
 def describe_vpn(name=None, exact_match=True):
     """ 
@@ -857,7 +849,7 @@ def describe_vpn(name=None, exact_match=True):
     
     :return: :py:class:`smc.vpn.policy.VPNPolicy` 
     """
-    return generic_list_builder('vpn', name, exact_match, vpn_policy.VPNPolicy)
+    return generic_list_builder('vpn', name, exact_match)
 
 def describe_valid_dhcp_servers_alias(name=None, exact_match=True):
     """ 
@@ -865,7 +857,8 @@ def describe_valid_dhcp_servers_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('valid_dhcp_servers_alias', name, exact_match)
+    return generic_list_builder('valid_dhcp_servers_alias', name, exact_match,
+                                network.Alias)
 
 def describe_ospfv2_area(name=None, exact_match=True):
     """ 
@@ -881,7 +874,7 @@ def describe_address_range(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.AddressRange` 
     """
-    return generic_list_builder('address_range', name, exact_match, network.AddressRange)
+    return generic_list_builder('address_range', name, exact_match)
 
 def describe_eia_application_category_tag(name=None, exact_match=True):
     """ 
@@ -905,7 +898,8 @@ def describe_local_cluster_ndi_for_hb_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_ndi_for_hb_alias', name, exact_match)
+    return generic_list_builder('local_cluster_ndi_for_hb_alias', name, exact_match,
+                                network.Alias)
 
 def describe_fw_cluster(name=None, exact_match=True):
     """ 
@@ -921,7 +915,7 @@ def describe_domain_name(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.DomainName` 
     """
-    return generic_list_builder('domain_name', name, exact_match, network.DomainName)
+    return generic_list_builder('domain_name', name, exact_match)
 
 def describe_bgp_profile(name=None, exact_match=True):
     """ 
@@ -953,7 +947,7 @@ def describe_ips_template_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('ips_template_policy', name, exact_match, ips.IPSTemplatePolicy)
+    return generic_list_builder('ips_template_policy', name, exact_match)
 
 def describe_tls_profile(name=None, exact_match=True):
     """ 
@@ -977,8 +971,7 @@ def describe_external_gateway(name=None, exact_match=True):
     
     :return: :py:class:`smc.vpn.elements.ExternalGateway` 
     """
-    return generic_list_builder('external_gateway', name, exact_match,
-                                vpn_elements.ExternalGateway)
+    return generic_list_builder('external_gateway', name, exact_match)
 
 def describe_epo(name=None, exact_match=True):
     """ 
@@ -1010,7 +1003,7 @@ def describe_ip_access_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('ip_access_list', name, exact_match, IPAccessList)
+    return generic_list_builder('ip_access_list', name, exact_match)
 
 def describe_log_server(name=None, exact_match=True):
     """ 
@@ -1018,7 +1011,7 @@ def describe_log_server(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.servers.LogServer` 
     """
-    return generic_list_builder('log_server', name, exact_match, servers.LogServer)
+    return generic_list_builder('log_server', name, exact_match)
 
 def describe_icmp_ipv6_service(name=None, exact_match=True):
     """ 
@@ -1026,7 +1019,7 @@ def describe_icmp_ipv6_service(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.ICMPIPv6Service` 
     """
-    return generic_list_builder('icmp_ipv6_service', name, exact_match, service.ICMPIPv6Service)
+    return generic_list_builder('icmp_ipv6_service', name, exact_match)
 
 def describe_virtual_fw(name=None, exact_match=True):
     """ 
@@ -1058,7 +1051,7 @@ def describe_mgt_server(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.servers.ManagementServer` 
     """
-    return generic_list_builder('mgt_server', name, exact_match, servers.ManagementServer)
+    return generic_list_builder('mgt_server', name, exact_match)
 
 def describe_probing_profile(name=None, exact_match=True):
     """ 
@@ -1074,7 +1067,7 @@ def describe_ip_prefix_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('ip_prefix_list', name, exact_match, IPPrefixList)
+    return generic_list_builder('ip_prefix_list', name, exact_match)
 
 def describe_valid_vpn_dhcp_address_pools_alias(name=None, exact_match=True):
     """ 
@@ -1082,7 +1075,8 @@ def describe_valid_vpn_dhcp_address_pools_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('valid_vpn_dhcp_address_pools_alias', name, exact_match)
+    return generic_list_builder('valid_vpn_dhcp_address_pools_alias', name, exact_match,
+                                network.Alias)
 
 def describe_tls_cryptography_suite_set(name=None, exact_match=True):
     """ 
@@ -1098,7 +1092,7 @@ def describe_logical_interface(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.other.LogicalInterface` 
     """
-    return generic_list_builder('logical_interface', name, exact_match, other.LogicalInterface)
+    return generic_list_builder('logical_interface', name, exact_match)
 
 def describe_situation_group_tag(name=None, exact_match=True):
     """ 
@@ -1114,7 +1108,8 @@ def describe_log_servers_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('log_servers_alias', name, exact_match)
+    return generic_list_builder('log_servers_alias', name, exact_match,
+                                network.Alias)
 
 def describe_server_pool(name=None, exact_match=True):
     """ 
@@ -1162,7 +1157,8 @@ def describe_local_cluster_ndi_only_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_ndi_only_alias', name, exact_match)
+    return generic_list_builder('local_cluster_ndi_only_alias', name, exact_match,
+                                network.Alias)
 
 def describe_radius_server(name=None, exact_match=True):
     """ 
@@ -1266,7 +1262,7 @@ def describe_ip_service(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.IPService` 
     """
-    return generic_list_builder('ip_service', name, exact_match, service.IPService)
+    return generic_list_builder('ip_service', name, exact_match)
 
 def describe_file_filtering_compatibility_tag(name=None, exact_match=True):
     """ 
@@ -1306,8 +1302,7 @@ def describe_layer2_template_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('layer2_template_policy', name, exact_match,
-                                layer2.Layer2TemplatePolicy)
+    return generic_list_builder('layer2_template_policy', name, exact_match)
 
 def describe_external_ldap_user_domain(name=None, exact_match=True):
     """ 
@@ -1323,7 +1318,7 @@ def describe_protocol(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.Protocol` 
     """
-    return generic_list_builder('protocol', name, exact_match, service.Protocol)
+    return generic_list_builder('protocol', name, exact_match)
 
 def describe_router(name=None, exact_match=True):
     """ 
@@ -1331,7 +1326,7 @@ def describe_router(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.Router` 
     """
-    return generic_list_builder('router', name, exact_match, network.Router)
+    return generic_list_builder('router', name, exact_match)
 
 def describe_sub_ipv4_ips_policy(name=None, exact_match=True):
     """ 
@@ -1347,7 +1342,8 @@ def describe_default_nat_address_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('default_nat_address_alias', name, exact_match)
+    return generic_list_builder('default_nat_address_alias', name, exact_match,
+                                network.Alias)
 
 def describe_admin_domain(name=None, exact_match=True):
     """ 
@@ -1371,7 +1367,7 @@ def describe_host(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.Host` 
     """
-    return generic_list_builder('host', name, exact_match, network.Host)
+    return generic_list_builder('host', name, exact_match)
 
 def describe_mlc_user_agent(name=None, exact_match=True):
     """ 
@@ -1411,7 +1407,7 @@ def describe_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.group.Group` 
     """
-    return generic_list_builder('group', name, exact_match, group.Group)
+    return generic_list_builder('group', name, exact_match)
 
 def describe_dhcp_enabled_interface_addresses_alias(name=None, exact_match=True):
     """ 
@@ -1419,7 +1415,8 @@ def describe_dhcp_enabled_interface_addresses_alias(name=None, exact_match=True)
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('dhcp_enabled_interface_addresses_alias', name, exact_match)
+    return generic_list_builder('dhcp_enabled_interface_addresses_alias', name, exact_match,
+                                network.Alias)
 
 def describe_vss_context(name=None, exact_match=True):
     """ 
@@ -1443,7 +1440,7 @@ def describe_fw_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.policy.FirewallPolicy` 
     """
-    return generic_list_builder('fw_policy', name, exact_match, layer3.FirewallPolicy)
+    return generic_list_builder('fw_policy', name, exact_match)
 
 def describe_ips_policy(name=None, exact_match=True):
     """ 
@@ -1451,7 +1448,7 @@ def describe_ips_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('ips_policy', name, exact_match, ips.IPSPolicy)
+    return generic_list_builder('ips_policy', name, exact_match)
 
 def describe_smtp_server(name=None, exact_match=True):
     """ 
@@ -1491,7 +1488,7 @@ def describe_ethernet_service(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.EthernetService` 
     """
-    return generic_list_builder('ethernet_service', name, exact_match, service.EthernetService)
+    return generic_list_builder('ethernet_service', name, exact_match)
 
 def describe_admin_user(name=None, exact_match=True):
     """ 
@@ -1499,7 +1496,7 @@ def describe_admin_user(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.user.AdminUser` 
     """
-    return generic_list_builder('admin_user', name, exact_match, user.AdminUser)
+    return generic_list_builder('admin_user', name, exact_match)
 
 def describe_local_cluster_ndi_for_mgt_alias(name=None, exact_match=True):
     """ 
@@ -1507,7 +1504,8 @@ def describe_local_cluster_ndi_for_mgt_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_ndi_for_mgt_alias', name, exact_match)
+    return generic_list_builder('local_cluster_ndi_for_mgt_alias', name, exact_match,
+                                network.Alias)
 
 def describe_mgt_servers_alias(name=None, exact_match=True):
     """ 
@@ -1515,7 +1513,8 @@ def describe_mgt_servers_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('mgt_servers_alias', name, exact_match)
+    return generic_list_builder('mgt_servers_alias', name, exact_match,
+                                network.Alias)
 
 def describe_application_usage_tag(name=None, exact_match=True):
     """ 
@@ -1531,8 +1530,7 @@ def describe_layer2_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('layer2_policy', name, exact_match,
-                                layer2.Layer2Policy)
+    return generic_list_builder('layer2_policy', name, exact_match)
 
 def describe_single_ips(name=None, exact_match=True):
     """ 
@@ -1556,8 +1554,7 @@ def describe_file_filtering_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('file_filtering_policy', name, exact_match,
-                                file_filtering.FileFilteringPolicy)
+    return generic_list_builder('file_filtering_policy', name, exact_match)
 
 def describe_udp_service(name=None, exact_match=True):
     """ 
@@ -1565,7 +1562,7 @@ def describe_udp_service(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.service.UDPService` 
     """
-    return generic_list_builder('udp_service', name, exact_match, service.UDPService)
+    return generic_list_builder('udp_service', name, exact_match)
 
 def describe_network(name=None, exact_match=True):
     """ 
@@ -1573,7 +1570,7 @@ def describe_network(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.Network` 
     """
-    return generic_list_builder('network', name, exact_match, network.Network)
+    return generic_list_builder('network', name, exact_match)
 
 def describe_ips_cluster(name=None, exact_match=True):
     """ 
@@ -1621,7 +1618,7 @@ def describe_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('alias', name, exact_match)
+    return generic_list_builder('alias', name, exact_match, network.Alias)
 
 def describe_ip_service_group(name=None, exact_match=True):
     """ 
@@ -1629,7 +1626,7 @@ def describe_ip_service_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.group.IPServiceGroup` 
     """
-    return generic_list_builder('ip_service_group', name, exact_match, group.IPServiceGroup)
+    return generic_list_builder('ip_service_group', name, exact_match)
 
 def describe_http_proxy(name=None, exact_match=True):
     """ 
@@ -1645,7 +1642,8 @@ def describe_auth_servers_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('auth_servers_alias', name, exact_match)
+    return generic_list_builder('auth_servers_alias', name, exact_match,
+                                network.Alias)
 
 def describe_virtual_fwlayer2(name=None, exact_match=True):
     """ 
@@ -1685,8 +1683,7 @@ def describe_inspection_template_policy(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('inspection_template_policy', name, exact_match,
-                                inspection.InspectionPolicy)
+    return generic_list_builder('inspection_template_policy', name, exact_match)
 
 def describe_ospfv2_domain_settings(name=None, exact_match=True):
     """ 
@@ -1756,7 +1753,7 @@ def describe_ip_list(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.IPList` 
     """
-    return generic_list_builder('ip_list', name, exact_match, network.IPList)
+    return generic_list_builder('ip_list', name, exact_match)
 
 @min_smc_version(6.1)
 def describe_ip_list_group(name=None, exact_match=True):
@@ -1778,7 +1775,7 @@ def describe_url_list_application(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.network.URLListApplication` 
     """
-    return generic_list_builder('url_list_application', name, exact_match, network.URLListApplication)
+    return generic_list_builder('url_list_application', name, exact_match)
 
 @min_smc_version(6.1)
 def describe_country(name=None, exact_match=True):
@@ -1789,7 +1786,7 @@ def describe_country(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    return generic_list_builder('country', name, exact_match, network.Country)
+    return generic_list_builder('country', name, exact_match)
 
 @min_smc_version(6.1)
 def describe_sidewinder_logging_profile(name=None, exact_match=True):
@@ -1844,7 +1841,7 @@ def describe_location(name=None, exact_match=True):
     
     :return: :py:class:`smc.elements.other.Location` 
     """
-    return generic_list_builder('location', name, exact_match, other.Location)
+    return generic_list_builder('location', name, exact_match)
 
 @min_smc_version(6.1)   
 def describe_threatseeker_server(name=None, exact_match=True):
@@ -1877,7 +1874,7 @@ def describe_ip_country_group(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element`
     """
-    return generic_list_builder('ip_country_group', name, exact_match, network.IPCountryGroup)
+    return generic_list_builder('ip_country_group', name, exact_match)
 
 @min_smc_version(6.1)    
 def describe_known_host(name=None, exact_match=True):
@@ -1960,30 +1957,29 @@ def describe_ips_engines(name=None, exact_match=True):
     name = name if name else '*'
     return generic_list_builder('ips_clusters', name, exact_match, engine.Engine)
                                
-def generic_list_builder(typeof, name=None, exact_match=True, klazz=element.Element):
+def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
     """
     Build the query to SMC based on parameters
     
-    Each constructor that has a describe function must have two arguments, 
-    name=None, meta=None. This is because some top level classes require name.
+    The describe function uses the Element interface and expects that the
+    class takes two arguments, name and meta.
+
     If the resource does not have a top level api entry point, it will be
     referenced by the linked resource using meta only.
-    
-    Before the META data is returned, the dict values are encoded to utf-8 to
-    support unicode chars.
     
     :param list name: Name of host object (optional)
     :param exact_match: Do exact match against name field (default True)
     :return: list :py:class:`smc.base.model.Element`
     """
-    global element
+    if klazz is None:
+        klazz = Registry[typeof]
     result = []
     if not name:
         lst = fetch_json_by_href(
                     session.cache.get_entry_href(typeof)).json
         if lst:
             for item in lst:
-                result.append(klazz(name=item.get('name'), 
+                result.append(klazz(name=item.get('name'),
                                     meta=element.Meta(**item)))
     else: #Filter provided
         if isinstance(name, str): # By str

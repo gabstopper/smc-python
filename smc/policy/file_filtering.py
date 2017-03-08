@@ -1,16 +1,16 @@
 from smc.policy.policy import Policy
-from smc.base.model import Meta, Element
-from smc.base.util import find_link_by_name
-import smc.actions.search as search
+from smc.base.model import Meta, SubElement
 
-class FileFilteringRule(Element):
+class FileFilteringRule(SubElement):
+    """
+    Represents a file filtering rule
+    """
+    typeof = 'file_filtering_rule'
+    
     def __init__(self, meta):
-        self.meta = meta
-    
-    @property
-    def name(self):
-        return self.meta.name if self.meta else None
-    
+        super(FileFilteringRule, self).__init__(meta)
+        pass
+        
     def create(self):
         pass
     
@@ -27,9 +27,9 @@ class FileFilteringRule(Element):
             for rule in FileFiltering('mypolicy).
         """ 
         return [type(self)(meta=Meta(**rule))
-                for rule in search.element_by_href_as_json(self.href)]
+                for rule in self._get_resource(self.href)]
         
-class FileFilteringPolicy(FileFilteringRule, Policy):
+class FileFilteringPolicy(Policy):
     """ 
     The File Filtering Policy references a specific file based policy for 
     doing additional inspection based on file types. Use the policy 
@@ -40,7 +40,7 @@ class FileFilteringPolicy(FileFilteringRule, Policy):
     typeof = 'file_filtering_policy'
     
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name, meta)
+        super(FileFilteringPolicy, self).__init__(name, meta)
         pass
 
     @classmethod
@@ -53,5 +53,4 @@ class FileFilteringPolicy(FileFilteringRule, Policy):
     
     @property
     def file_filtering_rules(self):
-        href = find_link_by_name('file_filtering_rules', self.link)
-        return FileFilteringRule(meta=Meta(href=href))
+        return FileFilteringRule(meta=Meta(href=self._link('file_filtering_rules')))

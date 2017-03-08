@@ -5,7 +5,27 @@ the top level interface, there are sub-interface configurations that identify th
 basic settings such as ip address, network, administrative settings etc. These are
 not called directly but used as a reference to the top level interface.
 """
+from collections import Sequence
 
+class SubInterface(Sequence):
+    def __init__(self, subif):
+        self.subif = subif if subif is not None else []
+            
+    def __getitem__(self, i):
+        intf = self.subif[i]
+        for k, v in intf.items():
+            return SubInterface.get_subinterface(k)(v)
+    
+    def __len__(self):
+        return len(self.subif)
+        
+    @staticmethod
+    def get_subinterface(typeof):
+        for subif in [NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
+                      CaptureInterface, InlineInterface]:
+            if subif.typeof == typeof:
+                return subif
+        
 class ClusterVirtualInterface(object):
     """
     ClusterVirtualInterface
@@ -13,6 +33,7 @@ class ClusterVirtualInterface(object):
     interfaces. They specify a 'VIP' (or shared IP) to be used for traffic load
     balancing or high availability. Each engine will still also have a 'node' 
     interface for communication to/from the engine itself.
+    The following getter/setter properties are available:     
     """
     typeof = 'cluster_virtual_interface'
     
@@ -284,6 +305,43 @@ class InlineInterface(object):
     def __repr__(self):
         return '{0}(nicid={1})'.format(self.__class__.__name__, 
                                        self.nicid)
+
+'''
+class MyInterfaces(SubInterface):
+    """
+    Capture Interface (SPAN)
+    This is a single physical interface type that can be installed on either
+    layer 2 or IPS engine roles. By default traffic is only examined unless
+    reset_interface_nicid is set.
+    
+    .. py:attribute:: nicid
+    
+        :param str value: nicid this capture interface is assigned to
+        
+    .. py:attribute:: inspect_unspecified_vlans
+    
+        :param boolean value: whether to inspect non-specified VLANs
+        
+    .. py:attribute:: logical_interface_ref
+    
+        :param str value: logical interface to use, specify href of interface
+        
+    .. py:attribute:: reset_interface_nicid
+    
+        :param str|int value: which nicid to use to send RST back for blocking
+            in passive mode
+    """
+    typeof = 'capture_interface'
+    def __init__(self, data=None):
+        self.__dict__ = data
+           
+    def __getattr__(self, name):
+        return None
+    
+    def __repr__(self):    
+        return '{0}(nicid={1})'.format(self.__class__.__name__, 
+                                       self.nicid)
+'''                      
 
 class CaptureInterface(object):
     """ 
@@ -814,7 +872,7 @@ class SingleNodeInterface(NodeInterface):
     typeof = 'single_node_interface'
     
     def __init__(self, data):
-        NodeInterface.__init__(self, data)
+        super(SingleNodeInterface, self).__init__(data)
         pass
     
     @classmethod

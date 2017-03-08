@@ -25,11 +25,17 @@ class Location(Element):
     typeof = 'location'
 
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Location, self).__init__(name, meta)
         pass
     
     @classmethod
     def create(cls, name, comment=None):
+        """
+        Create a location element
+        
+        :param name: name of location
+        :return: str href: href of location element
+        """
         comment = comment if comment else ''
         cls.json = {'name': name,
                     'comment': comment}
@@ -48,7 +54,7 @@ class LogicalInterface(Element):
     typeof = 'logical_interface'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(LogicalInterface, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -58,7 +64,7 @@ class LogicalInterface(Element):
         
         :param str name: name of logical interface
         :param str comment: optional comment
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href of logical interface element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -68,7 +74,7 @@ class LogicalInterface(Element):
 class MacAddress(Element):
     """
     Mac Address network element that can be used in L2 and IPS
-    policy.
+    policy source and destination fields.
     
     Creating a MacAddress::
     
@@ -77,7 +83,7 @@ class MacAddress(Element):
     typeof = 'mac_address'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(MacAddress, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -88,7 +94,7 @@ class MacAddress(Element):
         :param str name: name of mac address
         :param str mac_address: mac address notation
         :param str comment: optional comment
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href of macaddress element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,

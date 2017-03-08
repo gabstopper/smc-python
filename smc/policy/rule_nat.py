@@ -1,5 +1,5 @@
 from smc.policy.rule import Rule, _rule_common
-from smc.base.model import prepared_request, Element
+from smc.base.model import prepared_request, Element, SubElement
 from smc.policy.rule_elements import LogOptions, Destination
 import smc.actions.search as search
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
@@ -393,7 +393,7 @@ class StaticDestNAT(NAT):
         self({'translated_value': t_ports})
                 
     
-class IPv4NATRule(NATRule):
+class IPv4NATRule(NATRule, SubElement):
     """
     Create NAT Rules for relevant policy types. Rule requirements are 
     similar to a normal rule with exception of the NAT field and no action field. 
@@ -441,7 +441,8 @@ class IPv4NATRule(NATRule):
     typeof = 'fw_ipv4_nat_rule'
     
     def __init__(self, meta=None):
-        self.meta = meta
+        super(IPv4NATRule, self).__init__(meta)
+        pass
   
     def create(self, name, sources=None, destinations=None, services=None,
                dynamic_src_nat=None, dynamic_src_nat_ports=(1024, 65535),
@@ -503,11 +504,19 @@ class IPv4NATRule(NATRule):
             rule_values.update(options=options.data)
             
         rule_values.update(used_on=used_on)
-        result = prepared_request(href=self.href, 
-                                  json=rule_values).create()
-        if result.msg:
-            raise CreateRuleFailed(result.msg)
+        return prepared_request(CreateRuleFailed,
+                                href=self.href, 
+                                json=rule_values).create()
 
-class IPv6NATRule(object):
-    def __init__(self):
-        pass    
+class IPv6NATRule(IPv4NATRule):
+    """
+    Represents an IPv6 NAT rule. Source and/or destination (depending on
+    NAT type) should be an IPv6 address. It will be possible to submit
+    an IPv4 address however the policy validation engine will fail when
+    being deployed to an engine and the rule will be ignored.
+    """
+    typeof = 'fw_ipv6_nat_rule'
+    
+    def __init__(self, meta=None):
+        super(IPv6NATRule, self).__init__(meta)
+        pass

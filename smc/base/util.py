@@ -2,6 +2,7 @@
 Utility functions used in different areas of smc-python
 """
 from ..compat import PY3
+import smc.api.exceptions
 
 def save_to_file(filename, content):
     """
@@ -28,10 +29,24 @@ def find_link_by_name(link_name, linklist):
     :param list linklist: list of references
     :return fully qualified href
     """
-    assert(isinstance(linklist, list)), 'List required as input'
     for entry in linklist:
         if entry.get('rel') == link_name:
             return entry.get('href')
+    raise smc.api.exceptions.ResourceNotFound('Resource link {} not found.'
+                                              .format(link_name))
+
+def find_type_from_self(linklist):
+    """
+    Return the type of element from self. This is primarily
+    used when dynamically creating the Element from only
+    the href. Returned value maps to class 'typeof' attribute.
+    
+    :return: str element type
+    """
+    for link in linklist:
+        if link.get('rel') == 'self':
+            return link.get('type')
+    raise smc.api.exceptions.ResourceNotFound('Self link not found.')
 
 def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
     """

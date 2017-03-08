@@ -5,17 +5,18 @@ You can create an Admin User, enable superuser, enable/disable the account,
 assign local access to engines, and change the account password for SMC or
 engine access.
 """
-from smc.base.util import find_link_by_name
 from smc.base.model import Element, ElementCreator, prepared_request
+from smc.api.exceptions import ModificationFailed
 
 class UserCommon(object):
     def enable_disable(self):
         """ Toggle enable and disable of administrator account
         
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :return: None
         """
-        href = find_link_by_name('enable_disable', self.link)
-        return prepared_request(href=href).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('enable_disable')).update()
 
     def change_password(self, password):
         """ Change user password
@@ -23,9 +24,9 @@ class UserCommon(object):
         :param str password: new password
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        href = find_link_by_name('change_password', self.link)
-        return prepared_request(href=href, 
-                                params={'password': password}).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('change_password'), 
+                         params={'password': password}).update()
                                 
 
 class AdminUser(UserCommon, Element):
@@ -53,7 +54,7 @@ class AdminUser(UserCommon, Element):
     typeof = 'admin_user'
 
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(AdminUser, self).__init__(name, meta)
         pass
 
     @classmethod
@@ -75,11 +76,12 @@ class AdminUser(UserCommon, Element):
         list.
 
         :param str password: password for engine level
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :return: None
         """
-        href = find_link_by_name('change_engine_password', self.link)
-        return prepared_request(href=href, 
-                                params={'password': password}).update()
+        prepared_request(ModificationFailed,
+                         href=self._link('change_engine_password'), 
+                         params={'password': password}).update()
 
 class ApiClient(UserCommon, Element):
     """
@@ -88,6 +90,6 @@ class ApiClient(UserCommon, Element):
     typeof = 'api_client'
 
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(ApiClient, self).__init__(name, meta)
         pass
     

@@ -30,8 +30,3 @@ class InspectionPolicy(InspectionRule, Policy):
     def upload(self):
         #Not valid for inspection policy
         pass
-
-class InspectionTemplatePolicy(Policy):
-    def __init__(self, name, meta=None):
-        Policy.__init__(self, name, meta)
-        pass

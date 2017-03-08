@@ -30,20 +30,40 @@ from collections import OrderedDict
 import smc.actions.search
 import smc.elements.network
 from smc.core.engines import Layer3VirtualEngine, Engine
+from smc.routing.ospf import OSPFProfile, OSPFArea
 
 import logging
-from smc.api.exceptions import SMCException
+from smc.api.exceptions import EngineCommandFailed, CreateEngineFailed
 logging.getLogger()
 #logging.basicConfig(level=logging.DEBUG)
 
-master_engine_name = 'master-eng'
-csv_filename = '/Users/davidlepage/info.csv'
-virtual_intf_offset = 1 #Virtual interface offset based on used MasterEngine interfaces
-#Master engine physical interface to zone map
-zone_map = {1: 'Web', 
-            2: 'App', 
-            3: 'Dev'}
-#Specify global DNS servers for virtual engines    
+#############
+#CSV Filename
+#############
+csv_filename = '/Users/davidlepage/Downloads/test.csv'
+
+###################
+#Master Engine Name
+###################
+master_engine_name = 'master'
+
+#####################################
+#Zone to virtual engine interface map
+#####################################
+zone_map = {0: 'Srv', 
+            1: 'Web', 
+            2: 'App'}
+
+######################
+#OSPF Related settings
+######################
+enable_ospf=False    # Set to True to enable on virtual engine
+ospf_profile='Default OSPFv2 Profile' # Set OSPF profile by name (default)
+ospf_area='area0'  #OSPF Area by name
+
+####################
+#Engine DNS Settings
+####################
 dns=['8.8.8.8','8.8.8.9']
 
 if __name__ == '__main__':
@@ -51,7 +71,7 @@ if __name__ == '__main__':
     session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
 
     #Get zone references
-    for idx, zone in zone_map.iteritems():
+    for idx, zone in zone_map.items():
         result = smc.actions.search.element_href_use_filter(zone, 'interface_zone')
         if result:
             zone_map[idx] = result
@@ -59,8 +79,13 @@ if __name__ == '__main__':
             zone_map[idx] = \
                 smc.elements.network.Zone.create(zone).href
     
+    if enable_ospf:
+        ospf_profile = OSPFProfile(ospf_profile).href
+        # Check for OSPFArea
+        ospf_area = OSPFArea(ospf_area)
+        
     #Load Master Engine
-    engine = Engine(master_engine_name).load()
+    engine = Engine(master_engine_name)
     
     engine_info = OrderedDict()
     
@@ -73,50 +98,63 @@ if __name__ == '__main__':
         for row in reader:
 
             current_engine = next(re.finditer(r'\d+$', row.get('name'))).group(0)
-
-            if current_engine != previous_engine:
+            virtual_fw_id = int(current_engine)+8
+            
+            if current_engine != previous_engine: # Create virtual resource, new 
                 previous_engine = current_engine
-                virtual_engine_name = 've-'+str(current_engine)
-                print "Creating VLANs and Virtual Resources for VE: {}".format(virtual_engine_name) 
+                virtual_engine_name = 'vFW-APP-'+str(current_engine)
+                virtual_interface_id = 0    #Virtual engine starts at interface ID 0
+                print("Creating VLANs and Virtual Resources for VE: {}".format(virtual_engine_name))
                 
                 #Create virtual resource on the Master Engine
-                engine.virtual_resource.create(name=virtual_engine_name, 
-                                               vfw_id=current_engine, 
-                                               show_master_nic=False)
+                result = engine.virtual_resource.create(name=virtual_engine_name, 
+                                                        vfw_id=virtual_fw_id, 
+                                                        show_master_nic=False)
+                if result.msg:
+                    print("Error creating virtual resource: %s" % result.msg)
               
                 engine_info[virtual_engine_name] = []
             
-            physical_interface_id = int(row.get('interface_id'))    
-            virtual_interface_id = physical_interface_id-virtual_intf_offset
+            physical_interface_id = int(row.get('interface_id'))
             
             #Virtual Engine interface information
             engine_info[virtual_engine_name].append({'interface_id': virtual_interface_id,
                                                      'address': row.get('address'),
                                                      'network_value': row.get('address')+'/'+row.get('cidr'),
-                                                     'zone_ref': zone_map.get(physical_interface_id)})    
+                                                     'zone_ref': zone_map.get(virtual_interface_id)})    
 
-            result = engine.physical_interface.add_vlan_to_node_interface(
+            try:
+                engine.physical_interface.add_vlan_to_node_interface(
                                                         physical_interface_id,
                                                         row.get('vlan_id'), 
                                                         virtual_mapping=virtual_interface_id, 
                                                         virtual_resource_name=virtual_engine_name)
+            except EngineCommandFailed as err:
+                print("Failed creating physical interface: %s" % err)
             
-            if result.href:
-                print "Successfully created VLAN {}".format(row.get('vlan_id'))
-            else:
-                print "Failed creating VLAN {}, reason: {}".format(row.get('vlan_id'), result.msg)
+            print("Successfully created VLAN {}".format(row.get('vlan_id')))
+            virtual_interface_id += 1   #Increment virtual engine interface
                            
-        for name, interfaces in engine_info.iteritems():
+        for name, interfaces in engine_info.items():
             try:
-                result = Layer3VirtualEngine.create(name, master_engine_name, name, default_nat=False, 
-                                                    interfaces=interfaces, dns=dns)        
-                print "Success creating virtual engine: %s" % name
+                virtual = Layer3VirtualEngine.create(name, 
+                                                     master_engine_name, 
+                                                     name, 
+                                                     default_nat=False, 
+                                                     interfaces=interfaces, dns=dns,
+                                                     enable_ospf=enable_ospf,
+                                                     ospf_profile=ospf_profile)
+                if enable_ospf:
+                    for interface in virtual.routing.all(): 
+                        interface.add_ospf_area(ospf_area)     
+                        
+                print("Success creating virtual engine: %s" % name)
     
-            except SMCException, reason:
-                print "Failed creating virtual engine: {}, reason: {}".format(name, reason)
+            except CreateEngineFailed as err:
+                print("Failed creating virtual engine: {}, reason: {}".format(name, err))
     
-        print "Refreshing policy on Master Engine..."
-        for msg in engine.refresh():
-            print msg
+        #print("Refreshing policy on Master Engine...")
+        #for msg in engine.refresh():
+        #    print(msg)
         
     session.logout()

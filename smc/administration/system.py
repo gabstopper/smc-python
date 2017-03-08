@@ -13,14 +13,15 @@ To load the configuration for system, do::
 
 """
 import smc.actions.search as search
-from smc.base.util import find_link_by_name
 from smc.elements.other import prepare_blacklist
 from .tasks import task_handler, Task
-from smc.base.model import Meta, prepared_request
+from smc.base.model import Meta, prepared_request, SubElement
 from smc.administration.updates import EngineUpgrade, UpdatePackage
+from smc.administration.license import License
 from smc.api.common import fetch_json_by_post
-
-class System(object):
+from smc.api.exceptions import ActionCommandFailed
+    
+class System(SubElement):
     """
     System level operations such as SMC version, time, update packages, 
     and updating engines
@@ -29,57 +30,57 @@ class System(object):
     :ivar smc_time: SMC time
     :ivar last_activated_package: latest update package installed
     """
-    def __init__(self):
+    def __init__(self, meta=None):
+        meta = Meta(href=search.element_entry_point('system'))
+        super(System, self).__init__(meta)
         pass
-    
-    @property
-    def href(self):
-        return search.element_entry_point('system') 
-
-    @property
-    def link(self):
-        result = search.element_by_href_as_json(self.href)
-        return result.get('link')
-
+        
     @property    
     def smc_version(self):
-        """ Return the SMC version """
-        return search.element_by_href_as_json(
-                    find_link_by_name('smc_version', self.link)).get('value')
+        """
+        Return the SMC version
+        """
+        return self._get_resource_by_link('smc_version').get('value')
     
     @property
     def smc_time(self):
-        """ Return the SMC time """
-        return search.element_by_href_as_json(
-                    find_link_by_name('smc_time', self.link)).get('value')
+        """
+        Return the SMC time
+        """
+        return self._get_resource_by_link('smc_time').get('value')
     
     @property
     def last_activated_package(self):
-        """ Return the last activated package by id """
-        return search.element_by_href_as_json(
-                find_link_by_name('last_activated_package', self.link)).get('value')
+        """
+        Return the last activated package by id
+        """
+        return self._get_resource_by_link('last_activated_package').get('value')
     
     def empty_trash_bin(self):
-        """ Empty system level trash bin """
-        href = find_link_by_name('empty_trash_bin', self.link)
-        return prepared_request(href=href).delete()
+        """ 
+        Empty system level trash bin
+        
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :return: None
+        """
+        prepared_request(ActionCommandFailed,
+                         href=self._link('empty_trash_bin')).delete()
 
     def update_package(self):
-        """ Show all update packages on SMC 
-        
-        :return: dict of href,name,type
         """
-        updates=[]
-        for update in search.element_by_href_as_json(
-                            find_link_by_name('update_package', self.link)):
-            updates.append(UpdatePackage(meta=Meta(**update)))
-        return updates
-
+        Show all update packages on SMC 
+        
+        :return: list :py:class:`smc.administration.updates.UpdatePackage`
+        """
+        return [UpdatePackage(meta=Meta(**update))
+                for update in self._get_resource_by_link('update_package')]
+       
     def update_package_import(self):
         pass
         
     def engine_upgrade(self, engine_version=None):
-        """ List all engine upgrade packages available 
+        """
+        List all engine upgrade packages available 
         
         Call this function without parameters to see available engine
         versions. Once you have found the engine version to upgrade, use
@@ -90,49 +91,60 @@ class System(object):
         :param engine_version: Version of engine to retrieve
         :return: dict of settings
         """
-        upgrades=[]
-        for upgrade in search.element_by_href_as_json(
-                            find_link_by_name('engine_upgrade', self.link)):
-            upgrades.append(EngineUpgrade(meta=Meta(**upgrade)))
-        return upgrades
+        return [EngineUpgrade(meta=Meta(**upgrade))
+                for upgrade in self._get_resource_by_link('engine_upgrade')]
     
     def uncommitted(self):
         pass
     
     def system_properties(self):
-        """ List of all properties applied to the SMC """
-        return search.element_by_href_as_json(
-                        find_link_by_name('system_properties', self.link))
+        """
+        List of all properties applied to the SMC
+        """
+        return self._get_resource_by_link('system_properties')
         
     def clean_invalid_filters(self):
         pass
     
     def blacklist(self, src, dst, duration=3600):
-        """ Add blacklist to all defined engines
+        """ 
+        Add blacklist to all defined engines.
         Use the cidr netmask at the end of src and dst, such as:
         1.1.1.1/32, etc.
         
         :param src: source of the entry
         :param dst: destination of blacklist entry
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :return: None
         """
-        return prepared_request(
-                    href=find_link_by_name('blacklist', self.link),
-                    json=prepare_blacklist(src, dst, duration)).create()
+        prepared_request(ActionCommandFailed,
+                         href=self._link('blacklist'),
+                         json=prepare_blacklist(src, dst, duration)
+                         ).create()
 
+    @property
     def licenses(self):
-        """ List of all engine related licenses
+        """
+        List of all engine related licenses
         This will provide details related to whether the license is bound,
         granted date, expiration date, etc.
+        ::
         
-        :return: list of dictionary items specific to all engine licenses
+            for license in system.licenses:
+                print(license, license.expiration_date)
+                .....
+        
+        :return: list :py:class:`smc.administration.license.License`
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('licenses', self.link))
-        
+        licenses = self._get_resource_by_link('licenses')
+        return [License(**lic)
+                for lic in licenses['license']]
+      
     def license_fetch(self):
-        return search.element_by_href_as_json(
-                        find_link_by_name('license_fetch', self.link))
+        """
+        Fetch available licenses for this SMC
+        """
+        return self._get_resource_by_link('license_fetch')
         
     def license_install(self):
         raise NotImplementedError
@@ -144,24 +156,24 @@ class System(object):
         
         :return: dictionary of key/values
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('license_details', self.link))
+        return self._get_resource_by_link('license_details')
         
     def license_check_for_new(self):
-        """ Check for new SMC license """
-        return search.element_by_href_as_json(
-                        find_link_by_name('license_check_for_new', self.link))
+        """
+        Check for new SMC license
+        """
+        return self._get_resource_by_link('license_check_for_new')
         
     def delete_license(self):
         raise NotImplementedError
     
     def visible_virtual_engine_mapping(self):
-        """ Return list of dictionary mappings for master engines and virtual engines 
+        """ 
+        Mappings for master engines and virtual engines 
         
         :return: list of dict items related to master engines and virtual engine mappings
         """
-        return search.element_by_href_as_json(
-                        find_link_by_name('visible_virtual_engine_mapping', self.link))
+        return self._get_resource_by_link('visible_virtual_engine_mapping')
     
     def references_by_element(self, element_href):
         """
@@ -170,8 +182,7 @@ class System(object):
         :param str element_href: element reference
         :return: list list of references where element is used
         """
-        href = find_link_by_name('references_by_element', self.link)
-        result = fetch_json_by_post(href=href,
+        result = fetch_json_by_post(href=self._link('references_by_element'),
                                     json={'value': element_href})
         if result.json:
             return result.json
@@ -190,28 +201,24 @@ class System(object):
         
         :param type: type of element
         :param filename: Name of file for export
-        :return: :py:class:`smc.api.web.SMCResult`
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+        :return: generator with results (if wait_for_finish=True), else href
         """
         valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
         if not typeof in valid_types:
             typeof = 'all'
-        params = {'recursive': True,
-                  'type': typeof}
-        element = prepared_request(href=find_link_by_name('export_elements', self.link),
-                               params=params).create()
     
-        task = task_handler(Task(**element.json), 
+        element = prepared_request(href=self._link('export_elements'),
+                                   params={'recursive': True,
+                                           'type': typeof}
+                                   ).create()
+    
+        return task_handler(Task(**element.json), 
                             wait_for_finish=wait_for_finish, 
                             filename=filename)
-        return task
-
+    
     def import_elements(self):
         raise NotImplementedError
-
-    def certificate_authority(self):
-        return search.element_by_href_as_json(
-                        href=find_link_by_name('certificate_authority', self.link))
     
     def unlicensed_components(self):
         raise NotImplementedError

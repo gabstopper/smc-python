@@ -4,6 +4,7 @@ OSPF routing.
 """
 import smc.actions.search as search
 from smc.base.model import ElementCreator, Element, prepared_request
+from smc.api.exceptions import ModificationFailed
 
 class PrefixList(Element):
     """
@@ -55,8 +56,9 @@ class PrefixList(Element):
         :param int min_prefix_length: minimum mask bits
         :param int max_prefix_length: maximum mask bits
         :param str action: permit|deny
-        :raises: :py:class:`smc.api.exceptions.ElementNotFound`
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class: `smc.api.exceptions.ElementNotFound`: invalid element reference
+        :raises: :py:class: 'smc.api.exceptions.ModificationFailed`: invalid entry
+        :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
                     'action': action,
@@ -67,14 +69,17 @@ class PrefixList(Element):
         acl = search.element_by_href_as_smcresult(self.href)
         acl.json.get('entries').append(json)
         
-        return prepared_request(href=self.href, json=acl.json,
-                            etag=acl.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self.href, json=acl.json,
+                         etag=acl.etag).update()
 
     def remove_entry(self, subnet):
         """
         Remove an PrefixList entry by subnet
 
         :param str subnet: subnet match to remove
+        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :return: None
         """
         acl = search.element_by_href_as_smcresult(self.href)
         acl.json['entries'][:] = [entry
@@ -82,8 +87,9 @@ class PrefixList(Element):
                                   if entry.get('{}_entry'.format(self.typeof))\
                                   .get('subnet') != subnet]
         
-        return prepared_request(href=self.href, json=acl.json,
-                            etag=acl.etag).update()
+        prepared_request(ModificationFailed,
+                         href=self.href, json=acl.json,
+                         etag=acl.etag).update()
 
     def view(self):
         """

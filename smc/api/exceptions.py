@@ -109,6 +109,13 @@ class LoadEngineFailed(SMCException):
     """
     pass
 
+class PolicyCommandFailed(SMCException):
+    """
+    Generic policy related command failures such as opening
+    or closing a VPN policy.
+    """
+    pass
+
 class CreatePolicyFailed(SMCException):
     """
     Thrown when failures occur when creating specific
@@ -129,10 +136,35 @@ class LoadElementFailed(SMCException):
     """
     pass
 
+class FetchElementFailed(SMCException):
+    """
+    Failure when fetching results
+    """
+    pass
+
 class CreateElementFailed(SMCException):
     """
     Generic exception when there was a failure calling a 
     create method
+    """
+    pass
+
+class DeleteElementFailed(SMCException):
+    """
+    Used when deletion fails, typically due to dependencies
+    for the target element
+    """
+    pass
+
+class ModificationFailed(SMCException):
+    """
+    Used when making generic modifications to elements.
+    """
+    pass
+
+class ActionCommandFailed(SMCException):
+    """
+    Action type commands use this exception
     """
     pass
 
@@ -152,6 +184,15 @@ class ElementNotFound(SMCException):
     """
     Generic exception when an attempt is made to load an element 
     that is not found.
+    """
+    pass
+
+class ResourceNotFound(SMCException):
+    """
+    Used to indicate a resource link is not found on the
+    queried node. For example, the :py:class:`smc.core.engine.Engine` class
+    will expose available resources but some engines may not have those
+    links.
     """
     pass
 

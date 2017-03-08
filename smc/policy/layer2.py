@@ -52,10 +52,9 @@ Example rule deletion::
             print rule.delete()
 """
 from smc.base.model import Meta, ElementCreator
-from smc.base.util import find_link_by_name
 from smc.actions.search import element_name_by_href
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
-    CreatePolicyFailed
+    CreatePolicyFailed, CreateElementFailed
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
 
@@ -72,8 +71,7 @@ class Layer2Rule(object):
         
         :return: :py:class:`smc.policy.rule.IPv4Layer2Rule`
         """
-        href = find_link_by_name('layer2_ipv4_access_rules', self.link)
-        return IPv4Layer2Rule(meta=Meta(href=href))
+        return IPv4Layer2Rule(meta=Meta(href=self._link('layer2_ipv4_access_rules')))
     
     @property    
     def layer2_ipv6_access_rules(self):
@@ -81,7 +79,7 @@ class Layer2Rule(object):
         Layer 2 IPv6 access rule
         
         """
-        #href = find_link_by_name('layer2_ipv6_access_rules', self.link)
+        #href = self._link('layer2_ipv6_access_rules')
         pass
     
     @property
@@ -91,8 +89,7 @@ class Layer2Rule(object):
         
         :param :py:class:`smc.policy.rule.EthernetRule`
         """
-        href = find_link_by_name('layer2_ethernet_rules', self.link)
-        return EthernetRule(meta=Meta(href=href))
+        return EthernetRule(meta=Meta(href=self._link('layer2_ethernet_rules')))
     
 class Layer2Policy(Layer2Rule, Policy):
     """
@@ -112,7 +109,7 @@ class Layer2Policy(Layer2Rule, Policy):
     typeof = 'layer2_policy'
     
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name, meta)
+        super(Layer2Policy, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -147,12 +144,12 @@ class Layer2Policy(Layer2Rule, Policy):
                                    'template: {}'.format(template))
         cls.json = {'name': name,
                     'template': fw_template}
-        result = ElementCreator(cls)
-        if result.href:
-            return Layer2Policy(name, Meta(href=result.href))
-        else:
+        try:
+            result = ElementCreator(cls)
+            return Layer2Policy(name, Meta(href=result))
+        except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
-                                     .format(result.msg))
+                                     .format(err))
 
     @property
     def template(self):
@@ -161,7 +158,7 @@ class Layer2Policy(Layer2Rule, Policy):
         
         :return: :py:class:`smc.policy.layer2.Layer2TemplatePolicy`
         """
-        href = self.describe().get('template') #href for template
+        href = self.data.get('template') #href for template
         name = element_name_by_href(href)
         return Layer2TemplatePolicy(name=name, meta=Meta(href=href))
 
@@ -184,7 +181,7 @@ class Layer2TemplatePolicy(Layer2Rule, Policy):
     typeof = 'layer2_template_policy'
    
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name, meta)
+        super(Layer2TemplatePolicy, self).__init__(name, meta)
         pass
     
     def export(self):

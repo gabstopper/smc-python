@@ -35,9 +35,8 @@ from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
 from smc.actions.search import element_name_by_href
 from smc.base.model import Meta, ElementCreator
-from smc.base.util import find_link_by_name
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
-    CreatePolicyFailed
+    CreatePolicyFailed, CreateElementFailed
 
 class IPSRule(object):
     """
@@ -52,14 +51,12 @@ class IPSRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv4Layer2Rule`
         """
-        href = find_link_by_name('ips_ipv4_access_rules', self.link)
-        return IPv4Layer2Rule(meta=Meta(href=href))
+        return IPv4Layer2Rule(meta=Meta(href=self._link('ips_ipv4_access_rules')))
     
     @property    
     def ips_ipv6_access_rules(self):
         """
         """
-        #href = find_link_by_name('ips_ipv6_access_rules', self.link)
         pass
     
     @property
@@ -69,8 +66,7 @@ class IPSRule(object):
         
         :param :py:class:`smc.policy.rule.EthernetRule`
         """
-        href = find_link_by_name('ips_ethernet_rules', self.link)
-        return EthernetRule(meta=Meta(href=href))
+        return EthernetRule(meta=Meta(href=self._link('ips_ethernet_rules')))
 
 class IPSPolicy(IPSRule, Policy):
     """
@@ -90,7 +86,7 @@ class IPSPolicy(IPSRule, Policy):
     typeof = 'ips_policy'
     
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name, meta)
+        super(IPSPolicy, self).__init__(name, meta)
         pass
 
     @classmethod
@@ -102,12 +98,12 @@ class IPSPolicy(IPSRule, Policy):
                                    .format(template))
         cls.json = {'name': name,
                     'template': fw_template}
-        result = ElementCreator(cls)
-        if result.href:
-            return IPSPolicy(name, Meta(href=result.href))
-        else:
+        try:
+            result = ElementCreator(cls)
+            return IPSPolicy(name, Meta(href=result))
+        except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
-                                     .format(result.msg))
+                                     .format(err))
     
     @property
     def template(self):
@@ -116,7 +112,7 @@ class IPSPolicy(IPSRule, Policy):
         
         :return: :py:class:`smc.policy.ips.IPSTemplatePolicy`
         """
-        href = self.describe().get('template') #href for template
+        href = self.data.get('template') #href for template
         name = element_name_by_href(href)
         return IPSTemplatePolicy(name=name, meta=Meta(href=href))
         
@@ -139,5 +135,5 @@ class IPSTemplatePolicy(IPSRule, Policy):
     typeof = 'ips_template_policy'
     
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name)
+        super(IPSTemplatePolicy, self).__init__(name, meta)
         pass 

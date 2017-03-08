@@ -1,7 +1,6 @@
-from smc.base.model import Meta
+from smc.base.model import Meta, SubElement
 import smc.actions.search as search
 from smc.api.exceptions import CreateElementFailed
-from smc.base.util import find_link_by_name
 from smc.base.model import Element, ElementCreator, prepared_request
                     
 class ExternalGateway(Element):
@@ -29,8 +28,8 @@ class ExternalGateway(Element):
     typeof = 'external_gateway'
     
     def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+        super(ExternalGateway, self).__init__(name, meta)
+        pass
 
     @classmethod
     def create(cls, name, trust_all_cas=True):
@@ -45,12 +44,12 @@ class ExternalGateway(Element):
         cls.json = {'name': name,
                     'trust_all_cas': trust_all_cas}
 
-        result = ElementCreator(cls)
-        if result.href:
+        try:
+            ElementCreator(cls)
             return ExternalGateway(name)
-        else:
+        except CreateElementFailed as err:
             raise CreateElementFailed('Failed creating test_external gateway, '
-                                      'reason: {}'.format(result.msg))
+                                      'reason: {}'.format(err))
     
     @property
     def vpn_site(self):
@@ -62,8 +61,7 @@ class ExternalGateway(Element):
         :method: GET
         :return: list :py:class:`smc.vpn.elements.VPNSite`
         """
-        href = find_link_by_name('vpn_site', self.link)
-        return VPNSite(meta=Meta(href=href))
+        return VPNSite(meta=Meta(href=self._link('vpn_site')))
 
     @property
     def external_endpoint(self):
@@ -80,10 +78,9 @@ class ExternalGateway(Element):
         :method: GET
         :return: :py:class:`smc.vpn.elements.ExternalEndpoint`
         """
-        href = find_link_by_name('external_endpoint', self.link)
-        return ExternalEndpoint(meta=Meta(href=href))
+        return ExternalEndpoint(meta=Meta(href=self._link('external_endpoint')))
 
-class ExternalEndpoint(Element):
+class ExternalEndpoint(SubElement):
     """
     External Endpoint is used by the External Gateway and defines the IP
     and other VPN related settings to identify the VPN peer. This is created
@@ -95,7 +92,8 @@ class ExternalEndpoint(Element):
     :ivar href: pass in href to init which will have engine insert location   
     """
     def __init__(self, meta=None):
-        self.meta = meta
+        super(ExternalEndpoint, self).__init__(meta)
+        pass
 
     def create(self, name, address, enabled=True, balancing_mode='active',
                ipsec_vpn=True, nat_t=False, dynamic=False):
@@ -110,7 +108,8 @@ class ExternalEndpoint(Element):
         :param boolean ipsec_vpn: True|False (default: True)
         :param boolean nat_t: True|False (default: False)
         :param boolean dynamic: is a dynamic VPN (default: False)
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href of new element
+        :raises: :py:class: `smc.api.exceptions.CreateElementFailed`
         """
         json = {'name': name,
                 'address': address,
@@ -120,11 +119,11 @@ class ExternalEndpoint(Element):
                 'nat_t': nat_t,
                 'ipsec_vpn': ipsec_vpn}
         
-        return prepared_request(href=self.href, json=json).create()
-
-    @property
-    def name(self):
-        return self.meta.name
+        result = prepared_request(href=self.href, json=json).create()
+        if result.msg:
+            raise CreateElementFailed(result.msg)
+        else:
+            return result.href
 
     def all(self):
         """
@@ -135,7 +134,7 @@ class ExternalEndpoint(Element):
         return [ExternalEndpoint(meta=Meta(**gw))
                 for gw in search.element_by_href_as_json(self.href)]
 
-class VPNSite(Element):
+class VPNSite(SubElement):
     """
     VPN Site information for an internal or test_external gateway
     Sites are used to encapsulate hosts or networks as 'protected' for VPN
@@ -154,7 +153,8 @@ class VPNSite(Element):
     :ivar site_element: list of network elements behind this site
     """
     def __init__(self, meta=None):
-        self.meta = meta
+        super(VPNSite, self).__init__(meta)
+        pass
 
     def create(self, name, site_element):
         """
@@ -162,14 +162,15 @@ class VPNSite(Element):
 
         :param str name: name of site
         :param list site_element: list of protected networks/hosts
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href of new element
+        :raises: :py:class: `smc.api.exceptions.CreateElementFailed`
         """
         json={'name': name, 'site_element': site_element}
-        return prepared_request(href=self.href, json=json).create()
-
-    @property
-    def name(self):
-        return self.meta.name
+        result = prepared_request(href=self.href, json=json).create()
+        if result.msg:
+            raise CreateElementFailed(result.msg)
+        else:
+            return result.href
 
     def all(self):
         """
@@ -187,8 +188,8 @@ class VPNProfile(Element):
     typeof = 'vpn_profile'
 
     def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+        super(VPNProfile, self).__init__(name, meta)
+        pass
         
 class VPNCertificate(object):
     """

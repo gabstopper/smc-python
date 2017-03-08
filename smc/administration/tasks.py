@@ -3,7 +3,7 @@ import re
 from smc.base.model import prepared_request
 import smc.actions.search as search
 from smc.base.util import find_link_by_name
-from smc.api.exceptions import TaskRunFailed
+from smc.api.exceptions import TaskRunFailed, ActionCommandFailed
 
 clean_html = re.compile(r'<.*?>')
 
@@ -82,9 +82,12 @@ class Task(object):
     def abort(self):
         """
         Abort existing task
+        
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :return: None
         """
-        return prepared_request(
-                    href=find_link_by_name('abort', self.link)).delete()
+        prepared_request(ActionCommandFailed,
+                         href=find_link_by_name('abort', self.link)).delete()
 
     def __getattr__(self, value):
         """
@@ -128,8 +131,9 @@ class TaskDownload(object):
     
     :param str result: follower result link
     :param str filename: filename provided
-    :return: :py:class:`smc.api.web.SMCResult`
     :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+    :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+    :return: None
     """
     def __init__(self, result, filename):
         self.result = result
@@ -137,12 +141,13 @@ class TaskDownload(object):
     
     def run(self):
         try:
-            return prepared_request(href=self.result,
-                                    filename=self.filename).read()
+            prepared_request(ActionCommandFailed,
+                             href=self.result,
+                             filename=self.filename).read()
         except IOError as io:
             raise TaskRunFailed("Export task failed with message: {}"
                                 .format(io))
-        
+       
 def task_handler(task, wait_for_finish=False,  
                  display_msg=True, sleep=3, filename=None):
     """ Handles asynchronous operations called on engine or node levels

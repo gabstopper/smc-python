@@ -1,8 +1,4 @@
-from smc.api.common import fetch_json_by_href
-import smc.elements.group
-import smc.elements.network
-import smc.elements.service
-from smc.base.model import Meta, Element
+from smc.base.model import Element
 from smc.api.exceptions import ElementNotFound
 
 class RuleElement(object):
@@ -130,7 +126,7 @@ class RuleElement(object):
         :return: list elements by resolved object type
         """
         if not self.is_any and not self.is_none:
-            return [ElementFactory(element) for element in self.data[self.typeof]]
+            return [Element.from_href(href) for href in self.data[self.typeof]]
         return []
             
 class Destination(RuleElement):
@@ -664,37 +660,3 @@ class TimeRange(object):
     @month_range_start.setter
     def month_range_start(self, value):
         self.data['month_range_start'] = value
-    
-import inspect
-_network_elements = dict((klazz.typeof, klazz) 
-                         for i in [smc.elements.group,
-                                   smc.elements.network, 
-                                   smc.elements.service]
-                         for _, klazz in inspect.getmembers(i, inspect.isclass)
-                         if hasattr(klazz, 'typeof'))
-        
-def ElementFactory(element):
-    """
-    Return a network element or service object by type. This is used
-    when retrieving rule elements that will be only href and provides
-    the object for simpler use.
-    """
-    j = fetch_json_by_href(element)
-    name = j.json.get('name')
-    typeof = _type_finder(j.json.get('link'))
-    obj = _network_elements.get(typeof)
-    if obj:
-        return obj._load(j.etag, j.json, meta=Meta(name=name, href=element))
-    else:
-        return Element._load(j.etag, j.json, meta=Meta(name=name, href=element))
-           
-def _type_finder(linklist):
-    """
-    When a source/destination/service is retrieved from a rule, it will only
-    have an href to link it to the data. This will retrieve the json by
-    href and pull the 'self' link which will have base meta so we can then
-    construct and return the right object.
-    """
-    for entry in linklist:
-        if entry.get('rel') == 'self':
-            return entry.get('type')  

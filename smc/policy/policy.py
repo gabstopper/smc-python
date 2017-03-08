@@ -20,11 +20,12 @@ overidden.
           needed, calling open() will lock the policy from test_external modifications
           until save() is called.
 """
-from smc.base.util import find_link_by_name
-from smc.api.exceptions import TaskRunFailed
-from smc.base.model import prepared_request
+from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
+    ResourceNotFound
+from smc.base.model import prepared_request, Meta
 from smc.administration.tasks import task_handler, Task
 from smc.base.model import Element
+from smc.base.resource import Registry
 
 class Policy(Element):
     """ 
@@ -38,8 +39,8 @@ class Policy(Element):
     'export', and 'upload' are encapsulated into this base class.
     """
     def __init__(self, name, meta=None):
-        self._name = name #: Name of policy
-        self.meta = meta
+        super(Policy, self).__init__(name, meta)
+        pass
                                    
     def upload(self, engine, wait_for_finish=True):
         """ 
@@ -56,12 +57,10 @@ class Policy(Element):
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
         """
-        element = prepared_request(
-                    href=find_link_by_name('upload', self.link),
-                    params={'filter': engine}).create()
-        if not element.json:
-            raise TaskRunFailed("Upload task failed with message: {}"
-                                .format(element.msg))
+        element = prepared_request(TaskRunFailed,
+                                   href=self._link('upload'),
+                                   params={'filter': engine}).create()
+        
         return task_handler(Task(**element.json), 
                             wait_for_finish=wait_for_finish)
 
@@ -72,29 +71,34 @@ class Policy(Element):
         generally can be done without locking via open.
         This is only used in SMC API 6.0 and below
 
-        :return: :py:class:`smc.api.web.SMCResult` or None if SMC API >= 6.1
+        :raises: :py:class: `smc.api.exceptions.PolicyCommandFailed`
+        :return: None
         """
-        href = find_link_by_name('open', self.link)
-        if href:
-            return prepared_request(href=href).create()
+        try:
+            prepared_request(PolicyCommandFailed,
+                             href=self._link('open')).create()
+        except ResourceNotFound:
+            pass
 
     def save(self):
         """ Save policy that was modified
         This is only used in SMC API v6.0 and below.
 
-        :return: :py:class:`smc.api.web.SMCResult` or None if SMC API >= 6.1
+        :return: None
         """
-        href = find_link_by_name('save', self.link)
-        if href:
-            return prepared_request(href=href).create()
+        try:
+            prepared_request(PolicyCommandFailed,
+                             href=self._link('save')).create()
+        except ResourceNotFound:
+            pass
 
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
 
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        return prepared_request(
-                href=find_link_by_name('force_unlock', self.link)).create()
+        prepared_request(PolicyCommandFailed,
+                         href=self._link('force_unlock')).create()
     
     def search_rule(self, search):
         """
@@ -110,38 +114,20 @@ class Policy(Element):
         :return: list rule elements matching criteria
         """
         result = prepared_request(
-                        href=find_link_by_name('search_rule', self.link),
+                        href=self._link('search_rule'),
                         params={'filter': search}).read()
         if result.json:
-            results = _RuleTypeFactory(result.json)
-            return results
-        else: return []
+            results = []
+            for data in result.json:
+                if data.get('type') == 'ips_ethernet_rule':
+                    klazz = Registry['ethernet_rule']
+                elif data.get('type') == 'ips_ipv4_access_rule':
+                    klazz = Registry['layer2_ipv4_access_rule']
+                else:
+                    klazz = Registry[data.get('type')]
+                results.append(klazz(meta=Meta(**data)))
+                return results
+        return []
    
     def search_category_tags_from_element(self):
         pass
-
-def _RuleTypeFactory(meta):
-    """
-    Temporary
-    Need to sort a sensible map for rules that share the same class template
-    Maybe nest in child classes
-    """
-    import inspect
-    import smc.policy.rule, smc.policy.rule_nat
-    from smc.base.model import Meta
-    intf_map = dict((klazz.typeof, klazz) 
-                    for i in [smc.policy.rule, smc.policy.rule_nat]
-                    for _, klazz in inspect.getmembers(i, inspect.isclass)
-                    if hasattr(klazz, 'typeof'))
-    
-    results = []
-    for data in meta:
-        if data.get('type').endswith('_ethernet_rule'):
-            results.append(intf_map.get('ethernet_rule')(meta=Meta(**data)))
-        elif data.get('type').startswith('ips_ipv4_access_rule'):
-            results.append(intf_map.get('layer2_ipv4_access_rule')(meta=Meta(**data)))
-        else:
-            if intf_map.get(data.get('type')): #Some rule types not implemented
-                results.append(intf_map.get(data.get('type'))(meta=Meta(**data)))
-    return results
-    

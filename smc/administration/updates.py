@@ -2,24 +2,15 @@
 Functionality related to updating dynamic update packages and 
 engine upgrades
 """
-from smc.base.util import find_link_by_name
 from .tasks import Task, task_handler
-import smc.actions.search as search
-from smc.base.model import prepared_request
+from smc.base.model import prepared_request, SubElement
+from smc.api.exceptions import ResourceNotFound, ActionCommandFailed
 
 class PackageMixin(object):
     """
     Manages downloads and activations of update packages and software
     upgrades
     """
-    @property
-    def name(self):
-        return self.meta.name
-    
-    @property
-    def href(self):
-        return self.meta.href 
-    
     def download(self, wait_for_finish=False, sleep=3):
         """
         Download Package or Engine Update
@@ -27,21 +18,21 @@ class PackageMixin(object):
         :method: POST
         :param boolean wait_for_finish: wait for download to complete
         :param int sleep: number of seconds to sleep if wait_for_finish=True
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed` with reason
+        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
         :return: Generator messages or final href of follower resource
         """ 
-        pkg = self.package_info()
-        download_link = find_link_by_name('download', pkg.get('link'))
-        if download_link:
-            result = prepared_request(href=download_link).create()
+        try:
+            result = prepared_request(ActionCommandFailed,
+                                      href=self._link('download')).create()
                     
-            task = task_handler(Task(**result.json), 
+            return task_handler(Task(**result.json), 
                                 wait_for_finish=wait_for_finish, 
                                 sleep=sleep)
-            return task
-        else:
-            return ['Package cannot be downloaded, package state: {}'.format(\
-                                                                    self.state)]
-    
+        except ResourceNotFound:
+            raise ActionCommandFailed('Package cannot be downloaded, package state: {}'
+                                      .format(self.state))
+        
     def activate(self, resource=None, wait_for_finish=False, sleep=3):
         """
         Activate this package on the SMC
@@ -51,32 +42,29 @@ class PackageMixin(object):
         :param boolean wait_for_finish: True|False, whether to wait 
                for update messages
         :param int sleep: number of seconds to sleep if wait_for_finish=True
-        :return: Update messages or final URI for follower link
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed` with reason
         :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+        :return: generator Task generator with updates
         """
-        pkg = self.package_info()
-        activate_link = find_link_by_name('activate', pkg.get('link'))
-        if activate_link:
-            result = prepared_request(href=activate_link,
-                                  json={'resource': resource}).create()
+        try:
+            result = prepared_request(ActionCommandFailed,
+                                      href=self._link('activate'),
+                                      json={'resource': resource}).create()
             
-            task = task_handler(Task(**result.json), 
+            return task_handler(Task(**result.json), 
                                 wait_for_finish=wait_for_finish, 
                                 sleep=sleep)
-            return task
+        except ResourceNotFound:
+            raise ActionCommandFailed('Activation failed, resource is not available')
     
-    def package_info(self):
+    @property
+    def release_notes(self):
         """
-        Retrieve view of package info as dict
-        
-        :return: dict package info in json format
+        HTTP location of the release notes
         """
-        return search.element_by_href_as_json(self.href)
+        return self.data.get('release_notes')
     
-    def __repr__(self):
-        return '{0}(name={1})'.format(self.__class__.__name__, self.name)
-    
-class EngineUpgrade(PackageMixin):
+class EngineUpgrade(PackageMixin, SubElement):
     """
     Engine Upgrade package management
     
@@ -91,9 +79,31 @@ class EngineUpgrade(PackageMixin):
                     print msg
     """            
     def __init__(self, meta=None):
-        self.meta = meta
+        super(EngineUpgrade, self).__init__(meta)
+        pass
 
-class UpdatePackage(PackageMixin):
+    @property
+    def release_date(self):
+        """
+        Release date for this engine upgrade
+        """
+        return self.data.get('release_date')
+    
+    @property
+    def version(self):
+        """
+        Engine upgrade version
+        """
+        return self.data.get('version')
+    
+    @property
+    def platform(self):
+        """
+        Platform for this engine upgrade
+        """
+        return self.data.get('platform')
+    
+class UpdatePackage(PackageMixin, SubElement):
     """
     Container for managing update packages on SMC
     
@@ -111,9 +121,35 @@ class UpdatePackage(PackageMixin):
     :ivar state: state of the package               
     """
     def __init__(self, meta=None):
-        self.meta = meta
+        super(UpdatePackage, self).__init__(meta)
+        pass
 
     @property
+    def activation_date(self):
+        """
+        Date this update was activated, if any
+        """
+        return self.data.get('activation_date')
+    
+    @property
+    def package_id(self):
+        """
+        ID of the package. These will increment as new versions
+        are released.
+        """
+        return self.data.get('package_id')
+    
+    @property
+    def release_date(self):
+        """
+        Date of release
+        """
+        return self.data.get('release_date')
+    
+    @property
     def state(self):
-        pkg = self.package_info()
-        return pkg.get('state')
+        """
+        State of this package, i.e. Active, available
+        """
+        return self.data.get('state')
+    

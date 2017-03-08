@@ -158,7 +158,7 @@ class SMCAPIConnection(object):
             logger.debug('Success sending file in elapsed time: {}'
                          .format(response.elapsed))
             return SMCResult(response)
-        
+    
         raise SMCOperationFailure(response)
    
 class SMCResult(object):

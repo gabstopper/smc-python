@@ -118,10 +118,12 @@ class Session(object):
                                  timeout=self.timeout,
                                  verify=verify)
         s = requests.session() #no session yet
+        
         r = s.post(self.cache.get_entry_href('login'),
                    json={'authenticationkey': self.api_key},
                    headers={'content-type': 'application/json'},
                    verify=verify)
+        
         if r.status_code == 200:
             self._session = s #session creation was successful
             self._session.verify = verify #make verify setting persistent

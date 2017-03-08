@@ -2,9 +2,9 @@
 Module representing network elements used within the SMC
 """
 import smc.actions.search as search
-from smc.base.model import Element, ElementCreator, prepared_request
-from smc.base.util import find_link_by_name
-from smc.api.exceptions import MissingRequiredInput
+from smc.base.model import Element, ElementCreator, prepared_request, Meta
+from smc.api.exceptions import MissingRequiredInput, CreateElementFailed,\
+    ElementNotFound
 
 class Host(Element):
     """ 
@@ -27,7 +27,7 @@ class Host(Element):
     typeof = 'host'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Host, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -41,7 +41,8 @@ class Host(Element):
         :param str ipv6_address: ipv6 address (optional if ipv4)
         :param str secondary_ip: secondary ip address (optional)
         :param str comment: comment (optional)
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         address = None if address is None else address
         ipv6_address = None if ipv6_address is None else ipv6_address
@@ -100,7 +101,7 @@ class AddressRange(Element):
     typeof = 'address_range'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)        
+        super(AddressRange, self).__init__(name, meta)        
         pass
     
     @classmethod
@@ -111,7 +112,8 @@ class AddressRange(Element):
         :param str name: Name of element
         :param str iprange: iprange of element
         :param str comment: comment (optional)
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -123,7 +125,7 @@ class AddressRange(Element):
     @property
     def iprange(self):
         """ The IP Range for this element """
-        return search.element_by_href_as_json(self.href).get('ip_range')
+        return self.data.get('ip_range')
     
     @iprange.setter
     def iprange(self, value):
@@ -153,7 +155,7 @@ class Router(Element):
     typeof = 'router'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Router, self).__init__(name, meta)
         pass
         
     @classmethod
@@ -167,7 +169,8 @@ class Router(Element):
         :param str ipv6_address: ipv6 address (optional if ipv4)
         :param str secondary_ip: secondary ip address (optional)
         :param str comment: comment (optional)
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """ 
         address = None if address is None else address
         ipv6_address = None if ipv6_address is None else ipv6_address   
@@ -199,7 +202,7 @@ class Network(Element):
     typeof = 'network'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta) 
+        super(Network, self).__init__(name, meta) 
         pass
     
     @classmethod
@@ -212,7 +215,8 @@ class Network(Element):
         :param str ipv4_network: network cidr (optional if ipv6)
         :param str ipv6_network: network cidr (optional if ipv4)
         :param str comment: comment (optional)
-        :return: :py:class:`smc.api.web.SMCResult` 
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         ipv4_network = None if ipv4_network is None else ipv4_network
         ipv6_network = None if ipv6_network is None else ipv6_network
@@ -237,7 +241,7 @@ class DomainName(Element):
     typeof = 'domain_name'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(DomainName, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -246,7 +250,8 @@ class DomainName(Element):
         Create domain name element
         
         :param str name: name of domain, i.e. lepages.net, www.lepages.net
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -268,9 +273,9 @@ class Expression(Element):
                                     'http://172.18.1.150:8082/6.0/elements/host/4325'], 
                             operator='union')
     
-        expression = Expression.create(name='apiexpression', 
-                                       ne_ref=[],
-                                       sub_expression=sub_expression)
+        Expression.create(name='apiexpression', 
+                          ne_ref=[],
+                          sub_expression=sub_expression)
                                        
     .. note:: The sub-expression creates the json for the expression 
               (network A or network B) and is then used as an parameter to create.
@@ -278,7 +283,7 @@ class Expression(Element):
     typeof = 'expression'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Expression, self).__init__(name, meta)
         pass
     
     @staticmethod
@@ -313,7 +318,8 @@ class Expression(Element):
                (default: exclusion)
         :param dict sub_expression: sub expression used
         :param str comment: optional comment
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         sub_expression = [] if sub_expression is None else [sub_expression]
@@ -340,7 +346,7 @@ class URLListApplication(Element):
     typeof = 'url_list_application'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(URLListApplication, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -351,7 +357,8 @@ class URLListApplication(Element):
         :param str name: name of url list
         :param list url_entry: list of url's
         :param str comment: optional comment
-        :return: :py:class:`smc.qpi.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json = {'name': name,
                     'url_entry': url_entry,
@@ -398,7 +405,7 @@ class IPList(Element):
     typeof = 'ip_list'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(IPList, self).__init__(name, meta)
         pass
 
     def download(self, filename=None, as_type='zip'):
@@ -410,7 +417,7 @@ class IPList(Element):
         :param str filename: Name of file to save to (required for zip)
         :param str as_type: type of format to download in: txt,json,zip (default: zip)
         :raises: IOError if problem writing to destination filename
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
         """
         headers=None
         if as_type in ['zip', 'txt', 'json']:
@@ -423,17 +430,16 @@ class IPList(Element):
                 headers={'accept':'text/plain'}
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
-            #Find the entry point link for the IPList
-            href=find_link_by_name('ip_address_list', self.link)
-           
-            return prepared_request(href=href, filename=filename,
-                                    headers=headers).read()
+            
+            prepared_request(href=self._link('ip_address_list'), 
+                             filename=filename,
+                             headers=headers).read()
     
     def upload(self, filename=None, json=None, as_type='zip'):
         """
         Upload an IPList to the SMC. The contents of the upload
         are not incremental to what is in the existing IPList.
-        So if the intent is to add new entries, you must first retrieve
+        So if the intent is to add new entries, you should first retrieve
         the existing and append to the content, then upload.
         The only upload type that can be done without loading a file as
         the source is as_type='json'. 
@@ -442,7 +448,8 @@ class IPList(Element):
         :param str json: required for json uploads
         :param str as_type: type of format to upload in: txt|json|zip (default)
         :raises: IOError: if filename specified cannot be loaded
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :return: None
         """      
         headers={'content-type': 'multipart/form-data'}
         params=None
@@ -454,11 +461,11 @@ class IPList(Element):
                      'content-type':'application/json'}
         elif as_type == 'txt':
             params={'format':'txt'}
-
-        return prepared_request(
-                    href=find_link_by_name('ip_address_list', self.link),
-                    headers=headers, files=files, json=json, 
-                    params=params).create()
+        
+        prepared_request(CreateElementFailed,
+                         href=self._link('ip_address_list'),
+                         headers=headers, files=files, json=json, 
+                         params=params).create()
 
     @classmethod   
     def create(cls, name, iplist=None, comment=None):
@@ -470,20 +477,17 @@ class IPList(Element):
         :param str name: name of ip list
         :param list iplist: list of ipaddress
         :param str comment: optional comment
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element 
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json={'name': name,
                   'comment': comment}
         result = ElementCreator(cls)
-        if result.href and iplist is not None:
-            #get link to ip_access_list node for this element
-            links = search.element_by_href_as_json(result.href) 
-            newlist = IPList(name)
-            newlist.json = {'ip': iplist}
-            return prepared_request(
-                        href=find_link_by_name('ip_address_list', 
-                                               links.get('link')),
-                        json=newlist.json).create()
+        if result and iplist is not None:
+            element = IPList(name)
+            prepared_request(CreateElementFailed,
+                             href=element._link('ip_address_list'),
+                             json={'ip': iplist}).create()
         return result
 
 class Zone(Element):
@@ -500,7 +504,7 @@ class Zone(Element):
     typeof = 'interface_zone'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Zone, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -510,7 +514,8 @@ class Zone(Element):
         
         :param str zone: name of zone
         :param str comment: optional comment
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: str href: href location of new element
+        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -526,7 +531,7 @@ class Country(Element):
     typeof = 'country'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(Country, self).__init__(name, meta)
         pass
 
 class IPCountryGroup(Element):
@@ -538,6 +543,52 @@ class IPCountryGroup(Element):
     typeof = 'ip_country_group'
     
     def __init__(self, name, meta=None):
-        Element.__init__(self, name, meta)
+        super(IPCountryGroup, self).__init__(name, meta)
         pass
+
+class Alias(Element):
+    """
+    Aliases are adaptive objects that represent a single
+    element having different values based on the engine
+    applied on. There are many default aliases in SMC
+    and new ones can also be created.
     
+    Finding aliases can be achieved by using describe_alias()
+    or loading directly if you know the alias name:
+    ::
+    
+        alias = Alias('$$ Interface ID 0.ip')
+    """
+    typeof = 'alias'
+    
+    def __init__(self, name, meta=None):
+        super(Alias, self).__init__(name, meta)
+        self.resolved_value = None
+    
+    @classmethod
+    def load(cls, data):
+        name = search.element_name_by_href(data.get('alias_ref'))
+        alias = cls(name, meta=Meta(href=data.get('cluster_ref')))
+        alias.resolved_value = data.get('resolved_value')
+        return alias
+            
+    def resolve(self, engine):
+        """
+        Resolve this Alias to a specific value. Specify the
+        engine by name to find it's value.
+        
+        ::
+        
+            alias = Alias('$$ Interface ID 0.ip')
+            alias.resolve('smcpython-fw')
+            
+        :param str engine: name of engine to resolve value
+        :return: list value: list of alias resolving values
+        :raises: :py:class:`smc.api.exceptions.ElementNotFound` if alias not found on engine
+        """
+        if not self.resolved_value:
+            result = prepared_request(ElementNotFound,
+                                      href=self._link('resolve'),
+                                      params={'for': engine}).read()
+            self.resolved_value = result.json.get('resolved_value')
+        return self.resolved_value

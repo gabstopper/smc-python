@@ -83,6 +83,13 @@ Zone
 .. autoclass:: Zone 
    :members:
    :show-inheritance:
+
+Alias
+*****
+
+.. autoclass:: Alias
+	:members:
+	:show-inheritance:
    
 Services
 ++++++++
@@ -219,13 +226,24 @@ Engine
    :exclude-members: create, VirtualResource, InternalEndpoint, InternalGateway
    :show-inheritance:
 
-Alias
-+++++
+Appliance Status
+++++++++++++++++
 
-.. autoclass:: smc.core.resource.Alias
-   :members:
-   :show-inheritance:
-   
+.. autoclass:: smc.core.node.ApplianceStatus
+	:members:
+
+Interface Status
+****************
+
+.. autoclass:: smc.core.node.InterfaceStatus
+	:members:
+
+Hardware Status
+***************
+
+.. autoclass:: smc.core.node.HardwareStatus
+	:members:
+	
 Dynamic Routing
 +++++++++++++++
 Represents classes responsible for configuring dynamic routing protocols
@@ -369,30 +387,31 @@ VirtualResource
 	:members:
 	:show-inheritance:
 
-Resources
-+++++++++
+Routing
++++++++
 
-.. automodule:: smc.core.resource
+.. automodule:: smc.core.route
 	:members:
 
-RoutingNode
-***********
+Antispoofing
+************
 
-.. autoclass:: RoutingNode
+.. autoclass:: Antispoofing
+	:members:
+	:show-inheritance:
+
+Routing
+*******
+
+.. autoclass:: Routing
 	:members:
 	:show-inheritance:
 	
-RouteTable
-**********
+Routes
+******
 
-.. autoclass:: RouteTable
+.. autoclass:: Routes
 	:members:
-
-Route
-*****
-
-.. autoclass:: Route
-    :members:
 
 Engine Types
 ------------
@@ -464,6 +483,13 @@ Layer2Policy
    :members:
    :show-inheritance:
 
+IPSPolicy
++++++++++
+
+.. automodule:: smc.policy.ips
+   :members:
+   :show-inheritance:
+
 InspectionPolicy
 ++++++++++++++++
 
@@ -512,6 +538,13 @@ EthernetRule
    :members:
    :show-inheritance:
 
+IPv6Rule
+********
+
+.. autoclass:: IPv6Rule
+   :members:
+   :show-inheritance:
+
 NATRule
 +++++++
 
@@ -525,7 +558,14 @@ IPv4NATRule
 .. autoclass:: smc.policy.rule_nat.IPv4NATRule
    :members:
    :show-inheritance:
-   
+
+IPv6NATRule
+***********
+
+.. autoclass:: smc.policy.rule_nat.IPv6NATRule
+   :members:
+   :show-inheritance:
+    
 RuleElements
 ++++++++++++
 
@@ -679,6 +719,19 @@ PackageUpdate
 *************
 
 .. autoclass:: UpdatePackage
+	:members:
+	:show-inheritance:
+
+License
++++++++
+
+.. automodule:: smc.administration.license
+	:members:
+	
+AccessControlList
++++++++++++++++++
+
+.. autoclass:: smc.administration.access_rights.AccessControlList
 	:members:
 	:show-inheritance:
 	

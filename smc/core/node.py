@@ -13,12 +13,12 @@ For example, to load an engine and run node level commands::
         ...
         ...
 """
-import smc.actions.search as search
-from smc.base.util import find_link_by_name, save_to_file
-from smc.api.exceptions import LicenseError, NodeCommandFailed
-from smc.base.model import Element, prepared_request
+from smc.base.util import save_to_file
+from smc.api.exceptions import LicenseError, NodeCommandFailed, ResourceNotFound
+from smc.base.model import SubElement, prepared_request
+from collections import namedtuple
 
-class Node(Element):
+class Node(SubElement):
     """ 
     Node settings to make each engine node controllable individually.
     When Engine() is loaded, setattr will set all instance attributes
@@ -37,14 +37,8 @@ class Node(Element):
     :ivar href: href of this resource
     """
     def __init__(self, meta=None):
-        self.meta = meta
-
-    @property
-    def name(self):
-        """
-        Node name
-        """
-        return self.meta.name
+        super(Node, self).__init__(meta)
+        pass
 
     @property
     def type(self):
@@ -58,7 +52,6 @@ class Node(Element):
         """
         ID of this node
         """
-        #return self.cache[1].get('nodeid')
         return self.attr_by_name('nodeid')
 
     @classmethod
@@ -87,12 +80,12 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        href = find_link_by_name('fetch', self.link)
-        if href:
-            result = prepared_request(href=href).create()
-            if result.msg:
-                raise LicenseError(result.msg)
-
+        try:
+            prepared_request(LicenseError,
+                             href=self._link('fetch')).create()
+        except ResourceNotFound:
+            pass
+    
     def bind_license(self, license_item_id=None):
         """ 
         Auto bind license, uses dynamic if POS is not found
@@ -102,12 +95,12 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         params = {'license_item_id': license_item_id}
-        href = find_link_by_name('bind', self.link)
-        if href:
-            result = prepared_request(href=href, 
-                                      params=params).create()
-            if result.msg:
-                raise LicenseError(result.msg)
+        try:
+            prepared_request(LicenseError,
+                             href=self._link('bind'), 
+                             params=params).create()
+        except ResourceNotFound:
+            pass
         
     def unbind_license(self):
         """ 
@@ -116,12 +109,12 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError` 
         """
-        href = find_link_by_name('unbind', self.link)
-        if href:
-            result = prepared_request(href=href).create()
-            if result.msg:
-                raise LicenseError(result.msg)
-    
+        try:
+            prepared_request(LicenseError,
+                             href=self._link('unbind')).create()
+        except ResourceNotFound:
+            pass
+
     def cancel_unbind_license(self):
         """ 
         Cancel unbind for license
@@ -129,12 +122,12 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
-        href = find_link_by_name('cancel_unbind', self.link)
-        if href:
-            result = prepared_request(href=href).create()
-            if result.msg:
-                raise LicenseError(result.msg)
-    
+        try:
+            prepared_request(LicenseError,
+                             href=self._link('cancel_unbind')).create()
+        except ResourceNotFound:
+            pass
+
     def initial_contact(self, enable_ssh=True, time_zone=None, 
                         keyboard=None, 
                         install_on_server=None, 
@@ -152,21 +145,22 @@ class Node(Element):
         :return: str initial contact text information
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed` 
         """
-        href = find_link_by_name('initial_contact', self.link)
-        if not href:
-            raise NodeCommandFailed('Initial contact not supported on this node type')
-        result = prepared_request(href=href,
-                                  params={'enable_ssh': enable_ssh}).create()
-        if result.content:
-            if filename:
-                try:
-                    save_to_file(filename, result.content)
-                except IOError as e:
-                    raise NodeCommandFailed("Error occurred when attempting to "
-                                            "save initial contact to file: {}"
-                                            .format(e))
+        try:
+            result = prepared_request(href=self._link('initial_contact'),
+                                      params={'enable_ssh': enable_ssh}).create()
+            if result.content:
+                if filename:
+                    try:
+                        save_to_file(filename, result.content)
+                    except IOError as e:
+                        raise NodeCommandFailed("Error occurred when attempting to "
+                                                "save initial contact to file: {}"
+                                                .format(e))
             return result.content
+        except ResourceNotFound:
+            raise NodeCommandFailed('Initial contact not supported on this node type')
     
+    @property    
     def appliance_status(self):
         """ 
         Gets the appliance status for the specified node for the specific 
@@ -174,11 +168,10 @@ class Node(Element):
 
         :return: list of status information
         """
-        result = search.element_by_href_as_smcresult(
-                            find_link_by_name('appliance_status', self.link))
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
-        return ApplianceStatus(**result.json)
+        result = prepared_request(NodeCommandFailed,
+                                  href=self._link('appliance_status')
+                                  ).read()
+        return ApplianceStatus(result.json)
     
     def status(self):
         """ 
@@ -187,10 +180,8 @@ class Node(Element):
 
         :return: :py:class:`~NodeStatus`
         """
-        result = search.element_by_href_as_smcresult(
-                            find_link_by_name('status', self.link))
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
+        result = prepared_request(NodeCommandFailed,
+                                  href=self._link('status')).read()
         return NodeStatus(**result.json)
 
     def go_online(self, comment=None):
@@ -204,11 +195,9 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('go_online', self.link),
-                    params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
+        prepared_request(NodeCommandFailed,
+                         href=self._link('go_online'),
+                         params=params).update()
 
     def go_offline(self, comment=None):
         """ 
@@ -219,11 +208,9 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('go_offline', self.link),
-                    params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
+        prepared_request(NodeCommandFailed,
+                         href=self._link('go_offline'),
+                         params=params).update()
 
     def go_standby(self, comment=None):
         """ 
@@ -235,11 +222,9 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('go_standby', self.link),
-                    params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
+        prepared_request(NodeCommandFailed,
+                         href=self._link('go_standby'),
+                         params=params).update()
 
     def lock_online(self, comment=None):
         """ 
@@ -250,11 +235,9 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('lock_online', self.link),
-                    params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
+        prepared_request(NodeCommandFailed,
+                         href=self._link('lock_online'),
+                         params=params).update()
 
     def lock_offline(self, comment=None):
         """ 
@@ -266,12 +249,10 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('lock_offline', self.link),
-                    params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
-    
+        prepared_request(NodeCommandFailed,
+                         href=self._link('lock_offline'),
+                         params=params).update()
+
     def reset_user_db(self, comment=None):
         """ 
         Executes a Send Reset LDAP User DB Request operation on this
@@ -282,14 +263,14 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        href = find_link_by_name('reset_user_db', self.link)
-        if not href:
+        try:
+            prepared_request(NodeCommandFailed,
+                             href=self._link('reset_user_db'),
+                             params=params).update()
+        except ResourceNotFound:
             raise NodeCommandFailed('Reset userdb not supported on this node type')
-        result = prepared_request(href=href,
-                                  params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
     
+
     def diagnostic(self, filter_enabled=False):
         """ 
         Provide a list of diagnostic options to enable
@@ -308,16 +289,15 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params={'filter_enabled': filter_enabled}
-        href = find_link_by_name('diagnostic', self.link)
-        if not href:
+        try:
+            result = prepared_request(NodeCommandFailed,
+                                      href=self._link('diagnostic'),
+                                      params=params).read()
+            return [(Diagnostic(**diagnostic))
+                    for diagnostic in result.json.get('diagnostics')]
+        except ResourceNotFound:
             raise NodeCommandFailed('Diagnostic not supported on this node type: {}'
                                     .format(self.type))
-        result = search.element_by_href_as_smcresult(href, params)
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
-        
-        return [(Diagnostic(**diagnostic))
-                for diagnostic in result.json.get('diagnostics')]
 
     def send_diagnostic(self, diagnostic):
         """ 
@@ -346,11 +326,9 @@ class Node(Element):
         debug=[]
         for setting in diagnostic:
             debug.append(vars(setting))
-        result = prepared_request(
-                    href=find_link_by_name('send_diagnostic', self.link),
-                    json={'diagnostics': debug}).create()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
+        prepared_request(NodeCommandFailed,
+                         href=self._link('send_diagnostic'),
+                         json={'diagnostics': debug}).create()
 
     def reboot(self, comment=None):
         """ 
@@ -361,12 +339,10 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        result = prepared_request(
-                    href=find_link_by_name('reboot', self.link),
-                    params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
-        
+        prepared_request(NodeCommandFailed,
+                         href=self._link('reboot'),
+                         params=params).update()
+ 
     def sginfo(self, include_core_files=False,
                include_slapcat_output=False,
                filename='sginfo.gz'):
@@ -378,12 +354,12 @@ class Node(Element):
         """
         #params = {'include_core_files': include_core_files,
         #          'include_slapcat_output': include_slapcat_output}
-        #result = prepared_request(href=find_link_by_name('sginfo', self.link),
+        #result = prepared_request(href=self._link('sginfo'),
         #                          filename=filename).read()
         raise NotImplementedError
    
     def ssh(self, enable=True, comment=None):
-        """ 
+        """
         Enable or disable SSH
 
         :param boolean enable: enable or disable SSH daemon
@@ -392,14 +368,13 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'enable': enable, 'comment': comment}
-        href = find_link_by_name('ssh', self.link)
-        if not href:
+        try:
+            prepared_request(NodeCommandFailed,
+                             href=self._link('ssh'),
+                             params=params).update()
+        except ResourceNotFound:
             raise NodeCommandFailed('SSH not supported on this node type: {}'
                                     .format(self.type))
-        result = prepared_request(href=href,
-                                  params=params).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
 
     def change_ssh_pwd(self, pwd=None, comment=None):
         """
@@ -411,15 +386,14 @@ class Node(Element):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
-        href = find_link_by_name('change_ssh_pwd', self.link)
-        if not href:
+        try:
+            prepared_request(NodeCommandFailed,
+                             href=self._link('change_ssh_pwd'),
+                             params=params, 
+                             json={'value': pwd}).update()
+        except ResourceNotFound:
             raise NodeCommandFailed('Change SSH pwd not supported on this node type: {}'
                                     .format(self.type))
-        result = prepared_request(href=href,
-                                  params=params, 
-                                  json={'value': pwd}).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
 
     def time_sync(self):
         """ 
@@ -428,14 +402,13 @@ class Node(Element):
         :return: None
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
-        href = find_link_by_name('time_sync', self.link)
-        if not href:
+        try:
+            prepared_request(NodeCommandFailed,
+                             href=self._link('time_sync')).update()
+        except ResourceNotFound:
             raise NodeCommandFailed('Time sync not supported on this node type: {}'
                                     .format(self.type))
-        result = prepared_request(href=href).update()
-        if result.msg:
-            raise NodeCommandFailed(result.msg)
-      
+        
     def certificate_info(self):
         """ 
         Get the certificate info of this node. This can return None if the 
@@ -444,9 +417,8 @@ class Node(Element):
         
         :return: dict with links to cert info
         """
-        return search.element_by_href_as_json(
-                find_link_by_name('certificate_info', self.link))
-
+        return self._get_resource_by_link('certificate_info')
+    
 class NodeStatus(object):
     """
     Node Status carrying attributes that can be checked easily
@@ -497,26 +469,121 @@ class NodeStatus(object):
 
 class ApplianceStatus(object):
     """
-    Appliance status for file system and other database related information.
-    This is normally visible from the SMC Home->firewall node view.
+    Appliance status provides information on hardware and
+    interface data for the engine node. Call this on the
+    engine node to retrieve statuses::
     
-    :ivar list interface_statuses: list of interfaces and status fields
-    :ivar list hardware_statuses: list of hardware related settings, like db 
-          updates, file system and usage
+        engine = Engine('sg_vm')
+        for x in engine.nodes:
+            for status in x.appliance_status.hardware_status:
+                print(status, status.items)
+            for status in x.appliance_status.interface_status:
+                print(status, status.items)
     """
-    def __init__(self, interface_statuses=None, 
-                 hardware_statuses=None, **kwargs):
-        self._interface_statuses = interface_statuses
-        self._hardware_statuses = hardware_statuses
+    def __init__(self, data):
+        self._data = data
         
     @property
-    def interface_statuses(self):
-        return self._interface_statuses.get('interface_status')
+    def hardware_status(self):
+        """
+        Hardware status for the engine
+            
+        :return: iterator :py:class:`smc.core.node.HardwareStatus`
+        """
+        return HardwareStatus(self._data.get('hardware_statuses'))
+        
+    @property
+    def interface_status(self):
+        """
+        Interface status for the engine
+        
+        :return: iterator :py:class:`smc.core.node.InterfaceStatus`
+        """
+        return InterfaceStatus(self._data.get('interface_statuses'))
+    
+class HardwareStatus(object):
+    """
+    Represents the hardware status of the engine.
+    """
+    def __init__(self, data):
+        self._data = data
+            
+    def __iter__(self):
+        for states in self._data['hardware_statuses']:
+            yield HardwareStatus(states)
+        
+    @property
+    def name(self):
+        return self._data.get('name')
+        
+    @property
+    def items(self):
+        """
+        Items returns a namedtuple with label, param and value.
+        Label is the key target, i.e. 'Root' in the case of file system.
+        Param is the measured element, i.e. 'Partition Size'
+        Value is the value of this combination.
+            
+        :return: list All status for given hardware selection
+        """
+        totals = []
+        for item in self._data.get('items'):
+            t = namedtuple('Status', 'label param value')
+            for status in item.get('statuses'):
+                totals.append(t(status.get('label'),
+                                status.get('param'),
+                                status.get('value')))
+        return totals
+        
+    def __str__(self):
+        return '{0}(name={1})'.format(self.__class__.__name__, self.name)
+        
+    def __repr__(self):
+        return str(self)
+        
+class InterfaceStatus(object):
+    """
+    Interface status represents characteristics of
+    interfaces on the appliance. These states are merely
+    a view to the existing state
+    """
+    def __init__(self, data):
+        self._data = data
+            
+    def __iter__(self):
+        for states in self._data['interface_status']:
+            yield InterfaceStatus(states)
     
     @property
-    def hardware_statuses(self):
-        return self._hardware_statuses.get('hardware_statuses')
-    
+    def name(self):
+        return self._data.get('name')
+        
+    @property
+    def items(self):
+        """
+        Interface items are returned as a named tuple and include
+        interface id, name, status, link speed, mtu, interface media
+        type and how the interface is used (i.e. Normal, Aggregate)
+        
+        :return: namedtuple of interface statuses
+        """
+        t = namedtuple('Status', 'interface_id name status speed mtu port type')
+        return t(self._data.get('interface_id'),
+                 self._data.get('name'),
+                 self._data.get('status'),
+                 self._data.get('speed_duplex'),
+                 self._data.get('mtu'),
+                 self._data.get('port'),
+                 self._data.get('capability'))
+                               
+    def __str__(self):
+        return '{0}(interface={1},name={2},status={3})'\
+                .format(self.__class__.__name__, self._data.get('interface_id'), 
+                        self.name, self._data.get('status'))
+        
+    def __repr__(self):
+        return str(self)
+            
 class Diagnostic(object):
     """
     Diagnostic (debug) setting that can be enabled or disabled on the

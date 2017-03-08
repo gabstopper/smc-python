@@ -72,7 +72,7 @@ def create_ospf_profile():
 
     ospf_profile = OSPFProfile.create(name='myospfprofile', 
                                       domain_settings_ref=ospf_domain.href)
-    print ospf_profile
+    print(ospf_profile)
         
 if __name__ == '__main__':
     

@@ -35,9 +35,9 @@ Example rule deletion::
             rule.delete()
 """
 from smc.actions.search import element_name_by_href
-from smc.base.util import find_link_by_name
 from smc.base.model import Meta, ElementCreator
-from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFailed
+from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFailed,\
+    CreateElementFailed
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Rule, IPv6Rule
 from smc.policy.rule_nat import IPv4NATRule, IPv6NATRule
@@ -55,8 +55,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv4Rule`
         """
-        href = find_link_by_name('fw_ipv4_access_rules', self.link)
-        return IPv4Rule(meta=Meta(href=href))
+        return IPv4Rule(meta=Meta(href=self._link('fw_ipv4_access_rules')))
 
     @property
     def fw_ipv4_nat_rules(self):
@@ -65,8 +64,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule_nat.IPv4NATRule`
         """
-        href = find_link_by_name('fw_ipv4_nat_rules', self.link)
-        return IPv4NATRule(meta=Meta(href=href))
+        return IPv4NATRule(meta=Meta(href=self._link('fw_ipv4_nat_rules')))
         
     @property
     def fw_ipv6_access_rules(self):
@@ -75,8 +73,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv6Rule`
         """
-        href = find_link_by_name('fw_ipv6_access_rules', self.link)
-        return IPv6Rule(meta=Meta(href=href))
+        return IPv6Rule(meta=Meta(href=self._link('fw_ipv6_access_rules')))
     
     @property
     def fw_ipv6_nat_rules(self):
@@ -85,8 +82,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv6NATRule`
         """
-        href = find_link_by_name('fw_ipv6_nat_rules', self.link)
-        return IPv6NATRule(meta=Meta(href=href)) 
+        return IPv6NATRule(meta=Meta(href=self._link('fw_ipv6_nat_rules'))) 
     
 class FirewallPolicy(FirewallRule, Policy):
     """ 
@@ -111,7 +107,7 @@ class FirewallPolicy(FirewallRule, Policy):
     typeof = 'fw_policy'
     
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name, meta)
+        super(FirewallPolicy, self).__init__(name, meta)
         pass
     
     @classmethod
@@ -143,12 +139,12 @@ class FirewallPolicy(FirewallRule, Policy):
                                    .format(template))
         cls.json = {'name': name,
                     'template': fw_template}
-        result = ElementCreator(cls)
-        if result.href:
-            return FirewallPolicy(name, Meta(href=result.href))
-        else:
+        try:
+            result = ElementCreator(cls)
+            return FirewallPolicy(name, Meta(href=result))
+        except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
-                                     .format(result.msg))
+                                     .format(err))
  
     @property
     def template(self):
@@ -157,7 +153,7 @@ class FirewallPolicy(FirewallRule, Policy):
         
         :return: :py:class:`smc.policy.layer2.FirewallTemplatePolicy`
         """
-        href = self.describe().get('template') #href for template
+        href = self.data.get('template') #href for template
         name = element_name_by_href(href)
         return FirewallTemplatePolicy(name=name, meta=Meta(href=href))
 
@@ -180,7 +176,7 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
     typeof = 'fw_template_policy'
     
     def __init__(self, name, meta=None):
-        Policy.__init__(self, name)
+        super(FirewallTemplatePolicy, self).__init__(name)
         pass    
     
     def export(self):
