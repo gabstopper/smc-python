@@ -1,5 +1,5 @@
 """
-Class representing basic models for data obtained or retrieved from the SMC
+Classes representing basic models for data obtained or retrieved from the SMC
 
 ElementBase is the top level parent class that provides the instance level
 cache, meta data and basic methods operate on retrieved data.
@@ -103,10 +103,9 @@ def ElementFactory(href):
         e = typeof(name=element.json.get('name'),
                    meta=Meta(href=href,
                              type=istype))
-        e._cache = Cache(e, element.etag, element.json)
+        e._cache = Cache(e, element.json, element.etag)
         return e
                     
-cachehit = 0
 class Cache(object):
     """    
     Cache can be applied at the element level to provide an
@@ -135,24 +134,27 @@ class Cache(object):
             if result.code != 304:
                 result.json.update(self._cache[1])
                 self._cache = (result.etag, result.json)
-            else:
-                global cachehit
-                cachehit += 1
         return self._cache
     
 class ElementLocator(object):
     """
     There are two ways to get an elements location, either through the 
-    describe_xxx methods which is then stored in the instance meta attribute, 
-    or by specifying the resource directly, i.e. Host('myhost'). 
+    describe_xxx methods which returns the instance type with the populated
+    meta attribute, or by loading the resource directly, i.e. Host('myhost'). 
 
-    If the element is loaded directly, it must have a class attribute
+    If the element is loaded directly, it should define a class attribute
     'typeof' to specify the element type. The 'typeof' attribute correlates
     to the SMC API entry point for the element. Classes deriving from 
-    :class:`Element` will inherit this descriptor.
+    :class:`Element` will define this attribute. When loading via Host('myhost'),
+    you will have an empty instance as the cache is not hydrated until some action
+    is called on it that accesses the instance property 'data'. 
+    Once hydrated, original json is stored in instance._cache.
     
-    SubElements do not have valid entry points in the SMC API and will be 
-    created through a reference and will derive from :class:`SubElement`.
+    Classes deriving from :class:`SubElement` do not have valid entry points in
+    the SMC API and will be typically created through a reference link.
+    
+    This descriptor is a non data descriptor and can be overridden if 'href'
+    is defined in the instance dict.
     """
     def __get__(self, instance, cls=None):
         #Does the instance already have meta data

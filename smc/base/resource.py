@@ -31,9 +31,5 @@ class Registry(type):
     def __new__(meta, name, bases, clsdict):  # @NoSelf
         cls = super(Registry, meta).__new__(meta, name, bases, clsdict)
         if 'typeof' in clsdict:
-            #if isinstance(clsdict['typeof'], list):
-            #    for attr in clsdict['typeof']:
-            #        meta._registry[attr] = cls
-            #else:
             meta._registry[clsdict['typeof']] = cls
         return cls

@@ -108,3 +108,6 @@ Simplified read/write access to interface details
 All SMCResult actions are wrapped in exceptions
 Global metaclass registry
 
+$version 0.4.7
+move template, inspection policy to base policy
+element.from_href had etag, cache set backwards

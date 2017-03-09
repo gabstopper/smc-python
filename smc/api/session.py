@@ -4,8 +4,7 @@ Session module for tracking existing connection state to SMC
 import json
 import logging
 import requests
-import smc.api.counter
-from smc.api.web import SMCAPIConnection
+import smc.api.web
 from smc.api.exceptions import SMCConnectionError, ConfigLoadError,\
     UnsupportedEntryPoint
 from smc.api.configloader import load_from_file
@@ -129,7 +128,7 @@ class Session(object):
             self._session.verify = verify #make verify setting persistent
             logger.debug("Login succeeded and session retrieved: %s", \
                          self.session_id)
-            self._connection = SMCAPIConnection(self)
+            self._connection = smc.api.web.SMCAPIConnection(self)
         else:
             raise SMCConnectionError("Login failed, HTTP status code: %s" \
                                      % r.status_code)
@@ -140,9 +139,7 @@ class Session(object):
                 r = self.session.put(self.cache.get_entry_href('logout'))
                 if r.status_code == 204:
                     logger.info("Logged out successfully")
-                    c = smc.api.common.countcalls.counts()
-                    c.update({'cache': smc.api.counter.cache_hit})
-                    logger.debug("Query counters: %s" % c)
+                    logger.debug("Call counters: %s" % smc.api.web.counters)
                 else:
                     logger.error("Logout status was unexpected. Received response "
                                  "was status code: %s", (r.status_code))

@@ -88,7 +88,12 @@ class Task(object):
         """
         prepared_request(ActionCommandFailed,
                          href=find_link_by_name('abort', self.link)).delete()
-
+    
+    def __call__(self):
+        _task = search.element_by_href_as_json(self.follower)
+        for k, v in _task.items():
+            setattr(self, k, v)
+    
     def __getattr__(self, value):
         """
         Last Message attribute may not be available initially, so 
@@ -173,7 +178,6 @@ def task_handler(task, wait_for_finish=False,
         #first task will not have a last_message attribute
         last_msg = ''
         while True:
-            task = Task(**search.element_by_href_as_json(task.follower))
             if display_msg:
                 if task.last_message != last_msg and \
                     task.last_message is not None:
@@ -186,5 +190,6 @@ def task_handler(task, wait_for_finish=False,
             elif not task.in_progress and not task.success:
                 break
             time.sleep(sleep)
+            task()
     else:
         yield task.follower

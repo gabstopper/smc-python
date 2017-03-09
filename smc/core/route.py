@@ -128,10 +128,9 @@ class Routing(SubElement):
         return [node for node in iter(self)]
             
     def __str__(self):
-        return '{0}(name={1},level={2})'.format(
-                                        self.__class__.__name__, 
-                                        self.name,
-                                        self.level)
+        return '{0}(name={1},level={2})'.format(self.__class__.__name__, 
+                                                self.name,
+                                                self.level)
     def __repr__(self):
         return str(self)
 
@@ -267,10 +266,9 @@ class Antispoofing(SubElement):
         return [node for node in iter(self)]
         
     def __str__(self):
-        return '{0}(name={1},level={2})'.format(
-                                    self.__class__.__name__, 
-                                    self.name,
-                                    self.level)
+        return '{0}(name={1},level={2})'.format(self.__class__.__name__, 
+                                                self.name,
+                                                self.level)
     def __repr__(self):
         return str(self)
         

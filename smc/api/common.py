@@ -9,7 +9,6 @@ from smc import session
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError,\
     UnsupportedEntryPoint
 from smc.base.util import unicode_to_bytes
-from smc.api.counter import countcalls
 
 logger = logging.getLogger(__name__)
 
@@ -87,22 +86,18 @@ class SMCRequest(_RequestHandler):
             setattr(self, k, v)
 
     @method('POST')
-    @countcalls
     def create(self):
         return self._make_request()
     
     @method('DELETE')
-    @countcalls
     def delete(self):
         return self._make_request()
     
     @method('PUT')
-    @countcalls
     def update(self):
         return self._make_request()
     
     @method('GET')
-    @countcalls
     def read(self):
         return self._make_request()
         

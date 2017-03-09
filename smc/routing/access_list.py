@@ -6,7 +6,7 @@ from smc.base.model import Element, ElementCreator, prepared_request
 import smc.actions.search as search
 from smc.api.exceptions import ModificationFailed
 
-class AccessList(Element):
+class AccessList(object):
     """
     AccessListMixin provides methods that are common to all access list
     operations.
@@ -100,7 +100,7 @@ class AccessList(Element):
             acls.append((e.get('subnet'), e.get('action')))
         return acls
 
-class IPAccessList(AccessList):
+class IPAccessList(AccessList, Element):
     """
     IPAccessList is used by dynamic routing protocols to allow filtering of
     routes.
@@ -109,10 +109,10 @@ class IPAccessList(AccessList):
     typeof = 'ip_access_list'
   
     def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
-
-class IPv6AccessList(AccessList):
+        super(IPAccessList, self).__init__(name, meta)
+        pass
+       
+class IPv6AccessList(AccessList, Element):
     """
     IPv6AccessList is used by dynamic routing protocols to allow filtering of
     routes.
@@ -121,5 +121,6 @@ class IPv6AccessList(AccessList):
     typeof = 'ipv6_access_list'
   
     def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+        super(IPv6AccessList, self).__init__(name, meta)
+        pass
+    

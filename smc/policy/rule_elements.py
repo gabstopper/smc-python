@@ -623,8 +623,9 @@ class AuthenticationOptions(object):
 class TimeRange(object):
     """
     Represents a time range setting for a given rule.
-    Time ranges can be based on month ranges, such as 
-    from Jan - Dec, or by 
+    Time ranges can currently be set up to support rules based
+    on starting month and ending month. At that time the rule
+    will be disabled automatically.
     """
     def __init__(self, data):
         self.data = data
@@ -632,31 +633,32 @@ class TimeRange(object):
     @property
     def day_ranges(self):
         """
-        Set the day range validity for this rule. Day range values
-        are: mo,tu,we,th,fr,sa,su
+        Not Yet Implemented
         """
-        return self.data.get('day_ranges')
-    
-    @day_ranges.setter
-    def day_ranges(self, value):
         pass
     
     @property
-    def month_range_end(self):
-        return self.data.get('month_range_end')
-    
-    @month_range_end.setter
-    def month_range_end(self, value):
-        self.data['month_range_end'] = value
-        
-    @property
     def month_range_start(self):
         """
-        Set month range values. Valid months are:
-        jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec
+        Starting month for rule validity. Use this with month_range_end.
+        
+        :param str jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec
         """
         return self.data.get('month_range_start')
     
     @month_range_start.setter
     def month_range_start(self, value):
         self.data['month_range_start'] = value
+        
+    @property
+    def month_range_end(self):
+        """
+        Set month end range. Use this with month_range_start.
+        
+        :param str jan,feb,mar,apr,may,jun,jul,aug,sep,oct,nov,dec
+        """
+        return self.data.get('month_range_end')
+    
+    @month_range_end.setter
+    def month_range_end(self, value):
+        self.data['month_range_end'] = value

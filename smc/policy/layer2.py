@@ -52,7 +52,6 @@ Example rule deletion::
             print rule.delete()
 """
 from smc.base.model import Meta, ElementCreator
-from smc.actions.search import element_name_by_href
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
 from smc.policy.policy import Policy
@@ -151,16 +150,6 @@ class Layer2Policy(Layer2Rule, Policy):
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
                                      .format(err))
 
-    @property
-    def template(self):
-        """
-        Layer 2 Firewall policy template used by the Layer 2 Policy.
-        
-        :return: :py:class:`smc.policy.layer2.Layer2TemplatePolicy`
-        """
-        href = self.data.get('template') #href for template
-        name = element_name_by_href(href)
-        return Layer2TemplatePolicy(name=name, meta=Meta(href=href))
 
 class Layer2TemplatePolicy(Layer2Rule, Policy):
     """

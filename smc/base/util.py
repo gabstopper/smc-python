@@ -1,7 +1,7 @@
 """
 Utility functions used in different areas of smc-python
 """
-from ..compat import PY3
+import smc.compat as compat
 import smc.api.exceptions
 
 def save_to_file(filename, content):
@@ -71,7 +71,7 @@ def bytes_to_unicode(s, encoding='utf-8', errors='replace'):
     :param str errors: what to do when decoding fails
     :return: unicode utf-8 string
     """
-    if PY3:
+    if compat.PY3:
         return str(s,'utf-8') if isinstance(s, bytes) else s
     else:
         return s if isinstance(s, unicode) else s.decode(encoding, errors)  # @UndefinedVariable

@@ -33,7 +33,6 @@ Example rule deletion::
 """
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
-from smc.actions.search import element_name_by_href
 from smc.base.model import Meta, ElementCreator
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
@@ -104,17 +103,7 @@ class IPSPolicy(IPSRule, Policy):
         except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
                                      .format(err))
-    
-    @property
-    def template(self):
-        """
-        IPS template used by the IPS policy.
-        
-        :return: :py:class:`smc.policy.ips.IPSTemplatePolicy`
-        """
-        href = self.data.get('template') #href for template
-        name = element_name_by_href(href)
-        return IPSTemplatePolicy(name=name, meta=Meta(href=href))
+
         
 class IPSTemplatePolicy(IPSRule, Policy):
     """

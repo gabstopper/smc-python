@@ -2,14 +2,11 @@
 Reference
 *********
 
-Element
--------
-Element is the top level class for most elements represented in the SMC. Element
-contains many methods that allow a common interface as well as helpers to simplify
-finding elements.
+Base
+----
  
 .. automodule:: smc.base.model
-	:members: Element
+	:members: ElementBase, Element, SubElement
 
 Elements
 --------
@@ -493,7 +490,7 @@ IPSPolicy
 InspectionPolicy
 ++++++++++++++++
 
-.. automodule:: smc.policy.inspection
+.. autoclass:: smc.policy.policy.InspectionPolicy
    :members:
    :show-inheritance:
 

@@ -7,9 +7,9 @@ SSL certificates are not verified to the CA authority, need to implement for url
 https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
 """
 import os.path
+import collections
 import requests
 import logging
-import smc.api.counter  # @UnusedImport
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
 logger = logging.getLogger(__name__)
@@ -54,11 +54,11 @@ class SMCAPIConnection(object):
                     response.encoding = 'utf-8'
                     
                     logger.debug(vars(response))
+                    counters.update(read=1)
+                    
                     if response.status_code not in (200, 304):
                         raise SMCOperationFailure(response)
-                    if response.status_code == 304:
-                        smc.api.counter.cache_hit += 1
-                        
+                    
                         
                 elif method == SMCAPIConnection.POST:
                     if request.files: #File upload request
@@ -72,6 +72,8 @@ class SMCAPIConnection(object):
                     response.encoding = 'utf-8'
                     
                     logger.debug(vars(response))
+                    counters.update(create=1)
+                    
                     if response.status_code not in (200, 201, 202):
                         # 202 is asynchronous response with follower link
                         raise SMCOperationFailure(response)
@@ -86,13 +88,17 @@ class SMCAPIConnection(object):
                                                 params=request.params,
                                                 headers=request.headers)
                     
-                    logger.debug(vars(response))    
+                    logger.debug(vars(response))
+                    counters.update(update=1)
+                       
                     if response.status_code != 200:
                         raise SMCOperationFailure(response)
                     
                 elif method == SMCAPIConnection.DELETE:
                     response = self.session.delete(request.href)
                     response.encoding = 'utf-8'
+                    
+                    counters.update(delete=1)
                     
                     if response.status_code not in (200, 204):
                         raise SMCOperationFailure(response)
@@ -136,7 +142,7 @@ class SMCAPIConnection(object):
                             handle.flush()
             except IOError as e:
                 raise IOError('Error attempting to save to file: {}'.format(e))
-                #return SMCResult(msg=e)
+
             result = SMCResult(response)
             result.content = path
             return result
@@ -214,3 +220,9 @@ class SMCResult(object):
         for key in self.__dict__:
             sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
         return ', '.join(sb)
+
+counters = collections.Counter({'read': 0, 
+                                'create': 0, 
+                                'update': 0, 
+                                'delete': 0, 
+                                'cache': 0})

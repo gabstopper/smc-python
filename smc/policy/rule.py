@@ -46,7 +46,7 @@ from smc.vpn.policy import VPNPolicy
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
     CreateRuleFailed, PolicyCommandFailed
 from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
-    Service, AuthenticationOptions
+    Service, AuthenticationOptions, TimeRange
 
 class Rule(object):
     """ 
@@ -188,11 +188,11 @@ class Rule(object):
     #    """
     #    Time range/s assigned to this rule. May be None if 
     #    no time range configured.
-    #    
+        
     #    :return: :py:class:`smc.policy.rule_elements.TimeRange`
     #    """
-    #    trange = self.data.get('time_range')
-    #    if trange:
+    #    time_range = self.data.get('time_range')
+    #    if time_range:
     #        return TimeRange(self.data.get('time_range'))
     
     def all(self):

@@ -3,7 +3,7 @@ Access Rights provides an interface to Access Control Lists defined
 on the SMC and optionally applied to elements such as engines. 
 """
 
-from smc.base.model import Element, ElementFactory
+from smc.base.model import Element
 
 class AccessControlList(Element):
     """
@@ -31,7 +31,7 @@ class AccessControlList(Element):
         
         :return: Element class deriving from :py:class:`smc.base.model.Element`
         """
-        return [ElementFactory(e) for e in self._granted_element]
+        return [Element.from_href(e) for e in self._granted_element]
     
     @property
     def comment(self):

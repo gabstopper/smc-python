@@ -131,3 +131,49 @@ class Policy(Element):
    
     def search_category_tags_from_element(self):
         pass
+    
+    @property
+    def template(self):
+        """
+        Each policy is based on a system level template policy that will
+        be inherited. 
+        
+        :return: Template policy based on policy type
+        """
+        href = self.data.get('template') #href for template
+        return Element.from_href(href)
+
+    @property
+    def inspection_policy(self):
+        """
+        Each policy is required to have a reference to an InspectionPolicy. 
+        The policy may be "No Inspection" but will still exist as a 
+        reference.
+        
+        :return: :py:class:`smc.policy.inspection_policy.InspectionPolicy`
+        """
+        href = self.data.get('inspection_policy')
+        return Element.from_href(href)
+    
+
+class InspectionPolicy(Policy):
+    """
+    The Inspection Policy references a specific inspection policy that is a property
+    (reference) to either a FirewallPolicy, IPSPolicy or Layer2Policy. This policy
+    defines specific characteristics for threat based prevention. 
+    In addition, exceptions can be made at this policy level to bypass scanning based
+    on the rule properties.
+    """
+    typeof = 'inspection_template_policy'
+    
+    def __init__(self, name, meta=None):
+        super(InspectionPolicy, self).__init__(name, meta)
+        pass
+    
+    def export(self):
+        #Not valid for inspection policy
+        pass
+    
+    def upload(self):
+        #Not valid for inspection policy
+        pass
