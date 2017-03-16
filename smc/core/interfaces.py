@@ -26,14 +26,13 @@ to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
 from copy import deepcopy
 from functools import wraps
-from smc.base.model import Meta, prepared_request, SubElement
+from smc.base.model import Meta, prepared_request, SubElement, lookup_class
 from smc.api.exceptions import EngineCommandFailed
 from smc.elements.other import ContactAddress
 from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface, 
                                      ClusterVirtualInterface, InlineInterface,
                                      CaptureInterface, _add_vlan_to_inline,
                                      SubInterface)
-from smc.base.resource import Registry
 
 def create(method):
     """
@@ -198,8 +197,9 @@ class Interface(SubElement):
     """
     def __init__(self, meta=None, **kwargs):
         super(Interface, self).__init__(meta)
+        self._parent = kwargs.get('parent') #Is parent
         self._engine = kwargs.get('engine') #Engine reference
-   
+    
     @property
     def data(self):
         if self.meta:
@@ -268,9 +268,10 @@ class Interface(SubElement):
         for interface in self._get_resource(self.meta.href):
             intf_type = interface.get('type') #Keep type
             
-            intf = InterfaceFactory(intf_type)(meta=Meta(**interface),
-                                               engine=self._engine)
-          
+            intf = lookup_class(intf_type, Interface)(
+                                            meta=Meta(**interface),
+                                            engine=self._engine)
+
             if intf.data.get('interface_id') == interface_id:
                 return intf
         raise EngineCommandFailed('Interface id {} not found'.format(interface_id))      
@@ -396,14 +397,16 @@ class Interface(SubElement):
         interfaces=[]
         
         for interface in self._get_resource(self.meta.href):
-            intf_type = InterfaceFactory(interface.get('type'))
+            
+            intf_type = lookup_class(interface.get('type'), Interface)
             interfaces.append(intf_type(meta=Meta(**interface),
                                         engine=self._engine))
         return interfaces
 
     def __getattr__(self, name):
-        if name in ['_update', '_cache']:
-            raise AttributeError
+        if name in ['_update', '_cache'] or self._parent:
+            raise AttributeError("%r object has no attribute %r" %
+                                    (self.__class__.__name__, name))
         if self.has_vlan:
             return [getattr(intfs, name) for intfs in self.vlan_interfaces()]
         if self.has_interfaces:
@@ -450,7 +453,7 @@ class TunnelInterface(InterfaceCommon, Interface):
                 pass
             else:
                 self._data.update(intf_ref.data)
-                self._data['interfaces'].append(intf())
+                self._data['interfaces'].append(intf.data)
                 self._update = True
                 prepared_request(EngineCommandFailed,
                                  href=intf_ref.href, 
@@ -459,7 +462,7 @@ class TunnelInterface(InterfaceCommon, Interface):
                 return
        
         self._data.update(interface_id=tunnel_id,
-                          interfaces=[intf()],
+                          interfaces=[intf.data],
                           zone_ref=zone_ref)
 
     @create
@@ -481,7 +484,7 @@ class TunnelInterface(InterfaceCommon, Interface):
         """
         cvi = ClusterVirtualInterface.create(tunnel_id, address, network_value)
         self._data.update(interface_id=tunnel_id,
-                          interfaces=[cvi()],
+                          interfaces=[cvi.data],
                           zone_ref=zone_ref)
 
     @create
@@ -510,13 +513,13 @@ class TunnelInterface(InterfaceCommon, Interface):
         """
         cvi = ClusterVirtualInterface.create(tunnel_id, address, network_value)
         interfaces=[]
-        interfaces.append(cvi())
+        interfaces.append(cvi.data)
         for node in nodes:
             ndi = NodeInterface.create(interface_id=tunnel_id, 
                                        address=node.get('address'), 
                                        network_value=node.get('network_value'),
                                        nodeid=node.get('nodeid'))
-            interfaces.append(ndi())
+            interfaces.append(ndi.data)
         self._data.update(interface_id=tunnel_id,
                           interfaces=interfaces,
                           zone_ref=zone_ref)
@@ -608,7 +611,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 pass
             else:
                 self._data.update(intf_ref.data)
-                self._data['interfaces'].append(intf())
+                self._data['interfaces'].append(intf.data)
                 self._update = True
                 prepared_request(EngineCommandFailed,
                                  href=intf_ref.href,
@@ -617,7 +620,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 return
 
         self._data.update(interface_id=interface_id,
-                          interfaces=[intf()],
+                          interfaces=[intf.data],
                           zone_ref=zone_ref)
 
     @create
@@ -653,7 +656,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 pass
             else:
                 self._data.update(intf_ref.data)
-                self._data['interfaces'].append(intf())
+                self._data['interfaces'].append(intf.data)
                 self._update = True
                 prepared_request(EngineCommandFailed,
                                  href=intf_ref.href,
@@ -662,7 +665,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 return
 
         self._data.update(interface_id=interface_id,
-                          interfaces=[intf()],
+                          interfaces=[intf.data],
                           zone_ref=zone_ref)
 
     @create
@@ -683,7 +686,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                                        **kwargs)
         
         self._data.update(interface_id=interface_id,
-                          interfaces=[intf()],
+                          interfaces=[intf.data],
                           zone_ref=zone_ref)
 
     @create    
@@ -708,7 +711,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                                     zone_ref=zone_ref_intf2) #second intf zone
         
         self._data.update(interface_id=interface_id.split('-')[0],
-                          interfaces=[inline_intf()],
+                          interfaces=[inline_intf.data],
                           zone_ref=zone_ref_intf1)
 
     @create
@@ -736,7 +739,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             intf.automatic_default_route = True
             
         self._data.update(interface_id=interface_id,
-                          interfaces=[intf()],
+                          interfaces=[intf.data],
                           zone_ref=zone_ref)
   
     @create
@@ -775,7 +778,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             cvi.auth_request = True
         
         interfaces=[]
-        interfaces.append(cvi())
+        interfaces.append(cvi.data)
         
         for node in nodes:
             ndi = NodeInterface.create(interface_id=interface_id, 
@@ -787,7 +790,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 ndi.outgoing = True
                 ndi.primary_heartbeat = True
             
-            interfaces.append(ndi())
+            interfaces.append(ndi.data)
         self._data.update(cvi_mode=cvi_mode,
                           macaddress=macaddress,
                           interface_id=interface_id,
@@ -823,7 +826,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 ndi.outgoing = True
                 ndi.primary_heartbeat = True
             
-            interfaces.append(ndi())
+            interfaces.append(ndi.data)
         self._data.update(interface_id=interface_id,
                           interfaces=interfaces,
                           macaddress=macaddress,
@@ -850,7 +853,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         
         sni = SingleNodeInterface.create(vlan.get('interface_id'), address, 
                                          network_value)
-        vlan.get('interfaces').append(sni())
+        vlan.get('interfaces').append(sni.data)
         self._data.update(interface_id=interface_id,
                           vlanInterfaces=[vlan])
         
@@ -884,7 +887,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         for vlan in p.sub_interfaces():
             if isinstance(vlan, PhysicalVlanInterface):
                 if vlan.interface_id == '{}.{}'.format(interface_id, vlan_id):
-                    vlan.data['interfaces'] = [intf()]
+                    vlan.data['interfaces'] = [intf.data]
            
         prepared_request(EngineCommandFailed,
                          href=p.href,
@@ -948,9 +951,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
         inline_intf = InlineInterface.create(interface_id, 
                                              logical_interface_ref,
                                              zone_ref=zone_ref_intf2)
-        copied_intf = deepcopy(inline_intf())
+        copied_intf = deepcopy(inline_intf.data)
         
-        vlan.get('interfaces').append(_add_vlan_to_inline(inline_intf(), 
+        vlan.get('interfaces').append(_add_vlan_to_inline(inline_intf.data,                                                    
                                                           vlan_id, 
                                                           vlan_id2))
         if self.href:
@@ -1138,12 +1141,6 @@ class VirtualPhysicalInterface(PhysicalInterface):
     def __init__(self, meta=None, **kwargs):
         super(VirtualPhysicalInterface, self).__init__(meta, **kwargs)
         pass
-
-def InterfaceFactory(typeof):
-    intftype = Registry[typeof]
-    if intftype and issubclass(intftype, Interface):
-        return intftype
-    return Interface
 
 def _interface_helper(data):
     """

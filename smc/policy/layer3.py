@@ -6,17 +6,19 @@ engine policies.
 
 To get an existing policy::
 
-    FirewallPolicy('existing_policy_by_name')
+    >>> from smc.policy.layer3 import FirewallPolicy
+    >>> policy = FirewallPolicy('Standard Firewall Policy with Inspection')
+    >>> print(policy.template)
+    FirewallTemplatePolicy(name=Firewall Inspection Template)
     
-Or through describe_xxx methods::
+Or through collections::
 
-    for policy in describe_fw_policy():
-        policy.describe()
+    >>> list(Search('fw_policy').objects.all())
+    [FirewallPolicy(name=Standard Firewall Policy with Inspection), FirewallPolicy(name=Layer 3 Virtual FW Policy)]
     
 To create a new policy, use::
 
     policy = FirewallPolicy.create(name='newpolicy', template='layer3_fw_template')
-    policy.describe()
     
 Example rule creation::
 
@@ -164,7 +166,7 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
     typeof = 'fw_template_policy'
     
     def __init__(self, name, meta=None):
-        super(FirewallTemplatePolicy, self).__init__(name)
+        super(FirewallTemplatePolicy, self).__init__(name, meta)
         pass    
     
     def export(self):

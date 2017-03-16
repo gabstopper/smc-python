@@ -14,13 +14,13 @@ For adding OSPF configurations, several steps are required:
 * Create or locate an existing OSPFArea to be used
 * Modify the routing interface and add and the OSPFArea
 
-To use default profiles, these can be obtained by describe_xx methods::
+To use default profiles, these can be obtained by collections::
 
-    for profile in describe_ospfv2_profile():
-        print profile.name, profile.href
+    >>> list(Search('ospfv2_profile').objects.all())
+    [OSPFProfile(name=Default OSPFv2 Profile)]
         
-    for area in describe_ospfv2_area():
-        print area.name, area.href
+    >>> list(Search('ospfv2_area').objects.all())
+    [OSPFArea(name=area0)]
 
 General Rules:
 
@@ -97,7 +97,7 @@ class OSPFArea(Element):
     When using ABR substitute rules, there are 3 actions, 'aggregate', 'not_advertise'
     and 'substitute_with'. All references required are of type 
     :py:class:`smc.elements.network.Network`. These elements can either be created or
-    retrieved using describe_xx methods, or by getting the resource directly.
+    retrieved using collections, or by getting the resource directly.
     
     Example of creating an OSPF area and using ABR settings::
     

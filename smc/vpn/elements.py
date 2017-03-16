@@ -11,8 +11,9 @@ class ExternalGateway(Element):
     
     Create the test_external gateway and view configuration::
     
-        mygw = ExternalGateway.create('mygateway')
-        mygw.describe()
+        gateway = ExternalGateway.create('mygateway')
+        >>> print(gateway)
+        ExternalGateway(name=mygateway)
 
     Later get configuration for test_external gateway::
     
@@ -71,9 +72,10 @@ class ExternalGateway(Element):
         Gateway. 
         Add a new endpoint to an existing test_external gateway::
             
-            for x in describe_external_gateways():
-                external_gw = x.load()
-                external_gw.external_endpoint.create('me', '12.34.56.78') 
+            >>> list(Search('external_gateway').objects.all())
+            [ExternalGateway(name=cisco-remote-side), ExternalGateway(name=remoteside)]
+            >>> gateway.external_endpoint.create('someendpoint', '12.12.12.12')
+            'http://1.1.1.1:8082/6.1/elements/external_gateway/22961/external_endpoint/27467'
 
         :method: GET
         :return: :py:class:`smc.vpn.elements.ExternalEndpoint`
@@ -142,7 +144,7 @@ class VPNSite(SubElement):
     
     Create a new vpn site for an engine::
         
-        engine = Engine('myengine').load()
+        engine = Engine('myengine')
         network = Network('network-192.168.5.0/25') #get resource
         engine.internal_gateway.vpn_site.create('newsite', [network.href])
 
@@ -219,7 +221,7 @@ class VPNCertificate(object):
     Example of creating a certificate for a specific VPN internal gateway::
            
         cert = VPNCertificate(organization='myorg', common_name='amazon-fw')
-        engine = Engine('myengine').load()
+        engine = Engine('myengine')
         engine.internal_gateway.generate_certificate(cert)      
     """
     def __init__(self, organization, common_name, public_key_algorithm="dsa",

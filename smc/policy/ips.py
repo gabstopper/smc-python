@@ -6,12 +6,15 @@ policies.
 
 To get an existing policy::
 
-    IPSPolicy('existing_policy_by_name')
+    >>> policy = IPSPolicy('Default IPS Policy')
+    >>> print(policy.template)
+    IPSTemplatePolicy(name=High-Security IPS Template)
     
-Or through describe_xxx methods::
+Or through collections::
 
-    for policy in describe_ips_policy():
-        policy.describe()
+    >>> from smc.policy.ips import IPSPolicy
+    >>> list(Search('ips_policy').objects.all())
+    [IPSPolicy(name=Default IPS Policy), IPSPolicy(name=High-Security Inspection IPS Policy)]
     
 To create a new policy, use::
     

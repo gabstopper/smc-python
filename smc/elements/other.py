@@ -7,8 +7,96 @@ For example, Blacklist can be applied to an engine directly or system wide. This
 will define the format when calling blacklist functions.
 """
 import smc.actions.search as search
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, prepared_request
+from smc.api.exceptions import ModificationFailed
 
+class CategoryTag(Element):
+    """
+    CategoryTag is used to group and categorize elements by
+    type. Once a tag is created, it can be assigned by an 
+    element and used as a search filter when managing large
+    numbers of elements.
+    ::
+    
+        >>> from smc.elements.other import CategoryTag
+        >>> CategoryTag.create(name='foo', comment='test tag')
+        'http://172.18.1.150:8082/6.1/elements/category_tag/3531'
+    """
+    typeof = 'category_tag'
+    
+    def __init__(self, name, meta=None):
+        super(CategoryTag, self).__init__(name, meta)
+        pass
+
+    @classmethod
+    def create(cls, name, comment=None):
+        """
+        Add a category element
+
+        :param name: name of location
+        :return: str href: href of location element
+        """
+        comment = comment if comment else ''
+        cls.json = {'name': name,
+                    'comment': comment}
+        
+        return ElementCreator(cls)
+    
+    def search_elements(self):
+        """
+        Find all elements assigned to this category tag
+        
+        :return list :py:class:`smc.base.model.Element`
+        """
+        result = prepared_request(href=self._link('search_elements_from_category_tag')
+                                  ).read().json
+                                  
+        return [Element.from_meta(**meta) for meta in result]   
+    
+    def add_element(self, element):
+        """
+        Element can be href or type :py:class:`smc.base.model.Element`
+        ::
+        
+            >>> from smc.elements.other import CategoryTag
+            >>> category = CategoryTag('foo')
+            >>> category.add_element(Host('kali'))
+
+        :param str,Element element: element to add to tag
+        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :return: None
+        """
+        if isinstance(element, Element):
+            element = element.href
+        
+        prepared_request(ModificationFailed,
+                         href=self._link('category_add_element'),
+                         json={'value': element}
+                         ).create()
+
+    def remove_element(self, element):
+        """
+        Remove an element from this category tag. Find elements assigned
+        by :func:`~search_elements`. Element can be str href or type
+        :py:class:`smc.base.model.Element`.
+        ::
+        
+            >>> from smc.elements.other import CategoryTag
+            >>> from smc.elements.network import Host
+            >>> category.remove_element(Host('kali'))
+    
+        :param str, Element element: element to remove
+        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :return: None
+        """
+        if isinstance(element, Element):
+            element = element.href
+            
+        prepared_request(ModificationFailed,
+                         href=self._link('category_remove_element'),
+                         json={'value': element}
+                         ).create()
+                         
 class Location(Element):
     """
     Locations are used by elements to identify when they are behind a NAT

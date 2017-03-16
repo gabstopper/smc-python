@@ -132,6 +132,12 @@ class Session(object):
         else:
             raise SMCConnectionError("Login failed, HTTP status code: %s" \
                                      % r.status_code)
+        logger.debug('Registering class mappings')
+        # Load the modules to register needed classes
+        for pkg in ('smc.policy', 'smc.elements', 'smc.routing', 
+                    'smc.vpn', 'smc.administration', 'smc.core'):
+            import_submodules(pkg, recursive=False)
+
     def logout(self):
         """ Logout session from SMC """
         if self.session:
@@ -251,3 +257,25 @@ class SessionCache(object):
     def get_all_entry_points(self):
         """ Returns all entry points into SMC api """
         return self.api_entry
+
+def import_submodules(package, recursive=True):
+    """ 
+    Import all submodules of a module, recursively, 
+    including subpackages.
+    
+    From http://stackoverflow.com/questions/3365740/how-to-import-all-submodules
+    
+    :param package: package (name or actual module)
+    :type package: str | module
+    :rtype: dict[str, types.ModuleType]
+    """
+    import importlib
+    import pkgutil
+    if isinstance(package, str):
+        package = importlib.import_module(package)
+    results = {}
+    for _loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
+        full_name = package.__name__ + '.' + name
+        results[full_name] = importlib.import_module(full_name)
+        if recursive and is_pkg:
+            results.update(import_submodules(full_name))   

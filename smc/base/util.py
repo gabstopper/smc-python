@@ -48,6 +48,32 @@ def find_type_from_self(linklist):
             return link.get('type')
     raise smc.api.exceptions.ResourceNotFound('Self link not found.')
 
+def merge_dicts(dict1, dict2, append_lists=False):
+    """
+    Merge the second dict into the first
+    Not intended to merge list of dicts.
+
+    :param append_lists: If true, instead of clobbering a list with the 
+        new value, append all of the new values onto the original list.
+    """
+    for key in dict2:
+        if isinstance(dict2[key], dict):
+            if key in dict1 and key in dict2:
+                merge_dicts(dict1[key], dict2[key], append_lists)
+            else:
+                dict1[key] = dict2[key]
+        # If the value is a list and the ``append_lists`` flag is set,
+        # append the new values onto the original list
+        elif isinstance(dict2[key], list) and append_lists:
+            # The value in dict1 must be a list in order to append new
+            # values onto it.
+            if key in dict1 and isinstance(dict1[key], list):
+                dict1[key].extend(dict2[key])
+            else:
+                dict1[key] = dict2[key]
+        else:
+            dict1[key] = dict2[key] #Overwrite list or scalar
+                
 def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
     """
     Helper to convert unicode strings to bytes for data that needs to be written to

@@ -78,8 +78,8 @@ import smc.elements.network as network
 import smc.base.model as element
 import smc.core.engine as engine
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
-from smc.base.resource import Registry
-    
+from smc.base.model import lookup_class
+
 def min_smc_version(arg_version):
     """
     Check the function supports the minimum version of SMC
@@ -176,7 +176,8 @@ def describe_local_cluster_cvi_alias(name=None, exact_match=True):
     
     :return: :py:class:`smc.base.model.Element` 
     """
-    return generic_list_builder('local_cluster_cvi_alias', name, exact_match)
+    return generic_list_builder('local_cluster_cvi_alias', name, exact_match,
+                                network.Alias)
 
 def describe_ssl_vpn_service_profile(name=None, exact_match=True):
     """ 
@@ -1709,30 +1710,6 @@ def describe_internal_user_group(name=None, exact_match=True):
     """
     return generic_list_builder('internal_user_group', name, exact_match)
 
-def describe_search_unused(name=None, exact_match=True):
-    """ 
-    Describe search_unused entries on the SMC
-    
-    :return: :py:class:`smc.base.model.Element` 
-    """
-    return generic_list_builder('search_unused', name, exact_match)
-
-def describe_search_duplicate(name=None, exact_match=True):
-    """ 
-    Describe search_duplicate entries on the SMC
-    
-    :return: :py:class:`smc.base.model.Element` 
-    """
-    return generic_list_builder('search_duplicate', name, exact_match)
-
-def describe_search_rule(name=None, exact_match=True):
-    """ 
-    Describe search_rule entries on the SMC
-    
-    :return: :py:class:`smc.base.model.Element` 
-    """
-    return generic_list_builder('search_rule', name, exact_match)
-
 @min_smc_version(6.1)
 def describe_sidewinder_tag(name=None, exact_match=True):
     """ 
@@ -1972,7 +1949,7 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
     :return: list :py:class:`smc.base.model.Element`
     """
     if klazz is None:
-        klazz = Registry[typeof]
+        klazz = lookup_class(typeof)
     result = []
     if not name:
         lst = fetch_json_by_href(

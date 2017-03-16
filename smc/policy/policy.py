@@ -22,10 +22,8 @@ overidden.
 """
 from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
     ResourceNotFound
-from smc.base.model import prepared_request, Meta
 from smc.administration.tasks import task_handler, Task
-from smc.base.model import Element
-from smc.base.resource import Registry
+from smc.base.model import Element, prepared_request, Meta, lookup_class
 
 class Policy(Element):
     """ 
@@ -120,11 +118,11 @@ class Policy(Element):
             results = []
             for data in result.json:
                 if data.get('type') == 'ips_ethernet_rule':
-                    klazz = Registry['ethernet_rule']
+                    klazz = lookup_class('ethernet_rule')
                 elif data.get('type') == 'ips_ipv4_access_rule':
-                    klazz = Registry['layer2_ipv4_access_rule']
+                    klazz = lookup_class('layer2_ipv4_access_rule')
                 else:
-                    klazz = Registry[data.get('type')]
+                    klazz = lookup_class(data.get('type'))
                 results.append(klazz(meta=Meta(**data)))
                 return results
         return []

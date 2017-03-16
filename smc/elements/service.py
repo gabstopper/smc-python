@@ -174,6 +174,16 @@ class Protocol(Element):
         super(Protocol, self).__init__(name, meta)
         pass
 
+class RPCService(Element):
+    """
+    Represents an RPC service element
+    """
+    typeof = 'rpc_service'
+    
+    def __init__(self, name, meta=None):
+        super(RPCService, self).__init__(name, meta)
+        pass
+    
 class ICMPService(Element):
     """ 
     Represents an ICMP Service in SMC

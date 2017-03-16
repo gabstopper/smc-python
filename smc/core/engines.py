@@ -6,7 +6,7 @@ from smc.api.exceptions import CreateEngineFailed
 from smc.base.model import prepared_request, Meta
 from smc.elements.helpers import logical_intf_helper
 
-class Layer3Firewall(object):
+class Layer3Firewall(Engine):
     """
     Represents a Layer 3 Firewall configuration.
     To instantiate and create, call 'create' classmethod as follows::
@@ -17,9 +17,10 @@ class Layer3Firewall(object):
                                        
     Set additional constructor values as necessary.       
     """
-    node_type = 'firewall_node'
+    typeof = 'single_fw'
     
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
+        super(Layer3Firewall, self).__init__(name,meta)
         pass
 
     @classmethod
@@ -30,7 +31,8 @@ class Layer3Firewall(object):
                reverse_connection=False,
                domain_server_address=None, zone_ref=None,
                enable_antivirus=False, enable_gti=False,
-               location_ref=None, enable_ospf=False, 
+               location_ref=None, enable_ospf=False,
+               sidewinder_proxy_enabled=False, 
                ospf_profile=None):
         """ 
         Create a single layer 3 firewall with management interface and DNS
@@ -46,6 +48,7 @@ class Layer3Firewall(object):
         :param boolean default_nat: (optional) Whether to enable default NAT for outbound
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :param boolean sidewinder_proxy_enabled: Enable Sidewinder proxy functionality
         :param str location_ref: location href for engine if needed to contact SMC behind NAT
         :param boolean enable_ospf: whether to turn OSPF on within engine
         :param str ospf_profile: optional OSPF profile to use on engine, by ref   
@@ -59,30 +62,33 @@ class Layer3Firewall(object):
                                            is_mgmt=True,
                                            reverse_connection=reverse_connection,
                                            zone_ref=zone_ref)
-
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=[physical()], 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=log_server_ref,
-                               nodes=1, enable_gti=enable_gti,
-                               enable_antivirus=enable_antivirus,
-                               default_nat=default_nat,
-                               location_ref=location_ref,
-                               enable_ospf=enable_ospf,
-                               ospf_profile=ospf_profile)
         
+        engine = super(Layer3Firewall, cls)._create(
+                                           name=name,
+                                           node_type='firewall_node',
+                                           physical_interfaces=[physical()], 
+                                           domain_server_address=domain_server_address,
+                                           log_server_ref=log_server_ref,
+                                           nodes=1, enable_gti=enable_gti,
+                                           enable_antivirus=enable_antivirus,
+                                           sidewinder_proxy_enabled=sidewinder_proxy_enabled,
+                                           default_nat=default_nat,
+                                           location_ref=location_ref,
+                                           enable_ospf=enable_ospf,
+                                           ospf_profile=ospf_profile)
+
         href = search.element_entry_point('single_fw')
         result = prepared_request(href=href, json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href, 
-                                               type='single_fw'))
+            return Engine(name=name, 
+                          meta=Meta(name=name, href=result.href, 
+                                    type='single_fw'))
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}.'
                                      .format(result.msg, engine))
 
-class Layer2Firewall(object):
+class Layer2Firewall(Engine):
     """
     Creates a Layer 2 Firewall with a default inline interface pair
     To instantiate and create, call 'create' classmethod as follows::
@@ -91,9 +97,10 @@ class Layer2Firewall(object):
                                        mgmt_ip='1.1.1.1', 
                                        mgmt_network='1.1.1.0/24')
     """
-    node_type = 'fwlayer2_node'
+    typeof = 'single_layer2'
     
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
+        super(Layer2Firewall, self).__init__(name,meta)
         pass
     
     @classmethod
@@ -133,33 +140,36 @@ class Layer2Firewall(object):
         inline = PhysicalInterface()
         inline.add_inline_interface(inline_interface, intf_href)
         interfaces.append(physical())
-        interfaces.append(inline())     
+        interfaces.append(inline())
         
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=interfaces, 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=log_server_ref,
-                               nodes=1, enable_gti=enable_gti,
-                               enable_antivirus=enable_antivirus)
+        engine = super(Layer2Firewall, cls)._create(
+                                    name=name,
+                                    node_type='fwlayer2_node',
+                                    physical_interfaces=interfaces, 
+                                    domain_server_address=domain_server_address,
+                                    log_server_ref=log_server_ref,
+                                    nodes=1, enable_gti=enable_gti,
+                                    enable_antivirus=enable_antivirus)
        
         href = search.element_entry_point('single_layer2')
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href,
-                                               type='single_layer2'))
+            return Engine(name=name, 
+                          meta=Meta(name=name, href=result.href,
+                                    type='single_layer2'))
         else:
             raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))   
 
-class IPS(object):
+class IPS(Engine):
     """
     Creates an IPS engine with a default inline interface pair
     """
-    node_type = 'ips_node'
+    typeof = 'single_ips'
     
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
+        super(IPS, self).__init__(name,meta)
         pass
     
     @classmethod
@@ -199,10 +209,11 @@ class IPS(object):
         inline = PhysicalInterface()
         inline.add_inline_interface(inline_interface, intf_href)
         interfaces.append(physical())
-        interfaces.append(inline())  
+        interfaces.append(inline())
         
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
+        engine = super(IPS, cls)._create(
+                               name=name,
+                               node_type='ips_node',
                                physical_interfaces=interfaces, 
                                domain_server_address=domain_server_address,
                                log_server_ref=log_server_ref,
@@ -213,13 +224,14 @@ class IPS(object):
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href,
-                                               type='single_ips'))
+            return Engine(name=name, 
+                          meta=Meta(name=name, href=result.href,
+                                    type='single_ips'))
         else:
             raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))
         
-class Layer3VirtualEngine(object):
+class Layer3VirtualEngine(Engine):
     """ 
     Create a layer3 virtual engine and map to specified Master Engine
     Each layer 3 virtual firewall will use the same virtual resource that 
@@ -236,9 +248,10 @@ class Layer3VirtualEngine(object):
                                              'network_value': '5.5.5.5/30',  
                                              'zone_ref': ''}]
     """
-    node_type = 'virtual_fw_node'
+    typeof = 'virtual_fw'
     
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
+        super(Layer3VirtualEngine, self).__init__(name,meta)
         pass
 
     @classmethod
@@ -288,14 +301,15 @@ class Layer3VirtualEngine(object):
 
             new_interfaces.append(physical())
            
-            engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=new_interfaces, 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=None, #Isn't used in VE
-                               nodes=1, default_nat=default_nat,
-                               enable_ospf=enable_ospf,
-                               ospf_profile=ospf_profile)
+            engine = super(Layer3VirtualEngine, cls)._create(
+                                        name=name,
+                                        node_type='virtual_fw_node',
+                                        physical_interfaces=new_interfaces, 
+                                        domain_server_address=domain_server_address,
+                                        log_server_ref=None, #Isn't used in VE
+                                        nodes=1, default_nat=default_nat,
+                                        enable_ospf=enable_ospf,
+                                        ospf_profile=ospf_profile)
 
             engine.update(virtual_resource=virt_resource_href)
             engine.pop('log_server_ref', None) #Master Engine provides this service
@@ -303,14 +317,15 @@ class Layer3VirtualEngine(object):
         href = search.element_entry_point('virtual_fw')
         result = prepared_request(href=href, json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href,
-                                               type='virtual_fw'))
+            return Engine(name=name, 
+                          meta=Meta(name=name, href=result.href,
+                                    type='virtual_fw'))
         else:
             raise CreateEngineFailed('Could not create the virtual engine, '
                                      'reason: {}'
                                      .format(result.msg))
             
-class FirewallCluster(object):
+class FirewallCluster(Engine):
     """ 
     Firewall Cluster
     Creates a layer 3 firewall cluster engine with CVI and NDI's. Once engine is 
@@ -319,9 +334,10 @@ class FirewallCluster(object):
     Reference: 
     :func:`smc.core.interfaces.PhysicalInterface.add_cluster_virtual_interface`
     """
-    node_type = 'firewall_node'  
-
-    def __init__(self, name):
+    typeof = 'fw_cluster'
+    
+    def __init__(self, name, meta=None):
+        super(FirewallCluster, self).__init__(name,meta)
         pass
     
     @classmethod
@@ -371,34 +387,37 @@ class FirewallCluster(object):
                                                is_mgmt=True,
                                                zone_ref=zone_ref)
         
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=[physical()], 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=log_server_ref,
-                               nodes=len(nodes), enable_gti=enable_gti,
-                               enable_antivirus=enable_antivirus,
-                               default_nat=default_nat)
+        engine = super(FirewallCluster, cls)._create(
+                                    name=name,
+                                    node_type='firewall_node',
+                                    physical_interfaces=[physical()], 
+                                    domain_server_address=domain_server_address,
+                                    log_server_ref=log_server_ref,
+                                    nodes=len(nodes), enable_gti=enable_gti,
+                                    enable_antivirus=enable_antivirus,
+                                    default_nat=default_nat)
 
         href = search.element_entry_point('fw_cluster')
         result = prepared_request(href=href,
                                   json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href,
-                                               type='fw_cluster'))
+            return Engine(name=name,
+                          meta=Meta(name=name, href=result.href,
+                                    type='fw_cluster'))
         else:
             raise CreateEngineFailed('Could not create the firewall, '
                                      'reason: {}'
                                      .format(result.msg))
         
-class MasterEngine(object):
+class MasterEngine(Engine):
     """
     Creates a master engine in a firewall role. Layer3VirtualEngine should be used
     to add each individual instance to the Master Engine.
     """
-    node_type = 'master_node'
+    typeof = 'master_engine'
     
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
+        super(MasterEngine, self).__init__(name,meta)
         pass
     
     @classmethod
@@ -429,13 +448,14 @@ class MasterEngine(object):
                                     primary_heartbeat=True,
                                     outgoing=True)
         
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=[physical()], 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=log_server_ref,
-                               nodes=1, enable_gti=enable_gti,
-                               enable_antivirus=enable_antivirus)      
+        engine = super(MasterEngine, cls)._create(
+                                    name=name,
+                                    node_type='master_node',
+                                    physical_interfaces=[physical()], 
+                                    domain_server_address=domain_server_address,
+                                    log_server_ref=log_server_ref,
+                                    nodes=1, enable_gti=enable_gti,
+                                    enable_antivirus=enable_antivirus)      
         
         engine.update(master_type=master_type,
                       cluster_mode='standby')
@@ -444,22 +464,22 @@ class MasterEngine(object):
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href,
-                                               type='master_engine'))
+            return Engine(name=name, 
+                          meta=Meta(name=name, href=result.href,
+                                    type='master_engine'))
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'
                                      .format(result.msg))
 
-class MasterEngineCluster(object):
+class MasterEngineCluster(Engine):
     """
     Master Engine Cluster
     Clusters are currently supported in an active/standby configuration
     only. 
     """
-    node_type = 'master_node'
-    
-    def __init__(self, name):
+    def __init__(self, name, meta=None):
+        super(MasterEngineCluster, self).__init__(name,meta)
         pass
     
     @classmethod
@@ -502,13 +522,14 @@ class MasterEngineCluster(object):
                                             macaddress, 
                                             nodes, 
                                             is_mgmt=True)
-        engine = Engine.create(name=name,
-                               node_type=cls.node_type,
-                               physical_interfaces=[physical()], 
-                               domain_server_address=domain_server_address,
-                               log_server_ref=log_server_ref,
-                               nodes=len(nodes), enable_gti=enable_gti,
-                               enable_antivirus=enable_antivirus)
+        engine = super(MasterEngineCluster, cls)._create(
+                                    name=name,
+                                    node_type='master_node',
+                                    physical_interfaces=[physical()], 
+                                    domain_server_address=domain_server_address,
+                                    log_server_ref=log_server_ref,
+                                    nodes=len(nodes), enable_gti=enable_gti,
+                                    enable_antivirus=enable_antivirus)
 
         engine.update(master_type=master_type,
                       cluster_mode='standby')
@@ -517,8 +538,9 @@ class MasterEngineCluster(object):
         result = prepared_request(href=href, 
                                   json=engine).create()
         if result.href:
-            return Engine(name=name, meta=Meta(name=name, href=result.href,
-                                               type='master_engine'))
+            return Engine(name=name,
+                          meta=Meta(name=name, href=result.href,
+                                    type='master_engine'))
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'

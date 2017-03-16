@@ -33,12 +33,20 @@ class ClusterVirtualInterface(object):
     interfaces. They specify a 'VIP' (or shared IP) to be used for traffic load
     balancing or high availability. Each engine will still also have a 'node' 
     interface for communication to/from the engine itself.
-    The following getter/setter properties are available:     
+    The following getter/setter properties are available:
+    
+    :ivar str address: address of the CVI
+    :ivar boolean auth_request: interface for authentication requests (only 1)
+    :ivar str network_value: network address for interface, i.e. 1.1.1.0/24
+    :ivar int nicid: nic interface identifier
+    :ivar boolean relayed_by_dhcp: is the interface using DHCP
+    :ivar str igmp_mode: IGMP mode (upstream/downstream/None)
+    
     """
     typeof = 'cluster_virtual_interface'
     
     def __init__(self, data):
-        self.data = data
+        self.__dict__ = data
     
     @classmethod
     def create(cls, interface_id, address, network_value, 
@@ -59,93 +67,9 @@ class ClusterVirtualInterface(object):
    
         return cls(data)
     
-    def __call__(self):
-        return {'cluster_virtual_interface': self.data}
-    
     @property
-    def address(self):
-        """
-        IP Address of this CVI
-        
-        :param str value: ip address
-        :return: str
-        """
-        return self.data.get('address')
-    
-    @address.setter
-    def address(self, value):
-        self.data['address'] = value
-        
-    @property
-    def auth_request(self):
-        """
-        The IP address of the selected interface is used when an engine
-        contacts an external authentication server and it is also displayed 
-        (by default) to end-users in Telnet-based authentication. This option 
-        does not affect the routing of the connection with the authentication 
-        server. The IP address is used only as a parameter inside the 
-        authentication request payload to give a name to the request sender. 
-
-        There must be one and only one Interface used for auth request.
-        
-        :param boolean value: enable/disable      
-        :return: boolean
-        """
-        return self.data.get('auth_request')
-    
-    @auth_request.setter
-    def auth_request(self, value):
-        self.data['auth_request'] = value
-        
-    @property
-    def igmp_mode(self):
-        """
-        Read-only IGMP mode (upstream/downstream/None)
-        
-        :return: str
-        """
-        return self.data.get('igmp_mode')
-    
-    @property
-    def network_value(self):
-        """
-        Network cidr for this interface
-        
-        :param str value: network cidr, i.e. 1.1.1.0/24
-        :return: str
-        """
-        return self.data.get('network_value')
-    
-    @network_value.setter
-    def network_value(self, value):
-        self.data['network_value'] = value
-    
-    @property
-    def nicid(self):
-        """
-        Nicid for this interface
-        
-        :param str value: nic id as string
-        :return: str
-        """
-        return self.data.get('nicid')
-    
-    @nicid.setter
-    def nicid(self, value):
-        self.data['nicid'] = value
-    
-    @property
-    def relayed_by_dhcp(self):
-        """
-        Read-only DHCP relay setting.
-        
-        When the parent Physical Interface uses DHCP Relay,
-        there must be one and only one Interface relayed by 
-        DHCP.
-        
-        :return: boolean
-        """
-        return self.data.get('relayed_by_dhcp')
+    def data(self):
+        return {'cluster_virtual_interface': self.__dict__}
     
     def __getattr__(self, attr):
         return None
@@ -163,12 +87,19 @@ class InlineInterface(object):
     inline interfaces.
     The logical interface reference needs to be unique for inline and capture interfaces
     when they are applied on the same engine.
+    
+    :ivar boolean inspect_unspecified_vlans: promiscuous SPAN on unspecified VLANs
+    :ivar str logical_interface_ref (required): logical interface to use, by href
+    :ivar str failure_mode: normal or bypass
+    :ivar str nicid: interfaces for inline pair, for example, '1-2', '5-6' (interfaces 5 and 6)
+    :ivar str vlan_id: vlan identifier for interface
+    :ivar str zone_ref (optional): zone for second interface in pair
     """
     typeof = 'inline_interface'
     
     def __init__(self, data):
-        self.data = data
-    
+        self.__dict__ = data
+
     @classmethod
     def create(cls, interface_id, logical_interface_ref, 
                zone_ref=None, **kwargs):
@@ -188,116 +119,19 @@ class InlineInterface(object):
             data.update({k: v})
     
         return cls(data)
-    
-    def __call__(self):
-        return {'inline_interface': self.data}
 
     @property
-    def inspect_unspecified_vlans(self):
-        """
-        Deselect this option to make the IPS engine ignore traffic from
-        VLANs that are not included in the IPS engine interface config.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('inspect_unspecified_vlans')
-    
-    @inspect_unspecified_vlans.setter
-    def inspect_unspecified_vlans(self, value):
-        self.data['inspect_unspecified_vlans'] = value
-    
-    @property
-    def logical_interface_ref(self):
-        """
-        Select the Logical Interface for inspection.
-        You cannot use the same Logical Interface element for both
-        Inline and Capture Interfaces on the same IPS engine. 
-        Required.
-        
-        :param str value: string href of logical interface
-        :return: str
-        """
-        return self.data.get('logical_interface_ref')
-    
-    @logical_interface_ref.setter
-    def logical_interface_ref(self, value):
-        self.data['logical_interface_ref'] = value
-    
-    @property
-    def failure_mode(self):
-        """
-        Select how traffic to the Inline Interface is handled if the 
-        IPS engine goes offline. There are two options: 'bypass' or 
-        'normal'.
-        
-        Using the Bypass mode requires the IPS appliance to 
-        have a fail-open network interface card. If the ports
-        that represent the pair of Inline Interfaces on the 
-        appliance cannot fail open, the policy installation 
-        fails on the IPS engine. 
-        
-        :param str value: normal or bypass
-        :return: str
-        """
-        return self.data.get('failure_mode')
-    
-    @failure_mode.setter
-    def failure_mode(self, value):
-        self.data['failure_mode'] = value
-    
-    @property
-    def nicid(self):
-        """
-        Get nicid's for this inline interface. For inline interfaces
-        this will be specified as a string using the 'first-last' 
-        interfaces. For example, '1-2', '5-6' (interfaces 5 and 6).
-        
-        :param str nicid: interfaces used for inline pair
-        :return: str
-        """
-        return self.data.get('nicid')
-    
-    @nicid.setter
-    def nicid(self, value):
-        self.data['nicid'] = value
-    
-    @property
-    def virtual_second_mapping(self):
-        return self.data.get('virtual_second_mapping')
-    
-    @virtual_second_mapping.setter
-    def virtual_second_mapping(self, value):
-        self.data['virtual_second_mapping'] = value
-    
+    def data(self):
+        return {'inline_interface': self.__dict__}
+
     @property
     def vlan_id(self):
-        """
-        Returns a string representation of VLANs for this inline interface
-        
-        :return: str
-        """
         nicids = self.nicid.split('-')
         if nicids:
             u = set()
             for vlan in nicids:
                 u.add(vlan.split('.')[-1])
         return '-'.join(u)       
-    
-    @property
-    def zone_ref(self):
-        """
-        Select the network Zone to which the second interface belongs. 
-        Not Required. Should be the href of zone (not name).
-        
-        :param str value: string href of zone
-        :return: str
-        """
-        return self.data.get('zone_ref')
-    
-    @zone_ref.setter
-    def zone_ref(self, value):
-        self.data['zone_ref'] = value
     
     def __getattr__(self, attr):
         return None
@@ -306,54 +140,22 @@ class InlineInterface(object):
         return '{0}(nicid={1})'.format(self.__class__.__name__, 
                                        self.nicid)
 
-'''
-class MyInterfaces(SubInterface):
-    """
-    Capture Interface (SPAN)
-    This is a single physical interface type that can be installed on either
-    layer 2 or IPS engine roles. By default traffic is only examined unless
-    reset_interface_nicid is set.
-    
-    .. py:attribute:: nicid
-    
-        :param str value: nicid this capture interface is assigned to
-        
-    .. py:attribute:: inspect_unspecified_vlans
-    
-        :param boolean value: whether to inspect non-specified VLANs
-        
-    .. py:attribute:: logical_interface_ref
-    
-        :param str value: logical interface to use, specify href of interface
-        
-    .. py:attribute:: reset_interface_nicid
-    
-        :param str|int value: which nicid to use to send RST back for blocking
-            in passive mode
-    """
-    typeof = 'capture_interface'
-    def __init__(self, data=None):
-        self.__dict__ = data
-           
-    def __getattr__(self, name):
-        return None
-    
-    def __repr__(self):    
-        return '{0}(nicid={1})'.format(self.__class__.__name__, 
-                                       self.nicid)
-'''                      
-
 class CaptureInterface(object):
     """ 
     Capture Interface (SPAN)
     This is a single physical interface type that can be installed on either
     layer 2 or IPS engine roles. It enables the NGFW to capture traffic on
     the wire without actually blocking it (although blocking is possible).
+    
+    :ivar boolean inspect_unspecified_vlans: promiscuous SPAN on unspecified VLANs
+    :ivar str logical_interface_ref (required): logical interface to use, by href
+    :ivar int reset_interface_nicid: if sending passive RST back, interface id to use
+    :ivar str,int nicid: nicid for this capture interface
     """
     typeof = 'capture_interface'
     
     def __init__(self, data):
-        self.data = data
+        self.__dict__ = data
  
     @classmethod
     def create(cls, interface_id, logical_interface_ref, **kwargs):
@@ -372,70 +174,9 @@ class CaptureInterface(object):
     
         return cls(data)
     
-    def __call__(self):
-        return {'capture_interface': self.data}
-    
     @property
-    def inspect_unspecified_vlans(self):
-        """
-        Deselect this option to make the IPS engine ignore traffic from
-        VLANs that are not included in the IPS engine interface config.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('inspect_unspecified_vlans')
-    
-    @inspect_unspecified_vlans.setter
-    def inspect_unspecified_vlans(self, value):
-        self.data['inspect_unspecified_vlans'] = value
-    
-    @property
-    def logical_interface_ref(self):
-        """
-        Select the Logical Interface for inspection.
-        You cannot use the same Logical Interface element for both
-        Inline and Capture Interfaces on the same IPS engine. 
-        Required.
-        
-        :param str value: logical interface href
-        :return: str
-        """
-        return self.data.get('logical_interface_ref')
-    
-    @logical_interface_ref.setter
-    def logical_interface_ref(self, value):
-        self.data['logical_interface_ref'] = value
-    
-    @property
-    def reset_interface_nicid(self):
-        """
-        Select the Reset Interface to specify the interface through 
-        which TCP connection resets are sent when Reset responses are
-        used in your IPS policy. Not Required.
-        
-        :param int value: int value of nicid when resets are used
-        :return: int
-        """
-        return self.data.get('reset_interface_nicid')
-    
-    @reset_interface_nicid.setter
-    def reset_interface_nicid(self, value):
-        self.data['reset_interface_nicid'] = value
-    
-    @property
-    def nicid(self):
-        """
-        Nicid for this interface
-        
-        :param str value: nicid value
-        :return: str
-        """
-        return self.data.get('nicid')
-    
-    @nicid.setter
-    def nicid(self, value):
-        self.data['nicid'] = value
+    def data(self):
+        return {'capture_interface': self.__dict__}
     
     def __getattr__(self, attr):
         return None
@@ -454,11 +195,47 @@ class NodeInterface(object):
     For Layer 2 Firewall/IPS these are used as individual interfaces. On clusters, 
     these are used to define the node specific address for each node member, along 
     with a cluster virtual interface.
+    
+    :ivar str address: ip address of this interface
+    :ivar str network_value: network for this interface, i.e. 1.1.1.0/24
+    :ivar str or int nicid: nic interface id
+    :ivar int nodeid: node identifier for interface (in a cluster, each node will be unique)
+    :ivar boolean outgoing: This option defines the IP address that the nodes use if they 
+        have to initiate connections (system communications, ping, etc.) through an interface that
+        has no Node Dedicated IP Address. In Firewall Clusters, you must select an interface that has an 
+        IP address defined for all nodes.
+    :ivar boolean primary_heartbeat: Whether interface is the primary heartbeat interface for 
+        communications between the nodes. It is recommended that you use a Physical Interface, not 
+        a VLAN Interface. It is also recommended that you do not direct any other traffic 
+        through this interface.
+    :ivar boolean primary_mgt: Is it the Primary Control Interface for Management Server contact.
+        There must be one and only one Primary Control Interface
+    :ivar boolean auth_request: whether to specify this interface as interface for authentication
+        requests. Should be set on interface acting as management
+    :ivar boolean auth_request_source: If the authentication requests are sent to an external 
+        authentication server over VPN, select an interface with a Node Dedicated IP address that
+        you want use for the authentication requests
+    :ivar boolean reverse_connection: Reverse connection enables engine to contact SMC
+        versus other way around
+    :ivar str vlan_id: VLAN id for interface if assigned
+    :ivar boolean backup_mgt: Whether interface is a backup control interface that is used if the 
+        primary control interface is not available
+    :ivar boolean backup_heartbeat: Whether the interface is a backup heartbeat. 
+        It is not mandatory to configure a backup heartbeat interface.
+    :ivar str comment: optional comment for interface
+    :ivar boolean dynamic: Whether this is a DHCP interface
+    :ivar int dynamic_index: The dynamic index of the DHCP interface. The value is between 
+        1 and 16. Only used when 'dynamic' is set to True.
+    :ivar str igmp_mode: IGMP mode (upstream/downstream/None)
+    :ivar boolean vrrp: Enable VRRP
+    :ivar str vrrp_address: IP address if VRRP is enabled
+    :ivar int vrrp_id: The VRRP ID. Required only for VRRP mode
+    :ivar int vrrp_priority: The VRRP Priority. Required only for VRRP mode  
     """ 
     typeof = 'node_interface'
     
     def __init__(self, data):
-        self.data = data
+        self.__dict__ = data
     
     @classmethod
     def create(cls, interface_id, address, network_value,
@@ -485,376 +262,20 @@ class NodeInterface(object):
 
         return cls(data)
     
-    def __call__(self):
-        return {self.typeof: self.data}   
+    #def __call__(self):
+    #    return {self.typeof: self.__dict__}
     
     @property
-    def address(self):
-        """
-        IP Address of interface
-        
-        :param str value: ip address of interface
-        :return: str
-        """
-        return self.data.get('address')
-    
-    @address.setter
-    def address(self, value):
-        self.data['address'] = value
-    
-    @property
-    def auth_request(self):
-        """
-        The IP address of the selected interface is used when an engine
-        contacts an external authentication server and it is also displayed 
-        (by default) to end-users in Telnet-based authentication. This option 
-        does not affect the routing of the connection with the authentication 
-        server. The IP address is used only as a parameter inside the 
-        authentication request payload to give a name to the request sender. 
-        
-        There must be one and only one Interface used for authentication 
-        requests.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('auth_request')
-    
-    @auth_request.setter
-    def auth_request(self, value):
-        self.data['auth_request'] = value
-        
-    @property
-    def auth_request_source(self):
-        """
-        By default, the source IP address for authentication requests
-        is selected according to routing. If the authentication requests 
-        are sent to an external authentication server over VPN, select an 
-        interface with a Node Dedicated IP address that you want use for 
-        the authentication requests.
-        
-        :return: boolean
-        """
-        return self.data.get('auth_request_source')
-    
-    @auth_request_source.setter
-    def auth_request_source(self, value):
-        self.data['auth_request_source'] = value
-    
-    @property
-    def backup_for_web_access(self):
-        """
-        Read-only setting for web access backup
-        
-        :return: boolean
-        """
-        return self.data.get('backup_for_web_access')
-    
-    @property
-    def backup_mgt(self):
-        """
-        Whether interface is a backup control interface that is used if the 
-        primary control interface is not available.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('backup_mgt')
-    
-    @backup_mgt.setter
-    def backup_mgt(self, value):
-        self.data['backup_mgt'] = value
-    
-    @property
-    def backup_heartbeat(self):
-        """
-        Whether the interface is a backup heartbeat. 
-        It is not mandatory to configure a backup heartbeat interface.
-        
-        :param boolean value: enable/disable
-        :return: boolean 
-        """
-        return self.data.get('backup_heartbeat')
-    
-    @backup_heartbeat.setter
-    def backup_heartbeat(self, value):
-        self.data['backup_heartbeat'] = value
-    
-    @property
-    def comment(self):
-        """
-        Comment for interface
-        
-        :param str value: string comment
-        :return: str
-        """
-        return self.data.get('comment')
-    
-    @comment.setter
-    def comment(self, value):
-        self.data['comment'] = value
-            
-    @property
-    def dynamic(self):
-        """
-        Whether this is a DHCP interface
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('dynamic')
-    
-    @dynamic.setter
-    def dynamic(self, value):
-        self.data['dynamic'] = value
-        
-    @property
-    def dynamic_index(self):
-        """
-        The dynamic index of the DHCP interface. The value is between 
-        1 and 16. Only used when 'dynamic' is set to True.
-        
-        :param int value: set index for dhcp
-        :return: int
-        """
-        if self.data.get('dynamic_index'):
-            return int(self.data.get('dynamic_index'))
-        
-    @dynamic_index.setter
-    def dynamic_index(self, value):
-        self.data['dynamic_index'] = value
-        
-    @property
-    def igmp_mode(self):
-        """
-        Read-only IGMP mode (upstream/downstream/None)
-        
-        :return: str
-        """
-        return self.data.get('igmp_mode')
-        
-    @property
-    def network_value(self):
-        """
-        Network cidr for this interface
-        
-        :param str value: network cidr of interface, i.e. 1.1.1.0/24
-        :return: str 
-        """
-        return self.data.get('network_value')
-    
-    @network_value.setter
-    def network_value(self, value):
-        self.data['network_value'] = value
-    
-    @property
-    def nicid(self):
-        """
-        Nicid for this interface
-        
-        :param str value: nicid of interface
-        :return: str
-        """
-        return self.data.get('nicid')
-    
-    @nicid.setter
-    def nicid(self, value):
-        self.data['nicid'] = value
-    
-    @property
-    def nodeid(self):
-        """
-        The node id of the interface
-        
-        :param int value: node identifier for interface
-        :return: int
-        """
-        return self.data.get('nodeid')
-    
-    @nodeid.setter
-    def nodeid(self, value):
-        self.data['nodeid'] = value
-    
-    @property
-    def outgoing(self):
-        """
-        This option defines the IP address that the nodes use if they 
-        have to initiate connections (system communications, ping, etc.) 
-        through an interface that has no Node Dedicated IP Address. 
-        In Firewall Clusters, you must select an interface that has an 
-        IP address defined for all nodes. 
-        
-        There must be one and only one NDI defined for Outgoing.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('outgoing')
-    
-    @outgoing.setter
-    def outgoing(self, value):
-        self.data['outgoing'] = value
-
-    @property
-    def pppoa(self):
-        """
-        Read-only PPPoA mode
-        This can be used with ADSL interfaces only
-        
-        :return: boolean
-        """
-        return self.data.get('pppoa')
-    
-    @property
-    def pppoe(self):
-        """
-        Read-only PPPoE mode
-        This can be used with Physical Interfaces or ADSL Interfaces.
-        
-        :return: boolean
-        """ 
-        return self.data.get('pppoe')
-    
-    @property
-    def primary_for_web_access(self):
-        """
-        Read-only primary web configuration interface
-        
-        :return: boolean
-        """
-        return self.data.get('primary_for_web_access')
-    
-    @property
-    def primary_heartbeat(self):
-        """
-        Whether interface is the primary heartbeat interface for 
-        communications between the nodes. It is recommended that you 
-        use a Physical Interface, not a VLAN Interface. 
-        It is also recommended that you do not direct any other traffic 
-        through this interface. 
-        A dedicated network helps ensure reliable and secure operation.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('primary_heartbeat')
-    
-    @primary_heartbeat.setter
-    def primary_heartbeat(self, value):
-        self.data['primary_heartbeat'] = value
-    
-    @property
-    def primary_mgt(self):
-        """
-        Is it the Primary Control Interface for Management Server contact.
-        There must be one and only one Primary Control Interface.
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('primary_mgt')
-    
-    @primary_mgt.setter
-    def primary_mgt(self, value):
-        self.data['primary_mgt'] = value
-        
-    @property
-    def relayed_by_dhcp(self):
-        """
-        Read-only field indicating use of DHCP relay.
-
-        When the parent Physical Interface uses DHCP Relay,
-        there must be one and only one Interface relayed by DHCP
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('relayed_by_dhcp')
-    
-    @property
-    def reverse_connection(self):
-        """
-        Reverse connection enables engine to contact SMC
-        versus other way around
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('reverse_connection')
-    
-    @reverse_connection.setter
-    def reverse_connection(self, value):
-        self.data['reverse_connection'] = value
+    def data(self):
+        return {self.typeof: self.__dict__}
     
     @property
     def vlan_id(self):
-        """
-        Return VLAN id of this interface, or None
-        
-        :return: str
-        """
-        nicid = self.data.get('nicid')
+        nicid = self.nicid
         if nicid:
             v = nicid.split('.')
             if len(v) > 1:
                 return nicid.split('.')[1]
-        #Return None
-        
-    @property
-    def vrrp(self):
-        """
-        Whether VRRP is enabled
-        
-        :param boolean value: enable/disable
-        :return: boolean
-        """
-        return self.data.get('vrrp')
-    
-    @vrrp.setter
-    def vrrp(self, value):
-        self.data['vrrp'] = value
-    
-    @property
-    def vrrp_address(self):
-        """
-        The VRRP IP Address. Required only for VRRP mode
-        
-        :param str value: ip address for VRRP
-        :return: str
-        """ 
-        return self.data.get('vrrp_address')
-    
-    @vrrp_address.setter
-    def vrrp_address(self, value):
-        self.data['vrrp_address'] = value
-        
-    @property
-    def vrrp_id(self):
-        """
-        The VRRP ID. Required only for VRRP mode.
-        
-        :param int value: id for VRRP 
-        :return: int 
-        """
-        return self.data.get('vrrp_id')
-    
-    @vrrp_id.setter
-    def vrrp_id(self, value):
-        self.data['vrrp_id'] = value
-        
-    @property
-    def vrrp_priority(self):
-        """
-        The VRRP Priority. Required only for VRRP mode
-        
-        :param int value: priorty value
-        :return: int
-        """
-        return self.data.get('vrrp_priority')
-    
-    @vrrp_priority.setter
-    def vrrp_priority(self, value):
-        self.data['vrrp_priority'] = value
     
     def __getattr__(self, attr):
         return None
@@ -868,6 +289,9 @@ class SingleNodeInterface(NodeInterface):
     SingleNodeInterface
     This interface is used by single node Layer 3 Firewalls. This type of interface
     can be a management interface as well as a non-management routed interface.
+    
+    :ivar boolean automatic_default_route: Flag to know if the dynamic default route will be automatically 
+        created for this dynamic interface. Used in DHCP interfaces only
     """
     typeof = 'single_node_interface'
     
@@ -887,7 +311,6 @@ class SingleNodeInterface(NodeInterface):
         """
         data = {'address': address,
                 'auth_request': False,
-                'auth_request_source': False,
                 'auth_request_source': False,
                 'primary_heartbeat': False,
                 'backup_heartbeat': False,
@@ -932,26 +355,7 @@ class SingleNodeInterface(NodeInterface):
             data.update({k: v})
             
         return cls(data)
-        
-    def __call__(self):
-        return {self.typeof: self.data}
 
-    @property
-    def automatic_default_route(self):
-        """
-        Flag to know if the dynamic default route will be automatically 
-        created for this dynamic interface. 
-        
-        Used in DHCP interfaces only
-        
-        :return: boolean
-        """
-        return self.data.get('automatic_default_route')
-    
-    @automatic_default_route.setter
-    def automatic_default_route(self, value):
-        self.data['automatic_default_route'] = value
-    
     def __repr__(self):
         if self.vlan_id:
             return '{0}(name={1}, vlan_id={2})'.format(self.__class__.__name__, 

@@ -6,23 +6,20 @@ engine policies.
 
 To get an existing policy::
 
-    Layer2Policy('existing_policy_by_name')
+    >>> from smc.policy.layer2 import Layer2Policy
+    >>> policy = Layer2Policy('MyLayer2Policy')
+    >>> print(policy.template)
+    Layer2TemplatePolicy(name=Layer 2 Firewall Inspection Template)
     
-Or through describe_xxx methods::
+Or through collections::
 
-    for policy in describe_layer2_policy():
-        policy.describe()
-
-Find the available FW templates::
-        
-    for template in describe_layer2_template_policy():
-        print template.name
-        ....
+    >>> from smc.policy.layer2 import Layer2Policy
+    >>> list(Search('layer2_policy').objects.all())
+    [Layer2Policy(name=MyLayer2Policy)]
     
 To create a new policy, use::
 
     policy = Layer2Policy.create(name='newpolicy', template='layer2_fw_template')
-    policy.describe()
     
 Example rule creation::
 

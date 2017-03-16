@@ -388,18 +388,18 @@ class IPList(Element):
         IPList.create(name='mylist', iplist=['1.1.1.1','1.1.1.2', '1.2.3.4'])
         
     Example of downloading the IPList in text format::
-    
-        location = describe_ip_lists(name=[name])
-        if location:
-            iplist = location[0]
-            iplist.download(filename='iplist.txt', as_type='txt')
+        
+        >>> iplist = list(Search('ip_list').objects.filter('mylist'))
+        >>> print(iplist)
+        [IPList(name=mylist)]
+        >>> iplist[0].download(filename='iplist.txt', as_type='txt')
   
     Example of uploading an IPList as a zip file::
     
-        location = describe_ip_lists(name=[name])
-        if location:
-            iplist = location[0]
-            iplist.upload(filename='/path/to/iplist.zip')
+        >>> iplist = list(Search('ip_list').objects.filter('mylist'))
+        >>> print(iplist)
+        [IPList(name=mylist)]
+        iplist[0].upload(filename='/path/to/iplist.zip')
 
     """
     typeof = 'ip_list'
@@ -430,7 +430,7 @@ class IPList(Element):
                 headers={'accept':'text/plain'}
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
-            
+                
             prepared_request(href=self._link('ip_address_list'), 
                              filename=filename,
                              headers=headers).read()
@@ -553,11 +553,17 @@ class Alias(Element):
     applied on. There are many default aliases in SMC
     and new ones can also be created.
     
-    Finding aliases can be achieved by using describe_alias()
+    Finding aliases can be achieved by using collections
     or loading directly if you know the alias name:
     ::
     
-        alias = Alias('$$ Interface ID 0.ip')
+        >>> list(Search('alias').objects.all())
+        [Alias(name=$$ Interface ID 46.net), Alias(name=$$ Interface ID 45.net), etc]
+
+        >>> from smc.elements.network import Alias
+        >>> alias = Alias('$$ Interface ID 0.ip')
+        >>> print(alias)
+        Alias(name=$$ Interface ID 0.ip)
     """
     typeof = 'alias'
     

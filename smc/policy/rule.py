@@ -232,20 +232,27 @@ class IPv4Rule(Rule, SubElement):
     Services have a similar syntax and can take any type of :py:class:`smc.elements.service`
     or  the element href or both::
         
-            services=['http://1.1.1.1/8082/elements/tcp_service/mytcpservice',
-                      'http://1.1.1.1/8082/elements/udp_server/myudpservice',
-                      TCPService('myservice')], etc
+            services=[TCPService('myservice'),
+                      'http://1.1.1.1/8082/elements/tcp_service/mytcpservice',
+                      'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
         
-    You can obtain the href for the network and service elements by using the 
-    :py:mod:`smc.elements.collection` describe functions such as::
+    You can obtain services and href for the elements by using the 
+    :py:class:`smc.elements.resources.Search` collections::
         
-        services=[x.href for x in describe_tcp_service(name=['80','443', 'FTP'])]
-        sources=[x.href for x in describe_network(name=['172.18.1.0'])]
-            
+        >>> services = list(Search('tcp_service').objects.filter('80'))
+        >>> for service in services:
+        ...   print(service, service.href)
+        ... 
+        (TCPService(name=tcp80443), u'http://172.18.1.150:8082/6.1/elements/tcp_service/3535')
+        (TCPService(name=HTTP to Web SaaS), u'http://172.18.1.150:8082/6.1/elements/tcp_service/589')
+        (TCPService(name=HTTP), u'http://172.18.1.150:8082/6.1/elements/tcp_service/440')
+        
     Services by application (get all facebook applications)::
         
-        services = [x.href for x in describe_application_situation(
-                    name=['Facebook'], exact_match=False)]
+        >>> applications = Search('application_situation').objects.filter('facebook')
+        >>> print(list(applications))
+        [ApplicationSituation(name=Facebook-Plugins-Share-Button), ApplicationSituation(name=Facebook-Plugins]
+        ...
 
     Sources / Destinations and Services can also take the string value 'any' to
     allow all. For example::

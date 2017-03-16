@@ -8,6 +8,8 @@ Base
 .. automodule:: smc.base.model
 	:members: ElementBase, Element, SubElement
 
+.. _element-reference-label:
+
 Elements
 --------
 Elements used for various configuration areas within SMC. Element types are made up of
@@ -187,6 +189,13 @@ Other
 +++++
 
 .. automodule:: smc.elements.other
+
+CategoryTag
+***********
+
+.. autoclass:: CategoryTag
+	:members:
+	:show-inheritance:
 
 LogicalInterface
 ****************
@@ -741,15 +750,47 @@ Users
 .. automodule:: smc.elements.user
    :members:
    :show-inheritance:
+
+.. _collection-reference-label:
  
 Collection
 ----------
 
-.. automodule:: smc.elements.collection
+.. automodule:: smc.elements.resources
    :members:
 
 Search
 ------
+
+Low level searching helper functions.
+
+Search provides many front end search functions that enable you to retrieve abbreviated versions of the
+data you requested. All GET requests to the SMC API will return an :class:`SMCResult` with attributes set, however
+there may be cases where you only want a subset of this information. The search module provides these helper
+functions to return the data you need.
+
+Below are some common examples of retrieving data from the SMC:
+
+.. code-block:: python
+
+   #Only return the href of a particular SMC Element:
+   smc.actions.search.element_href(name)
+   
+   #To obtain full json for an SMC Element:
+   smc.actions.search.element_as_json(name)
+   
+   #To obtain full json data and etag information for SMC Element (etag used for modifying an element):
+   smc.actions.search.element_as_json_with_etag(name)
+   
+   #To find all elements by type:
+   smc.actions.search.elements_by_type('host')
+   
+   #To find all available log servers:
+   smc.actions.search.log_servers()
+   
+   #To find all L3 FW policies:
+   smc.actions.search.fw_policies()
+   
 
 .. automodule:: smc.actions.search
    :members:

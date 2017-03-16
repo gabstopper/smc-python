@@ -33,9 +33,9 @@ Element class relationship::
                          ----------------------
                          |                    |
     Element (ElementBase)                     SubElement (ElementBase)
-        |-----------------------------------------------|
-      href = ElementLocator()                         href
-      name                                            name
+        |------------------------------------------------------|
+      href = ElementLocator()                                href
+      name                                                   name
       from_href()                                     
       export()
 
@@ -54,7 +54,7 @@ from smc.api.exceptions import ElementNotFound, LoadEngineFailed,\
 from .util import bytes_to_unicode, unicode_to_bytes, find_link_by_name
 from .mixins import UnicodeMixin
 from smc.base.resource import with_metaclass, Registry
-from smc.base.util import find_type_from_self
+from smc.base.util import find_type_from_self, merge_dicts
 
 def exception(function):
     """
@@ -79,7 +79,7 @@ def prepared_request(*exception, **kwargs):
     otherwise it is only thrown if SMC reports an error. 
     """ 
     return SMCRequest(**kwargs)
-
+    
 def ElementCreator(cls):
     """
     Helper method for create classmethods. Returns the href if
@@ -99,7 +99,7 @@ def ElementFactory(href):
     element = prepared_request(href=href).read()
     if element.json:
         istype = find_type_from_self(element.json.get('link'))
-        typeof = Registry[istype]
+        typeof = lookup_class(istype)
         e = typeof(name=element.json.get('name'),
                    meta=Meta(href=href,
                              type=istype))
@@ -138,8 +138,8 @@ class Cache(object):
     
 class ElementLocator(object):
     """
-    There are two ways to get an elements location, either through the 
-    describe_xxx methods which returns the instance type with the populated
+    There are two ways to get an elements location, either through
+    collections which returns the instance type with the populated
     meta attribute, or by loading the resource directly, i.e. Host('myhost'). 
 
     If the element is loaded directly, it should define a class attribute
@@ -242,6 +242,8 @@ class ElementBase(UnicodeMixin):
     def modify_attribute(self, **kwargs):
         """
         Modify the attribute by key / value pair. 
+        Add append_lists=True kwarg if dict leaf is a list
+        and you want to append, default: replace
         
         :param dict kwargs: key=value pair to change
         :raises: :py:class:`smc.api.exceptions.ElementNotFound`
@@ -251,20 +253,13 @@ class ElementBase(UnicodeMixin):
         element = self.data
         if element.get('system') == True:
             raise ModificationFailed('Cannot modify system element: %s' % self.name)
-        for k, v in kwargs.items():
-            target_value = element.get(k)
-            if isinstance(target_value, dict): #update dict leaf
-                element[k].update(v)
-            elif isinstance(target_value, list): #replace list
-                element[k] = v
-            else: #single key/value
-                element.update({k: v}) #replace str
+        merge_dicts(element, kwargs)
                 
         prepared_request(ModificationFailed,
                          href=self.href,
                          json=element,
                          etag=self.etag).update()
-    
+        
     def _get_resource(self, href):
         """
         Return json for element using href provided
@@ -301,10 +296,12 @@ class ElementBase(UnicodeMixin):
         :raises: ResourceNotFound
         """
         return find_link_by_name(link, self.data.get('link'))
-        
+       
 class Element(ElementBase):
     """
     Base element with common methods shared by inheriting classes
+    
+    :ivar objects: :py:class:`smc.elements.resources.ElementCollection`
     """
     href = ElementLocator()
 
@@ -321,6 +318,17 @@ class Element(ElementBase):
         """
         return ElementFactory(href)
     
+    @classmethod
+    def from_meta(cls, **meta):
+        """
+        Return an instance of an Element based on meta
+        
+        :param dict meta: raw dict meta from smc
+        :return: :py:class:`smc.base.model.Element` type
+        """
+        return lookup_class(meta.get('type'))(name=meta.get('name'),
+                                              meta=Meta(**meta))
+    
     @property
     def name(self):
         """
@@ -330,14 +338,30 @@ class Element(ElementBase):
             return self._name
         else:
             return bytes_to_unicode(self._name)
-  
+    
+    @property
+    def category_tags(self):
+        """
+        Search category tags assigned to this element
+        ::
+        
+            >>> from smc.elements.network import Host
+            >>> Host('kali').category_tags
+            [CategoryTag(name=foo), CategoryTag(name=foocategory)]
+        
+        :return: list :py:class:`smc.elements.other.CategoryTag`
+        """
+        result = prepared_request(href=self._link('search_category_tags_from_element')
+                                  ).read().json
+        return [Element.from_meta(**meta) for meta in result]
+                              
     def export(self, filename='element.zip', wait_for_finish=False):
         """
         Export this element
         
         :param str filename: filename to store exported element
         :param boolean wait_for_finish: wait for update msgs (default: False)
-        :raises: ActionCommandFailed
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
         :return: generator yielding updates on progress, or [] if element cannot
                  be exported, like for system elements
         """
@@ -383,6 +407,9 @@ class SubElement(ElementBase):
         
     def __repr__(self):
         return str(self)
+
+def lookup_class(typeof, default=Element):
+    return Registry._registry.get(typeof, default)
         
 class Meta(namedtuple('Meta', 'name href type')):
     """

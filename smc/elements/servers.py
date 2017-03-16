@@ -15,8 +15,8 @@ class ManagementServer(Element):
     
     It's easiest to get the management server reference through a collection::
     
-        for server in describe_management_servers():
-            print server.name
+        >>> list(Search('mgt_server').objects.all())
+        [ManagementServer(name=Management Server)]
     
     Or load it directly if the name is known and show any contact addresses::
     
@@ -51,8 +51,10 @@ class ManagementServer(Element):
         """
         Add a contact address to this management server::
 
-            mgt = ManagementServer('Management Server')
-            mgt.add_contact_address('33.3.3.3', 'MyNewLocation')
+            >>> from smc.elements.servers import ManagementServer
+            >>> mgmt = ManagementServer('Management Server')
+            >>> print(mgmt.contact_addresses())
+            ...
                 
         :param str contact_address: IP address used as contact address
         :param str location: Name of location to use, will be created if
@@ -91,13 +93,14 @@ class LogServer(Element):
     
      It's easiest to get the management server reference through a collection::
     
-        for server in describe_log_servers():
-            print server.name
+        >>> list(Search('log_server').objects.all())
+        [LogServer(name=LogServer 172.18.1.150)]
     
     Or load it directly if the name is known::
     
-        server = LogServer('Log Server 1.1.1.1')
-        server.contact_addresses()
+        >>> server = LogServer('LogServer 172.18.1.150')
+        >>> print(server.contact_addresses())
+        ...
     """
     typeof = 'log_server'
  

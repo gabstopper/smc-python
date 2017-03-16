@@ -2,7 +2,7 @@ import smc.actions.search as search
 from smc.compat import min_smc_version
 from smc.elements.helpers import domain_helper
 from smc.base.model import Meta, Element, prepared_request, ResourceNotFound,\
-    SubElement
+    SubElement, lookup_class
 from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
     SMCConnectionError, CertificateError, CreateElementFailed
@@ -22,10 +22,8 @@ class Engine(Element):
     
     :ivar name: name of engine
     :ivar type: type of engine
-    :ivar dict json: raw engine json
     :ivar href: href of the engine
     :ivar etag: current etag
-    :ivar link: list link to engine resources
     
     Instance resources:
     
@@ -49,18 +47,19 @@ class Engine(Element):
     :ivar snapshots: :py:class:`smc.core.engine.Snapshot` engine level policy snapshots
 
     """
-    def __init__(self, name, meta=None, **kwargs):
+    def __init__(self, name, meta=None):
         super(Engine, self).__init__(name, meta)
         pass
         
     @classmethod
-    def create(cls, name, node_type, 
-               physical_interfaces,
-               nodes=1, log_server_ref=None, 
-               domain_server_address=None,
-               enable_antivirus=False, enable_gti=False,
-               default_nat=False, location_ref=None,
-               enable_ospf=None, ospf_profile=None):
+    def _create(cls, name, node_type, 
+                physical_interfaces,
+                nodes=1, log_server_ref=None, 
+                domain_server_address=None,
+                enable_antivirus=False, enable_gti=False,
+                sidewinder_proxy_enabled=False,
+                default_nat=False, location_ref=None,
+                enable_ospf=None, ospf_profile=None):
         """
         Create will return the engine configuration as a dict that is a 
         representation of the engine. The creating class will also add 
@@ -105,6 +104,9 @@ class Engine(Element):
             gti = {'gti_settings': {
                         'file_reputation_context': 'gti_cloud_only'}}
             base_cfg.update(gti)
+        if min_smc_version(6.1):
+            if sidewinder_proxy_enabled:
+                base_cfg.update(sidewinder_proxy_enabled=True)
         if default_nat:
             nat = {'default_nat': True}
             base_cfg.update(nat)
@@ -127,13 +129,16 @@ class Engine(Element):
         When engine is loaded, save the attributes that are needed. 
         Engine load can be called directly::
         
-            engine = Engine('myengine').load()
+            >>> from smc.core.engine import Engine
+            >>> engine = Engine('testfw')
+            >>> print(engine.href)
+            http://1.1.1.1:8082/6.1/elements/single_fw/39550
             
-        or load by calling collection.describe_xxx methods::
+        or load by calling collections::
         
-            for fw in describe_single_fws():
-                if fw.name == 'myfw':
-                    engine = fw.load()
+            >>> from smc.elements.resources import Search
+            >>> list(Search('single_fw').objects.filter('testfw'))
+            [Layer3Firewall(name=testfw)]
                     
         Call this to reload settings, useful if changes are made and new 
         configuration references or updated attributes are needed.
@@ -392,7 +397,7 @@ class Engine(Element):
         See :py:class:`smc.core.interfaces.Interface` for more info
         """
         return Interface(meta=Meta(href=self._link('interfaces')), 
-                         engine=self)
+                         engine=self, parent=True)
     
     @property
     def physical_interface(self):
@@ -559,7 +564,8 @@ class Engine(Element):
         """
         element = prepared_request(TaskRunFailed,
                                    href=self._link('upload'),
-                                   params={'filter': policy}).create()
+                                   params={'filter': policy}
+                                   ).create()
         
         return task_handler(Task(**element.json), 
                             wait_for_finish=wait_for_finish,
@@ -594,6 +600,9 @@ class Engine(Element):
         return [Snapshot(meta=Meta(**snapshot))
                 for snapshot in self._get_resource_by_link('snapshots')]
 
+    def __unicode__(self):
+        return u'{0}(name={1})'.format(lookup_class(self.type).__name__, self.name)
+        
 class InternalGateway(SubElement):
     """ 
     InternalGateway represents the engine side VPN configuration

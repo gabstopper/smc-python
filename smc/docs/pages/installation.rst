@@ -35,6 +35,4 @@ To remove the package, simply run:
 
 `pip uninstall smc-python`
 
-For more information on next steps, please see Getting Started.   
-
-
+For more information on next steps, please see creating the session

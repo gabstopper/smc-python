@@ -13,7 +13,15 @@ Contents:
 
    pages/intro
    pages/installation
-   pages/getting_started
+   pages/session
+   pages/resources
+   pages/collections
+   pages/elements
+   pages/engine
+   pages/policy
+   pages/vpn
+   pages/administration
+   pages/logging
    pages/reference
 
 Indices and tables

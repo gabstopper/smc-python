@@ -111,3 +111,8 @@ Global metaclass registry
 $version 0.4.7
 move template, inspection policy to base policy
 element.from_href had etag, cache set backwards
+
+$version 0.4.8
+sidewinder proxy enable for layer3 firewall (version >= 6.1)
+new collections module
+

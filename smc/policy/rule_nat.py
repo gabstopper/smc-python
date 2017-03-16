@@ -506,7 +506,7 @@ class IPv4NATRule(NATRule, SubElement):
         rule_values.update(used_on=used_on)
         return prepared_request(CreateRuleFailed,
                                 href=self.href, 
-                                json=rule_values).create()
+                                json=rule_values).create().href
 
 class IPv6NATRule(IPv4NATRule):
     """

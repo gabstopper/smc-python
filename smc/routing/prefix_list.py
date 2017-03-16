@@ -6,7 +6,7 @@ import smc.actions.search as search
 from smc.base.model import ElementCreator, Element, prepared_request
 from smc.api.exceptions import ModificationFailed
 
-class PrefixList(Element):
+class PrefixList(object):
     """
     PrefixList provides common methods utilized by all
     prefix list operations
@@ -106,7 +106,7 @@ class PrefixList(Element):
                          e.get('max_prefix_length'), e.get('action')))
         return acls
 
-class IPPrefixList(PrefixList):
+class IPPrefixList(PrefixList, Element):
     """
     An IP prefix list specifies a list of networks. When you apply an IP
     prefix list to a neighbor, the device sends or receives only a route
@@ -119,7 +119,7 @@ class IPPrefixList(PrefixList):
         self._name = name
         self.meta = meta
 
-class IPv6PrefixList(PrefixList):
+class IPv6PrefixList(PrefixList, Element):
     """
     An IP prefix list specifies a list of networks. When you apply an IP
     prefix list to a neighbor, the device sends or receives only a route
