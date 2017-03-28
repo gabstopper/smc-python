@@ -1,13 +1,13 @@
 import smc.actions.search as search
 from smc.compat import min_smc_version
 from smc.elements.helpers import domain_helper
-from smc.base.model import Meta, Element, prepared_request, ResourceNotFound,\
+from smc.base.model import Element, prepared_request, ResourceNotFound,\
     SubElement, lookup_class
-from smc.api.exceptions import LoadEngineFailed, UnsupportedEngineFeature,\
+from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
     SMCConnectionError, CertificateError, CreateElementFailed
 from smc.core.node import Node
-from smc.core.resource import Snapshot
+from smc.core.resource import Snapshot, PendingChanges
 from smc.core.interfaces import PhysicalInterface, \
     VirtualPhysicalInterface, TunnelInterface, Interface
 from smc.administration.tasks import task_handler, Task
@@ -18,6 +18,22 @@ from smc.core.route import Antispoofing, Routing, Routes
 
 class Engine(Element):
     """
+    An engine is the top level representation of a firewall, IPS
+    or virtualized software. 
+    
+    Engine load can be called directly::
+        
+        >>> from smc.core.engine import Engine
+        >>> engine = Engine('testfw')
+        >>> print(engine.href)
+        http://1.1.1.1:8082/6.1/elements/single_fw/39550
+            
+        or load by calling collections::
+        
+        >>> from smc.elements.resources import Search
+        >>> list(Search('single_fw').objects.filter('testfw'))
+        [Layer3Firewall(name=testfw)]
+            
     Instance attributes:
     
     :ivar name: name of engine
@@ -34,21 +50,22 @@ class Engine(Element):
     :ivar routing_monitoring: :py:class:`smc.core.route.Routes` current route table
     :ivar antispoofing: :py:class:`smc.core.route.Antispoofing` antispoofing interface
           configuration
-    :ivar interface: :py:class:`smc.core.interfaces.Interface` interfaces 
-          for this engine
     :ivar internal_gateway: :py:class:`~InternalGateway` engine 
           level VPN settings
     :ivar virtual_resource: :py:class:`smc.core.engine.VirtualResource` for engine, 
-          only relavant to Master Engine
+          only relevant to Master Engine
+    :ivar interface: :py:class:`smc.core.interfaces.Interface` interfaces 
+          for this engine
     :ivar physical_interface: :py:class:`smc.core.interfaces.PhysicalInterface` 
           access to physical interface settings
     :ivar tunnel_interface: :py:class:`smc.core.interfaces.TunnelInterface` 
           retrieve or create tunnel interfaces
     :ivar snapshots: :py:class:`smc.core.engine.Snapshot` engine level policy snapshots
-
     """
-    def __init__(self, name, meta=None):
-        super(Engine, self).__init__(name, meta)
+    typeof = 'engine_clusters'
+    
+    def __init__(self, name, **meta):
+        super(Engine, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -75,7 +92,7 @@ class Engine(Element):
         """
         node_list = []
         for nodeid in range(1, nodes+1): #start at nodeid=1
-            node_list.append(Node.create(name, node_type, nodeid))
+            node_list.append(Node._create(name, node_type, nodeid))
             
         domain_server_list = []
         if domain_server_address:
@@ -123,7 +140,7 @@ class Engine(Element):
             base_cfg.update(ospf)
         
         return base_cfg
-          
+    '''     
     def load(self):
         """ 
         When engine is loaded, save the attributes that are needed. 
@@ -164,11 +181,18 @@ class Engine(Element):
                                                'name is correct and that the engine exists. '
                                                'Search returned: {}'
                                                .format(self._name, names))
-            self.cache()
+            self.cache(force_refresh=True)
             return self    
 
         except LoadEngineFailed:
             raise
+    '''
+    
+    @property
+    def type(self):
+        if not self.meta:
+            self.cache()
+        return self.meta.type
 
     @property
     def version(self):
@@ -176,14 +200,6 @@ class Engine(Element):
         Version of this engine
         """
         return self.attr_by_name('engine_version')
-        
-    @property
-    def type(self):
-        """
-        Engine type
-        """
-        if not self.meta: self.load()    
-        return self.meta.type
     
     def rename(self, name):
         """
@@ -206,9 +222,9 @@ class Engine(Element):
         
         :return: list :py:class:`smc.core.node.Node`
         """
-        return [Node(meta=Meta(**node))
-                for node in self._get_resource_by_link('nodes')]
-
+        return [Node(**node)
+                for node in self.resource.get('nodes')]
+    
     @property
     def permissions(self):
         """
@@ -221,7 +237,7 @@ class Engine(Element):
         :return: list :py:class:`smc.administration.access_rights.AccessControlList`
         """
         try:
-            acls = self._get_resource_by_link('permissions')
+            acls = self.resource.get('permissions')
             return [Element.from_href(acl) 
                     for acl in acls['granted_access_control_list']]
     
@@ -229,6 +245,23 @@ class Engine(Element):
             raise UnsupportedEngineFeature('Engine permissions are only supported '
                                            'when using SMC API version 6.1 and newer.')
     
+    @property
+    def pending_changes(self):
+        """
+        Pending changes provides insight into changes on an engine that are
+        pending approval or disapproval. Feature requires SMC >= v6.2.
+        
+        :raises: `smc.api.exceptions.UnsupportedEngineFeature` if SMC is not
+            version >= 6.2 or the engine type doesn't support pending changes
+        :return: :py:class:`smc.core.resources.PendingChanges`
+        """
+        try:
+            if self.resource.pending_changes:
+                return PendingChanges(self.resource)
+        except ResourceNotFound:
+            raise UnsupportedEngineFeature('Pending changes is an unsupported feature '
+                                           'on this engine: {}'.format(self.type))
+               
     def alias_resolving(self):
         """ 
         Alias definitions with resolved values as defined on this engine. 
@@ -239,7 +272,7 @@ class Engine(Element):
         
         :return: generator :py:class:`smc.elements.network.Alias`
         """
-        for alias in self._get_resource_by_link('alias_resolving'):
+        for alias in self.resource.get('alias_resolving'):
             yield Alias.load(alias)
   
     def blacklist(self, src, dst, duration=3600):
@@ -254,7 +287,7 @@ class Engine(Element):
         :return: None
         """
         prepared_request(EngineCommandFailed,
-                         href=self._link('blacklist'),
+                         href=self.resource.blacklist,
                          json=prepare_blacklist(src, dst, duration)
                          ).create()
 
@@ -266,7 +299,7 @@ class Engine(Element):
         :return: None
         """
         prepared_request(EngineCommandFailed,
-                         href=self._link('flush_blacklist')
+                         href=self.resource.flush_blacklist
                          ).delete()
     
     def add_route(self, gateway, network):
@@ -284,7 +317,7 @@ class Engine(Element):
         :return: None
         """
         prepared_request(EngineCommandFailed,
-                         href=self._link('add_route'),
+                         href=self.resource.add_route,
                          params={'gateway': gateway, 
                                  'network': network}
                          ).create()
@@ -300,9 +333,9 @@ class Engine(Element):
 
         :return: :py:class:`smc.core.route.Routing`
         """
-        href = self._link('routing')
-        return Routing(meta=Meta(href=href),
-                       data=self._get_resource(href))
+        href = self.resource.routing
+        return Routing(href=href,
+                       data=self.resource.get(href))
     
     @property
     def routing_monitoring(self):
@@ -323,7 +356,7 @@ class Engine(Element):
         """
         try:
             result = prepared_request(EngineCommandFailed,
-                                      href=self._link('routing_monitoring')
+                                      href=self.resource.routing_monitoring
                                       ).read()
             return Routes(result.json)
         except SMCConnectionError:
@@ -341,9 +374,10 @@ class Engine(Element):
         
         :return: :py:class:`smc.core.route.Antispoofing`
         """
-        href = self._link('antispoofing')
-        return Antispoofing(meta=Meta(href=href),
-                            data=self._get_resource(href))
+        href = self.resource.antispoofing
+        return Antispoofing(href=href,
+                            data=self.resource.get(href))
+    
     @property
     def internal_gateway(self):
         """ 
@@ -355,9 +389,9 @@ class Engine(Element):
         :return: :py:class:`~InternalGateway`
         """
         try:
-            result = self._get_resource_by_link('internal_gateway')
+            result = self.resource.get('internal_gateway')
             if result:
-                return InternalGateway(meta=Meta(**result.pop()))
+                return InternalGateway(**result.pop())
         except ResourceNotFound:
             raise UnsupportedEngineFeature('This engine does not support an internal '
                                            'gateway for VPN, engine type: {}'\
@@ -375,7 +409,7 @@ class Engine(Element):
         :return: :py:class:`smc.elements.engine.VirtualResource`
         """
         try:
-            return VirtualResource(meta=Meta(href=self._link('virtual_resources')))
+            return VirtualResource(href=self.resource.virtual_resources)
         except ResourceNotFound:
             raise UnsupportedEngineFeature('This engine does not support virtual '
                                            'resources; engine type: {}'\
@@ -396,9 +430,9 @@ class Engine(Element):
         
         See :py:class:`smc.core.interfaces.Interface` for more info
         """
-        return Interface(meta=Meta(href=self._link('interfaces')), 
-                         engine=self, parent=True)
-    
+        return Interface(href=self.resource.interfaces, 
+                         engine=self)
+        
     @property
     def physical_interface(self):
         """ 
@@ -412,12 +446,13 @@ class Engine(Element):
         :return: :py:class:`smc.core.interfaces.PhysicalInterface`
         """
         try:
-            return PhysicalInterface(meta=Meta(href=self._link('physical_interface')), 
+            return PhysicalInterface(href=self.resource.physical_interface, 
                                      engine=self)
         except ResourceNotFound:
             raise UnsupportedInterfaceType('Engine type: {} does not support the '
                                            'physical interface type'\
                                            .format(self.type))
+
     @property    
     def virtual_physical_interface(self):
         """ Master Engine virtual instance only
@@ -435,7 +470,7 @@ class Engine(Element):
         :return: :py:class:`smc.core.interfaces.VirtualPhysicalInterface`
         """
         try:
-            return VirtualPhysicalInterface(meta=Meta(href=self._link('virtual_physical_interface')), 
+            return VirtualPhysicalInterface(href=self.resource.virtual_physical_interface, 
                                             engine=self)
         except ResourceNotFound:
             raise UnsupportedInterfaceType('Only virtual engines support the '
@@ -452,7 +487,7 @@ class Engine(Element):
         :return: :py:class:`smc.core.interfaces.TunnelInterface`
         """
         try:
-            return TunnelInterface(meta=Meta(href=self._link('tunnel_interface')), 
+            return TunnelInterface(href=self.resource.tunnel_interface, 
                                    engine=self)
         except ResourceNotFound:
             raise UnsupportedInterfaceType('Tunnel interfaces are only supported on '
@@ -468,7 +503,7 @@ class Engine(Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self._get_resource_by_link('modem_interface')
+            return self.resource.get('modem_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType('Modem interfaces are not supported '
                                            'on this engine type: {}'
@@ -482,7 +517,7 @@ class Engine(Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self._get_resource_by_link('adsl_interface')
+            return self.resource.get('adsl_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType('ADSL interfaces are not supported '
                                            'on this engine type: {}'
@@ -496,7 +531,7 @@ class Engine(Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self._get_resource_by_link('wireless_interface')
+            return self.resource.get('wireless_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType('Wireless interfaces are not supported '
                                            'on this engine type: {}'
@@ -510,7 +545,7 @@ class Engine(Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self._get_resource_by_link('switch_physical_interface')
+            return self.resource.get('switch_physical_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType('Switch interfaces are not supported '
                                            'on this engine type: {}'
@@ -535,7 +570,7 @@ class Engine(Element):
         :return: generator yielding updates on progress
         """
         element = prepared_request(TaskRunFailed,
-                                   href=self._link('refresh')
+                                   href=self.resource.refresh
                                    ).create()
        
         return task_handler(Task(**element.json), 
@@ -563,7 +598,7 @@ class Engine(Element):
         :return: generator yielding updates on progress
         """
         element = prepared_request(TaskRunFailed,
-                                   href=self._link('upload'),
+                                   href=self.resource.upload,
                                    params={'filter': policy}
                                    ).create()
         
@@ -582,7 +617,7 @@ class Engine(Element):
         """
         try:
             prepared_request(EngineCommandFailed,
-                             href=self._link('generate_snapshot'), 
+                             href=self.resource.generate_snapshot, 
                              filename=filename
                              ).read()
         except IOError as e:
@@ -597,8 +632,8 @@ class Engine(Element):
         :return: list :py:class:`smc.core.engine.Snapshot`
         :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
         """
-        return [Snapshot(meta=Meta(**snapshot))
-                for snapshot in self._get_resource_by_link('snapshots')]
+        return [Snapshot(**snapshot)
+                for snapshot in self.resource.get('snapshots')]
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(lookup_class(self.type).__name__, self.name)
@@ -622,8 +657,8 @@ class InternalGateway(SubElement):
     :ivar vpn_site: vpn site object
     :ivar internal_endpoint: interface endpoint mappings (where to enable VPN) 
     """
-    def __init__(self, meta=None, **kwargs):
-        super(InternalGateway, self).__init__(meta)
+    def __init__(self, **meta):
+        super(InternalGateway, self).__init__(**meta)
         pass
 
     @property
@@ -638,7 +673,7 @@ class InternalGateway(SubElement):
 
         :return: :py:class:`smc.vpn.elements.VPNSite`
         """
-        return VPNSite(meta=Meta(href=self._link('vpn_site')))
+        return VPNSite(href=self.resource.vpn_site)
     
     @property
     def internal_endpoint(self):
@@ -652,19 +687,19 @@ class InternalGateway(SubElement):
 
         :return: list :py:class:`smc.vpn.elements.InternalEndpoint`
         """
-        return InternalEndpoint(meta=Meta(href=self._link('internal_endpoint')))
+        return InternalEndpoint(href=self.resource.internal_endpoint)
     
     def gateway_certificate(self):
         """
         :return: list
         """
-        return self._get_resource_by_link('gateway_certificate')
+        return self.resource.get('gateway_certificate')
     
     def gateway_certificate_request(self):
         """
         :return: list
         """
-        return self._get_resource_by_link('gateway_certificate_request')   
+        return self.resource.get('gateway_certificate_request')   
     
     def generate_certificate(self, certificate_request):
         """
@@ -677,8 +712,9 @@ class InternalGateway(SubElement):
         :raises: :py:class:`smc.api.exceptions.CertificateError`
         """
         prepared_request(CertificateError,
-                         href=self._link('generate_certificate'),
-                         json=vars(certificate_request)).create()
+                         href=self.resource.generate_certificate,
+                         json=vars(certificate_request)
+                         ).create()
 
 class InternalEndpoint(SubElement):
     """
@@ -703,8 +739,8 @@ class InternalEndpoint(SubElement):
     
     :param href: pass in href to init which will have engine insert location  
     """
-    def __init__(self, meta=None):
-        super(InternalEndpoint, self).__init__(meta)
+    def __init__(self, **meta):
+        super(InternalEndpoint, self).__init__(**meta)
         pass
     
     def all(self):
@@ -713,7 +749,7 @@ class InternalEndpoint(SubElement):
         
         :return: list :py:class:`smc.core.engine.InternalEndpoint`
         """
-        return [InternalEndpoint(meta=Meta(**ep))
+        return [InternalEndpoint(**ep)
                 for ep in self._get_resource(self.href)]
         
 class VirtualResource(SubElement):
@@ -744,8 +780,8 @@ class VirtualResource(SubElement):
 
     :param meta: meta is provided from the engine.virtual_resource method
     """
-    def __init__(self, meta=None):
-        super(VirtualResource, self).__init__(meta)
+    def __init__(self, **meta):
+        super(VirtualResource, self).__init__(**meta)
         pass 
    
     @property
@@ -775,7 +811,8 @@ class VirtualResource(SubElement):
         
         return prepared_request(CreateElementFailed,
                                 href=self.href,
-                                json=json).create().href
+                                json=json
+                                ).create().href
     
     def all(self):
         """
@@ -787,5 +824,5 @@ class VirtualResource(SubElement):
         
         :return: list VirtualResource
         """
-        return [VirtualResource(meta=Meta(**resource))
+        return [VirtualResource(**resource)
                 for resource in self._get_resource(self.href)]

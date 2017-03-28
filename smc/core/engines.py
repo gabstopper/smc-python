@@ -3,7 +3,7 @@ from smc.core.interfaces import PhysicalInterface, VirtualPhysicalInterface,\
     _interface_helper
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed
-from smc.base.model import prepared_request, Meta
+from smc.base.model import prepared_request
 from smc.elements.helpers import logical_intf_helper
 
 class Layer3Firewall(Engine):
@@ -19,8 +19,8 @@ class Layer3Firewall(Engine):
     """
     typeof = 'single_fw'
     
-    def __init__(self, name, meta=None):
-        super(Layer3Firewall, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(Layer3Firewall, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -81,8 +81,8 @@ class Layer3Firewall(Engine):
         result = prepared_request(href=href, json=engine).create()
         if result.href:
             return Engine(name=name, 
-                          meta=Meta(name=name, href=result.href, 
-                                    type='single_fw'))
+                          href=result.href, 
+                          type='single_fw')
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}.'
@@ -99,8 +99,8 @@ class Layer2Firewall(Engine):
     """
     typeof = 'single_layer2'
     
-    def __init__(self, name, meta=None):
-        super(Layer2Firewall, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(Layer2Firewall, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -156,8 +156,8 @@ class Layer2Firewall(Engine):
                                   json=engine).create()
         if result.href:
             return Engine(name=name, 
-                          meta=Meta(name=name, href=result.href,
-                                    type='single_layer2'))
+                          href=result.href,
+                          type='single_layer2')
         else:
             raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))   
@@ -168,8 +168,8 @@ class IPS(Engine):
     """
     typeof = 'single_ips'
     
-    def __init__(self, name, meta=None):
-        super(IPS, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(IPS, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -225,8 +225,8 @@ class IPS(Engine):
                                   json=engine).create()
         if result.href:
             return Engine(name=name, 
-                          meta=Meta(name=name, href=result.href,
-                                    type='single_ips'))
+                          href=result.href,
+                          type='single_ips')
         else:
             raise CreateEngineFailed('Could not create the engine, reason: {}'
                                      .format(result.msg))
@@ -250,8 +250,8 @@ class Layer3VirtualEngine(Engine):
     """
     typeof = 'virtual_fw'
     
-    def __init__(self, name, meta=None):
-        super(Layer3VirtualEngine, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(Layer3VirtualEngine, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -318,8 +318,8 @@ class Layer3VirtualEngine(Engine):
         result = prepared_request(href=href, json=engine).create()
         if result.href:
             return Engine(name=name, 
-                          meta=Meta(name=name, href=result.href,
-                                    type='virtual_fw'))
+                          href=result.href,
+                          type='virtual_fw')
         else:
             raise CreateEngineFailed('Could not create the virtual engine, '
                                      'reason: {}'
@@ -336,8 +336,8 @@ class FirewallCluster(Engine):
     """
     typeof = 'fw_cluster'
     
-    def __init__(self, name, meta=None):
-        super(FirewallCluster, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(FirewallCluster, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -402,8 +402,8 @@ class FirewallCluster(Engine):
                                   json=engine).create()
         if result.href:
             return Engine(name=name,
-                          meta=Meta(name=name, href=result.href,
-                                    type='fw_cluster'))
+                          href=result.href,
+                          type='fw_cluster')
         else:
             raise CreateEngineFailed('Could not create the firewall, '
                                      'reason: {}'
@@ -416,8 +416,8 @@ class MasterEngine(Engine):
     """
     typeof = 'master_engine'
     
-    def __init__(self, name, meta=None):
-        super(MasterEngine, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(MasterEngine, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -465,8 +465,8 @@ class MasterEngine(Engine):
                                   json=engine).create()
         if result.href:
             return Engine(name=name, 
-                          meta=Meta(name=name, href=result.href,
-                                    type='master_engine'))
+                          href=result.href,
+                          type='master_engine')
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'
@@ -478,8 +478,8 @@ class MasterEngineCluster(Engine):
     Clusters are currently supported in an active/standby configuration
     only. 
     """
-    def __init__(self, name, meta=None):
-        super(MasterEngineCluster, self).__init__(name,meta)
+    def __init__(self, name, **meta):
+        super(MasterEngineCluster, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -539,8 +539,8 @@ class MasterEngineCluster(Engine):
                                   json=engine).create()
         if result.href:
             return Engine(name=name,
-                          meta=Meta(name=name, href=result.href,
-                                    type='master_engine'))
+                          href=result.href,
+                          type='master_engine')
         else:
             raise CreateEngineFailed('Could not create the engine, '
                                      'reason: {}'

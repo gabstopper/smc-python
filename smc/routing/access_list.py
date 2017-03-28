@@ -108,8 +108,8 @@ class IPAccessList(AccessList, Element):
     """
     typeof = 'ip_access_list'
   
-    def __init__(self, name, meta=None):
-        super(IPAccessList, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPAccessList, self).__init__(name, **meta)
         pass
        
 class IPv6AccessList(AccessList, Element):
@@ -120,7 +120,7 @@ class IPv6AccessList(AccessList, Element):
     """
     typeof = 'ipv6_access_list'
   
-    def __init__(self, name, meta=None):
-        super(IPv6AccessList, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPv6AccessList, self).__init__(name, **meta)
         pass
     

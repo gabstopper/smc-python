@@ -36,8 +36,8 @@ class Node(SubElement):
     :ivar disabled: whether node is disabled or not
     :ivar href: href of this resource
     """
-    def __init__(self, meta=None):
-        super(Node, self).__init__(meta)
+    def __init__(self, **meta):
+        super(Node, self).__init__(**meta)
         pass
 
     @property
@@ -55,7 +55,7 @@ class Node(SubElement):
         return self.attr_by_name('nodeid')
 
     @classmethod
-    def create(cls, name, node_type, nodeid=1):
+    def _create(cls, name, node_type, nodeid=1):
         """
         Create the node/s for the engine. This isn't called directly,
         instead it is used when engine.create() is called
@@ -82,7 +82,8 @@ class Node(SubElement):
         """
         try:
             prepared_request(LicenseError,
-                             href=self._link('fetch')).create()
+                             href=self.resource.fetch
+                             ).create()
         except ResourceNotFound:
             pass
     
@@ -97,8 +98,9 @@ class Node(SubElement):
         params = {'license_item_id': license_item_id}
         try:
             prepared_request(LicenseError,
-                             href=self._link('bind'), 
-                             params=params).create()
+                             href=self.resource.bind, 
+                             params=params
+                             ).create()
         except ResourceNotFound:
             pass
         
@@ -111,7 +113,8 @@ class Node(SubElement):
         """
         try:
             prepared_request(LicenseError,
-                             href=self._link('unbind')).create()
+                             href=self.resource.unbind
+                             ).create()
         except ResourceNotFound:
             pass
 
@@ -124,7 +127,8 @@ class Node(SubElement):
         """
         try:
             prepared_request(LicenseError,
-                             href=self._link('cancel_unbind')).create()
+                             href=self.resource.cancel_unbind
+                             ).create()
         except ResourceNotFound:
             pass
 
@@ -146,8 +150,9 @@ class Node(SubElement):
         :raises: :py:class:`smc.api.exceptions.NodeCommandFailed` 
         """
         try:
-            result = prepared_request(href=self._link('initial_contact'),
-                                      params={'enable_ssh': enable_ssh}).create()
+            result = prepared_request(href=self.resource.initial_contact,
+                                      params={'enable_ssh': enable_ssh}
+                                      ).create()
             if result.content:
                 if filename:
                     try:
@@ -169,7 +174,7 @@ class Node(SubElement):
         :return: list of status information
         """
         result = prepared_request(NodeCommandFailed,
-                                  href=self._link('appliance_status')
+                                  href=self.resource.appliance_status
                                   ).read()
         return ApplianceStatus(result.json)
     
@@ -181,7 +186,8 @@ class Node(SubElement):
         :return: :py:class:`~NodeStatus`
         """
         result = prepared_request(NodeCommandFailed,
-                                  href=self._link('status')).read()
+                                  href=self.resource.status
+                                  ).read()
         return NodeStatus(**result.json)
 
     def go_online(self, comment=None):
@@ -196,8 +202,9 @@ class Node(SubElement):
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
-                         href=self._link('go_online'),
-                         params=params).update()
+                         href=self.resource.go_online,
+                         params=params
+                         ).update()
 
     def go_offline(self, comment=None):
         """ 
@@ -209,8 +216,9 @@ class Node(SubElement):
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
-                         href=self._link('go_offline'),
-                         params=params).update()
+                         href=self.resource.go_offline,
+                         params=params
+                         ).update()
 
     def go_standby(self, comment=None):
         """ 
@@ -223,8 +231,9 @@ class Node(SubElement):
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
-                         href=self._link('go_standby'),
-                         params=params).update()
+                         href=self.resource.go_standby,
+                         params=params
+                         ).update()
 
     def lock_online(self, comment=None):
         """ 
@@ -236,8 +245,9 @@ class Node(SubElement):
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
-                         href=self._link('lock_online'),
-                         params=params).update()
+                         href=self.resource.lock_online,
+                         params=params
+                         ).update()
 
     def lock_offline(self, comment=None):
         """ 
@@ -250,8 +260,9 @@ class Node(SubElement):
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
-                         href=self._link('lock_offline'),
-                         params=params).update()
+                         href=self.resource.lock_offline,
+                         params=params
+                         ).update()
 
     def reset_user_db(self, comment=None):
         """ 
@@ -265,8 +276,9 @@ class Node(SubElement):
         params = {'comment': comment}
         try:
             prepared_request(NodeCommandFailed,
-                             href=self._link('reset_user_db'),
-                             params=params).update()
+                             href=self.resource.reset_user_db,
+                             params=params
+                             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed('Reset userdb not supported on this node type')
     
@@ -291,8 +303,9 @@ class Node(SubElement):
         params={'filter_enabled': filter_enabled}
         try:
             result = prepared_request(NodeCommandFailed,
-                                      href=self._link('diagnostic'),
-                                      params=params).read()
+                                      href=self.resource.diagnostic,
+                                      params=params
+                                      ).read()
             return [(Diagnostic(**diagnostic))
                     for diagnostic in result.json.get('diagnostics')]
         except ResourceNotFound:
@@ -327,8 +340,9 @@ class Node(SubElement):
         for setting in diagnostic:
             debug.append(vars(setting))
         prepared_request(NodeCommandFailed,
-                         href=self._link('send_diagnostic'),
-                         json={'diagnostics': debug}).create()
+                         href=self.resource.send_diagnostic,
+                         json={'diagnostics': debug}
+                         ).create()
 
     def reboot(self, comment=None):
         """ 
@@ -340,8 +354,9 @@ class Node(SubElement):
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
-                         href=self._link('reboot'),
-                         params=params).update()
+                         href=self.resource.reboot,
+                         params=params
+                         ).update()
  
     def sginfo(self, include_core_files=False,
                include_slapcat_output=False,
@@ -370,8 +385,9 @@ class Node(SubElement):
         params = {'enable': enable, 'comment': comment}
         try:
             prepared_request(NodeCommandFailed,
-                             href=self._link('ssh'),
-                             params=params).update()
+                             href=self.resource.ssh,
+                             params=params
+                             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed('SSH not supported on this node type: {}'
                                     .format(self.type))
@@ -388,9 +404,10 @@ class Node(SubElement):
         params = {'comment': comment}
         try:
             prepared_request(NodeCommandFailed,
-                             href=self._link('change_ssh_pwd'),
+                             href=self.resource.change_ssh_pwd,
                              params=params, 
-                             json={'value': pwd}).update()
+                             json={'value': pwd}
+                             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed('Change SSH pwd not supported on this node type: {}'
                                     .format(self.type))
@@ -404,7 +421,8 @@ class Node(SubElement):
         """
         try:
             prepared_request(NodeCommandFailed,
-                             href=self._link('time_sync')).update()
+                             href=self.resource.time_sync
+                             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed('Time sync not supported on this node type: {}'
                                     .format(self.type))
@@ -417,7 +435,7 @@ class Node(SubElement):
         
         :return: dict with links to cert info
         """
-        return self._get_resource_by_link('certificate_info')
+        return self.resource.get('certificate_info')
     
 class NodeStatus(object):
     """

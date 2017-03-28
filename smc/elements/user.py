@@ -16,7 +16,8 @@ class UserCommon(object):
         :return: None
         """
         prepared_request(ModificationFailed,
-                         href=self._link('enable_disable')).update()
+                         href=self.resource.enable_disable
+                         ).update()
 
     def change_password(self, password):
         """ Change user password
@@ -25,8 +26,9 @@ class UserCommon(object):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         prepared_request(ModificationFailed,
-                         href=self._link('change_password'), 
-                         params={'password': password}).update()
+                         href=self.resource.change_password, 
+                         params={'password': password}
+                         ).update()
                                 
 
 class AdminUser(UserCommon, Element):
@@ -53,8 +55,8 @@ class AdminUser(UserCommon, Element):
     """
     typeof = 'admin_user'
 
-    def __init__(self, name, meta=None):
-        super(AdminUser, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(AdminUser, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -80,8 +82,9 @@ class AdminUser(UserCommon, Element):
         :return: None
         """
         prepared_request(ModificationFailed,
-                         href=self._link('change_engine_password'), 
-                         params={'password': password}).update()
+                         href=self.resource.change_engine_password, 
+                         params={'password': password}
+                         ).update()
 
 class ApiClient(UserCommon, Element):
     """
@@ -89,7 +92,7 @@ class ApiClient(UserCommon, Element):
     """
     typeof = 'api_client'
 
-    def __init__(self, name, meta=None):
-        super(ApiClient, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ApiClient, self).__init__(name, **meta)
         pass
     

@@ -1,5 +1,5 @@
 from smc.policy.policy import Policy
-from smc.base.model import Meta, SubElement
+from smc.base.model import SubElement
 
 class FileFilteringRule(SubElement):
     """
@@ -7,8 +7,8 @@ class FileFilteringRule(SubElement):
     """
     typeof = 'file_filtering_rule'
     
-    def __init__(self, meta):
-        super(FileFilteringRule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(FileFilteringRule, self).__init__(**meta)
         pass
         
     def create(self):
@@ -26,7 +26,7 @@ class FileFilteringRule(SubElement):
         
             for rule in FileFiltering('mypolicy).
         """ 
-        return [type(self)(meta=Meta(**rule))
+        return [type(self)(**rule)
                 for rule in self._get_resource(self.href)]
         
 class FileFilteringPolicy(Policy):
@@ -39,8 +39,8 @@ class FileFilteringPolicy(Policy):
     """
     typeof = 'file_filtering_policy'
     
-    def __init__(self, name, meta=None):
-        super(FileFilteringPolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(FileFilteringPolicy, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -53,4 +53,4 @@ class FileFilteringPolicy(Policy):
     
     @property
     def file_filtering_rules(self):
-        return FileFilteringRule(meta=Meta(href=self._link('file_filtering_rules')))
+        return FileFilteringRule(href=self.resource.file_filtering_rules)

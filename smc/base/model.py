@@ -44,14 +44,12 @@ container functionality may inherit from object.
 """
 from collections import namedtuple
 import functools
-import smc.core
 import smc.compat as compat
-from smc.api.common import SMCRequest
-import smc.actions.search as search
-from smc.api.exceptions import ElementNotFound, LoadEngineFailed,\
+from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
+from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
     DeleteElementFailed, FetchElementFailed, ActionCommandFailed
-from .util import bytes_to_unicode, unicode_to_bytes, find_link_by_name
+from .util import bytes_to_unicode, unicode_to_bytes
 from .mixins import UnicodeMixin
 from smc.base.resource import with_metaclass, Registry
 from smc.base.util import find_type_from_self, merge_dicts
@@ -85,7 +83,7 @@ def ElementCreator(cls):
     Helper method for create classmethods. Returns the href if
     creation is successful
     """
-    result = SMCRequest(href=search.element_entry_point(cls.typeof), 
+    result = SMCRequest(href=fetch_entry_point(cls.typeof),  
                         json=cls.json).create()
     if result.msg:
         raise CreateElementFailed(result.msg)
@@ -101,11 +99,44 @@ def ElementFactory(href):
         istype = find_type_from_self(element.json.get('link'))
         typeof = lookup_class(istype)
         e = typeof(name=element.json.get('name'),
-                   meta=Meta(href=href,
-                             type=istype))
+                   href=href,
+                   type=istype)
         e._cache = Cache(e, element.json, element.etag)
         return e
-                    
+
+class ElementResource:
+    """
+    Convenience class to provide dotted access to resource links.
+    Resource links are referenced in the element as a list with
+    dict items in format {'href', 'rel'}. Attributes are added
+    dynamically using 'rel' as name and href as the value. This 
+    makes it possible to access a link via self.resource.rel
+    """
+    def name(self, href):
+        """
+        Have the href, reverse call to get name of element
+        """
+        resource = prepared_request(FetchElementFailed, 
+                                    href=href).read().json 
+        if resource: 
+            return resource.get('name')
+    
+    def get(self, resource):
+        """
+        Get the json for the resource. This can be either an
+        href or the 'rel' link name which will retrieve the
+        href from this class.
+        """
+        if not resource.startswith('http'):
+            resource = getattr(self, resource)
+        return prepared_request(FetchElementFailed,
+                                href=resource
+                                ).read().json
+        
+    def __getattr__(self, link):
+        raise ResourceNotFound('Resource requested: %r is not '
+                               'available on this element.' % link)
+                
 class Cache(object):
     """    
     Cache can be applied at the element level to provide an
@@ -115,7 +146,7 @@ class Cache(object):
     the element. If no changes occurred on the SMC, the changes
     are submitted, otherwise merged before submitting.
     """
-    __slots__ = ('_cache', 'instance')
+    __slots__ = ('_cache', 'instance', '_resource')
         
     def __init__(self, instance, json=None, etag=None):
         self.instance = instance
@@ -123,6 +154,8 @@ class Cache(object):
             self._cache = (etag, json)
         else:
             self._cache = None
+            
+        self._resource = None #Expanded link references
         
     def __call__(self, *args, **kwargs):
         if self._cache is None:
@@ -136,6 +169,16 @@ class Cache(object):
                 self._cache = (result.etag, result.json)
         return self._cache
     
+    @property
+    def resource(self):
+        if self._resource is None:
+            data = self()[1]
+            self._resource = ElementResource() 
+            for x in data.get('link'): 
+                setattr(self._resource, 
+                        x.get('rel'), x.get('href')) 
+        return self._resource
+                 
 class ElementLocator(object):
     """
     There are two ways to get an elements location, either through
@@ -162,23 +205,14 @@ class ElementLocator(object):
             return instance.meta.href
         else:
             if hasattr(instance, 'typeof'):
-                element = search.element_info_as_json_with_filter(
-                                                instance.name, instance.typeof)
-                if element:
-                    instance.meta = Meta(**element[0])
+                element = fetch_href_by_name(
+                    instance.name, filter_context=instance.typeof)
+                if element.json:
+                    instance.meta = Meta(**element.json[0])
                     return instance.meta.href
                 raise ElementNotFound('Cannot find specified element: {}, type: {}'
                                       .format(unicode_to_bytes(instance.name), 
                                               instance.typeof))
-            elif isinstance(instance, smc.core.engine.Engine):
-                element = search.element_info_as_json_with_filter(instance.name, 
-                                                                 'engine_clusters')
-                if element:
-                    instance.meta = Meta(**element[0])
-                    return instance.meta.href
-                raise LoadEngineFailed('Cannot load engine name: {}, ensure the '
-                                       'name is correct and that the engine exists.'
-                                       .format(instance.name))
             else:
                 raise ElementNotFound('This class does not have the required attribute '
                                       'and cannot be referenced directly, type: {}'
@@ -189,17 +223,29 @@ class ElementBase(UnicodeMixin):
     """
     Element base provides a meta data container and an
     instance cache as well as methods to retrieve aspects
-    of an element such as href, etag and full json.
+    of an element.
+    Meta is passed in to Element and SubElement types to provide 
+    links to resources. Meta format: {'href','type','name'}.
+    Meta can be passed to constructor in following ways:
+        **meta
+        href=.... (only partial meta)
+        meta={.....} (as dict)
+            
+    If meta is not provided, the meta attribute will be None 
     """
-    def __init__(self, meta):
-        self.meta = meta
+    def __init__(self, **meta):
+        meta_as_kw = meta.pop('meta', None)
+        if meta_as_kw:
+            self.meta = Meta(**meta_as_kw)
+        else:
+            self.meta = Meta(**meta) if meta else None
         
     @property
     def cache(self):
         attr = getattr(self, '_cache', None)
         if attr is None:
-            attr = self._cache = Cache(self)
-        return attr
+            setattr(self, '_cache', Cache(self))
+        return self._cache
     
     def add_cache(self, data, etag=None):
         self._cache = Cache(self, data, etag)
@@ -215,11 +261,10 @@ class ElementBase(UnicodeMixin):
         """
         return self.cache(force_refresh=True)[0]
     
-    def describe(self):
-        """
-        Display the element cache as dict
-        """
-        return self.data
+    @property
+    def resource(self):
+        if self.cache:
+            return self._cache.resource
     
     def attr_by_name(self, attr):
         """
@@ -246,6 +291,7 @@ class ElementBase(UnicodeMixin):
         and you want to append, default: replace
         
         :param dict kwargs: key=value pair to change
+        :param boolean append_lists: if change is a list, append or overwrite
         :raises: :py:class:`smc.api.exceptions.ElementNotFound`
         :raises: :py:class:`smc.api.exceptions.ModificationFailed`  
         :return: None
@@ -253,12 +299,15 @@ class ElementBase(UnicodeMixin):
         element = self.data
         if element.get('system') == True:
             raise ModificationFailed('Cannot modify system element: %s' % self.name)
-        merge_dicts(element, kwargs)
+        
+        append_lists = kwargs.pop('append_lists', False)
+        merge_dicts(element, kwargs, append_lists)
                 
         prepared_request(ModificationFailed,
                          href=self.href,
                          json=element,
-                         etag=self.etag).update()
+                         etag=self.etag
+                         ).update()
         
     def _get_resource(self, href):
         """
@@ -267,36 +316,17 @@ class ElementBase(UnicodeMixin):
         :raises: FetchElementFailed
         """
         return prepared_request(FetchElementFailed,
-                                href=href).read().json
-        
-    def _get_resource_by_link(self, link):
-        """
-        Return json for element using resources link
-        
-        :raises: FetchElementFailed
-        """
-        return prepared_request(FetchElementFailed,
-                                href=self._link(link)).read().json
+                                href=href
+                                ).read().json
     
-    def _get_resource_name(self, href):
-        """
-        Get name of resource when only given href
-        
-        :raises: FetchElementFailed
-        """
-        resource = prepared_request(FetchElementFailed,
-                                    href=href).read().json    
-        if resource:
-            return resource.get('name')
-               
-    def _link(self, link):
-        """
-        Get resource link
-        
-        :raises: ResourceNotFound
-        """
-        return find_link_by_name(link, self.data.get('link'))
-       
+    def __getattr__(self, attr):
+        if attr not in ['_cache', 'typeof']:
+            val = self.data.get(attr)
+            if val is not None: 
+                return val
+        raise AttributeError('%r object has no attribute %r' %
+            (self.__class__.__name__, attr))
+                
 class Element(ElementBase):
     """
     Base element with common methods shared by inheriting classes
@@ -305,8 +335,10 @@ class Element(ElementBase):
     """
     href = ElementLocator()
 
-    def __init__(self, name, meta=None):
-        super(Element, self).__init__(meta)
+    def __init__(self, name, **meta):
+        if meta:
+            meta.update(name=name)
+        super(Element, self).__init__(**meta)
         self._name = name #<str>
     
     @classmethod
@@ -326,8 +358,7 @@ class Element(ElementBase):
         :param dict meta: raw dict meta from smc
         :return: :py:class:`smc.base.model.Element` type
         """
-        return lookup_class(meta.get('type'))(name=meta.get('name'),
-                                              meta=Meta(**meta))
+        return lookup_class(meta.get('type'))(**meta)
     
     @property
     def name(self):
@@ -351,7 +382,7 @@ class Element(ElementBase):
         
         :return: list :py:class:`smc.elements.other.CategoryTag`
         """
-        result = prepared_request(href=self._link('search_category_tags_from_element')
+        result = prepared_request(href=self.resource.search_category_tags_from_element
                                   ).read().json
         return [Element.from_meta(**meta) for meta in result]
                               
@@ -368,15 +399,16 @@ class Element(ElementBase):
         from smc.administration.tasks import Task, task_handler
         try:
             element = prepared_request(ActionCommandFailed,
-                                       href=self._link('export'),
-                                       filename=filename).create()
+                                       href=self.resource.export,
+                                       filename=filename
+                                       ).create()
             
             return task_handler(Task(**element.json), 
                                 wait_for_finish=wait_for_finish, 
                                 filename=filename)
         except ResourceNotFound:
             return []
-
+        
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
     
@@ -390,8 +422,8 @@ class SubElement(ElementBase):
     through a reference. They are not 'loaded' directly as are
     classes that inherit from :class:`Element`. 
     """
-    def __init__(self, meta=None, **kwargs):
-        super(SubElement, self).__init__(meta)
+    def __init__(self, **meta):
+        super(SubElement, self).__init__(**meta)
         pass
         
     @property

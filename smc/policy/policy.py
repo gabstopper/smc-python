@@ -23,7 +23,7 @@ overidden.
 from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
     ResourceNotFound
 from smc.administration.tasks import task_handler, Task
-from smc.base.model import Element, prepared_request, Meta, lookup_class
+from smc.base.model import Element, prepared_request, lookup_class
 
 class Policy(Element):
     """ 
@@ -36,8 +36,8 @@ class Policy(Element):
     All generic methods that are policy level, such as 'open', 'save', 'force_unlock',
     'export', and 'upload' are encapsulated into this base class.
     """
-    def __init__(self, name, meta=None):
-        super(Policy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Policy, self).__init__(name, **meta)
         pass
                                    
     def upload(self, engine, wait_for_finish=True):
@@ -56,8 +56,9 @@ class Policy(Element):
         :return: generator with updates, or follower href if wait_for_finish=False
         """
         element = prepared_request(TaskRunFailed,
-                                   href=self._link('upload'),
-                                   params={'filter': engine}).create()
+                                   href=self.resource.upload,
+                                   params={'filter': engine}
+                                   ).create()
         
         return task_handler(Task(**element.json), 
                             wait_for_finish=wait_for_finish)
@@ -74,7 +75,8 @@ class Policy(Element):
         """
         try:
             prepared_request(PolicyCommandFailed,
-                             href=self._link('open')).create()
+                             href=self.resource.open
+                             ).create()
         except ResourceNotFound:
             pass
 
@@ -86,7 +88,8 @@ class Policy(Element):
         """
         try:
             prepared_request(PolicyCommandFailed,
-                             href=self._link('save')).create()
+                             href=self.resource.save
+                             ).create()
         except ResourceNotFound:
             pass
 
@@ -96,7 +99,8 @@ class Policy(Element):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         prepared_request(PolicyCommandFailed,
-                         href=self._link('force_unlock')).create()
+                         href=self.resource.force_unlock
+                         ).create()
     
     def search_rule(self, search):
         """
@@ -112,8 +116,9 @@ class Policy(Element):
         :return: list rule elements matching criteria
         """
         result = prepared_request(
-                        href=self._link('search_rule'),
-                        params={'filter': search}).read()
+                        href=self.resource.search_rule,
+                        params={'filter': search}
+                        ).read()
         if result.json:
             results = []
             for data in result.json:
@@ -123,7 +128,7 @@ class Policy(Element):
                     klazz = lookup_class('layer2_ipv4_access_rule')
                 else:
                     klazz = lookup_class(data.get('type'))
-                results.append(klazz(meta=Meta(**data)))
+                results.append(klazz(**data))
                 return results
         return []
    
@@ -164,8 +169,8 @@ class InspectionPolicy(Policy):
     """
     typeof = 'inspection_template_policy'
     
-    def __init__(self, name, meta=None):
-        super(InspectionPolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(InspectionPolicy, self).__init__(name, **meta)
         pass
     
     def export(self):

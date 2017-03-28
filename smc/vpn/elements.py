@@ -1,4 +1,4 @@
-from smc.base.model import Meta, SubElement
+from smc.base.model import SubElement
 import smc.actions.search as search
 from smc.api.exceptions import CreateElementFailed
 from smc.base.model import Element, ElementCreator, prepared_request
@@ -28,8 +28,8 @@ class ExternalGateway(Element):
     """
     typeof = 'external_gateway'
     
-    def __init__(self, name, meta=None):
-        super(ExternalGateway, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ExternalGateway, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -62,7 +62,7 @@ class ExternalGateway(Element):
         :method: GET
         :return: list :py:class:`smc.vpn.elements.VPNSite`
         """
-        return VPNSite(meta=Meta(href=self._link('vpn_site')))
+        return VPNSite(href=self.resource.vpn_site)
 
     @property
     def external_endpoint(self):
@@ -80,7 +80,7 @@ class ExternalGateway(Element):
         :method: GET
         :return: :py:class:`smc.vpn.elements.ExternalEndpoint`
         """
-        return ExternalEndpoint(meta=Meta(href=self._link('external_endpoint')))
+        return ExternalEndpoint(href=self.resource.external_endpoint)
 
 class ExternalEndpoint(SubElement):
     """
@@ -93,8 +93,8 @@ class ExternalEndpoint(SubElement):
     :ivar name: name of test_external endpoint
     :ivar href: pass in href to init which will have engine insert location   
     """
-    def __init__(self, meta=None):
-        super(ExternalEndpoint, self).__init__(meta)
+    def __init__(self, **meta):
+        super(ExternalEndpoint, self).__init__(**meta)
         pass
 
     def create(self, name, address, enabled=True, balancing_mode='active',
@@ -133,7 +133,7 @@ class ExternalEndpoint(SubElement):
         
         :return: list :py:class:`smc.vpn.elements.ExternalEndpoint`
         """
-        return [ExternalEndpoint(meta=Meta(**gw))
+        return [ExternalEndpoint(**gw)
                 for gw in search.element_by_href_as_json(self.href)]
 
 class VPNSite(SubElement):
@@ -154,8 +154,8 @@ class VPNSite(SubElement):
     :ivar name: name of VPN site
     :ivar site_element: list of network elements behind this site
     """
-    def __init__(self, meta=None):
-        super(VPNSite, self).__init__(meta)
+    def __init__(self, **meta):
+        super(VPNSite, self).__init__(**meta)
         pass
 
     def create(self, name, site_element):
@@ -180,7 +180,7 @@ class VPNSite(SubElement):
         
         :return: list VPNSite
         """
-        return [VPNSite(meta=Meta(**site))
+        return [VPNSite(**site)
                 for site in search.element_by_href_as_json(self.href)]
 
 class VPNProfile(Element):
@@ -189,8 +189,8 @@ class VPNProfile(Element):
     """
     typeof = 'vpn_profile'
 
-    def __init__(self, name, meta=None):
-        super(VPNProfile, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(VPNProfile, self).__init__(name, **meta)
         pass
         
 class VPNCertificate(object):

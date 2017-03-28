@@ -16,8 +16,8 @@ class TCPService(Element):
     """
     typeof = 'tcp_service'
     
-    def __init__(self, name, meta=None):
-        super(TCPService, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(TCPService, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -63,8 +63,8 @@ class UDPService(Element):
     """
     typeof = 'udp_service'
     
-    def __init__(self, name, meta=None):
-        super(UDPService, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(UDPService, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -101,8 +101,8 @@ class IPService(Element):
     """
     typeof = 'ip_service'
     
-    def __init__(self, name, meta=None):
-        super(IPService, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPService, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -139,8 +139,8 @@ class EthernetService(Element):
     """
     typeof = 'ethernet_service'
     
-    def __init__(self, name, meta=None):
-        super(EthernetService, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(EthernetService, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -170,8 +170,8 @@ class Protocol(Element):
     """
     typeof = 'protocol'
     
-    def __init__(self, name, meta=None):
-        super(Protocol, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Protocol, self).__init__(name, **meta)
         pass
 
 class RPCService(Element):
@@ -180,8 +180,8 @@ class RPCService(Element):
     """
     typeof = 'rpc_service'
     
-    def __init__(self, name, meta=None):
-        super(RPCService, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(RPCService, self).__init__(name, **meta)
         pass
     
 class ICMPService(Element):
@@ -197,8 +197,8 @@ class ICMPService(Element):
     """
     typeof = 'icmp_service'
     
-    def __init__(self, name, meta=None):
-        super(ICMPService, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ICMPService, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -233,8 +233,8 @@ class ICMPIPv6Service(Element):
     """
     typeof = 'icmp_ipv6_service'
     
-    def __init__(self, name, meta=None):
-        super(ICMPIPv6Service, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ICMPIPv6Service, self).__init__(name, **meta)
         pass
   
     @classmethod
@@ -264,7 +264,7 @@ class ApplicationSituation(Element):
     """
     typeof = 'application_situation'
     
-    def __init__(self, name, meta=None):
-        super(ApplicationSituation, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ApplicationSituation, self).__init__(name, **meta)
         pass
     

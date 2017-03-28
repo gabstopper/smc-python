@@ -36,7 +36,7 @@ Example rule deletion::
         if rule.name == 'mynewrule':
             rule.delete()
 """
-from smc.base.model import Meta, ElementCreator
+from smc.base.model import ElementCreator
 from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFailed,\
     CreateElementFailed
 from smc.policy.policy import Policy
@@ -56,7 +56,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv4Rule`
         """
-        return IPv4Rule(meta=Meta(href=self._link('fw_ipv4_access_rules')))
+        return IPv4Rule(href=self.resource.fw_ipv4_access_rules)
 
     @property
     def fw_ipv4_nat_rules(self):
@@ -65,7 +65,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule_nat.IPv4NATRule`
         """
-        return IPv4NATRule(meta=Meta(href=self._link('fw_ipv4_nat_rules')))
+        return IPv4NATRule(href=self.resource.fw_ipv4_nat_rules)
         
     @property
     def fw_ipv6_access_rules(self):
@@ -74,7 +74,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv6Rule`
         """
-        return IPv6Rule(meta=Meta(href=self._link('fw_ipv6_access_rules')))
+        return IPv6Rule(href=self.resource.fw_ipv6_access_rules)
     
     @property
     def fw_ipv6_nat_rules(self):
@@ -83,7 +83,7 @@ class FirewallRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv6NATRule`
         """
-        return IPv6NATRule(meta=Meta(href=self._link('fw_ipv6_nat_rules'))) 
+        return IPv6NATRule(href=self.resource.fw_ipv6_nat_rules) 
     
 class FirewallPolicy(FirewallRule, Policy):
     """ 
@@ -107,8 +107,8 @@ class FirewallPolicy(FirewallRule, Policy):
     """
     typeof = 'fw_policy'
     
-    def __init__(self, name, meta=None):
-        super(FirewallPolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(FirewallPolicy, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -142,7 +142,7 @@ class FirewallPolicy(FirewallRule, Policy):
                     'template': fw_template}
         try:
             result = ElementCreator(cls)
-            return FirewallPolicy(name, Meta(href=result))
+            return FirewallPolicy(name, href=result)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
                                      .format(err))
@@ -165,8 +165,8 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
     """
     typeof = 'fw_template_policy'
     
-    def __init__(self, name, meta=None):
-        super(FirewallTemplatePolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(FirewallTemplatePolicy, self).__init__(name, **meta)
         pass    
     
     def export(self):

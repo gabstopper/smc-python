@@ -24,8 +24,8 @@ class CategoryTag(Element):
     """
     typeof = 'category_tag'
     
-    def __init__(self, name, meta=None):
-        super(CategoryTag, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(CategoryTag, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -48,7 +48,7 @@ class CategoryTag(Element):
         
         :return list :py:class:`smc.base.model.Element`
         """
-        result = prepared_request(href=self._link('search_elements_from_category_tag')
+        result = prepared_request(href=self.resource.search_elements_from_category_tag
                                   ).read().json
                                   
         return [Element.from_meta(**meta) for meta in result]   
@@ -70,7 +70,7 @@ class CategoryTag(Element):
             element = element.href
         
         prepared_request(ModificationFailed,
-                         href=self._link('category_add_element'),
+                         href=self.resource.category_add_element,
                          json={'value': element}
                          ).create()
 
@@ -93,7 +93,7 @@ class CategoryTag(Element):
             element = element.href
             
         prepared_request(ModificationFailed,
-                         href=self._link('category_remove_element'),
+                         href=self.resource.category_remove_element,
                          json={'value': element}
                          ).create()
                          
@@ -112,8 +112,8 @@ class Location(Element):
     """
     typeof = 'location'
 
-    def __init__(self, name, meta=None):
-        super(Location, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Location, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -141,8 +141,8 @@ class LogicalInterface(Element):
     """
     typeof = 'logical_interface'
     
-    def __init__(self, name, meta=None):
-        super(LogicalInterface, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(LogicalInterface, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -170,8 +170,8 @@ class MacAddress(Element):
     """
     typeof = 'mac_address'
     
-    def __init__(self, name, meta=None):
-        super(MacAddress, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(MacAddress, self).__init__(name, **meta)
         pass
     
     @classmethod

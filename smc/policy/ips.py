@@ -36,7 +36,7 @@ Example rule deletion::
 """
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
-from smc.base.model import Meta, ElementCreator
+from smc.base.model import ElementCreator
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
 
@@ -53,7 +53,7 @@ class IPSRule(object):
         
         :return: :py:class:`smc.policy.rule.IPv4Layer2Rule`
         """
-        return IPv4Layer2Rule(meta=Meta(href=self._link('ips_ipv4_access_rules')))
+        return IPv4Layer2Rule(href=self.resource.ips_ipv4_access_rules)
     
     @property    
     def ips_ipv6_access_rules(self):
@@ -68,7 +68,7 @@ class IPSRule(object):
         
         :param :py:class:`smc.policy.rule.EthernetRule`
         """
-        return EthernetRule(meta=Meta(href=self._link('ips_ethernet_rules')))
+        return EthernetRule(href=self.resource.ips_ethernet_rules)
 
 class IPSPolicy(IPSRule, Policy):
     """
@@ -87,8 +87,8 @@ class IPSPolicy(IPSRule, Policy):
     """
     typeof = 'ips_policy'
     
-    def __init__(self, name, meta=None):
-        super(IPSPolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPSPolicy, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -102,7 +102,7 @@ class IPSPolicy(IPSRule, Policy):
                     'template': fw_template}
         try:
             result = ElementCreator(cls)
-            return IPSPolicy(name, Meta(href=result))
+            return IPSPolicy(name, href=result)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
                                      .format(err))
@@ -126,6 +126,6 @@ class IPSTemplatePolicy(IPSRule, Policy):
     """
     typeof = 'ips_template_policy'
     
-    def __init__(self, name, meta=None):
-        super(IPSTemplatePolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPSTemplatePolicy, self).__init__(name, **meta)
         pass 

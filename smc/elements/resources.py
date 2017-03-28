@@ -87,7 +87,6 @@ class CollectionManager(object):
         collection_cls = type(str(cls_name), (ElementCollection,), {})
         
         params = {'filter_context': self._cls.typeof}
-        # Filter context can be overwritten by filter_many
         params.update(kwargs)
         return collection_cls(**params)
     

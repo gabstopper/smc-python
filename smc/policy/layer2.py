@@ -48,7 +48,7 @@ Example rule deletion::
         if rule.name == 'myrule':
             print rule.delete()
 """
-from smc.base.model import Meta, ElementCreator
+from smc.base.model import ElementCreator
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
 from smc.policy.policy import Policy
@@ -67,7 +67,7 @@ class Layer2Rule(object):
         
         :return: :py:class:`smc.policy.rule.IPv4Layer2Rule`
         """
-        return IPv4Layer2Rule(meta=Meta(href=self._link('layer2_ipv4_access_rules')))
+        return IPv4Layer2Rule(href=self.resource.layer2_ipv4_access_rules)
     
     @property    
     def layer2_ipv6_access_rules(self):
@@ -85,7 +85,7 @@ class Layer2Rule(object):
         
         :param :py:class:`smc.policy.rule.EthernetRule`
         """
-        return EthernetRule(meta=Meta(href=self._link('layer2_ethernet_rules')))
+        return EthernetRule(href=self.resource.layer2_ethernet_rules)
     
 class Layer2Policy(Layer2Rule, Policy):
     """
@@ -104,8 +104,8 @@ class Layer2Policy(Layer2Rule, Policy):
     """
     typeof = 'layer2_policy'
     
-    def __init__(self, name, meta=None):
-        super(Layer2Policy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Layer2Policy, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -142,7 +142,7 @@ class Layer2Policy(Layer2Rule, Policy):
                     'template': fw_template}
         try:
             result = ElementCreator(cls)
-            return Layer2Policy(name, Meta(href=result))
+            return Layer2Policy(name, href=result)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'
                                      .format(err))
@@ -166,8 +166,8 @@ class Layer2TemplatePolicy(Layer2Rule, Policy):
     """
     typeof = 'layer2_template_policy'
    
-    def __init__(self, name, meta=None):
-        super(Layer2TemplatePolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Layer2TemplatePolicy, self).__init__(name, **meta)
         pass
     
     def export(self):

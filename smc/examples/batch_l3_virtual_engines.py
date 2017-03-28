@@ -89,6 +89,8 @@ if __name__ == '__main__':
     
     engine_info = OrderedDict()
     
+    anynetwork = smc.elements.network.Network('Any network')
+    
     with open(csv_filename, 'rU') as csvfile:
       
         reader = csv.DictReader(csvfile, dialect="excel", 
@@ -147,7 +149,11 @@ if __name__ == '__main__':
                 if enable_ospf:
                     for interface in virtual.routing.all(): 
                         interface.add_ospf_area(ospf_area)     
-                        
+                
+                # Modify antisppofing configuration
+                for interface in virtual.antispoofing.all():
+                    interface.add(anynetwork)
+                    
                 print("Success creating virtual engine: %s" % name)
     
             except CreateEngineFailed as err:

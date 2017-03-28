@@ -15,8 +15,8 @@ class AccessControlList(Element):
     """
     typeof = 'access_control_list'
     
-    def __init__(self, name, meta=None):
-        super(AccessControlList, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(AccessControlList, self).__init__(name, **meta)
         pass
    
     @property

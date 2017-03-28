@@ -28,7 +28,7 @@ class GroupMixin(object):
         
         :return: list of group members referenced in group
         """
-        return self.describe().get('element')
+        return self.data.get('element')
     
     def empty_members(self):
         """
@@ -54,8 +54,8 @@ class Group(GroupMixin, Element):
     """     
     typeof = 'group'
 
-    def __init__(self, name, meta=None):
-        super(Group, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Group, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -91,8 +91,8 @@ class ServiceGroup(GroupMixin, Element):
     """
     typeof = 'service_group'
     
-    def __init__(self, name, meta=None):
-        super(ServiceGroup, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ServiceGroup, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -124,8 +124,8 @@ class TCPServiceGroup(GroupMixin, Element):
     """ 
     typeof = 'tcp_service_group'
        
-    def __init__(self, name, meta=None):
-        super(TCPServiceGroup, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(TCPServiceGroup, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -158,8 +158,8 @@ class UDPServiceGroup(GroupMixin, Element):
     """
     typeof = 'udp_service_group'
     
-    def __init__(self, name, meta=None):
-        super(UDPServiceGroup, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(UDPServiceGroup, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -187,8 +187,8 @@ class IPServiceGroup(GroupMixin, Element):
     """
     typeof = 'ip_service_group'
     
-    def __init__(self, name, meta=None):
-        super(IPServiceGroup, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPServiceGroup, self).__init__(name, **meta)
         pass
         
     @classmethod

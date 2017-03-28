@@ -2,7 +2,7 @@
 Module representing network elements used within the SMC
 """
 import smc.actions.search as search
-from smc.base.model import Element, ElementCreator, prepared_request, Meta
+from smc.base.model import Element, ElementCreator, prepared_request
 from smc.api.exceptions import MissingRequiredInput, CreateElementFailed,\
     ElementNotFound
 
@@ -22,73 +22,44 @@ class Host(Element):
                     ipv6_address='2001:cdba::3257:9652', 
                     secondary_ip=['1.1.1.1'])
 
-    .. note:: either ipv4 or ipv6 address is required
+    .. note:: Either ipv4 or ipv6 address is required
+    
+    :ivar str name: name of element
+    :ivar str address: ipv4 address for this host
+    :ivar str ipv6_address: ipv6 address for this host
+    :ivar list secondary: list of secondary ipv4 or ipv6 addresses
+    :ivar str comment: optional comment
     """
     typeof = 'host'
     
-    def __init__(self, name, meta=None):
-        super(Host, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Host, self).__init__(name, **meta)
         pass
     
     @classmethod
     def create(cls, name, address=None, ipv6_address=None, 
-               secondary_ip=None, comment=None):
+               secondary=None, comment=None):
         """
         Create the host element
         
         :param str name: Name of element
         :param str address: ipv4 address of host object (optional if ipv6)
         :param str ipv6_address: ipv6 address (optional if ipv4)
-        :param str secondary_ip: secondary ip address (optional)
+        :param list secondary: secondary ip addresses (optional)
         :param str comment: comment (optional)
         :return: str href: href location of new element
         :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         address = None if address is None else address
         ipv6_address = None if ipv6_address is None else ipv6_address
-        secondary = [] if secondary_ip is None else secondary_ip
+        secondaries = [] if secondary is None else secondary
         comment = comment if comment else ''
         cls.json = {'name': name,
                     'address': address,
                     'ipv6_address': ipv6_address,
-                    'secondary': secondary,
+                    'secondary': secondaries,
                     'comment': comment}
         return ElementCreator(cls)
-
-    @property
-    def address(self):
-        """ IP Address of this host """
-        return self.attr_by_name('address')
-    
-    @property
-    def ipv6_address(self):
-        """ IPv6 Address of this host """
-        return self.attr_by_name('ipv6_address')
-    
-    @ipv6_address.setter
-    def ipv6_address(self, value):
-        """ Set IPv6 Address for host
-        
-        :param str value: ipv6 address
-        :return: list secondary host addresses assigned
-        """
-        return self.modify_attribute(ipv6_address=value)
-          
-    @address.setter
-    def address(self, value):
-        return self.modify_attribute(address=value)
-
-    @property
-    def secondary(self):
-        """ Secondary addresses for this host
-        
-        :return: list secondary host addresses assigned
-        """
-        return self.attr_by_name('secondary')
-    
-    @secondary.setter
-    def secondary(self, value):
-        return self.modify_attribute(secondary=value)  
         
 class AddressRange(Element):
     """ 
@@ -97,11 +68,16 @@ class AddressRange(Element):
     Create an address range element::
     
         IpRange.create('myrange', '1.1.1.1-1.1.1.5')
+        
+    :ivar str name: name of element
+    :ivar str iprange: ip range of element
+    :ivar str comment: optional comment
+    
     """
     typeof = 'address_range'
     
-    def __init__(self, name, meta=None):
-        super(AddressRange, self).__init__(name, meta)        
+    def __init__(self, name, **meta):
+        super(AddressRange, self).__init__(name, **meta)        
         pass
     
     @classmethod
@@ -121,21 +97,6 @@ class AddressRange(Element):
                     'comment': comment}
         
         return ElementCreator(cls)
-
-    @property
-    def iprange(self):
-        """ The IP Range for this element """
-        return self.data.get('ip_range')
-    
-    @iprange.setter
-    def iprange(self, value):
-        """
-        Set a new iprange for this element
-        
-        :param str value: IP Range value, i.e. 1.1.1.1-1.1.1.10
-        :return: `smc.api.web.SMCResult`
-        """
-        return self.modify_attribute(ip_range=value)
     
 class Router(Element):
     """ 
@@ -154,8 +115,8 @@ class Router(Element):
     """
     typeof = 'router'
     
-    def __init__(self, name, meta=None):
-        super(Router, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Router, self).__init__(name, **meta)
         pass
         
     @classmethod
@@ -201,8 +162,8 @@ class Network(Element):
     """
     typeof = 'network'
     
-    def __init__(self, name, meta=None):
-        super(Network, self).__init__(name, meta) 
+    def __init__(self, name, **meta):
+        super(Network, self).__init__(name, **meta) 
         pass
     
     @classmethod
@@ -240,8 +201,8 @@ class DomainName(Element):
     """
     typeof = 'domain_name'
     
-    def __init__(self, name, meta=None):
-        super(DomainName, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(DomainName, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -282,8 +243,8 @@ class Expression(Element):
     """
     typeof = 'expression'
     
-    def __init__(self, name, meta=None):
-        super(Expression, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Expression, self).__init__(name, **meta)
         pass
     
     @staticmethod
@@ -345,8 +306,8 @@ class URLListApplication(Element):
     """
     typeof = 'url_list_application'
     
-    def __init__(self, name, meta=None):
-        super(URLListApplication, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(URLListApplication, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -404,8 +365,8 @@ class IPList(Element):
     """
     typeof = 'ip_list'
     
-    def __init__(self, name, meta=None):
-        super(IPList, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPList, self).__init__(name, **meta)
         pass
 
     def download(self, filename=None, as_type='zip'):
@@ -431,9 +392,10 @@ class IPList(Element):
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
                 
-            prepared_request(href=self._link('ip_address_list'), 
+            prepared_request(href=self.resource.ip_address_list, 
                              filename=filename,
-                             headers=headers).read()
+                             headers=headers
+                             ).read()
     
     def upload(self, filename=None, json=None, as_type='zip'):
         """
@@ -463,9 +425,10 @@ class IPList(Element):
             params={'format':'txt'}
         
         prepared_request(CreateElementFailed,
-                         href=self._link('ip_address_list'),
+                         href=self.resource.ip_address_list,
                          headers=headers, files=files, json=json, 
-                         params=params).create()
+                         params=params
+                         ).create()
 
     @classmethod   
     def create(cls, name, iplist=None, comment=None):
@@ -486,8 +449,9 @@ class IPList(Element):
         if result and iplist is not None:
             element = IPList(name)
             prepared_request(CreateElementFailed,
-                             href=element._link('ip_address_list'),
-                             json={'ip': iplist}).create()
+                             href=element.resource.ip_address_list,
+                             json={'ip': iplist}
+                             ).create()
         return result
 
 class Zone(Element):
@@ -503,8 +467,8 @@ class Zone(Element):
     """
     typeof = 'interface_zone'
     
-    def __init__(self, name, meta=None):
-        super(Zone, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Zone, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -530,8 +494,8 @@ class Country(Element):
     """
     typeof = 'country'
     
-    def __init__(self, name, meta=None):
-        super(Country, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Country, self).__init__(name, **meta)
         pass
 
 class IPCountryGroup(Element):
@@ -542,8 +506,8 @@ class IPCountryGroup(Element):
     """
     typeof = 'ip_country_group'
     
-    def __init__(self, name, meta=None):
-        super(IPCountryGroup, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(IPCountryGroup, self).__init__(name, **meta)
         pass
 
 class Alias(Element):
@@ -567,14 +531,14 @@ class Alias(Element):
     """
     typeof = 'alias'
     
-    def __init__(self, name, meta=None):
-        super(Alias, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(Alias, self).__init__(name, **meta)
         self.resolved_value = None
     
     @classmethod
     def load(cls, data):
         name = search.element_name_by_href(data.get('alias_ref'))
-        alias = cls(name, meta=Meta(href=data.get('cluster_ref')))
+        alias = cls(name, href=data.get('cluster_ref'))
         alias.resolved_value = data.get('resolved_value')
         return alias
             
@@ -594,7 +558,8 @@ class Alias(Element):
         """
         if not self.resolved_value:
             result = prepared_request(ElementNotFound,
-                                      href=self._link('resolve'),
-                                      params={'for': engine}).read()
+                                      href=self.resource.resolve,
+                                      params={'for': engine}
+                                      ).read()
             self.resolved_value = result.json.get('resolved_value')
         return self.resolved_value

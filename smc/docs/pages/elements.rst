@@ -84,20 +84,19 @@ Modify
 
 Modifying elements can be done through either instance methods/properties (if they exist), or
 also through the low-level API.
+Attributes supported by elements are documented in the API Reference: :ref:`element-reference-label`
 
-For example, for Host elements, modifying the address for the host through instance properties::
+For example, modifying a Host element IP address::
 
 	>>> from smc.elements.network import Host
 	>>> host = Host('kali')
 	>>> print(host.address)
 	55.44.44.44
-	>>> host.address = '12.12.12.12'
+	>>> host.modify_attribute(address='12.12.12.12')
 	>>> print(host.address)
 	12.12.12.12
 	
-If the element does not have direct methods or properties for modifications, the low-level
-API provides a method on child classes of :py:class:`smc.base.model.ElementBase` that can be
-used to modify any key/value pair.
+Modifying a service element after reviewing the element cache::
    
 	>>> from smc.elements.service import TCPService
 	>>> service = TCPService('api-tcp')

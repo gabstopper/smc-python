@@ -24,7 +24,7 @@ class PackageMixin(object):
         """ 
         try:
             result = prepared_request(ActionCommandFailed,
-                                      href=self._link('download')).create()
+                                      href=self.resource.download).create()
                     
             return task_handler(Task(**result.json), 
                                 wait_for_finish=wait_for_finish, 
@@ -48,8 +48,9 @@ class PackageMixin(object):
         """
         try:
             result = prepared_request(ActionCommandFailed,
-                                      href=self._link('activate'),
-                                      json={'resource': resource}).create()
+                                      href=self.resource.activate,
+                                      json={'resource': resource}
+                                      ).create()
             
             return task_handler(Task(**result.json), 
                                 wait_for_finish=wait_for_finish, 
@@ -78,8 +79,8 @@ class EngineUpgrade(PackageMixin, SubElement):
                 for msg in upgrade.download():
                     print msg
     """            
-    def __init__(self, meta=None):
-        super(EngineUpgrade, self).__init__(meta)
+    def __init__(self, **meta):
+        super(EngineUpgrade, self).__init__(**meta)
         pass
 
     @property
@@ -120,8 +121,8 @@ class UpdatePackage(PackageMixin, SubElement):
     
     :ivar state: state of the package               
     """
-    def __init__(self, meta=None):
-        super(UpdatePackage, self).__init__(meta)
+    def __init__(self, **meta):
+        super(UpdatePackage, self).__init__(**meta)
         pass
 
     @property

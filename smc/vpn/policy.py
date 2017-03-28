@@ -1,5 +1,4 @@
 from smc.base.model import Element, ElementCreator, prepared_request, SubElement
-from smc.base.model import Meta
 from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 
@@ -22,8 +21,8 @@ class VPNPolicy(Element):
     """
     typeof = 'vpn'
  
-    def __init__(self, name, meta=None):
-        super(VPNPolicy, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(VPNPolicy, self).__init__(name, **meta)
         pass
     
     @classmethod
@@ -75,8 +74,7 @@ class VPNPolicy(Element):
         
         :return: list :class:`CentralGatewayNode`
         """
-        return CentralGatewayNode(
-                            meta=Meta(href=self._link('central_gateway_node')))
+        return CentralGatewayNode(href=self.resource.central_gateway_node)
 
     @property
     def satellite_gateway_node(self):
@@ -85,8 +83,7 @@ class VPNPolicy(Element):
         
         :return: list :class:`SatelliteGatewayNode`
         """
-        return SatelliteGatewayNode(
-                            meta=Meta(href=self._link('satellite_gateway_node')))
+        return SatelliteGatewayNode(href=self.resource.satellite_gateway_node)
     
     @property
     def mobile_gateway_node(self):
@@ -96,8 +93,7 @@ class VPNPolicy(Element):
         
         :return: list :class:`MobileGatewayNode`
         """
-        return MobileGatewayNode(
-                            meta=Meta(href=self._link('mobile_gateway_node')))
+        return MobileGatewayNode(href=self.resource.mobile_gateway_node)
     
     def open(self):
         """
@@ -107,7 +103,8 @@ class VPNPolicy(Element):
         :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
         """
         prepared_request(PolicyCommandFailed,
-                         href=self._link('open')).create()
+                         href=self.resource.open
+                         ).create()
 
     def save(self):
         """
@@ -117,7 +114,8 @@ class VPNPolicy(Element):
         :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
         """
         prepared_request(PolicyCommandFailed,
-                         href=self._link('save')).create()
+                         href=self.resource.save
+                         ).create()
     
     def close(self):
         """
@@ -127,19 +125,20 @@ class VPNPolicy(Element):
         :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
         """
         prepared_request(PolicyCommandFailed,
-                         href=self._link('close')).create()
+                         href=self.resource.close
+                         ).create()
                 
     def validate(self):
         """
         :method: GET
         """
-        return self._get_resource_by_link('validate')
+        return self.resource.get('validate')
        
     def gateway_tunnel(self):
         """
         :method: GET
         """
-        return self._get_resource_by_link('gateway_tunnel')
+        return self.resource.get('gateway_tunnel')
     
     def add_central_gateway(self, gateway):
         """ 
@@ -152,9 +151,10 @@ class VPNPolicy(Element):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         prepared_request(PolicyCommandFailed,
-                         href=self._link('central_gateway_node'), 
+                         href=self.resource.central_gateway_node, 
                          json={'gateway': gateway,
-                               'node_usage':'central'}).create()
+                               'node_usage':'central'}
+                         ).create()
 
     def add_satellite_gateway(self, gateway):
         """
@@ -170,9 +170,10 @@ class VPNPolicy(Element):
         :return: :py:class:`smc.api.web.SMCResult`
         """
         prepared_request(PolicyCommandFailed,
-                         href=self._link('satellite_gateway_node'),
+                         href=self.resource.satellite_gateway_node,
                          json={'gateway': gateway,
-                               'node_usage':'satellite'}).create() 
+                               'node_usage':'satellite'}
+                         ).create() 
     
     @staticmethod
     def add_internal_gateway_to_vpn(internal_gateway_href, vpn_policy, 
@@ -208,7 +209,7 @@ class GatewayNode(object):
         """
         Get the name from the gateway_profile reference
         """
-        return self._get_resource_name(self.data.get('gateway'))
+        return self.resource.name(self.data.get('gateway'))
     
     def enabled(self):
         pass
@@ -222,20 +223,20 @@ class GatewayNode(object):
         
         :return: list CentralGatewayNode: gateway nodes on this vpn
         """
-        return [type(self)(meta=Meta(**node))
+        return [type(self)(**node)
                 for node in self._get_resource(self.href)]
 
 class CentralGatewayNode(GatewayNode, SubElement):
-    def __init__(self, meta=None):
-        super(CentralGatewayNode, self).__init__(meta)
+    def __init__(self, **meta):
+        super(CentralGatewayNode, self).__init__(**meta)
         pass
    
 class SatelliteGatewayNode(GatewayNode, SubElement):
-    def __init__(self, meta=None):
-        super(SatelliteGatewayNode, self).__init__(meta)
+    def __init__(self, **meta):
+        super(SatelliteGatewayNode, self).__init__(**meta)
         pass
 
 class MobileGatewayNode(GatewayNode, SubElement):
-    def __init__(self, meta=None):
-        super(MobileGatewayNode, self).__init__(meta)
+    def __init__(self, **meta):
+        super(MobileGatewayNode, self).__init__(**meta)
         pass 

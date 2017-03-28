@@ -27,8 +27,8 @@ class ManagementServer(Element):
     """
     typeof = 'mgt_server'
 
-    def __init__(self, name, meta=None):
-        super(ManagementServer, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(ManagementServer, self).__init__(name, **meta)
         pass
 
     def search_category_tags_from_element(self):
@@ -41,7 +41,7 @@ class ManagementServer(Element):
        
         :return: list dict of contact addresses {location_ref,addresses}
         """
-        result = self._get_resource_by_link('contact_addresses')
+        result = self.resource.get('contact_addresses')
         if result:
             return result.get('multi_contact_addresses')
         else:
@@ -66,8 +66,9 @@ class ManagementServer(Element):
                                          contact_address=contact_address, 
                                          location=location)
         prepared_request(ModificationFailed,
-                         href=self._link('contact_addresses'),
-                         json=addresses, etag=self.etag).update()
+                         href=self.resource.contact_addresses,
+                         json=addresses, etag=self.etag
+                         ).update()
 
     def remove_contact_address(self, location):
         """
@@ -81,8 +82,9 @@ class ManagementServer(Element):
         json = _remove_contact_address(self.contact_addresses(), location)
         
         prepared_request(ModificationFailed,
-                         href=self._link('contact_addresses'),
-                         json=json, etag=self.etag).update()
+                         href=self.resource.contact_addresses,
+                         json=json, etag=self.etag
+                         ).update()
         
 class LogServer(Element):
     """
@@ -104,8 +106,8 @@ class LogServer(Element):
     """
     typeof = 'log_server'
  
-    def __init__(self, name, meta=None):
-        super(LogServer, self).__init__(name, meta)
+    def __init__(self, name, **meta):
+        super(LogServer, self).__init__(name, **meta)
         pass
 
     def contact_addresses(self):
@@ -115,7 +117,7 @@ class LogServer(Element):
         
         :return: list dict of contact addresses {location_ref,addresses}
         """
-        result = self._get_resource_by_link('contact_addresses')
+        result = self.resource.get('contact_addresses')
         if result:
             return result.get('multi_contact_addresses')
         else:
@@ -138,8 +140,9 @@ class LogServer(Element):
                                          contact_address=contact_address,
                                          location=location)
         prepared_request(ModificationFailed,
-                         href=self._link('contact_addresses'),
-                         json=addresses, etag=self.etag).update()
+                         href=self.resource.contact_addresses,
+                         json=addresses, etag=self.etag
+                         ).update()
     
     def remove_contact_address(self, location):
         """
@@ -153,8 +156,9 @@ class LogServer(Element):
         json = _remove_contact_address(self.contact_addresses(), location)
         
         prepared_request(ModificationFailed,
-                         href=self._link('contact_addresses'),
-                         json=json, etag=self.etag).update()
+                         href=self.resource.contact_addresses,
+                         json=json, etag=self.etag
+                         ).update()
                     
 def _add_contact_address(addresses, contact_address, location):
     """

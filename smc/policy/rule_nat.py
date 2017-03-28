@@ -440,8 +440,8 @@ class IPv4NATRule(NATRule, SubElement):
     """
     typeof = 'fw_ipv4_nat_rule'
     
-    def __init__(self, meta=None):
-        super(IPv4NATRule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(IPv4NATRule, self).__init__(**meta)
         pass
   
     def create(self, name, sources=None, destinations=None, services=None,
@@ -517,6 +517,6 @@ class IPv6NATRule(IPv4NATRule):
     """
     typeof = 'fw_ipv6_nat_rule'
     
-    def __init__(self, meta=None):
-        super(IPv6NATRule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(IPv6NATRule, self).__init__(**meta)
         pass

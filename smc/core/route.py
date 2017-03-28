@@ -3,7 +3,7 @@ Route module encapsulates functions related to static routing and
 related configurations on NGFW
 """
 from collections import namedtuple
-from smc.base.model import Element, prepared_request, SubElement, Meta
+from smc.base.model import Element, prepared_request, SubElement
 from smc.base.util import find_link_by_name
 from smc.api.exceptions import CreateElementFailed
 
@@ -20,13 +20,13 @@ class Routing(SubElement):
         for routing_node in engine.routing.all():
             print(routing_node, list(routing_node))
     """
-    def __init__(self, meta, data):
-        super(Routing, self).__init__(meta)
+    def __init__(self, data, **meta):
+        super(Routing, self).__init__(**meta)
         self.add_cache(data)
     
     def __iter__(self):
         for node in self.data['routing_node']:
-            yield(Routing(meta=Meta(href=find_link_by_name('self', node.get('link'))), 
+            yield(Routing(href=find_link_by_name('self', node.get('link')),
                           data=node))
             
     @property
@@ -184,13 +184,13 @@ class Antispoofing(SubElement):
         for entry in engine.antispoofing.all():
             print(entry)
     """
-    def __init__(self, meta, data):
-        super(Antispoofing, self).__init__(meta)
+    def __init__(self, data, **meta):
+        super(Antispoofing, self).__init__(**meta)
         self.add_cache(data)
         
     def __iter__(self):
         for node in self.data['antispoofing_node']:
-            yield(Antispoofing(meta=Meta(href=find_link_by_name('self', node.get('link'))), 
+            yield(Antispoofing(href=find_link_by_name('self', node.get('link')), 
                                data=node))    
 
     @property

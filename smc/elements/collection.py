@@ -75,7 +75,6 @@ the http://<smc>/api/elements node.
 """
 from smc import session
 import smc.elements.network as network
-import smc.base.model as element
 import smc.core.engine as engine
 from smc.api.common import fetch_json_by_href, fetch_href_by_name
 from smc.base.model import lookup_class
@@ -1956,19 +1955,16 @@ def generic_list_builder(typeof, name=None, exact_match=True, klazz=None):
                     session.cache.get_entry_href(typeof)).json
         if lst:
             for item in lst:
-                result.append(klazz(name=item.get('name'),
-                                    meta=element.Meta(**item)))
+                result.append(klazz(**item))
     else: #Filter provided
         if isinstance(name, str): # By str
             for item in fetch_href_by_name(name, filter_context=typeof,
                                            exact_match=exact_match).json:
-                result.append(klazz(name=item.get('name'),
-                                    meta=element.Meta(**item)))
+                result.append(klazz(**item))
         else: # By list
             for elements in name:
                 for item in fetch_href_by_name(elements, 
                                                filter_context=typeof, 
                                                exact_match=exact_match).json:
-                    result.append(klazz(name=item.get('name'),
-                                        meta=element.Meta(**item)))
+                    result.append(klazz(**item))
     return result

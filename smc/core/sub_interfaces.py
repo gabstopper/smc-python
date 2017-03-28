@@ -131,7 +131,7 @@ class InlineInterface(object):
             u = set()
             for vlan in nicids:
                 u.add(vlan.split('.')[-1])
-        return '-'.join(u)       
+            return '-'.join(u)       
     
     def __getattr__(self, attr):
         return None
@@ -261,10 +261,7 @@ class NodeInterface(object):
             data.update({k: v}) 
 
         return cls(data)
-    
-    #def __call__(self):
-    #    return {self.typeof: self.__dict__}
-    
+
     @property
     def data(self):
         return {self.typeof: self.__dict__}

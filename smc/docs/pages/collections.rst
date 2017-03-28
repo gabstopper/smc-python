@@ -10,12 +10,20 @@ To access a collection directly on an Element type::
 
 	>>> list(Host.objects.all())
  	[Host(name=SMC), Host(name=172.18.1.135), Host(name=172.18.2.254), Host(name=host)]
-
-Filter number of return entries::
+	...
+	>>> list(TCPService.objects.filter('HTTP'))
+ 	[TCPService(name=HTTPS_No_Decryption), TCPService(name=Squid HTTP proxy), TCPService(name=HTTP to Web SaaS)]
+ 	
+Limit number of return entries::
 
 	>>> list(Host.objects.limit(3))
  	[Host(name=SMC), Host(name=172.18.1.135), Host(name=172.18.2.254)]
 
+Limit and filter the results using a chainable syntax::
+
+	>>> list(Host.objects.filter('172.18.1').limit(5))
+	[Host(name=172.18.1.135), Host(name=SMC), Host(name=ePolicy Orchestrator), Host(name=TIE Server), Host(name=172.18.1.93)]
+ 
 You can also obtain the iterator from the connection manager to re-use::
 
 	>>> iterator = Host.objects
@@ -23,16 +31,6 @@ You can also obtain the iterator from the connection manager to re-use::
 	[Host(name=kali)]
 	>>> list(iterator.filter('host').limit(3))
 	[Host(name=host), Host(name=host-54.76.110.156), Host(name=host-192.168.4.135)]
-
-Limit the number of results using a chainable syntax::
-
-	>>> list(Host.objects.filter('172.18.1').limit(5))
-	[Host(name=172.18.1.135), Host(name=SMC), Host(name=ePolicy Orchestrator), Host(name=TIE Server), Host(name=172.18.1.93)]
-
-To filter return elements, using a single filter::
-
- >>> list(TCPService.objects.filter('HTTP'))
- [TCPService(name=HTTPS_No_Decryption), TCPService(name=Squid HTTP proxy), TCPService(name=HTTP to Web SaaS)]
 
 Filtering can also be done using keys of a given element. For example, TCP Services define ports for the services and can be filtered::
 
@@ -49,7 +47,8 @@ Filtering is not limited to a single filter item, it is also possible to provide
   >>> list(TCPService.objects.filter(['8080', '22']))
   [TCPService(name=TCP_8080), TCPService(name=HTTP proxy), TCPService(name=SSH), TCPService(name=ssh_2222), TCPService(name=SSM SSH), TCPService(name=ssh_2200), TCPService(name=H.323 (Call Signaling))]
 
-When filtering is performed, there is an optional flag 'exact_match' that can be set to limit results to only the matched items, and not 'wildcard' matches like the previous example::
+When filtering is performed, by default search queries will 'wildcard' the results. To only return an exact match of the search query,
+use the optional flag 'exact_match'::
 
   >>> list(TCPService.objects.filter(['8080', '22'], exact_match=True))
   [TCPService(name=TCP_8080), TCPService(name=HTTP proxy), TCPService(name=SSH), TCPService(name=SSM SSH)]

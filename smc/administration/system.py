@@ -15,7 +15,7 @@ To load the configuration for system, do::
 import smc.actions.search as search
 from smc.elements.other import prepare_blacklist
 from .tasks import task_handler, Task
-from smc.base.model import Meta, prepared_request, SubElement
+from smc.base.model import prepared_request, SubElement
 from smc.administration.updates import EngineUpgrade, UpdatePackage
 from smc.administration.license import License
 from smc.api.common import fetch_json_by_post
@@ -30,9 +30,9 @@ class System(SubElement):
     :ivar smc_time: SMC time
     :ivar last_activated_package: latest update package installed
     """
-    def __init__(self, meta=None):
-        meta = Meta(href=search.element_entry_point('system'))
-        super(System, self).__init__(meta)
+    def __init__(self, **meta):
+        entry = search.element_entry_point('system')
+        super(System, self).__init__(href=entry)
         pass
         
     @property    
@@ -40,21 +40,21 @@ class System(SubElement):
         """
         Return the SMC version
         """
-        return self._get_resource_by_link('smc_version').get('value')
+        return self.resource.get('smc_version').get('value')
     
     @property
     def smc_time(self):
         """
         Return the SMC time
         """
-        return self._get_resource_by_link('smc_time').get('value')
+        return self.resource.get('smc_time').get('value')
     
     @property
     def last_activated_package(self):
         """
         Return the last activated package by id
         """
-        return self._get_resource_by_link('last_activated_package').get('value')
+        return self.resource.get('last_activated_package').get('value')
     
     def empty_trash_bin(self):
         """ 
@@ -64,7 +64,7 @@ class System(SubElement):
         :return: None
         """
         prepared_request(ActionCommandFailed,
-                         href=self._link('empty_trash_bin')).delete()
+                         href=self.resource.empty_trash_bin).delete()
 
     def update_package(self):
         """
@@ -72,8 +72,8 @@ class System(SubElement):
         
         :return: list :py:class:`smc.administration.updates.UpdatePackage`
         """
-        return [UpdatePackage(meta=Meta(**update))
-                for update in self._get_resource_by_link('update_package')]
+        return [UpdatePackage(**update)
+                for update in self.resource.get('update_package')]
        
     def update_package_import(self):
         pass
@@ -91,8 +91,8 @@ class System(SubElement):
         :param engine_version: Version of engine to retrieve
         :return: dict of settings
         """
-        return [EngineUpgrade(meta=Meta(**upgrade))
-                for upgrade in self._get_resource_by_link('engine_upgrade')]
+        return [EngineUpgrade(**upgrade)
+                for upgrade in self.resource.get('engine_upgrade')]
     
     def uncommitted(self):
         pass
@@ -101,7 +101,7 @@ class System(SubElement):
         """
         List of all properties applied to the SMC
         """
-        return self._get_resource_by_link('system_properties')
+        return self.resource.get('system_properties')
         
     def clean_invalid_filters(self):
         pass
@@ -118,7 +118,7 @@ class System(SubElement):
         :return: None
         """
         prepared_request(ActionCommandFailed,
-                         href=self._link('blacklist'),
+                         href=self.resource.blacklist,
                          json=prepare_blacklist(src, dst, duration)
                          ).create()
 
@@ -136,7 +136,7 @@ class System(SubElement):
         
         :return: list :py:class:`smc.administration.license.License`
         """
-        licenses = self._get_resource_by_link('licenses')
+        licenses = self.resource.get('licenses')
         return [License(**lic)
                 for lic in licenses['license']]
       
@@ -144,7 +144,7 @@ class System(SubElement):
         """
         Fetch available licenses for this SMC
         """
-        return self._get_resource_by_link('license_fetch')
+        return self.resource.get('license_fetch')
         
     def license_install(self):
         raise NotImplementedError
@@ -156,13 +156,13 @@ class System(SubElement):
         
         :return: dictionary of key/values
         """
-        return self._get_resource_by_link('license_details')
+        return self.resource.get('license_details')
         
     def license_check_for_new(self):
         """
         Check for new SMC license
         """
-        return self._get_resource_by_link('license_check_for_new')
+        return self.resource.get('license_check_for_new')
         
     def delete_license(self):
         raise NotImplementedError
@@ -173,7 +173,7 @@ class System(SubElement):
         
         :return: list of dict items related to master engines and virtual engine mappings
         """
-        return self._get_resource_by_link('visible_virtual_engine_mapping')
+        return self.resource.get('visible_virtual_engine_mapping')
     
     def references_by_element(self, element_href):
         """
@@ -182,7 +182,7 @@ class System(SubElement):
         :param str element_href: element reference
         :return: list list of references where element is used
         """
-        result = fetch_json_by_post(href=self._link('references_by_element'),
+        result = fetch_json_by_post(href=self.resource.references_by_element,
                                     json={'value': element_href})
         if result.json:
             return result.json
@@ -208,7 +208,7 @@ class System(SubElement):
         if not typeof in valid_types:
             typeof = 'all'
     
-        element = prepared_request(href=self._link('export_elements'),
+        element = prepared_request(href=self.resource.export_elements,
                                    params={'recursive': True,
                                            'type': typeof}
                                    ).create()
@@ -217,6 +217,18 @@ class System(SubElement):
                             wait_for_finish=wait_for_finish, 
                             filename=filename)
     
+    def active_alerts_ack_all(self):
+        """
+        Acknowledge all active alerts in the SMC
+        
+        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises: :py:class:`smc.api.exceptions.ResourceNotFound` resource supported in version >= 6.2
+        :return: None
+        """
+        prepared_request(ActionCommandFailed,
+                         href=self.resource.active_alerts_ack_all
+                         ).delete()
+                         
     def import_elements(self):
         raise NotImplementedError
     

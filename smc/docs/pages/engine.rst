@@ -442,9 +442,8 @@ vlan_interfaces() and sub_interfaces() resources.
 To show all vlan interfaces::
 
 	>>> for interface in engine.interface.all():
-	...     if interface.has_vlan:
-	...             print(interface.vlan_interfaces())
-	... 
+	...   if interface.has_vlan:
+	...     print(interface.vlan_interfaces())
 	[PhysicalVlanInterface(address=None,vlan_id=14), PhysicalVlanInterface(address=45.45.45.50,vlan_id=13)]
 
 Interfaces that have IP addresses assigned are considered 'sub interfaces'. There may be multiple
@@ -453,9 +452,8 @@ sub interfaces on a given physical interface if multiple IP's are assigned.
 Display addresses for a specific interface (showing the sub-interfaces)::
 
 	>>> for interface in engine.interface.all():
-	...     if interface.name == 'Interface 0':
-	...             print(interface.sub_interfaces())
-	... 
+	...   if interface.name == 'Interface 0':
+	...     print(interface.sub_interfaces())
 	[SingleNodeInterface(name=172.18.1.55)]
 	
 It is not required to traverse the physical or sub-interface hierarchy to view properties of
@@ -464,13 +462,13 @@ an interface.
 Show IP addresses and networks for all interfaces::
 
 	>>> for interface in engine.interface.all():
-	...     print(interface, interface.address, interface.network_value)
-	... 
-	(TunnelInterface(name=Tunnel Interface 1000), ['26.26.26.26', '130.130.130.130'], ['26.26.26.0/24', '130.130.130.0/24'])
-	(PhysicalInterface(name=Interface 12), ['19.19.19.19'], ['19.19.19.0/24'])
-	(TunnelInterface(name=Tunnel Interface 2000), ['12.12.12.12', '13.13.13.13'], ['12.12.12.0/24', '13.13.13.0/24'])
-	(PhysicalInterface(name=Interface 10), ['14.14.14.14', '16.16.16.16', '10.10.10.10'], ['14.14.14.0/24', '16.16.16.0/24', '10.10.10.0/24'])
-	(PhysicalInterface(name=Interface 11), ['17.17.17.17'], ['17.17.17.0/24'])
+	...   print(interface.name, interface.addresses)
+	('Tunnel Interface 2001', [('169.254.9.22', '169.254.9.20/30', '2001')])
+	('Tunnel Interface 2000', [('169.254.11.6', '169.254.11.4/30', '2000')])
+	('Interface 2', [('192.168.1.252', '192.168.1.0/24', '2'), ('192.168.1.253', '192.168.1.0/24', '2')])
+	('Interface 1', [('10.0.0.254', '10.0.0.0/24', '1'), ('10.0.0.253', '10.0.0.0/24', '1'), ('10.0.0.252', '10.0.0.0/24', '1')])
+	('Interface 0', [('172.18.1.254', '172.18.1.0/24', '0'), ('172.18.1.252', '172.18.1.0/24', '0'), ('172.18.1.253', '172.18.1.0/24', '0')])
+            
 
 See :py:class:`smc.core.interfaces.Interface` for more info.
 
@@ -495,8 +493,8 @@ Example of changing the IP address of an existing single node interface (for lay
 	...     interface.save()
 	... 
 	>>> intf = engine.interface.get(0)
-	>>> print(intf.address)
-	['172.18.1.60']
+	>>> print(intf.addresses)
+	[('172.18.1.60', '172.18.1.0/24', '0')]
 
        
 Change the zone on the top level Physical Interface::

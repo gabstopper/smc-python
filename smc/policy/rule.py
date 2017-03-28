@@ -40,7 +40,7 @@ For example, access policy information for a known Layer 3 policy:
 
 """
 import smc.actions.search as search
-from smc.base.model import Meta, SubElement, prepared_request
+from smc.base.model import SubElement, prepared_request
 from smc.elements.other import LogicalInterface
 from smc.vpn.policy import VPNPolicy
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
@@ -202,7 +202,7 @@ class Rule(object):
         
         :return: class type based on rule type 
         """
-        return [type(self)(meta=Meta(**rule))
+        return [type(self)(**rule)
                 for rule in search.element_by_href_as_json(self.href)]
     
 class IPv4Rule(Rule, SubElement):
@@ -262,8 +262,8 @@ class IPv4Rule(Rule, SubElement):
     """
     typeof = 'fw_ipv4_access_rule'
     
-    def __init__(self, meta=None):
-        super(IPv4Rule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(IPv4Rule, self).__init__(**meta)
         self.actions = ['allow', 'discard', 'continue', 
                         'refuse', 'jump', 'apply_vpn', 
                         'enforce_vpn', 'forward_vpn', 
@@ -333,8 +333,8 @@ class IPv4Layer2Rule(Rule, SubElement):
     """
     typeof = 'layer2_ipv4_access_rule'
 
-    def __init__(self, meta=None):
-        super(IPv4Layer2Rule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(IPv4Layer2Rule, self).__init__(**meta)
         self.actions = ['allow', 'continue', 'discard', 
                         'refuse', 'jump', 'blacklist']
         
@@ -389,8 +389,8 @@ class EthernetRule(Rule, SubElement):
     """
     typeof = 'ethernet_rule'
                               
-    def __init__(self, meta=None):
-        super(EthernetRule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(EthernetRule, self).__init__(**meta)
         self.actions = ['allow', 'discard']
     
     def create(self, name, sources=None, destinations=None, 
@@ -437,8 +437,8 @@ class IPv6Rule(IPv4Rule):
     """
     typeof = 'fw_ipv6_access_rule'
     
-    def __init__(self, meta=None):
-        super(IPv6Rule, self).__init__(meta)
+    def __init__(self, **meta):
+        super(IPv6Rule, self).__init__(**meta)
         pass        
        
 def _rule_l2_common(logical_interfaces):

@@ -116,3 +116,7 @@ $version 0.4.8
 sidewinder proxy enable for layer3 firewall (version >= 6.1)
 new collections module
 
+$version 0.4.9
+describe() removed from Element. Cache access through data attribute instead
+factor Meta out of ancillary classes and only create in ElementBase
+remove load() function on Engine. Engines can be loaded dynamically by Engine('name') and are then lazy loaded
