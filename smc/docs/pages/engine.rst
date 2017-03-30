@@ -386,7 +386,7 @@ IP addresses, however layer 3 interfaces will require addressing.
 To add a VLAN to a generic physical interface for single node (layer 3 firewall) or a node interface, 
 independent of engine type::
 
-	>>> engine = Engine('myengine').load()
+	>>> engine = Engine('myengine')
 	>>> engine.physical_interface.add_vlan_to_node_interface(23, 154)
 	>>> engine.physical_interface.add_vlan_to_node_interface(23, 155)
 	>>> engine.physical_interface.add_vlan_to_node_interface(23, 156)
@@ -401,13 +401,58 @@ to add addressing to each VLAN.
 To add layer 3 interfaces with a VLAN and IP address::
 
     >>> engine = Engine('myengine')
-    >>> engine.physical_interface.add_single_node_interface_to_vlan(interface_id=2, 
-    ...                                                             address='3.3.3.3',
-    ...                                                             network_value='3.3.3.0/24', 
-    ...                                                             vlan_id=3,
-    ...                                                             zone_ref=zone_helper('Internal')
+    >>> engine.physical_interface.add_ipaddress_to_vlan_interface(
+    ...                                         interface_id=2, 
+    ...                                         address='3.3.3.3',
+    ...                                         network_value='3.3.3.0/24', 
+    ...                                         vlan_id=3,
+    ...                                         zone_ref=zone_helper('Internal')
 
 .. note:: The physical interface will be created if it doesn't already exist
+
+
+When adding VLANs to a cluster interface, there are multiple options. Adding a VLAN, then adding
+a CVI interface, adding a VLAN and only NDI interfaces, adding VLAN with CVI and NDI or adding a
+simple VLAN with no interfaces.
+
+Add a cluster interface with id 2, vlan 2, with no interfaces:
+
+::
+
+	engine.physical_interface.add_ipaddress_and_vlan_to_cluster(
+                                        interface_id=2, vlan_id=2)
+
+Add a cluster interface with id 2, vlan 2 and a single CVI interface with no
+macaddress (exempts this interface from load balancing::
+
+    engine.physical_interface.add_ipaddress_and_vlan_to_cluster(
+                                        interface_id=2, vlan_id=2,
+                                        cluster_virtual='3.3.3.1', 
+                                        cluster_mask='3.3.3.0/24',
+                                        macaddress=None)
+    
+Add a cluster interface with id 2, vlan 2, single CVI interface and macaddress to
+allow load balancing. Set cluster mode to 'packetdispatch'::
+
+    engine.physical_interface.add_ipaddress_and_vlan_to_cluster(
+                                        interface_id=2, vlan_id=2,
+                                        nodes=None, cluster_virtual='22.22.22.22', 
+                                        cluster_mask='22.22.22.0/24',
+                                        macaddress='02:02:02:02:02:02',
+                                        cvi_mode='packetdispatch')
+
+Add a cluster interface with id 2, vlan 2, a CVI, NDI interfaces along with an
+assigned macaddress and zone::
+
+    engine.physical_interface.add_ipaddress_and_vlan_to_cluster(
+                                        interface_id=2, vlan_id=2,
+                                        nodes=[{'address': '4.4.4.4', 'network_value': '4.4.4.0/24', 'nodeid':1},
+                                               {'address': '4.4.4.5', 'network_value': '4.4.4.0/24', 'nodeid':2}]
+                                        cluster_virtual='4.4.4.1', 
+                                        cluster_mask='4.4.4.0/24',
+                                        macaddress='02:02:02:02:02:02',
+                                        cvi_mode='packetdispatch', 
+                                        zone_ref=zone_helper('thiszone'))
    
 To add VLANs to layer 2 or IPS inline interfaces::
 

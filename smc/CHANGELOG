@@ -120,3 +120,11 @@ $version 0.4.9
 describe() removed from Element. Cache access through data attribute instead
 factor Meta out of ancillary classes and only create in ElementBase
 remove load() function on Engine. Engines can be loaded dynamically by Engine('name') and are then lazy loaded
+If-Match header enforced in SMC 6.1.2, required for delete operations
+
+$version 0.4.10
+remove add_vlan_to_single_node_interface; use add_ipaddress_to_vlan_interface
+tunnel interface has one method (add_
+routes are removed when a VLAN with interfaces or a physical interface with addresses is removed
+remove_vlan method of physical interface
+

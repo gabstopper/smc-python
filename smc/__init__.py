@@ -2,7 +2,7 @@ import logging
 from smc.api.session import Session
 
 __author__ = 'David LePage'
-__version__ = '0.4.9'
+__version__ = '0.4.10'
 
 # Default SMC Session
 session = Session()

@@ -95,7 +95,8 @@ class SMCAPIConnection(object):
                         raise SMCOperationFailure(response)
                     
                 elif method == SMCAPIConnection.DELETE:
-                    response = self.session.delete(request.href)
+                    response = self.session.delete(request.href,
+                                                   headers=request.headers)
                     response.encoding = 'utf-8'
                     
                     counters.update(delete=1)

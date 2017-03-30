@@ -226,10 +226,8 @@ class ElementBase(UnicodeMixin):
     of an element.
     Meta is passed in to Element and SubElement types to provide 
     links to resources. Meta format: {'href','type','name'}.
-    Meta can be passed to constructor in following ways:
-        **meta
-        href=.... (only partial meta)
-        meta={.....} (as dict)
+    Meta can be passed to constructor through as key value pairs
+    kwargs, href=.... (only partial meta), or meta={.....} (as dict)
             
     If meta is not provided, the meta attribute will be None 
     """
@@ -282,7 +280,8 @@ class ElementBase(UnicodeMixin):
         :return: None
         """
         prepared_request(DeleteElementFailed,
-                         href=self.href).delete()
+                         href=self.href,
+                         headers={'if-match': self.etag}).delete()
         
     def modify_attribute(self, **kwargs):
         """
