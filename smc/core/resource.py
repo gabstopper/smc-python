@@ -27,7 +27,7 @@ class Snapshot(SubElement):
         Download snapshot to filename
         
         :param str filename: fully qualified path including filename .zip
-        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
+        :raises EngineCommandFailed: IOError occurred downloading snapshot
         :return: None
         """
         if not filename:
@@ -65,7 +65,7 @@ class PendingChanges(object):
         """
         Approve all pending changes
         
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
         prepared_request(ActionCommandFailed,
@@ -76,7 +76,7 @@ class PendingChanges(object):
         """
         Disapprove all pending changes
         
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
         prepared_request(ActionCommandFailed,

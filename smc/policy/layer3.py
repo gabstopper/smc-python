@@ -124,9 +124,9 @@ class FirewallPolicy(FirewallRule, Policy):
         :mathod: POST
         :param str name: name of policy
         :param str template: name of the FW template to base policy on
-        :return: :py:class:`smc.elements.policy.FirewallPolicy`
-        :raises: :py:class:`smc.api.exceptions.LoadPolicyFailed`,
-                 :py:class:`smc.api.exceptions.CreatePolicyFailed`
+        :raises LoadPolicyFailed: Cannot load the policy after creation
+        :raises CreatePolicyFailed: policy creation failed with message
+        :return: `~FirewallPolicy`
         
         To use after successful creation, reference the policy to obtain
         context::

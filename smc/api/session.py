@@ -220,7 +220,7 @@ class SessionCache(object):
         
         :param str verb: top level entry point into SMC api
         :return dict: meta data for specified entry point
-        :raises: :py:class:`smc.api.exceptions.UnsupportedEntryPoint`
+        :raises UnsupportedEntryPoint: entry point doesn't exist in this version
         """
         if self.api_entry:
             href = None

@@ -31,8 +31,8 @@ class AccessList(object):
 
         :param str name: name of IP Access List
         :param list entries: access control entry
+        :raises CreateElementFailed: cannot create element
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         access_list_entry = []
         if entries:
@@ -53,8 +53,8 @@ class AccessList(object):
 
         :param str subnet: network address in cidr format
         :param str action: permit|deny
-        :raises: :py:class:`smc.api.exceptions.ElementNotFound`
-        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :raises ElementNotFound: invalid speciied element
+        :raises ModificationFailed: failure to modify with reason
         :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
@@ -73,7 +73,7 @@ class AccessList(object):
         Remove an AccessList entry by subnet
 
         :param str subnet: subnet match to remove
-        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :raises ModificationFailed: failed to modify with reason
         :return: None
         """
         acl = search.element_by_href_as_smcresult(self.href)

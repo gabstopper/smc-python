@@ -29,8 +29,8 @@ class TCPService(Element):
         :param str name: name of tcp service
         :param int min_dst_port: minimum destination port value
         :param int max_dst_port: maximum destination port value
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: failure creating element with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
@@ -76,8 +76,8 @@ class UDPService(Element):
         :param str name: name of udp service
         :param int min_dst_port: minimum destination port value
         :param int max_dst_port: maximum destination port value
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: failure creating element with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
@@ -112,8 +112,8 @@ class IPService(Element):
         
         :param str name: name of ip-service
         :param int protocol_number: ip proto number for this service
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: failure creating element with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -152,8 +152,8 @@ class EthernetService(Element):
         :param str frame_type: ethernet frame type, eth2\|llc\|snap
         :param str ethertype: hex string code for protocol
         :param str comment: optional comment
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: failure creating element with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         cls.json = {'frame_type': frame_type,
@@ -209,8 +209,8 @@ class ICMPService(Element):
         :param str name: name of service
         :param int icmp_type: icmp type field
         :param int icmp_code: icmp type code
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: failure creating element with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         icmp_code = icmp_code if icmp_code else ''
@@ -244,8 +244,8 @@ class ICMPIPv6Service(Element):
         
         :param str name: name of service
         :param int icmp_type: ipv6 icmp type field
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: failure creating element with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,

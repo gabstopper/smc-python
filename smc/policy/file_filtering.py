@@ -1,5 +1,5 @@
 from smc.policy.policy import Policy
-from smc.base.model import SubElement
+from smc.base.model import SubElement, fetch_collection
 
 class FileFilteringRule(SubElement):
     """
@@ -27,7 +27,7 @@ class FileFilteringRule(SubElement):
             for rule in FileFiltering('mypolicy).
         """ 
         return [type(self)(**rule)
-                for rule in self._get_resource(self.href)]
+                for rule in fetch_collection(self.href)]
         
 class FileFilteringPolicy(Policy):
     """ 

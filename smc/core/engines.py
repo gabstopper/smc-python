@@ -51,8 +51,8 @@ class Layer3Firewall(Engine):
         :param str location_ref: location href for engine if needed to contact SMC behind NAT
         :param boolean enable_ospf: whether to turn OSPF on within engine
         :param str ospf_profile: optional OSPF profile to use on engine, by ref   
+        :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         """
         builder = InterfaceBuilder()
         builder.interface_id = mgmt_interface
@@ -125,8 +125,8 @@ class Layer2Firewall(Engine):
         :param str zone_ref: (optional) zone name for management interface (created if not found)
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         """
         interfaces = []
         
@@ -196,8 +196,8 @@ class IPS(Engine):
         :param str zone_ref: (optional) zone name for management interface (created if not found)
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         """
         interfaces = []
         
@@ -273,9 +273,9 @@ class Layer3VirtualEngine(Engine):
         :param list interfaces: interfaces mappings passed in
         :param boolean enable_ospf: whether to turn OSPF on within engine
         :param str ospf_profile: optional OSPF profile to use on engine, by ref   
+        :raises CreateEngineFailed: Failure to create with reason
+        :raises LoadEngineFailed: master engine not found
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
-                 :py:class:`smc.api.exceptions.LoadEngineFailed`: master engine not found
         """
         virt_resource_href = None #need virtual resource reference
         master_engine = Engine(master_engine)
@@ -368,8 +368,8 @@ class FirewallCluster(Engine):
         :param str zone_ref: (optional) zone name for management interface (created if not found)
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         
         Example nodes parameter input::
             
@@ -439,8 +439,8 @@ class MasterEngine(Engine):
         :param list domain_server_address: (optional) DNS server addresses
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         """             
         builder = InterfaceBuilder()
         builder.interface_id = mgmt_interface
@@ -502,8 +502,8 @@ class MasterEngineCluster(Engine):
         :param list domain_server_address: (optional) DNS server addresses
         :param boolean enable_antivirus: (optional) Enable antivirus (required DNS)
         :param boolean enable_gti: (optional) Enable GTI
+        :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
-        :raises: :py:class:`smc.api.exceptions.CreateEngineFailed`: Failure to create with reason
         
         Example nodes parameter input::
             

@@ -93,6 +93,14 @@ class IPSPolicy(IPSRule, Policy):
 
     @classmethod
     def create(cls, name, template):
+        """
+        Create an IPS Policy
+        
+        :param str name: Name of policy
+        :param str template: name of template
+        :raises CreatePolicyFailed: policy failed to create
+        :return: :class:`~IPSPolicy`
+        """
         try:
             fw_template = IPSTemplatePolicy(template).href
         except ElementNotFound:

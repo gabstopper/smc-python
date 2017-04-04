@@ -218,11 +218,12 @@ Location
    :members:
    :show-inheritance:
 
-ContactAddress
-**************
+ServerContactAddress
+********************
 
-.. autoclass:: ContactAddress
+.. autoclass:: ServerContactAddress
 	:members:
+	:show-inheritance:
 
 Engine
 ------
@@ -249,7 +250,13 @@ Hardware Status
 
 .. autoclass:: smc.core.node.HardwareStatus
 	:members:
-	
+
+ContactAddress
+++++++++++++++
+
+.. automodule:: smc.core.contact_address
+	:members: ContactAddress, ContactInterface
+
 Dynamic Routing
 +++++++++++++++
 Represents classes responsible for configuring dynamic routing protocols
@@ -744,20 +751,16 @@ AccessControlList
 Users
 +++++
 
-.. autoclass:: smc.elements.user.UserCommon
-	:members:
-
 .. automodule:: smc.elements.user
-   :members:
-   :show-inheritance:
-
-.. _collection-reference-label:
+	:members:
+	:show-inheritance:
+	:undoc-members:
  
 Collection
 ----------
 
 .. automodule:: smc.elements.resources
-   :members:
+   :members: ElementCollection, Search
 
 Search
 ------

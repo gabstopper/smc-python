@@ -5,7 +5,7 @@ related configurations on NGFW
 from collections import namedtuple
 from smc.base.model import Element, prepared_request, SubElement
 from smc.base.util import find_link_by_name
-from smc.api.exceptions import CreateElementFailed
+from smc.api.exceptions import CreateElementFailed, EngineCommandFailed
 
 class Routing(SubElement):
     """
@@ -90,8 +90,8 @@ class Routing(SubElement):
         :param str communication_mode: NOT_FORCED|POINT_TO_POINT|PASSIVE|UNICAST
         :param str unicast_ref: location ref of host (required for UNICAST)
         :param str network: if network specified, only add OSPF to this network on interface
-        :raises: :py:class:`smc.api.exceptions.EngineCommandFailed`
-        :raises: :py:class:`smc.api.exceptions.ElementNotFound`
+        :raises EngineCommandFailed: failure updating routing
+        :raises ElementNotFound: ospf area not found
         :return: None
         """
         if isinstance(ospf_area, Element):
@@ -114,7 +114,7 @@ class Routing(SubElement):
                 else:
                     networks.data['routing_node'].append(node)
         
-        prepared_request(CreateElementFailed,
+        prepared_request(EngineCommandFailed,
                          href=self.href,
                          json=self.data,
                          etag=self.etag).update()
@@ -244,8 +244,8 @@ class Antispoofing(SubElement):
 
         :param entry: entry to add
         :return: None
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
-        :raises: :py:class:`smc.api.exceptions.ElementNotFound`
+        :raises CreateElementFailed: failed adding entry
+        :raises ElementNotFound: element entry specified not in SMC
         """
         if isinstance(entry, Element):
             entry = entry.href

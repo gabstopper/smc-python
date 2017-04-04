@@ -36,8 +36,10 @@ Element class relationship::
         |------------------------------------------------------|
       href = ElementLocator()                                href
       name                                                   name
-      from_href()                                     
+      from_href()
+      from_meta()                                   
       export()
+      category_tags
 
 Classes that do not require state on retrieved json or provide basic 
 container functionality may inherit from object.
@@ -68,6 +70,16 @@ def exception(function):
         return result
     return wrapper
 
+def fetch_collection(href):
+    """
+    Return json for element using href provided
+        
+    :raises FetchElementFailed: failure during GET request
+    """
+    return prepared_request(FetchElementFailed,
+                            href=href
+                            ).read().json
+                                
 @exception   
 def prepared_request(*exception, **kwargs):
     """
@@ -121,17 +133,26 @@ class ElementResource:
         if resource: 
             return resource.get('name')
     
-    def get(self, resource):
+    def get(self, resource, as_smcresult=False):
         """
         Get the json for the resource. This can be either an
         href or the 'rel' link name which will retrieve the
         href from this class.
+        Set as_smcresult if you need to retrieve the full
+        SMCResult object. In some cases, nested ETag's are
+        required for certain elements, such as interface contact
+        addresses.
         """
         if not resource.startswith('http'):
             resource = getattr(self, resource)
-        return prepared_request(FetchElementFailed,
-                                href=resource
-                                ).read().json
+        result = prepared_request(href=resource
+                                  ).read()
+        if result.msg:
+            raise FetchElementFailed(result.msg)
+        if as_smcresult:
+            return result
+        else:
+            return result.json
         
     def __getattr__(self, link):
         raise ResourceNotFound('Resource requested: %r is not '
@@ -168,6 +189,10 @@ class Cache(object):
                 result.json.update(self._cache[1])
                 self._cache = (result.etag, result.json)
         return self._cache
+    
+    def clear(self):
+        # This forces a refresh when called again
+        self._cache = None
     
     @property
     def resource(self):
@@ -276,7 +301,7 @@ class ElementBase(UnicodeMixin):
         """
         Delete the element
         
-        :raises: :py:class:`smc.api.exception.DeleteElementFailed`
+        :raises DeleteElementFailed: possible dependencies, record locked, etc
         :return: None
         """
         prepared_request(DeleteElementFailed,
@@ -289,42 +314,40 @@ class ElementBase(UnicodeMixin):
         Add append_lists=True kwarg if dict leaf is a list
         and you want to append, default: replace
         
+        .. note:: modify_attribute will refresh the element cache to
+            ensure the modification is done to a current version of
+            the element.
+        
         :param dict kwargs: key=value pair to change
         :param boolean append_lists: if change is a list, append or overwrite
-        :raises: :py:class:`smc.api.exceptions.ElementNotFound`
-        :raises: :py:class:`smc.api.exceptions.ModificationFailed`  
+        :raises ElementNotFound: cannot find element specified
+        :raises ModificationFailed: failure applying change with reason  
         :return: None
         """
+        self.cache.clear()
         element = self.data
+    
         if element.get('system') == True:
             raise ModificationFailed('Cannot modify system element: %s' % self.name)
         
         append_lists = kwargs.pop('append_lists', False)
         merge_dicts(element, kwargs, append_lists)
-                
+    
+        etag = self.etag
+        
         prepared_request(ModificationFailed,
                          href=self.href,
                          json=element,
-                         etag=self.etag
+                         etag=etag
                          ).update()
         
-    def _get_resource(self, href):
-        """
-        Return json for element using href provided
-        
-        :raises: FetchElementFailed
-        """
-        return prepared_request(FetchElementFailed,
-                                href=href
-                                ).read().json
-    
-    def __getattr__(self, attr):
-        if attr not in ['_cache', 'typeof']:
-            val = self.data.get(attr)
-            if val is not None: 
-                return val
-        raise AttributeError('%r object has no attribute %r' %
-            (self.__class__.__name__, attr))
+    #def __getattr__(self, attr):
+    #    if attr not in ['_cache', 'typeof']:
+    #        val = self.data.get(attr)
+    #        if val is not None: 
+    #            return val
+    #    raise AttributeError('%r object has no attribute %r' %
+    #        (self.__class__.__name__, attr))
                 
 class Element(ElementBase):
     """
@@ -391,7 +414,7 @@ class Element(ElementBase):
         
         :param str filename: filename to store exported element
         :param boolean wait_for_finish: wait for update msgs (default: False)
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises ActionCommandFailed: invalid permissions, invalid directory, etc
         :return: generator yielding updates on progress, or [] if element cannot
                  be exported, like for system elements
         """

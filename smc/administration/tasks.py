@@ -83,7 +83,7 @@ class Task(object):
         """
         Abort existing task
         
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises ActionCommandFailed: aborting task failed with reason
         :return: None
         """
         prepared_request(ActionCommandFailed,
@@ -136,8 +136,8 @@ class TaskDownload(object):
     
     :param str result: follower result link
     :param str filename: filename provided
-    :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
-    :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+    :raises TaskRunFailed: IOError occurred during task run
+    :raises ActionCommandFailed: attempt to read task status failed
     :return: None
     """
     def __init__(self, result, filename):

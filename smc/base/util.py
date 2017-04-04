@@ -12,7 +12,7 @@ def save_to_file(filename, content):
     :param str filename: name of file to save to
     :param str content: content to save
     :return: None
-    :raises: :py:class:`IOError`
+    :raises IOError: permissions issue saving, invalid directory, etc
     """ 
     import os.path
     path = os.path.abspath(filename)

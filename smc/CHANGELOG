@@ -128,3 +128,7 @@ tunnel interface has one method (add_
 routes are removed when a VLAN with interfaces or a physical interface with addresses is removed
 remove_vlan method of physical interface
 
+$version 0.4.11
+optimize interface.get(x) to only look at meta when finding interface id
+removed describe_xx collections in favor of smc.elements.resources collections
+new contact address implementation (now bound to engine level and interfaces)

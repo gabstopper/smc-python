@@ -32,7 +32,8 @@ class DockerFailure(Exception):
 # --name smc_container dwlepage70/smc:v6.1
 smc= {'HostConfig': {
             'NetworkMode': 'mynet',
-            'PortBindings': {'8082/tcp':[{'HostPort':'8082'}],
+            'PortBindings': {
+                             '8082/tcp':[{'HostPort':'8082'}],
                              '8902/tcp':[{'HostPort':'8902'}],
                              '8903/tcp':[{'HostPort':'8903'}],
                              '8904/tcp':[{'HostPort':'8904'}],
@@ -50,7 +51,7 @@ smc= {'HostConfig': {
                              '8916/tcp':[{'HostPort':'8916'}],
                              '8917/tcp':[{'HostPort':'8917'}],
                              '8918/tcp':[{'HostPort':'8918'}]},},
-      'Image': 'dwlepage70/smc:v6.1.2',
+      'Image': 'dwlepage70/smc:v6.2.0',
       'Labels': {},
       'Mounts': [],
       'NetworkingConfig': {

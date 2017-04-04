@@ -77,8 +77,8 @@ class Node(SubElement):
         """ 
         Fetch the node level license
         
+        :raises LicenseError: fetching license failure with reason
         :return: None
-        :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         try:
             prepared_request(LicenseError,
@@ -92,8 +92,8 @@ class Node(SubElement):
         Auto bind license, uses dynamic if POS is not found
         
         :param str license_item_id: license id
+        :raises LicenseError: binding license failed, possibly no licenses
         :return: None
-        :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         params = {'license_item_id': license_item_id}
         try:
@@ -108,8 +108,8 @@ class Node(SubElement):
         """ 
         Unbind a bound license on this node.
         
+        :raises LicenseError: failure with reason
         :return: None
-        :raises: :py:class:`smc.api.exceptions.LicenseError` 
         """
         try:
             prepared_request(LicenseError,
@@ -122,8 +122,8 @@ class Node(SubElement):
         """ 
         Cancel unbind for license
         
+        :raises LicenseError: unbind failed with reason
         :return: None
-        :raises: :py:class:`smc.api.exceptions.LicenseError`
         """
         try:
             prepared_request(LicenseError,
@@ -146,8 +146,8 @@ class Node(SubElement):
         :param boolean install_on_server: optional flag to know if the generated configuration 
                needs to be installed on SMC Install server (POS is needed)
         :param str filename: filename to save initial_contact to
-        :return: str initial contact text information
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed` 
+        :raises NodeCommandFailed: IOError handling initial configuration data
+        :return: str initial contact text information 
         """
         try:
             result = prepared_request(href=self.resource.initial_contact,
@@ -197,8 +197,8 @@ class Node(SubElement):
         via :func:`go_offline`
 
         :param str comment: (optional) comment to audit
+        :raises NodeCommandFailed: online not available
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
@@ -211,8 +211,8 @@ class Node(SubElement):
         Executes a Go-Offline operation on the specified node
 
         :param str comment: optional comment to audit
+        :raises NodeCommandFailed: offline not available
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
@@ -226,8 +226,8 @@ class Node(SubElement):
         To get the status of the current node/s, run :func:`status`
 
         :param str comment: optional comment to audit
+        :raises NodeCommandFailed: engine cannot go standby
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
@@ -240,8 +240,8 @@ class Node(SubElement):
         Executes a Lock-Online operation on the specified node
 
         :param str comment: comment for audit
+        :raises NodeCommandFailed: cannot lock online
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
@@ -255,8 +255,8 @@ class Node(SubElement):
         Bring back online by running :func:`go_online`.
 
         :param str comment: comment for audit
+        :raises NodeCommandFailed: lock offline failed
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
@@ -270,8 +270,8 @@ class Node(SubElement):
         node.
 
         :param str comment: comment to audit
+        :raises NodeCommandFailed: failure resetting db
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         try:
@@ -297,8 +297,8 @@ class Node(SubElement):
         Add filter_enabled=True argument to see only enabled settings
 
         :param boolean filter_enabled: returns all enabled diagnostics
+        :raises NodeCommandFailed: failure getting diagnostics
         :return: list of dict items with diagnostic info; key 'diagnostics'
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params={'filter_enabled': filter_enabled}
         try:
@@ -333,8 +333,8 @@ class Node(SubElement):
             node.send_diagnostic(debug)
         
         :param list diagnostic: :py:class:`smc.core.node.Diagnostic` object
+        :raises NodeCommandFailed: error sending diagnostics
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         debug=[]
         for setting in diagnostic:
@@ -349,8 +349,8 @@ class Node(SubElement):
         Send reboot command to this node.
 
         :param str comment: comment to audit
+        :raises NodeCommandFailed: reboot failed with reason
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         prepared_request(NodeCommandFailed,
@@ -379,8 +379,8 @@ class Node(SubElement):
 
         :param boolean enable: enable or disable SSH daemon
         :param str comment: optional comment for audit
+        :raises NodeCommandFailed: cannot enable SSH daemon
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'enable': enable, 'comment': comment}
         try:
@@ -398,8 +398,8 @@ class Node(SubElement):
 
         :param str pwd: changed password value
         :param str comment: optional comment for audit log
+        :raises NodeCommandFailed: cannot change ssh password
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         params = {'comment': comment}
         try:
@@ -416,8 +416,8 @@ class Node(SubElement):
         """ 
         Send a time sync command to this node.
 
+        :raises NodeCommandFailed: time sync not supported on node
         :return: None
-        :raises: :py:class:`smc.api.exceptions.NodeCommandFailed`
         """
         try:
             prepared_request(NodeCommandFailed,

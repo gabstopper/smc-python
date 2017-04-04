@@ -42,7 +42,7 @@ class _RequestHandler(object):
         except SMCOperationFailure as e:
             result = e.smcresult
             try:
-                err = self.exception(result.msg)
+                err = self.exception(result.msg) # Exception set
             except AttributeError:
                 pass
         except SMCConnectionError as e:

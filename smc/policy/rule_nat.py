@@ -12,7 +12,7 @@ class NATRule(Rule):
         Used on specific whether this NAT rule has a specific engine that
         this rule applies to. Default is ANY (unspecified).
         
-        :param str\|Element value: :py:class:`smc.elements.network` element to
+        :param str,Element value: :py:class:`smc.elements.network` element to
                apply to this NAT rule, or str href
         :return: str value: name of element this NAT rule is applied on
         """
@@ -429,7 +429,17 @@ class IPv4NATRule(NATRule, SubElement):
                                         destinations=[Host('3.3.3.3')], 
                                         services='any', 
                                         static_dst_nat='1.1.1.1')
-                                    
+    
+    Destination NAT with destination port translation::
+    
+        policy.fw_ipv4_nat_rules.create(name='aws_client', 
+                                        sources='any', 
+                                        destinations=[Alias('$$ Interface ID 0.ip')], 
+                                        services='any', 
+                                        static_dst_nat='1.1.1.1', 
+                                        static_dst_nat_ports=(2222, 22),
+                                        used_on=engine.href)
+                                        
     Create an any/any no NAT rule from host 'kali'::
     
         policy.fw_ipv4_nat_rules.create(name='nonat', 
@@ -468,8 +478,8 @@ class IPv4NATRule(NATRule, SubElement):
                (only needed if a different destination port is used and does not match the rules service port)
         :param boolean is_disabled: whether to disable rule or not
         :param str used_on: element or href (of security engine) where this NAT rule applies, Default: Any
-        :raises: :py:class:`smc.api.exceptions.InvalidRuleValue`: if rule requirements are not met
-        :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
+        :raises InvalidRuleValue: if rule requirements are not met
+        :raises CreateRuleFailed: rule creation failure
         :return: None
         """
         rule_values = _rule_common(sources, destinations, services)
@@ -498,6 +508,8 @@ class IPv4NATRule(NATRule, SubElement):
             nat = StaticDestNAT(options.data)
             nat.translated_value = static_dst_nat
             nat.original_value = destination.all_as_href()[0]
+            if static_dst_nat_ports:
+                nat.translated_ports = static_dst_nat_ports
             rule_values.update(options=nat.data)
             
         if 'options' not in rule_values: # No NAT

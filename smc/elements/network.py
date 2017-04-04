@@ -47,11 +47,11 @@ class Host(Element):
         :param str ipv6_address: ipv6 address (optional if ipv4)
         :param list secondary: secondary ip addresses (optional)
         :param str comment: comment (optional)
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
-        address = None if address is None else address
-        ipv6_address = None if ipv6_address is None else ipv6_address
+        address = address if address else None
+        ipv6_address = ipv6_address if ipv6_address else None
         secondaries = [] if secondary is None else secondary
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -88,8 +88,8 @@ class AddressRange(Element):
         :param str name: Name of element
         :param str iprange: iprange of element
         :param str comment: comment (optional)
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -130,11 +130,11 @@ class Router(Element):
         :param str ipv6_address: ipv6 address (optional if ipv4)
         :param str secondary_ip: secondary ip address (optional)
         :param str comment: comment (optional)
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """ 
-        address = None if address is None else address
-        ipv6_address = None if ipv6_address is None else ipv6_address   
+        address = address if address else None
+        ipv6_address = ipv6_address if ipv6_address else None
         secondary = [] if secondary_ip is None else secondary_ip 
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -176,11 +176,11 @@ class Network(Element):
         :param str ipv4_network: network cidr (optional if ipv6)
         :param str ipv6_network: network cidr (optional if ipv4)
         :param str comment: comment (optional)
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
-        ipv4_network = None if ipv4_network is None else ipv4_network
-        ipv6_network = None if ipv6_network is None else ipv6_network
+        ipv4_network = ipv4_network if ipv4_network else None
+        ipv6_network = ipv6_network if ipv6_network else None
         comment = comment if comment else ''
         cls.json = {'name': name,
                     'ipv4_network': ipv4_network,
@@ -211,8 +211,8 @@ class DomainName(Element):
         Create domain name element
         
         :param str name: name of domain, i.e. lepages.net, www.lepages.net
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -279,8 +279,8 @@ class Expression(Element):
                (default: exclusion)
         :param dict sub_expression: sub expression used
         :param str comment: optional comment
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         comment = comment if comment else ''
         sub_expression = [] if sub_expression is None else [sub_expression]
@@ -318,8 +318,8 @@ class URLListApplication(Element):
         :param str name: name of url list
         :param list url_entry: list of url's
         :param str comment: optional comment
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json = {'name': name,
                     'url_entry': url_entry,
@@ -377,7 +377,7 @@ class IPList(Element):
         
         :param str filename: Name of file to save to (required for zip)
         :param str as_type: type of format to download in: txt,json,zip (default: zip)
-        :raises: IOError if problem writing to destination filename
+        :raises IOError: problem writing to destination filename
         :return: None
         """
         headers=None
@@ -409,8 +409,8 @@ class IPList(Element):
         :param str filename: required for zip/txt uploads
         :param str json: required for json uploads
         :param str as_type: type of format to upload in: txt|json|zip (default)
-        :raises: IOError: if filename specified cannot be loaded
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises IOError: filename specified cannot be loaded
+        :raises CreateElementFailed: element creation failed with reason
         :return: None
         """      
         headers={'content-type': 'multipart/form-data'}
@@ -440,8 +440,8 @@ class IPList(Element):
         :param str name: name of ip list
         :param list iplist: list of ipaddress
         :param str comment: optional comment
+        :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element 
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
         """
         cls.json={'name': name,
                   'comment': comment}
@@ -478,8 +478,8 @@ class Zone(Element):
         
         :param str zone: name of zone
         :param str comment: optional comment
-        :return: str href: href location of new element
-        :raises: :py:class:`smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: element creation failed with reason
+        :return: href location of new element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -553,8 +553,8 @@ class Alias(Element):
             alias.resolve('smcpython-fw')
             
         :param str engine: name of engine to resolve value
+        :raises ElementNotFound: if alias not found on engine
         :return: list value: list of alias resolving values
-        :raises: :py:class:`smc.api.exceptions.ElementNotFound` if alias not found on engine
         """
         if not self.resolved_value:
             result = prepared_request(ElementNotFound,

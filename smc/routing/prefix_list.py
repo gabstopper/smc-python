@@ -56,8 +56,8 @@ class PrefixList(object):
         :param int min_prefix_length: minimum mask bits
         :param int max_prefix_length: maximum mask bits
         :param str action: permit|deny
-        :raises: :py:class: `smc.api.exceptions.ElementNotFound`: invalid element reference
-        :raises: :py:class: 'smc.api.exceptions.ModificationFailed`: invalid entry
+        :raises ElementNotFound: invalid element reference
+        :raises ModificationFailed: invalid entry
         :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
@@ -78,7 +78,7 @@ class PrefixList(object):
         Remove an PrefixList entry by subnet
 
         :param str subnet: subnet match to remove
-        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :raises ModificationFailed: invalid change 
         :return: None
         """
         acl = search.element_by_href_as_smcresult(self.href)

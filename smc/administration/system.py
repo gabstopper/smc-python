@@ -60,7 +60,7 @@ class System(SubElement):
         """ 
         Empty system level trash bin
         
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises ActionCommandFailed: failed removing trash
         :return: None
         """
         prepared_request(ActionCommandFailed,
@@ -114,7 +114,7 @@ class System(SubElement):
         
         :param src: source of the entry
         :param dst: destination of blacklist entry
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
+        :raises ActionCommandFailed: blacklist apply failed with reason
         :return: None
         """
         prepared_request(ActionCommandFailed,
@@ -201,7 +201,7 @@ class System(SubElement):
         
         :param type: type of element
         :param filename: Name of file for export
-        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+        :raises TaskRunFailed: failure during export with reason
         :return: generator with results (if wait_for_finish=True), else href
         """
         valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
@@ -221,8 +221,8 @@ class System(SubElement):
         """
         Acknowledge all active alerts in the SMC
         
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed`
-        :raises: :py:class:`smc.api.exceptions.ResourceNotFound` resource supported in version >= 6.2
+        :raises ActionCommandFailed: Failure during acknowledge with reason
+        :raises ResourceNotFound: resource supported in version >= 6.2
         :return: None
         """
         prepared_request(ActionCommandFailed,

@@ -70,7 +70,7 @@ class Policy(Element):
         generally can be done without locking via open.
         This is only used in SMC API 6.0 and below
 
-        :raises: :py:class: `smc.api.exceptions.PolicyCommandFailed`
+        :raises PolicyCommandFailed: Cannot open policy
         :return: None
         """
         try:

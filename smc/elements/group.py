@@ -34,7 +34,7 @@ class GroupMixin(object):
         """
         Empty members from group
         
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
         """
         return self.modify_attribute(element=[])
 
@@ -66,7 +66,8 @@ class Group(GroupMixin, Element):
         :param str name: Name of element
         :param list members: group members by element names
         :param str comment: optional comment
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises CreateElementFailed: element creation failed with reason
+        :return: href of created element
         """
         comment = None if comment is None else comment
         members = [] if members is None else members
@@ -102,7 +103,8 @@ class ServiceGroup(GroupMixin, Element):
         
         :param str name: name of service group
         :param list element: list of elements to add to service group
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises CreateElementFailed: element creation failed with reason
+        :return: href of created element
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
@@ -135,7 +137,8 @@ class TCPServiceGroup(GroupMixin, Element):
         
         :param str name: name of tcp service group
         :param list element: tcp services by href
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises CreateElementFailed: element creation failed with reason
+        :return: href of created element
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
@@ -169,7 +172,8 @@ class UDPServiceGroup(GroupMixin, Element):
         
         :param str name: name of service group
         :param list element: UDP services or service group by reference
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises CreateElementFailed: element creation failed with reason
+        :return: href of created element
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
@@ -198,7 +202,8 @@ class IPServiceGroup(GroupMixin, Element):
         
         :param str name: name of service group
         :param list element: IP services or IP service groups by ref
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises CreateElementFailed: element creation failed with reason
+        :return: href of created element
         """
         comment = comment if comment else ''
         elements = [] if element is None else element

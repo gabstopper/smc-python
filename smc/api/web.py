@@ -199,7 +199,6 @@ class SMCResult(object):
             self.etag = response.headers.get('ETag')
             if response.headers.get('content-type') == 'application/json':
                 try:
-                    #result = json.loads(response.text)
                     result = response.json()
                 except ValueError:
                     result = None

@@ -59,7 +59,6 @@ class ExternalGateway(Element):
         identify address space that is defined on the other end of
         the VPN tunnel.
         
-        :method: GET
         :return: list :py:class:`smc.vpn.elements.VPNSite`
         """
         return VPNSite(href=self.resource.vpn_site)
@@ -77,7 +76,6 @@ class ExternalGateway(Element):
             >>> gateway.external_endpoint.create('someendpoint', '12.12.12.12')
             'http://1.1.1.1:8082/6.1/elements/external_gateway/22961/external_endpoint/27467'
 
-        :method: GET
         :return: :py:class:`smc.vpn.elements.ExternalEndpoint`
         """
         return ExternalEndpoint(href=self.resource.external_endpoint)
@@ -110,8 +108,8 @@ class ExternalEndpoint(SubElement):
         :param boolean ipsec_vpn: True|False (default: True)
         :param boolean nat_t: True|False (default: False)
         :param boolean dynamic: is a dynamic VPN (default: False)
-        :return: str href: href of new element
-        :raises: :py:class: `smc.api.exceptions.CreateElementFailed`
+        :raises CreateElementFailed: create element with reason
+        :return: href of new element
         """
         json = {'name': name,
                 'address': address,
@@ -164,8 +162,8 @@ class VPNSite(SubElement):
 
         :param str name: name of site
         :param list site_element: list of protected networks/hosts
+        :raises CreateElementFailed: create element failed with reason
         :return: str href: href of new element
-        :raises: :py:class: `smc.api.exceptions.CreateElementFailed`
         """
         json={'name': name, 'site_element': site_element}
         result = prepared_request(href=self.href, json=json).create()

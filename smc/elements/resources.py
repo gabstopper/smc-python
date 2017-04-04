@@ -1,5 +1,7 @@
 """
 Resource Collection for SMC Elements
+
+For usage examples, see: :ref:`collection-reference-label`.
 """
 from smc import session
 import smc.base.model

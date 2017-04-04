@@ -18,8 +18,8 @@ class PackageMixin(object):
         :method: POST
         :param boolean wait_for_finish: wait for download to complete
         :param int sleep: number of seconds to sleep if wait_for_finish=True
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed` with reason
-        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+        :raises ActionCommandFailed: task kick off failed
+        :raises TaskRunFailed: failure during task status
         :return: Generator messages or final href of follower resource
         """ 
         try:
@@ -42,8 +42,8 @@ class PackageMixin(object):
         :param boolean wait_for_finish: True|False, whether to wait 
                for update messages
         :param int sleep: number of seconds to sleep if wait_for_finish=True
-        :raises: :py:class:`smc.api.exceptions.ActionCommandFailed` with reason
-        :raises: :py:class:`smc.api.exceptions.TaskRunFailed`
+        :raises ActionCommandFailed: failure during activation (downloading, etc)
+        :raises TaskRunFailed: failure during task run
         :return: generator Task generator with updates
         """
         try:

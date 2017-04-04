@@ -6,7 +6,6 @@ used by API functions or methods.
 For example, Blacklist can be applied to an engine directly or system wide. This class
 will define the format when calling blacklist functions.
 """
-import smc.actions.search as search
 from smc.base.model import Element, ElementCreator, prepared_request
 from smc.api.exceptions import ModificationFailed
 
@@ -63,7 +62,7 @@ class CategoryTag(Element):
             >>> category.add_element(Host('kali'))
 
         :param str,Element element: element to add to tag
-        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :raises: ModificationFailed: failed adding element
         :return: None
         """
         if isinstance(element, Element):
@@ -86,7 +85,7 @@ class CategoryTag(Element):
             >>> category.remove_element(Host('kali'))
     
         :param str, Element element: element to remove
-        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
+        :raises ModificationFailed: cannot remove element
         :return: None
         """
         if isinstance(element, Element):
@@ -122,7 +121,7 @@ class Location(Element):
         Create a location element
         
         :param name: name of location
-        :return: str href: href of location element
+        :return: href of location element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -152,7 +151,7 @@ class LogicalInterface(Element):
         
         :param str name: name of logical interface
         :param str comment: optional comment
-        :return: str href: href of logical interface element
+        :return: href of logical interface element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -182,7 +181,7 @@ class MacAddress(Element):
         :param str name: name of mac address
         :param str mac_address: mac address notation
         :param str comment: optional comment
-        :return: str href: href of macaddress element
+        :return: href of macaddress element
         """
         comment = comment if comment else ''
         cls.json = {'name': name,
@@ -190,66 +189,43 @@ class MacAddress(Element):
                     'comment': comment}
         return ElementCreator(cls)
 
-class ContactAddress(object):
-    """
-    A ContactAddress is used by elements to provide an alternate
-    address for communication between engine and management/log server.
-    This is typically used when the SMC sits behind a NAT address and 
-    the SMC needs to contact the engine directly (this is a default behavior).
-    In this case, you would add the public IP in front of the engine as a 
-    contact address to the engine interface.
-    
-    .. note:: Contact Addresses for servers (Management/Log Server) do not use
-              this same object definition
-    """
+class ServerContactAddress(object):
     def __init__(self, data):
         self.data = data
-    
-    @classmethod
-    def create(cls, address, location='Default', dynamic=False):
-        """
-        Create a new contact address.
         
-        :param str address: IP Address of contact address
-        :param str location: Location element to associate with address
-        :param boolean dynamic: Is this a dynamic address
-        :return: dict contact address
+    @classmethod
+    def create(cls, address, location):
+        """
+        :param str address: ip address of contact address
+        :param str location: name of location
+        :return: ServerContactAddress
         """
         from smc.elements.helpers import location_helper
         location_ref = location_helper(location)
-        address = [{'address': address,
-                    'dynamic': dynamic,
-                    'location_ref': location_ref}]
-        return {'contact_addresses': address}
+        data = {'addresses': [address],
+                'location_ref': location_ref}
+        return ServerContactAddress(data)
     
     @property
-    def address(self):
+    def addresses(self):
+        """                
+        Return list of addresses associated with this contact
+        address
+        :return: list contact addresses
         """
-        Address of the contact address
-        
-        :rtype: str
-        """
-        return self.data.get('address')
+        return self.data.get('addresses')
     
     @property
-    def dynamic(self):
-        """
-        Is this a dynamic IP based contact address
-        
-        :rtype: boolean
-        """
-        return bool(self.data.get('dynamic') == 'true')
+    def location_ref(self):
+        return self.data.get('location_ref')
     
     @property
     def location(self):
-        """    
-        Each contact address has a location associated which is attached
-        to the management/log server to identify when to use the 
-        contact address. This is that location element.
-        
-        :rtype: str
-        """
-        return search.element_name_by_href(self.data.get('location_ref'))
+        return Element.from_href(self.location_ref)
+    
+    def __repr__(self):
+        return '{0}(addresses={1})'.format(self.__class__.__name__,
+                                          ','.join(self.addresses))
            
 def prepare_blacklist(src, dst, duration=3600):
     """ 

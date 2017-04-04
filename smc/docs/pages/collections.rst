@@ -1,3 +1,5 @@
+.. _collection-reference-label:
+
 Collections
 -----------
 

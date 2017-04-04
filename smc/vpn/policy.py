@@ -1,4 +1,5 @@
-from smc.base.model import Element, ElementCreator, prepared_request, SubElement
+from smc.base.model import Element, ElementCreator, prepared_request, SubElement,\
+    fetch_collection
 from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 
@@ -100,7 +101,7 @@ class VPNPolicy(Element):
         Open the policy for editing
         
         :return: None
-        :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
+        :raises PolicyCommandFailed: couldn't open policy with reason
         """
         prepared_request(PolicyCommandFailed,
                          href=self.resource.open
@@ -111,7 +112,7 @@ class VPNPolicy(Element):
         Save the policy after editing
         
         :return: None
-        :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
+        :raises PolicyCommandFailed: save failed with reason
         """
         prepared_request(PolicyCommandFailed,
                          href=self.resource.save
@@ -122,7 +123,7 @@ class VPNPolicy(Element):
         Close the policy 
         
         :return: None
-        :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
+        :raises PolicyCommandFailed: close failed with reason
         """
         prepared_request(PolicyCommandFailed,
                          href=self.resource.close
@@ -130,13 +131,11 @@ class VPNPolicy(Element):
                 
     def validate(self):
         """
-        :method: GET
         """
         return self.resource.get('validate')
        
     def gateway_tunnel(self):
         """
-        :method: GET
         """
         return self.resource.get('gateway_tunnel')
     
@@ -148,7 +147,8 @@ class VPNPolicy(Element):
                If this is another SMC managed gateway, you can retrieve the 
                href after loading the engine. 
                See :py:class:`smc.core.engines.Engine.internal_gateway`
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises PolicyCommandFailed: could not add gateway
+        :return: None
         """
         prepared_request(PolicyCommandFailed,
                          href=self.resource.central_gateway_node, 
@@ -167,7 +167,8 @@ class VPNPolicy(Element):
                If this is another SMC managed gateway, you can retrieve the 
                href after loading the engine. 
                See :py:class:`smc.core.engines.Engine.internal_gateway` 
-        :return: :py:class:`smc.api.web.SMCResult`
+        :raises PolicyCommandFailed: could not add gateway
+        :return: None
         """
         prepared_request(PolicyCommandFailed,
                          href=self.resource.satellite_gateway_node,
@@ -224,7 +225,7 @@ class GatewayNode(object):
         :return: list CentralGatewayNode: gateway nodes on this vpn
         """
         return [type(self)(**node)
-                for node in self._get_resource(self.href)]
+                for node in fetch_collection(self.href)]
 
 class CentralGatewayNode(GatewayNode, SubElement):
     def __init__(self, **meta):

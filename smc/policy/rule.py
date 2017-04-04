@@ -158,7 +158,7 @@ class Rule(object):
         After making changes to a rule element, you must call save
         to apply the changes.
         
-        :raises: :py:class:`smc.api.exceptions.PolicyCommandFailed`
+        :raises PolicyCommandFailed: failed to save with reason
         :return: None
         """
         prepared_request(PolicyCommandFailed,
@@ -283,11 +283,10 @@ class IPv4Rule(Rule, SubElement):
                (default: allow)
         :param str: vpn_policy: vpn policy name; required for enforce_vpn and apply_vpn 
                actions 
-        :raises: :py:class:`smc.api.exceptions.MissingRequiredInput` when options are
-                 specified the need additional setting, i.e. use_vpn action requires a
-                 vpn policy be specified.
-        :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
-        :return: str href: href of new rule
+        :raises MissingRequiredInput: when options are specified the need additional 
+            setting, i.e. use_vpn action requires a vpn policy be specified.
+        :raises CreateRuleFailed: rule creation failure
+        :return: href of new rule
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
@@ -351,11 +350,10 @@ class IPv4Layer2Rule(Rule, SubElement):
         :param list logical_interfaces: logical interfaces by name
         :param str action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
-        :raises: :py:class:`smc.api.exceptions.MissingReuqiredInput` when options are
-                 specified the need additional setting, i.e. use_vpn action requires a
-                 vpn policy be specified.
-        :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
-        :return: str href: href of new rule
+        :raises MissingReuqiredInput: when options are specified the need additional
+            setting, i.e. use_vpn action requires a vpn policy be specified.
+        :raises CreateRuleFailed: rule creation failure
+        :return: href of new rule
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
@@ -406,11 +404,10 @@ class EthernetRule(Rule, SubElement):
         :param list logical_interfaces: logical interfaces by name
         :param str action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
-        :raises: :py:class:`smc.api.exceptions.MissingReuqiredInput` when options are
-                 specified the need additional setting, i.e. use_vpn action requires a
-                 vpn policy be specified.
-        :raises: :py:class:`smc.api.exceptions.CreateRuleFailed`: rule creation failure
-        :return: str href: href of new rule
+        :raises MissingReuqiredInput: when options are specified the need additional
+            setting, i.e. use_vpn action requires a vpn policy be specified.
+        :raises CreateRuleFailed: rule creation failure
+        :return: href of new rule
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
