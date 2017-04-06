@@ -468,7 +468,7 @@ class Engine(EngineFeature, Element):
         To view all interfaces for a virtual engine::
         
             for intf in engine.virtual_physical_interface.all():
-                print intf.describe()
+                print(intf)
         
         :raises UnsupportedInterfaceType: virtual engines only
         :return: :py:class:`smc.core.interfaces.VirtualPhysicalInterface`

@@ -89,7 +89,7 @@ class ContactAddress(object):
         
         :rtype: boolean
         """
-        return bool(self.data.get('dynamic') == 'true')
+        return self.data.get('dynamic') == 'true'
     
     @property
     def location_ref(self):
@@ -107,7 +107,7 @@ class ContactAddress(object):
         to the management/log server to identify when to use the 
         contact address. This is that location element.
         
-        :rtype: str name of location
+        :rtype: Element location object
         """
         return Element.from_href(self.location_ref)
     
@@ -126,7 +126,6 @@ class ContactResource(object):
         match = 'Interface {}'.format(interface_id)
         return [interface
                 for interface in iter(self)
-                #if interface.name == match]
                 if match in interface.name]
     
     def all(self):
@@ -182,7 +181,7 @@ class ContactInterface(object):
         Remove a contact address from an interface.
         
         :param contact_address: the contact address element
-        :type: :py:class:`~ContactAddress`
+        :type contact_address: ContactAddress 
         :raises EngineCommandFailed: problem removing address
         :return: None
         """

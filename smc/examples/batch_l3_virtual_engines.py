@@ -95,7 +95,7 @@ if __name__ == '__main__':
       
         reader = csv.DictReader(csvfile, dialect="excel", 
                                 fieldnames=['interface_id', 'vlan_id', 'name',
-                                            'address', 'network_value', 'cidr', 'default_gw'])
+                                            'address', 'network_value', 'cidr'])
         previous_engine = 0
         for row in reader:
 
@@ -112,8 +112,6 @@ if __name__ == '__main__':
                 result = engine.virtual_resource.create(name=virtual_engine_name, 
                                                         vfw_id=virtual_fw_id, 
                                                         show_master_nic=False)
-                if result.msg:
-                    print("Error creating virtual resource: %s" % result.msg)
               
                 engine_info[virtual_engine_name] = []
             

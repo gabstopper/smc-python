@@ -25,22 +25,51 @@ Rule module is a base class for all access control and NAT rules.
                                        options (smc.policy.rule_elements.LogOptions)
                                        parent_policy
                                              
-For example, access policy information for a known Layer 3 policy:
+Examples of rule operations::
 
-.. code-block:: python
-
-   policy = FirewallPolicy('mypolicy')
-   for rule in policy.fw_ipv4_access_rules.all():
-        if rule.name == 'foo':
-            print(rule.destinations.all())  # Show all resolved destinations
-            if rule.sources.is_any:
-                print("Source set to any!")
-            rule.destinations.add(Host('kali')) #Add a host
-            rule.save()
+    >>> from smc.policy.layer3 import FirewallPolicy
+    >>> from smc.policy.rule_elements import LogOptions
+    >>> from smc.policy.rule_elements import Action
+    >>> from smc.elements.other import Alias
+    ...
+    >>> options = LogOptions()
+    >>> options.log_accounting_info_mode=True
+    >>> options.log_level='stored'
+    ...
+    >>> policy = FirewallPolicy('AWS_Default')
+    >>> options = LogOptions()
+    >>> options.log_accounting_info_mode=True
+    >>> options.log_level='stored'
+    >>> policy.fw_ipv4_access_rules.create(name='mylogrule',services='any',sources='any',destinations='any',actions='continue',log_options=options)
+    'http://172.18.1.150:8082/6.2/elements/fw_policy/272/fw_ipv4_access_rule/2099703'
+    ...
+    >>> actions = Action()
+    >>> actions.deep_inspection = True
+    >>> actions.file_filtering=False
+    ...
+    >>> policy.fw_ipv4_access_rules.create(name='outbound',sources=[Alias('$$ Interface ID 1.net')],destinations='any',services='any',action=actions,log_options=options)
+    'http://172.18.1.150:8082/6.2/elements/fw_policy/272/fw_ipv4_access_rule/2099704'
+    >>> for rule in policy.fw_ipv4_access_rules.all():
+    ...   print(rule)
+    ... 
+    IPv4Rule(name=outbound)
+    IPv4Rule(name=mylogrule)
+    ...
+    >>> policy.search_rule('outbound')
+    [IPv4Rule(name=outbound)]
+    ...
+    >>> policy.fw_ipv4_access_rules.create(name='discard at bottom', sources='any',destinations='any',services='any',action='discard',add_pos=50)
+    'http://172.18.1.150:8082/6.2/elements/fw_policy/272/fw_ipv4_access_rule/2099705'
+    >>> for rule in policy.fw_ipv4_access_rules.all():
+    ...   print(rule, rule.name, rule.action.action)
+    ... 
+    IPv4Rule(name=outbound) outbound allow
+    IPv4Rule(name=mylogrule) mylogrule allow
+    IPv4Rule(name=discard at bottom) discard at bottom discard
 
 """
 import smc.actions.search as search
-from smc.base.model import SubElement, prepared_request
+from smc.base.model import SubElement, prepared_request, fetch_collection
 from smc.elements.other import LogicalInterface
 from smc.vpn.policy import VPNPolicy
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
@@ -78,7 +107,7 @@ class Rule(object):
         
         :return: :py:class:`smc.policy.rule_elements.Action`
         """
-        return Action(self.data.get('action'), self.actions)
+        return Action(self.data.get('action'))
     
     @property
     def authentication_options(self):
@@ -270,8 +299,9 @@ class IPv4Rule(Rule, SubElement):
                         'blacklist']
 
     def create(self, name, sources=None, destinations=None, 
-               services=None, action='allow', is_disabled=False, 
-               vpn_policy=None, **kwargs):
+               services=None, action='allow', log_options=None,
+               is_disabled=False, vpn_policy=None, add_pos=None, 
+               **kwargs):
         """ 
         Create a layer 3 firewall rule
             
@@ -279,10 +309,15 @@ class IPv4Rule(Rule, SubElement):
         :param list source: source/s for rule, in href format
         :param list destination: destinations, in href format
         :param list service: service/s, in href format
-        :param str action: allow|continue|discard|refuse|enforce_vpn|apply_vpn|blacklist 
-               (default: allow)
+        :param action: allow,continue,discard,refuse,enforce_vpn,
+            apply_vpn,blacklist (default: allow)
+        :type action: Action or str
+        :param LogOptions log_options: LogOptions object
         :param str: vpn_policy: vpn policy name; required for enforce_vpn and apply_vpn 
-               actions 
+               actions
+        :param int add_pos: position to insert the rule, starting with position 1. If
+            the position is higher than the number of rules, the rule is inserted at
+            the bottom. If add_pos is not provided, rule is inserted in position 1.
         :raises MissingRequiredInput: when options are specified the need additional 
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -290,10 +325,18 @@ class IPv4Rule(Rule, SubElement):
         """
         rule_values = _rule_common(sources, destinations, services)
         rule_values.update(name=name)
-       
-        rule_action = Action(actions=self.actions)
-        rule_action.action = action
         
+        if isinstance(action, Action):
+            rule_action = action
+        else:
+            rule_action = Action()
+            rule_action.action = action
+        
+        if not rule_action.action in self.actions:
+            raise CreateRuleFailed('Action specified is not valid for this '
+                                   'rule type; action: {}'
+                                   .format(rule_action.action))
+
         if rule_action.action in ['apply_vpn', 'enforce_vpn', 'forward_vpn']:
             if vpn_policy is None:
                 raise MissingRequiredInput('A VPN policy must be specified when '
@@ -307,17 +350,24 @@ class IPv4Rule(Rule, SubElement):
         
         rule_values.update(rule_action())
         
-        log_options = LogOptions()    
+        if log_options is None:
+            log_options = LogOptions()
+          
         auth_options = AuthenticationOptions()
         
         rule_values.update(log_options())
         rule_values.update(auth_options())
         rule_values.update(is_disabled=is_disabled)
         
-        return prepared_request(CreateRuleFailed,
-                                href=self.href,
-                                json=rule_values).create().href
+        if add_pos is not None:
+            href = _add_position(add_pos, self.href)
+        else:
+            href = self.href
         
+        return prepared_request(CreateRuleFailed,
+                                href=href,
+                                json=rule_values).create().href
+                    
 class IPv4Layer2Rule(Rule, SubElement):
     """
     Create IPv4 rules for Layer 2 Firewalls
@@ -339,7 +389,7 @@ class IPv4Layer2Rule(Rule, SubElement):
         
     def create(self, name, sources=None, destinations=None, 
                services=None, action='allow', is_disabled=False, 
-               logical_interfaces=None):
+               logical_interfaces=None, add_pos=None):
         """
         Create an IPv4 Layer 2 FW rule
         
@@ -348,9 +398,9 @@ class IPv4Layer2Rule(Rule, SubElement):
         :param list destinations: list of destination href's
         :param list services: list of service href's
         :param list logical_interfaces: logical interfaces by name
-        :param str action: \|allow\|continue\|discard\|refuse\|blacklist
+        :param str, Action action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
-        :raises MissingReuqiredInput: when options are specified the need additional
+        :raises MissingRequiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
         :return: href of new rule
@@ -359,14 +409,28 @@ class IPv4Layer2Rule(Rule, SubElement):
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
-        rule_action = Action(actions=self.actions)
-        rule_action.action = action
+        if isinstance(action, Action):
+            rule_action = action
+        else:
+            rule_action = Action()
+            rule_action.action = action
+        
+        if not rule_action.action in self.actions:
+            raise CreateRuleFailed('Action specified is not valid for this '
+                                   'rule type; action: {}'
+                                   .format(rule_action.action))
+                
         rule_values.update(rule_action())
     
         rule_values.update(_rule_l2_common(logical_interfaces))
         
+        if add_pos is not None:
+            href = _add_position(add_pos, self.href)
+        else:
+            href = self.href
+            
         return prepared_request(CreateRuleFailed,
-                                href=self.href, 
+                                href=href, 
                                 json=rule_values).create().href
     
 class EthernetRule(Rule, SubElement):
@@ -393,7 +457,7 @@ class EthernetRule(Rule, SubElement):
     
     def create(self, name, sources=None, destinations=None, 
                services=None, action='allow', is_disabled=False, 
-               logical_interfaces=None):
+               logical_interfaces=None, add_pos=None):
         """
         Create an Ethernet rule
         
@@ -413,14 +477,28 @@ class EthernetRule(Rule, SubElement):
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
         
-        rule_action = Action(actions=self.actions)
-        rule_action.action = action
+        if isinstance(action, Action):
+            rule_action = action
+        else:
+            rule_action = Action()
+            rule_action.action = action
+        
+        if not rule_action.action in self.actions:
+            raise CreateRuleFailed('Action specified is not valid for this '
+                                   'rule type; action: {}'
+                                   .format(rule_action.action))
+            
         rule_values.update(rule_action())
 
         rule_values.update(_rule_l2_common(logical_interfaces))
-
+        
+        if add_pos is not None:
+            href = _add_position(add_pos, self.href)
+        else:
+            href = self.href
+            
         return prepared_request(CreateRuleFailed,
-                                href=self.href, 
+                                href=href, 
                                 json=rule_values).create().href
         
 class IPv6Rule(IPv4Rule):
@@ -437,27 +515,49 @@ class IPv6Rule(IPv4Rule):
     def __init__(self, **meta):
         super(IPv6Rule, self).__init__(**meta)
         pass        
-       
-def _rule_l2_common(logical_interfaces):
-        """
-        Common values for layer 2 ethernet / IPS rule parameters.
-        In particular, logical interfaces are an additional parameter that 
-        can be used as a rule match parameter.
-        """
-        rule_values = {}
-        if logical_interfaces is None:
-            rule_values.update(logical_interfaces={'any': True})
+
+def _add_position(pos, policy_href):
+    """
+    Add the position for the rule. If the position is a larger number
+    than number of rules, it will be placed at the end. Otherwise
+    inserted into the position specified.
+    """
+    if pos <= 0: pos = 1
+    rules = list(fetch_collection(policy_href))
+    if rules:
+        rule=None
+        for position, entry in enumerate(rules):
+            if position+1 == pos:
+                rule = entry
+        if rule:
+            # Add before
+            return SubElement(**rule).resource.add_before
         else:
-            try:
-                logicals=[]
-                for interface in logical_interfaces:
-                    logicals.append(LogicalInterface(interface).href)
-                rule_values.update(logical_interfaces=
-                                            {'logical_interface': logicals})
-            except ElementNotFound:
-                raise MissingRequiredInput('Cannot find Logical interface specified '
-                                           ': {}'.format(logical_interfaces))
-        return rule_values
+            # No rule, put at end
+            last_rule = rules.pop()
+            return SubElement(**last_rule).resource.add_after
+    return policy_href
+               
+def _rule_l2_common(logical_interfaces):
+    """
+    Common values for layer 2 ethernet / IPS rule parameters.
+    In particular, logical interfaces are an additional parameter that 
+    can be used as a rule match parameter.
+    """
+    rule_values = {}
+    if logical_interfaces is None:
+        rule_values.update(logical_interfaces={'any': True})
+    else:
+        try:
+            logicals=[]
+            for interface in logical_interfaces:
+                logicals.append(LogicalInterface(interface).href)
+            rule_values.update(logical_interfaces=
+                               {'logical_interface': logicals})
+        except ElementNotFound:
+            raise MissingRequiredInput('Cannot find Logical interface specified '
+                                       ': {}'.format(logical_interfaces))
+    return rule_values
 
 def _rule_common(sources, destinations, services):
     """

@@ -31,7 +31,7 @@ Python 3.4, 3.5 (version >- 0.4)
 
 Requests 
 
-Security Management Center version 5.10, 6.0, 6.1, 6.1.1, 6.1.2
+Security Management Center version 5.10, 6.0, 6.1, 6.1.1, 6.1.2, 6.2
 
 ##### Getting Started
 

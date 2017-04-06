@@ -160,7 +160,7 @@ class Action(object):
     """
     This represents the action associated with the rule.
     """
-    def __init__(self, data=None, actions=None):
+    def __init__(self, data=None):
         if data is None:
             conn = ConnectionTracking()
             self.data = {'action': 'allow'}
@@ -168,8 +168,6 @@ class Action(object):
             self.data.update(scan_detection='undefined')
         else:
             self.data = data
-        # Available actions: is attribute of rule
-        self._actions = [] if actions is None else actions
     
     def __call__(self):
         return {'action': self.data}
@@ -187,8 +185,7 @@ class Action(object):
         
     @action.setter
     def action(self, value):
-        if value in self._actions:
-            self.data['action'] = value
+        self.data['action'] = value
     
     @property
     def connection_tracking_options(self):

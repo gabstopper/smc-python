@@ -129,7 +129,7 @@ class Policy(Element):
                 else:
                     klazz = lookup_class(data.get('type'))
                 results.append(klazz(**data))
-                return results
+            return results
         return []
    
     def search_category_tags_from_element(self):
