@@ -64,7 +64,7 @@ class ContactAddress(object):
         :param str address: IP Address of contact address
         :param str location: Location element to associate with address
         :param boolean dynamic: Is this a dynamic address
-        :return: ContactAddress
+        :return: `~ContactAddress`
         """
         from smc.elements.helpers import location_helper
         location_ref = location_helper(location)

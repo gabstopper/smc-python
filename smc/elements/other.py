@@ -36,10 +36,10 @@ class CategoryTag(Element):
         :return: str href: href of location element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'comment': comment}
+        json = {'name': name,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
     
     def search_elements(self):
         """
@@ -47,10 +47,11 @@ class CategoryTag(Element):
         
         :return list :py:class:`smc.base.model.Element`
         """
-        result = prepared_request(href=self.resource.search_elements_from_category_tag
-                                  ).read().json
-                                  
-        return [Element.from_meta(**meta) for meta in result]   
+        return [Element.from_meta(**tag)
+                for tag in 
+                prepared_request(
+                    href=self.resource.search_elements_from_category_tag
+                    ).read().json] 
     
     def add_element(self, element):
         """
@@ -68,10 +69,11 @@ class CategoryTag(Element):
         if isinstance(element, Element):
             element = element.href
         
-        prepared_request(ModificationFailed,
-                         href=self.resource.category_add_element,
-                         json={'value': element}
-                         ).create()
+        prepared_request(
+            ModificationFailed,
+            href=self.resource.category_add_element,
+            json={'value': element}
+            ).create()
 
     def remove_element(self, element):
         """
@@ -91,10 +93,11 @@ class CategoryTag(Element):
         if isinstance(element, Element):
             element = element.href
             
-        prepared_request(ModificationFailed,
-                         href=self.resource.category_remove_element,
-                         json={'value': element}
-                         ).create()
+        prepared_request(
+            ModificationFailed,
+            href=self.resource.category_remove_element,
+            json={'value': element}
+            ).create()
                          
 class Location(Element):
     """
@@ -124,10 +127,27 @@ class Location(Element):
         :return: href of location element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'comment': comment}
-        return ElementCreator(cls)
-
+        json = {'name': name,
+                'comment': comment}
+        
+        return ElementCreator(cls, json)
+    
+    @property
+    def used_on(self):
+        """
+        Return all NAT'd elements using this location. 
+        
+        .. note::
+            Available only in SMC version 6.2
+        
+        :return: list elements used by this location
+        """
+        return [Element.from_meta(**element)
+                for element in
+                prepared_request(
+                    href=self.resource.search_nated_elements_from_location
+                    ).read().json]
+    
 class LogicalInterface(Element):
     """
     Logical interface is used on either inline or capture interfaces. If an
@@ -154,9 +174,10 @@ class LogicalInterface(Element):
         :return: href of logical interface element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'comment': comment}
-        return ElementCreator(cls)
+        json = {'name': name,
+                'comment': comment}
+    
+        return ElementCreator(cls, json)
 
 class MacAddress(Element):
     """
@@ -184,10 +205,11 @@ class MacAddress(Element):
         :return: href of macaddress element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'address': mac_address,
-                    'comment': comment}
-        return ElementCreator(cls)
+        json = {'name': name,
+                'address': mac_address,
+                'comment': comment}
+    
+        return ElementCreator(cls, json)
 
 class ServerContactAddress(object):
     def __init__(self, data):

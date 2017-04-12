@@ -15,9 +15,7 @@ class UserCommon(object):
         :raises: :py:class: `smc.api.exceptions.ModificationFailed`
         :return: None
         """
-        prepared_request(ModificationFailed,
-                         href=self.resource.enable_disable
-                         ).update()
+        self.update(href=self.resource.enable_disable)
 
     def change_password(self, password):
         """ Change user password
@@ -25,10 +23,11 @@ class UserCommon(object):
         :param str password: new password
         :return: :py:class:`smc.api.web.SMCResult`
         """
-        prepared_request(ModificationFailed,
-                         href=self.resource.change_password, 
-                         params={'password': password}
-                         ).update()
+        prepared_request(
+            ModificationFailed,
+            href=self.resource.change_password, 
+            params={'password': password}
+            ).update()
                                 
 
 class AdminUser(UserCommon, Element):
@@ -77,15 +76,19 @@ class AdminUser(UserCommon, Element):
         :return: str href of element
         """
         engines = [] if engine_target is None else engine_target
-        cls.json = {'name': name,
-                    'enabled': enabled,
-                    'allow_sudo': allow_sudo,
-                    'engine_target': engines,
-                    'local_admin': local_admin,
-                    'superuser': superuser}
+        json = {'name': name,
+                'enabled': enabled,
+                'allow_sudo': allow_sudo,
+                'engine_target': engines,
+                'local_admin': local_admin,
+                'superuser': superuser}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
+    @property
+    def is_enabled(self):
+        return self.data.get('enabled')
+    
     def change_engine_password(self, password):
         """ Change Engine password for engines on allowed
         list.
@@ -94,10 +97,11 @@ class AdminUser(UserCommon, Element):
         :raises ModificationFailed: failed setting password on engine
         :return: None
         """
-        prepared_request(ModificationFailed,
-                         href=self.resource.change_engine_password, 
-                         params={'password': password}
-                         ).update()
+        prepared_request(
+            ModificationFailed,
+            href=self.resource.change_engine_password, 
+            params={'password': password}
+            ).update()
 
 class ApiClient(UserCommon, Element):
     """
@@ -124,10 +128,11 @@ class ApiClient(UserCommon, Element):
         :raises CreateElementFailed: failure creating element with reason
         :return: str href of client
         """
-        cls.json={'enabled': enabled,
-                  'name': name,
-                  'superuser': superuser}
-        return ElementCreator(cls)
+        json = {'enabled': enabled,
+                'name': name,
+                'superuser': superuser}
+    
+        return ElementCreator(cls, json)
     
     '''    
     def one_time_password(self, password):

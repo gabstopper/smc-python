@@ -2,9 +2,7 @@
 AccessList module represents functionality that support dynamic routing
 filters based on IPv4 or IPv6 access lists such as OSPF and BGP.
 """
-from smc.base.model import Element, ElementCreator, prepared_request
-import smc.actions.search as search
-from smc.api.exceptions import ModificationFailed
+from smc.base.model import Element, ElementCreator
 
 class AccessList(object):
     """
@@ -42,10 +40,10 @@ class AccessList(object):
                     {'{}_entry'.format(cls.typeof): {
                         'action': action,
                         'subnet': subnet}})           
-        cls.json = {'name': name,
-                    'entries': access_list_entry}
+        json = {'name': name,
+                'entries': access_list_entry}
 
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
     def add_entry(self, subnet, action):
         """
@@ -54,37 +52,29 @@ class AccessList(object):
         :param str subnet: network address in cidr format
         :param str action: permit|deny
         :raises ElementNotFound: invalid speciied element
-        :raises ModificationFailed: failure to modify with reason
+        :raises UpdateElementFailed: failure to modify with reason
         :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
                     'action': action,
                     'subnet': subnet}}
 
-        acl = search.element_by_href_as_smcresult(self.href)
-        acl.json.get('entries').append(json)
-        
-        prepared_request(ModificationFailed,
-                         href=self.href, json=acl.json,
-                         etag=acl.etag).update()
-
+        self.data.get('entries').append(json)
+        self.update()
+       
     def remove_entry(self, subnet):
         """
         Remove an AccessList entry by subnet
 
         :param str subnet: subnet match to remove
-        :raises ModificationFailed: failed to modify with reason
+        :raises UpdateElementFailed: failed to modify with reason
         :return: None
         """
-        acl = search.element_by_href_as_smcresult(self.href)
-        acl.json['entries'][:] = [entry
-                                  for entry in acl.json.get('entries')
-                                  if entry.get('{}_entry'.format(self.typeof))\
-                                  .get('subnet') != subnet]
-
-        prepared_request(ModificationFailed,
-                         href=self.href, json=acl.json,
-                         etag=acl.etag).update()
+        self.data['entries'][:] = [entry
+                                   for entry in self.data.get('entries')
+                                   if entry.get('{}_entry'.format(self.typeof))\
+                                   .get('subnet') != subnet]
+        self.update()
 
     def view(self):
         """
@@ -93,9 +83,8 @@ class AccessList(object):
 
         :return: list tuple
         """
-        acl = search.element_by_href_as_smcresult(self.href)
         acls=[]
-        for entry in acl.json.get('entries'):
+        for entry in self.data.get('entries'):
             e = entry.get('{}_entry'.format(self.typeof))
             acls.append((e.get('subnet'), e.get('action')))
         return acls

@@ -138,10 +138,10 @@ class Layer2Policy(Layer2Rule, Policy):
         except ElementNotFound:
             raise LoadPolicyFailed('Cannot find specified layer2 firewall '
                                    'template: {}'.format(template))
-        cls.json = {'name': name,
-                    'template': fw_template}
+        json = {'name': name,
+                'template': fw_template}
         try:
-            result = ElementCreator(cls)
+            result = ElementCreator(cls, json)
             return Layer2Policy(name, href=result)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'

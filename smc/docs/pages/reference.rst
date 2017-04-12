@@ -6,8 +6,9 @@ Base
 ----
  
 .. automodule:: smc.base.model
-	:members: ElementBase, Element, SubElement
-
+	:members: ElementBase, Element
+	:exclude-members: from_meta, from_href, update
+	
 .. _element-reference-label:
 
 Elements
@@ -225,6 +226,18 @@ ServerContactAddress
 	:members:
 	:show-inheritance:
 
+Profiles
+++++++++
+
+.. automodule:: smc.elements.profiles
+
+DNSRelayProfile
+***************
+
+.. autoclass:: DNSRelayProfile
+	:members:
+	:show-inheritance:
+
 Engine
 ------
 
@@ -233,6 +246,14 @@ Engine
    :exclude-members: create, VirtualResource, InternalEndpoint, InternalGateway
    :show-inheritance:
 
+Add-Ons
++++++++
+
+.. automodule:: smc.core.addon
+
+.. autoclass:: EngineFeature
+	:members:
+	
 Appliance Status
 ++++++++++++++++
 
@@ -632,6 +653,13 @@ AuthenticationOptions
 *********************
 
 .. autoclass:: AuthenticationOptions
+	:members:
+	:show-inheritance:
+
+MatchExpression
+***************
+
+.. autoclass:: MatchExpression
 	:members:
 	:show-inheritance:
 

@@ -21,12 +21,13 @@ from collections import namedtuple
 class Node(SubElement):
     """ 
     Node settings to make each engine node controllable individually.
-    When Engine() is loaded, setattr will set all instance attributes
-    with the contents of the node json. Very few would benefit from being
-    modified with exception of 'name'. To change a top level attribute, you
-    would call node.modify_attribute(name='value')
+    Obtain a reference to a Node by loading an Engine resource. 
     Engine will have a 'has-a' relationship with node and stored as the
-    nodes attribute
+    nodes attribute.
+    ::
+    
+        for node in engine.nodes:
+            ...
     
     Instance attributes:
     
@@ -47,6 +48,11 @@ class Node(SubElement):
         """
         return self.meta.type
 
+    def rename(self, name):
+        # This should be called from engine level
+        self.data['name'] = '{} node {}'.format(name, self.nodeid)
+        self.update()
+        
     @property
     def nodeid(self):
         """

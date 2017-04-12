@@ -38,13 +38,13 @@ class VPNPolicy(Element):
         :param str vpn_profile: reference to VPN profile, or uses default
         :return: :py:class:`~VPNPolicy`
         """
-        cls.json = {'mobile_vpn_topology_mode': None,
-                    'name': name,
-                    'nat': nat,
-                    'vpn_profile': vpn_profile}
+        json = {'mobile_vpn_topology_mode': None,
+                'name': name,
+                'nat': nat,
+                'vpn_profile': vpn_profile}
         
         try:
-            ElementCreator(cls)
+            ElementCreator(cls, json)
             return VPNPolicy(name)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('VPN Policy create failed. Reason: {}'

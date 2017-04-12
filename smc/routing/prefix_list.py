@@ -2,9 +2,7 @@
 IP Prefix module represnts prefix lists that can be used to filter networks for
 OSPF routing.
 """
-import smc.actions.search as search
-from smc.base.model import ElementCreator, Element, prepared_request
-from smc.api.exceptions import ModificationFailed
+from smc.base.model import ElementCreator, Element
 
 class PrefixList(object):
     """
@@ -42,10 +40,11 @@ class PrefixList(object):
                         'max_prefix_length': max_len,
                         'min_prefix_length': min_len,
                         'subnet': subnet}})
-        cls.json = {'name': name,
-                    'entries': prefix_list_entry}
+        
+        json = {'name': name,
+                'entries': prefix_list_entry}
 
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
     def add_entry(self, subnet, min_prefix_length,
                   max_prefix_length, action):
@@ -57,7 +56,7 @@ class PrefixList(object):
         :param int max_prefix_length: maximum mask bits
         :param str action: permit|deny
         :raises ElementNotFound: invalid element reference
-        :raises ModificationFailed: invalid entry
+        :raises UpdateElementFailed: invalid entry
         :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
@@ -66,31 +65,23 @@ class PrefixList(object):
                     'max_prefix_length': max_prefix_length,
                     'subnet': subnet}}
 
-        acl = search.element_by_href_as_smcresult(self.href)
-        acl.json.get('entries').append(json)
-        
-        prepared_request(ModificationFailed,
-                         href=self.href, json=acl.json,
-                         etag=acl.etag).update()
+        self.data.get('entries').append(json)
+        self.update()
 
     def remove_entry(self, subnet):
         """
         Remove an PrefixList entry by subnet
 
         :param str subnet: subnet match to remove
-        :raises ModificationFailed: invalid change 
+        :raises UpdateElementFailed: invalid change 
         :return: None
         """
-        acl = search.element_by_href_as_smcresult(self.href)
-        acl.json['entries'][:] = [entry
-                                  for entry in acl.json.get('entries')
-                                  if entry.get('{}_entry'.format(self.typeof))\
-                                  .get('subnet') != subnet]
+        self.data['entries'][:] = [entry
+                                   for entry in self.data.get('entries')
+                                   if entry.get('{}_entry'.format(self.typeof))\
+                                   .get('subnet') != subnet]
+        self.update()
         
-        prepared_request(ModificationFailed,
-                         href=self.href, json=acl.json,
-                         etag=acl.etag).update()
-
     def view(self):
         """
         Return a view of the IP Access List in tuple format:
@@ -98,9 +89,8 @@ class PrefixList(object):
 
         :return: list tuple
         """
-        acl = search.element_by_href_as_smcresult(self.href)
         acls=[]
-        for entry in acl.json.get('entries'):
+        for entry in self.data.get('entries'):
             e = entry.get('{}_entry'.format(self.typeof))
             acls.append((e.get('subnet'), e.get('min_prefix_length'),
                          e.get('max_prefix_length'), e.get('action')))
@@ -115,9 +105,9 @@ class IPPrefixList(PrefixList, Element):
     """
     typeof = 'ip_prefix_list'
     
-    def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+    def __init__(self, name, **meta):
+        super(IPPrefixList, self).__init__(name, **meta)
+        pass
 
 class IPv6PrefixList(PrefixList, Element):
     """
@@ -128,6 +118,6 @@ class IPv6PrefixList(PrefixList, Element):
     """
     typeof = 'ipv6_prefix_list'
   
-    def __init__(self, name, meta=None):
-        self._name = name
-        self.meta = meta
+    def __init__(self, name, **meta):
+        super(IPv6PrefixList, self).__init__(name, **meta)
+        pass

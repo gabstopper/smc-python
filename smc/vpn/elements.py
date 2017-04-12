@@ -42,11 +42,11 @@ class ExternalGateway(Element):
                (default: True)
         :return: :py:class:`smc.vpn.elements.ExternalGateway`
         """
-        cls.json = {'name': name,
-                    'trust_all_cas': trust_all_cas}
+        json = {'name': name,
+                'trust_all_cas': trust_all_cas}
 
         try:
-            ElementCreator(cls)
+            ElementCreator(cls, json)
             return ExternalGateway(name)
         except CreateElementFailed as err:
             raise CreateElementFailed('Failed creating test_external gateway, '

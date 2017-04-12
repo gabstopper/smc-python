@@ -1,10 +1,10 @@
 """
 Module representing network elements used within the SMC
 """
-import smc.actions.search as search
 from smc.base.model import Element, ElementCreator, prepared_request
 from smc.api.exceptions import MissingRequiredInput, CreateElementFailed,\
     ElementNotFound
+from smc.api.common import fetch_json_by_href
 
 class Host(Element):
     """ 
@@ -23,12 +23,6 @@ class Host(Element):
                     secondary_ip=['1.1.1.1'])
 
     .. note:: Either ipv4 or ipv6 address is required
-    
-    :ivar str name: name of element
-    :ivar str address: ipv4 address for this host
-    :ivar str ipv6_address: ipv6 address for this host
-    :ivar list secondary: list of secondary ipv4 or ipv6 addresses
-    :ivar str comment: optional comment
     """
     typeof = 'host'
     
@@ -54,12 +48,13 @@ class Host(Element):
         ipv6_address = ipv6_address if ipv6_address else None
         secondaries = [] if secondary is None else secondary
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'address': address,
-                    'ipv6_address': ipv6_address,
-                    'secondary': secondaries,
-                    'comment': comment}
-        return ElementCreator(cls)
+        json = {'name': name,
+                'address': address,
+                'ipv6_address': ipv6_address,
+                'secondary': secondaries,
+                'comment': comment}
+    
+        return ElementCreator(cls, json)
         
 class AddressRange(Element):
     """ 
@@ -68,11 +63,7 @@ class AddressRange(Element):
     Create an address range element::
     
         IpRange.create('myrange', '1.1.1.1-1.1.1.5')
-        
-    :ivar str name: name of element
-    :ivar str iprange: ip range of element
-    :ivar str comment: optional comment
-    
+
     """
     typeof = 'address_range'
     
@@ -92,11 +83,11 @@ class AddressRange(Element):
         :return: str href: href location of new element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'ip_range': iprange,
-                    'comment': comment}
+        json = {'name': name,
+                'ip_range': iprange,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
     
 class Router(Element):
     """ 
@@ -137,13 +128,13 @@ class Router(Element):
         ipv6_address = ipv6_address if ipv6_address else None
         secondary = [] if secondary_ip is None else secondary_ip 
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'address': address,
-                    'ipv6_address': ipv6_address,
-                    'secondary': secondary,
-                    'comment': comment}
+        json = {'name': name,
+                'address': address,
+                'ipv6_address': ipv6_address,
+                'secondary': secondary,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class Network(Element):
     """ 
@@ -182,12 +173,12 @@ class Network(Element):
         ipv4_network = ipv4_network if ipv4_network else None
         ipv6_network = ipv6_network if ipv6_network else None
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'ipv4_network': ipv4_network,
-                    'ipv6_network': ipv6_network,
-                    'comment': comment}
+        json = {'name': name,
+                'ipv4_network': ipv4_network,
+                'ipv6_network': ipv6_network,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class DomainName(Element):
     """ 
@@ -215,10 +206,10 @@ class DomainName(Element):
         :return: str href: href location of new element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'comment': comment}
+        json = {'name': name,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class Expression(Element):
     """
@@ -284,13 +275,13 @@ class Expression(Element):
         """
         comment = comment if comment else ''
         sub_expression = [] if sub_expression is None else [sub_expression]
-        cls.json = {'name':name,
-                    'operator': operator,
-                    'ne_ref': ne_ref,
-                    'sub_expression': sub_expression,
-                    'comment': comment}
+        json = {'name':name,
+                'operator': operator,
+                'ne_ref': ne_ref,
+                'sub_expression': sub_expression,
+                'comment': comment}
     
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class URLListApplication(Element):
     """
@@ -321,10 +312,11 @@ class URLListApplication(Element):
         :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element
         """
-        cls.json = {'name': name,
-                    'url_entry': url_entry,
-                    'comment': comment}
-        return ElementCreator(cls)
+        json = {'name': name,
+                'url_entry': url_entry,
+                'comment': comment}
+        
+        return ElementCreator(cls, json)
 
 class IPListGroup(Element):
     """
@@ -392,10 +384,11 @@ class IPList(Element):
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
                 
-            prepared_request(href=self.resource.ip_address_list, 
-                             filename=filename,
-                             headers=headers
-                             ).read()
+            prepared_request(
+                href=self.resource.ip_address_list, 
+                filename=filename,
+                headers=headers
+                ).read()
     
     def upload(self, filename=None, json=None, as_type='zip'):
         """
@@ -424,11 +417,12 @@ class IPList(Element):
         elif as_type == 'txt':
             params={'format':'txt'}
         
-        prepared_request(CreateElementFailed,
-                         href=self.resource.ip_address_list,
-                         headers=headers, files=files, json=json, 
-                         params=params
-                         ).create()
+        prepared_request(
+            CreateElementFailed,
+            href=self.resource.ip_address_list,
+            headers=headers, files=files, json=json, 
+            params=params
+            ).create()
 
     @classmethod   
     def create(cls, name, iplist=None, comment=None):
@@ -443,15 +437,17 @@ class IPList(Element):
         :raises CreateElementFailed: element creation failed with reason
         :return: str href: href location of new element 
         """
-        cls.json={'name': name,
-                  'comment': comment}
-        result = ElementCreator(cls)
+        json = {'name': name,
+                'comment': comment}
+        result = ElementCreator(cls, json)
         if result and iplist is not None:
             element = IPList(name)
-            prepared_request(CreateElementFailed,
-                             href=element.resource.ip_address_list,
-                             json={'ip': iplist}
-                             ).create()
+        
+            prepared_request(
+                CreateElementFailed,
+                href=element.resource.ip_address_list,
+                json={'ip': iplist}
+                ).create()
         return result
 
 class Zone(Element):
@@ -482,9 +478,10 @@ class Zone(Element):
         :return: href location of new element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'comment': comment}
-        return ElementCreator(cls)
+        json = {'name': name,
+                'comment': comment}
+    
+        return ElementCreator(cls, json)
         
 class Country(Element):
     """
@@ -533,12 +530,14 @@ class Alias(Element):
     
     def __init__(self, name, **meta):
         super(Alias, self).__init__(name, **meta)
-        self.resolved_value = None
+        self.resolved_value = []
     
     @classmethod
     def load(cls, data):
-        name = search.element_name_by_href(data.get('alias_ref'))
-        alias = cls(name, href=data.get('cluster_ref'))
+        href = data.get('alias_ref')
+        result = fetch_json_by_href(href)
+        alias = Alias(result.json.get('name'), href=href)
+        alias.add_cache(result.json, result.etag)
         alias.resolved_value = data.get('resolved_value')
         return alias
             
@@ -557,9 +556,11 @@ class Alias(Element):
         :return: list value: list of alias resolving values
         """
         if not self.resolved_value:
-            result = prepared_request(ElementNotFound,
-                                      href=self.resource.resolve,
-                                      params={'for': engine}
-                                      ).read()
+            result = prepared_request(
+                        ElementNotFound,
+                        href=self.resource.resolve,
+                        params={'for': engine}
+                        ).read()
+        
             self.resolved_value = result.json.get('resolved_value')
         return self.resolved_value

@@ -4,12 +4,13 @@ Classes representing basic models for data obtained or retrieved from the SMC
 ElementBase is the top level parent class that provides the instance level
 cache, meta data and basic methods operate on retrieved data.
 
-Element is a top level class that exposes methods that are common to all
-elements that have direct entry point in the SMC API. 
+Element is the common interface that exposes methods that and a retrieval 
+descriptor for elements that have direct entry point in the SMC API. 
 The href descriptor provides a transparent way to retrieve the object using
-entry point filters. 
+entry point filters based on providing only the ``name`` attribute on an 
+instance.
 
-SubElements are derived from references of Element classes, for example, 
+The SubElement interface defines references of Element classes, for example, 
 obtaining a reference to an engine interface and it's sub-interfaces. 
 SubElements are not directly searchable through entry points like 
 :class:`Element` instances.
@@ -26,7 +27,6 @@ Element class relationship::
                                 cache = Cache()
                                 meta = Meta(href,name,type)
                                 attr_by_name()
-                                describe()
                                 delete()
                                 modify_attribute()
                                    |
@@ -40,17 +40,21 @@ Element class relationship::
       from_meta()                                   
       export()
       category_tags
+      referenced_by
 
 Classes that do not require state on retrieved json or provide basic 
 container functionality may inherit from object.
 """
+import copy
 from collections import namedtuple
 import functools
 import smc.compat as compat
+from smc.api.web import counters   
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
-    DeleteElementFailed, FetchElementFailed, ActionCommandFailed
+    DeleteElementFailed, FetchElementFailed, ActionCommandFailed,\
+    UpdateElementFailed
 from .util import bytes_to_unicode, unicode_to_bytes
 from .mixins import UnicodeMixin
 from smc.base.resource import with_metaclass, Registry
@@ -76,9 +80,10 @@ def fetch_collection(href):
         
     :raises FetchElementFailed: failure during GET request
     """
-    return prepared_request(FetchElementFailed,
-                            href=href
-                            ).read().json
+    return prepared_request(
+        FetchElementFailed,
+        href=href
+        ).read().json
                                 
 @exception   
 def prepared_request(*exception, **kwargs):
@@ -90,13 +95,15 @@ def prepared_request(*exception, **kwargs):
     """ 
     return SMCRequest(**kwargs)
     
-def ElementCreator(cls):
+def ElementCreator(cls, json):
     """
     Helper method for create classmethods. Returns the href if
     creation is successful
     """
-    result = SMCRequest(href=fetch_entry_point(cls.typeof),  
-                        json=cls.json).create()
+    result = SMCRequest(
+                href=fetch_entry_point(cls.typeof),  
+                json=json
+                ).create()
     if result.msg:
         raise CreateElementFailed(result.msg)
     return result.href
@@ -157,15 +164,19 @@ class ElementResource:
     def __getattr__(self, link):
         raise ResourceNotFound('Resource requested: %r is not '
                                'available on this element.' % link)
-                
+             
 class Cache(object):
     """    
-    Cache can be applied at the element level to provide an
-    interface to the elements raw json. If modifications are
-    made, they are made to the cache. When saved back to SMC,
-    the cache is resolved against the element by re-fetching
-    the element. If no changes occurred on the SMC, the changes
-    are submitted, otherwise merged before submitting.
+    Cache is applied at the element level to provide an interface
+    to the element raw json. Caching is used to reduce the number
+    of SMC calls required to find linked resources or access element
+    attributes. When modifications are made that change the element
+    cache, the _cache attribute is cleared on the instance, although
+    meta and resource links remain. This will cause a cache refresh 
+    if resources requiring the 'data' attribute are requested after
+    a change. When an element is sent for modification, the retrieved
+    ETag is used and an exception will be raised if the server side 
+    ETag has changed, requiring the request to be made again.
     """
     __slots__ = ('_cache', 'instance', '_resource')
         
@@ -179,23 +190,34 @@ class Cache(object):
         self._resource = None #Expanded link references
         
     def __call__(self, *args, **kwargs):
-        if self._cache is None:
+        counters.update(cache=1)
+        if self._cache is None or kwargs.get('force_refresh'):
             result = prepared_request(href=self.instance.href).read()
             self._cache = (result.etag, result.json)
-        elif self._cache and kwargs.get('force_refresh'):
-            result = prepared_request(headers={'Etag': self._cache[0]}, 
-                                      href=self.instance.href).read()
-            if result.code != 304:
-                result.json.update(self._cache[1])
-                self._cache = (result.etag, result.json)
         return self._cache
     
+    @property
+    def data(self):
+        return self()[1]
+    
+    @property
+    def etag(self):
+        #Etag can be none if cache was manually set using add_cache
+        if self()[0] is None: 
+            etag = prepared_request(href=self.instance.href).read()
+            self._cache = (etag.etag, self._cache[1])
+        return self._cache[0]
+    
     def clear(self):
-        # This forces a refresh when called again
+        # This forces a refresh on next attribute access
         self._cache = None
     
     @property
     def resource(self):
+        """
+        Once resource links are retrieved the first time, they will be 
+        preserved even if cache is flushed.
+        """
         if self._resource is None:
             data = self()[1]
             self._resource = ElementResource() 
@@ -275,20 +297,19 @@ class ElementBase(UnicodeMixin):
         
     @property
     def data(self):
-        return self.cache()[1]
+        return self.cache.data
         
     @property
     def etag(self):
         """
         ETag for this element
         """
-        return self.cache(force_refresh=True)[0]
+        return self.cache.etag
     
     @property
     def resource(self):
-        if self.cache:
-            return self._cache.resource
-    
+        return self.cache.resource
+
     def attr_by_name(self, attr):
         """
         Retrieve a specific attribute by name
@@ -306,48 +327,56 @@ class ElementBase(UnicodeMixin):
         """
         prepared_request(DeleteElementFailed,
                          href=self.href,
-                         headers={'if-match': self.etag}).delete()
+                         headers={'if-match': self.etag}
+                         ).delete()
+    
+    def update(self, *exception, **kwargs):
+        """
+        Update wrapper around cache to handle modifications 
+        requests and clear element cache. This is called in
+        various places to ensure the cache stays current.
+        """
+        if not 'href' in kwargs:
+            kwargs.update(href=self.href)
+            
+        if not 'json' in kwargs:
+            # update from copy of cache before clearing
+            kwargs.update(json=copy.deepcopy(self.data))
         
+        # Etag taken from instance
+        if not 'etag' in kwargs:
+            kwargs.update(etag=self.etag)
+        
+        self.cache.clear()
+        
+        if not exception:
+            exception = UpdateElementFailed
+        else:
+            exception = exception[0]
+        # Return href from SMC        
+        return prepared_request(exception,
+                                **kwargs
+                                ).update().href
+              
     def modify_attribute(self, **kwargs):
         """
         Modify the attribute by key / value pair. 
         Add append_lists=True kwarg if dict leaf is a list
         and you want to append, default: replace
         
-        .. note:: modify_attribute will refresh the element cache to
-            ensure the modification is done to a current version of
-            the element.
-        
         :param dict kwargs: key=value pair to change
         :param boolean append_lists: if change is a list, append or overwrite
         :raises ElementNotFound: cannot find element specified
-        :raises ModificationFailed: failure applying change with reason  
+        :raises ModificationFailed, UpdateElementFailed: failure applying change
+            with reason  
         :return: None
         """
-        self.cache.clear()
-        element = self.data
-    
-        if element.get('system') == True:
+        if self.data.get('system') == True:
             raise ModificationFailed('Cannot modify system element: %s' % self.name)
         
         append_lists = kwargs.pop('append_lists', False)
-        merge_dicts(element, kwargs, append_lists)
-    
-        etag = self.etag
-        
-        prepared_request(ModificationFailed,
-                         href=self.href,
-                         json=element,
-                         etag=etag
-                         ).update()
-        
-    #def __getattr__(self, attr):
-    #    if attr not in ['_cache', 'typeof']:
-    #        val = self.data.get(attr)
-    #        if val is not None: 
-    #            return val
-    #    raise AttributeError('%r object has no attribute %r' %
-    #        (self.__class__.__name__, attr))
+        merge_dicts(self.data, kwargs, append_lists)
+        self.update()
                 
 class Element(ElementBase):
     """
@@ -404,10 +433,12 @@ class Element(ElementBase):
         
         :return: list :py:class:`smc.elements.other.CategoryTag`
         """
-        result = prepared_request(href=self.resource.search_category_tags_from_element
-                                  ).read().json
-        return [Element.from_meta(**meta) for meta in result]
-                              
+        return [Element.from_meta(**tag)
+                for tag in 
+                prepared_request(
+                    href=self.resource.search_category_tags_from_element
+                    ).read().json]
+                      
     def export(self, filename='element.zip', wait_for_finish=False):
         """
         Export this element
@@ -430,7 +461,24 @@ class Element(ElementBase):
                                 filename=filename)
         except ResourceNotFound:
             return []
+    
+    @property
+    def referenced_by(self):
+        """    
+        Show all references for this element. A reference means that this
+        element is being used, for example, in a policy rule, as a member of
+        a group, etc.
         
+        :return: list referenced elements
+        """
+        href = fetch_entry_point('references_by_element')
+        return [Element.from_meta(**ref)
+                for ref in prepared_request(
+                    FetchElementFailed,
+                    href=href,
+                    json={'value': self.href}
+                    ).create().json]
+    
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
     

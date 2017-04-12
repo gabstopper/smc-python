@@ -83,11 +83,10 @@ class SMCAPIConnection(object):
                     request.headers.update(Etag=request.etag)
 
                     response = self.session.put(request.href,
-                                                #data=json.dumps(request.json),
                                                 json=request.json,
                                                 params=request.params,
                                                 headers=request.headers)
-                    
+                        
                     logger.debug(vars(response))
                     counters.update(update=1)
                        
@@ -97,9 +96,17 @@ class SMCAPIConnection(object):
                 elif method == SMCAPIConnection.DELETE:
                     response = self.session.delete(request.href,
                                                    headers=request.headers)
-                    response.encoding = 'utf-8'
-                    
+
                     counters.update(delete=1)
+                    
+                    # Conflict (409) if ETag is not current
+                    if response.status_code in (409,):
+                        req = self.session.get(request.href)
+                        etag = req.headers.get('ETag')
+                        response = self.session.delete(request.href,
+                                                       headers={'if-match': etag})
+                    
+                    response.encoding = 'utf-8'
                     
                     if response.status_code not in (200, 204):
                         raise SMCOperationFailure(response)
@@ -221,8 +228,4 @@ class SMCResult(object):
             sb.append("{key}='{value}'".format(key=key, value=self.__dict__[key]))
         return ', '.join(sb)
 
-counters = collections.Counter({'read': 0, 
-                                'create': 0, 
-                                'update': 0, 
-                                'delete': 0, 
-                                'cache': 0})
+counters = collections.Counter({'read': 0, 'create': 0, 'update': 0, 'delete': 0, 'cache': 0})

@@ -1,11 +1,11 @@
-from smc.base.model import Element
+from smc.base.model import Element, ElementCreator
 from smc.api.exceptions import ElementNotFound
 
 class RuleElement(object):
     @property
     def is_any(self):
         """
-        Is the source field set to any
+        Is the field set to any
         
         :return: boolean
         """
@@ -13,7 +13,7 @@ class RuleElement(object):
         
     def set_any(self):
         """
-        Set source field to any
+        Set field to any
         """
         self.data.clear()
         self.data.update({'any': True})
@@ -21,7 +21,7 @@ class RuleElement(object):
     @property    
     def is_none(self):
         """
-        Is the source field set to none
+        Is the field set to none
         
         :return: boolean
         """
@@ -29,14 +29,14 @@ class RuleElement(object):
     
     def set_none(self):
         """
-        Set source field to none
+        Set field to none
         """
         self.data.clear()
         self.data.update({'none': True})
     
     def add(self, data):
         """
-        Add a single source entry.
+        Add a single entry to field.
         
         Entries can be added to a rule using the href of the element
         or by loading the element directly. Element should be of type
@@ -54,7 +54,8 @@ class RuleElement(object):
         .. note:: If submitting type Element and the element cannot be
                   found, it will be skipped.
 
-        :param str data: entry to add
+        :param data: entry to add
+        :type data: Element or str
         """
         if self.is_none or self.is_any:
             self.data.clear()
@@ -70,9 +71,11 @@ class RuleElement(object):
          
     def add_many(self, data):
         """
-        Add multiple entries to sources. Entries should be list format.
-        Entries can be of types found in :py:mod:`smc.elements.network` or
-        be the element href (or both). 
+        Add multiple entries to field. Entries should be list format.
+        Entries can be of types relavant to the field type. For example,
+        for source and destination fields, elements may be of type 
+        :py:mod:`smc.elements.network` or be the elements direct href,
+        or a combination of both.
         
         Add several entries to existing rule::
     
@@ -104,8 +107,8 @@ class RuleElement(object):
     
     def all_as_href(self):
         """
-        Return all elements without resolving to :py:class:`smc.elements.network`
-        or :py:class:`smc.elements.service`. Just raw representation as href.
+        Return all elements without resolving to :class:`smc.elements.network`
+        or :class:`smc.elements.service`. Just raw representation as href.
         
         :return: list elements as href
         """
@@ -126,7 +129,8 @@ class RuleElement(object):
         :return: list elements by resolved object type
         """
         if not self.is_any and not self.is_none:
-            return [Element.from_href(href) for href in self.data[self.typeof]]
+            return [Element.from_href(href) 
+                    for href in self.data[self.typeof]]
         return []
             
 class Destination(RuleElement):
@@ -659,3 +663,71 @@ class TimeRange(object):
     @month_range_end.setter
     def month_range_end(self, value):
         self.data['month_range_end'] = value
+
+class MatchExpression(Element):
+    """
+    A match expression is used in the source / destination / service fields to group
+    together elements into an 'AND'ed configuration. For example, a normal rule might
+    have a source field that could include network=172.18.1.0/24 and zone=Internal 
+    objects. A match expression enables you to AND these elements together to enforce
+    the match requires both. Logically it would be represented as
+    (network 172.18.1.0/24 AND zone Internal).
+    
+        >>> from smc.elements.network import Host, Zone
+        >>> from smc.policy.rule_elements import MatchExpression
+        >>> from smc.policy.layer3 import FirewallPolicy
+        >>> match = MatchExpression.create(name='mymatch', network_element=Host('kali'), zone=Zone('Mail'))
+        >>> policy = FirewallPolicy('smcpython')
+        >>> policy.fw_ipv4_access_rules.create(name='myrule', sources=[match], destinations='any', services='any')
+        'http://172.18.1.150:8082/6.2/elements/fw_policy/261/fw_ipv4_access_rule/2099740'
+        >>> rule = policy.search_rule('myrule')
+        ...
+        >>> for source in rule[0].sources.all():
+        ...   print(source, source.values())
+        ... 
+        MatchExpression(name=MatchExpression _1491760686976_2) [Zone(name=Mail), Host(name=kali)]
+    
+    .. note:: 
+        MatchExpression is currently only supported on source and destination fields.
+        
+    """
+    typeof = 'match_expression'
+     
+    def __init__(self, name, **meta):
+        super(MatchExpression, self).__init__(name, **meta)
+        pass
+    
+    @classmethod
+    def create(cls, name, user=None, network_element=None, domain_name=None,
+               zone=None, executable=None):
+        """
+        Create a match expression
+        
+        :param str name: name of match expression
+        :param str user: name of user or user group
+        :param Element network_element: valid network element type, i.e. host, network, etc
+        :param DomainName domain_name: domain name network element
+        :param Zone zone: zone to use
+        :param str executable: name of executable or group
+        :raises ElementNotFound: specified object does not exist
+        :return: str href of the match expression to be used in rule
+        """
+        ref_list=[]
+        if user:
+            pass
+        if network_element:
+            ref_list.append(network_element.href)
+        if domain_name:
+            ref_list.append(domain_name.href)
+        if zone:
+            ref_list.append(zone.href)
+        if executable:
+            pass
+
+        json = {'name':name,
+                'ref': ref_list}
+        
+        return ElementCreator(cls, json)
+
+    def values(self):
+        return [Element.from_href(ref) for ref in self.data.get('ref')]

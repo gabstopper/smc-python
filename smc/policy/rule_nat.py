@@ -1,7 +1,6 @@
 from smc.policy.rule import Rule, _rule_common
 from smc.base.model import prepared_request, Element, SubElement
 from smc.policy.rule_elements import LogOptions, Destination
-import smc.actions.search as search
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
     CreateRuleFailed
 
@@ -14,10 +13,10 @@ class NATRule(Rule):
         
         :param str,Element value: :py:class:`smc.elements.network` element to
                apply to this NAT rule, or str href
-        :return: str value: name of element this NAT rule is applied on
+        :return: Element value: name of element this NAT rule is applied on
         """
         if 'used_on' in self.data:
-            return search.element_name_by_href(self.data.get('used_on'))
+            return Element.from_href(self.data.get('used_on'))
     
     @used_on.setter
     def used_on(self, value):
@@ -79,8 +78,7 @@ class NAT(object):
         """    
         Return type of NAT for this rule, is any.
         
-        Types are: 'static_src_nat', 'dynamic_src_nat', or
-        'static_dst_nat'
+        :return: str static_src_nat, dynamic_src_nat, static_dst_nat
         """
         pass
         

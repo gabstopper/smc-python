@@ -10,25 +10,36 @@ class GroupMixin(object):
     Methods associated with handling modification of Group 
     objects for existing elements
     """
-    def update_members(self, members):
+    def update_members(self, members, append=False):
         """
-        Update group members with member list. This will overwrite 
-        previous group members. If the intent is to add/remove specific
-        members, call :meth:`~obtain_members`, save the list and rebuild a new
-        list, then call :meth:`~update_members`.
+        Update group members with member list. Set append=True
+        to append to existing members, or append=False to overwrite.
         
-        :param list members: list of new members for group, as href
-        :return: :py:class:`smc.api.web.SMCResult`
+        :param list members: new members for group by href or Element
+        :type members: list[str, Element]
+        :param boolean append: whether to append
+        :return: None
         """
-        return self.modify_attribute(element=members)
-    
+        if not append:
+            self.data['element'] = []
+        
+        for member in members:
+            if isinstance(member, Element):
+                self.data['element'].append(member.href)
+            else:
+                self.data['element'].append(member)
+        
+        self.update()
+        
     def obtain_members(self):
         """
         Obtain all group members from this group
         
-        :return: list of group members referenced in group
+        :return: list group members as elements
+        :rtype: Element
         """
-        return self.data.get('element')
+        return [Element.from_href(member)
+                for member in self.data.get('element')]
     
     def empty_members(self):
         """
@@ -36,7 +47,7 @@ class GroupMixin(object):
         
         :return: None
         """
-        return self.modify_attribute(element=[])
+        self.modify_attribute(element=[])
 
 class Group(GroupMixin, Element):
     """ 
@@ -71,11 +82,11 @@ class Group(GroupMixin, Element):
         """
         comment = None if comment is None else comment
         members = [] if members is None else members
-        cls.json = {'name': name,
-                    'element': members,
-                    'comment': comment}
+        json = {'name': name,
+                'element': members,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class ServiceGroup(GroupMixin, Element):
     """ 
@@ -108,11 +119,11 @@ class ServiceGroup(GroupMixin, Element):
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
-        cls.json = {'name': name,
-                    'element': elements,
-                    'comment': comment}
+        json = {'name': name,
+                'element': elements,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class TCPServiceGroup(GroupMixin, Element):
     """ 
@@ -142,11 +153,11 @@ class TCPServiceGroup(GroupMixin, Element):
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
-        cls.json = {'name': name,
-                    'element': elements,
-                    'comment': comment}
+        json = {'name': name,
+                'element': elements,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class UDPServiceGroup(GroupMixin, Element):
     """ 
@@ -177,11 +188,11 @@ class UDPServiceGroup(GroupMixin, Element):
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
-        cls.json = {'name': name,
-                    'element': elements,
-                    'comment': comment}
+        json = {'name': name,
+                'element': elements,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class IPServiceGroup(GroupMixin, Element):
     """ 
@@ -207,11 +218,11 @@ class IPServiceGroup(GroupMixin, Element):
         """
         comment = comment if comment else ''
         elements = [] if element is None else element
-        cls.json = {'name': name,
-                    'element': elements,
-                    'comment': comment}
+        json = {'name': name,
+                'element': elements,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
     
 class SecurityGroup(Element):
     pass

@@ -124,7 +124,7 @@ If-Match header enforced in SMC 6.1.2, required for delete operations
 
 $version 0.4.10
 remove add_vlan_to_single_node_interface; use add_ipaddress_to_vlan_interface
-tunnel interface has one method (add_
+tunnel interface add methods collapsed
 routes are removed when a VLAN with interfaces or a physical interface with addresses is removed
 remove_vlan method of physical interface
 
@@ -136,3 +136,14 @@ new contact address implementation (now bound to engine level and interfaces)
 $version 0.4.12
 rule fixes, action and options input to set deep inspection, logging, etc
 documentation updates
+
+$version 0.5.0
+Full support for SMC 6.2
+MatchExpression added for rule source/destinations
+instance Cache re-implementation
+add_before/add_after for rule positioning
+find all references by element resource (referenced_by property of Element)
+location used_on field
+DNSRelayProfile
+smc.core.addon module with engine helpers for enabling/disabling engine level features
+remove support for SMC 5.10

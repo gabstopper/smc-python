@@ -34,12 +34,12 @@ class TCPService(Element):
         """
         comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
-        cls.json = {'name': name,
-                    'min_dst_port': min_dst_port,
-                    'max_dst_port': max_dst_port,
-                    'comment': comment}
+        json = {'name': name,
+                'min_dst_port': min_dst_port,
+                'max_dst_port': max_dst_port,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
     
     @property
     def protocol_agent(self):
@@ -81,12 +81,12 @@ class UDPService(Element):
         """
         comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
-        cls.json = {'name': name,
-                    'min_dst_port': min_dst_port,
-                    'max_dst_port': max_dst_port,
-                    'comment': comment}
+        json = {'name': name,
+                'min_dst_port': min_dst_port,
+                'max_dst_port': max_dst_port,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class IPService(Element):
     """ 
@@ -116,11 +116,11 @@ class IPService(Element):
         :return: href location of new element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'protocol_number': protocol_number,
-                    'comment': comment}
+        json = {'name': name,
+                'protocol_number': protocol_number,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class EthernetService(Element):
     """ 
@@ -156,12 +156,12 @@ class EthernetService(Element):
         :return: href location of new element
         """
         comment = comment if comment else ''
-        cls.json = {'frame_type': frame_type,
-                    'name': name,
-                    'value1': ethertype,
-                    'comment': comment}
+        json = {'frame_type': frame_type,
+                'name': name,
+                'value1': ethertype,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class Protocol(Element):
     """ 
@@ -214,12 +214,12 @@ class ICMPService(Element):
         """
         comment = comment if comment else ''
         icmp_code = icmp_code if icmp_code else ''
-        cls.json = {'name': name,
-                    'icmp_type': icmp_type,
-                    'icmp_code': icmp_code,
-                    'comment': comment}
+        json = {'name': name,
+                'icmp_type': icmp_type,
+                'icmp_code': icmp_code,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class ICMPIPv6Service(Element):
     """ 
@@ -248,11 +248,11 @@ class ICMPIPv6Service(Element):
         :return: href location of new element
         """
         comment = comment if comment else ''
-        cls.json = {'name': name,
-                    'icmp_type': icmp_type,
-                    'comment': comment}
+        json = {'name': name,
+                'icmp_type': icmp_type,
+                'comment': comment}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
     
 class ApplicationSituation(Element):
     """

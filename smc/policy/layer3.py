@@ -138,10 +138,10 @@ class FirewallPolicy(FirewallRule, Policy):
         except ElementNotFound:
             raise LoadPolicyFailed('Cannot find specified firewall template: {}'
                                    .format(template))
-        cls.json = {'name': name,
-                    'template': fw_template}
+        json = {'name': name,
+                'template': fw_template}
         try:
-            result = ElementCreator(cls)
+            result = ElementCreator(cls, json)
             return FirewallPolicy(name, href=result)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('Failed to create firewall policy: {}'

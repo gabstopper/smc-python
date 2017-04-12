@@ -39,8 +39,8 @@ constructor. Otherwise the latest API version available will be used:
    session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxx', 
                  api_version='5.10')
 
-In order to use SSL connections, you must first associated a private key and certificate
-with the SMC API server. This is done under the Management Server properties, SMC API.
+In order to use SSL connections, you must first associate a private key and certificate
+with the SMC API server. This is done under the Management Server properties and SMC API.
 Obtain the certificate for use by the client.
 It is recommended to ensure your certificate has the subjectAltName field set per
 RFC 2818.

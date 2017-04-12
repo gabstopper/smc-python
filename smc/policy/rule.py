@@ -24,6 +24,8 @@ Rule module is a base class for all access control and NAT rules.
                                        enable
                                        options (smc.policy.rule_elements.LogOptions)
                                        parent_policy
+                                       tag
+                                       ...
                                              
 Examples of rule operations::
 
@@ -68,8 +70,7 @@ Examples of rule operations::
     IPv4Rule(name=discard at bottom) discard at bottom discard
 
 """
-import smc.actions.search as search
-from smc.base.model import SubElement, prepared_request, fetch_collection
+from smc.base.model import Element, SubElement, prepared_request, fetch_collection
 from smc.elements.other import LogicalInterface
 from smc.vpn.policy import VPNPolicy
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
@@ -178,21 +179,20 @@ class Rule(object):
         """
         Read-only name of the parent policy
         
-        :return: str
+        :return: :py:class:`smc.base.model.Element` of type policy
         """
-        return search.element_name_by_href(self.data.get('parent_policy'))
+        return Element.from_href(self.data.get('parent_policy'))
 
     def save(self):
         """
         After making changes to a rule element, you must call save
-        to apply the changes.
+        to apply the changes. Rule changes are made to cache before
+        sending to SMC.
         
         :raises PolicyCommandFailed: failed to save with reason
         :return: None
         """
-        prepared_request(PolicyCommandFailed,
-                         href=self.href, json=self.data,
-                         etag=self.etag).update()
+        self.update(PolicyCommandFailed)
     
     @property
     def services(self):
@@ -212,6 +212,15 @@ class Rule(object):
         """
         return Source(self.data.get('sources'))
     
+    @property
+    def tag(self):
+        """
+        Value of rule tag. Read only.
+        
+        :return: str rule tag
+        """
+        return self.data.get('tag')
+    
     #@property
     #def time_range(self):
     #    """
@@ -229,10 +238,11 @@ class Rule(object):
         Enumerate all rules for this rule type. Return instance
         that has only meta data set (lazy loaded).
         
-        :return: class type based on rule type 
+        :return: class type based on rule type
+        :rtype: generator
         """
-        return [type(self)(**rule)
-                for rule in search.element_by_href_as_json(self.href)]
+        for rule in fetch_collection(self.href):
+            yield type(self)(**rule)    
     
 class IPv4Rule(Rule, SubElement):
     """ 
@@ -301,14 +311,17 @@ class IPv4Rule(Rule, SubElement):
     def create(self, name, sources=None, destinations=None, 
                services=None, action='allow', log_options=None,
                is_disabled=False, vpn_policy=None, add_pos=None, 
-               **kwargs):
+               after=None, before=None, **kwargs):
         """ 
         Create a layer 3 firewall rule
             
         :param str name: name of rule
-        :param list source: source/s for rule, in href format
-        :param list destination: destinations, in href format
-        :param list service: service/s, in href format
+        :param list[str, Element] sources: source/s for rule
+        :type sources: list[str, Element]
+        :param destinations: destination/s for rule
+        :type destinations: list[str, Element]
+        :param services: service/s for rule
+        :type services: list[str, Element]
         :param action: allow,continue,discard,refuse,enforce_vpn,
             apply_vpn,blacklist (default: allow)
         :type action: Action or str
@@ -316,8 +329,13 @@ class IPv4Rule(Rule, SubElement):
         :param str: vpn_policy: vpn policy name; required for enforce_vpn and apply_vpn 
                actions
         :param int add_pos: position to insert the rule, starting with position 1. If
-            the position is higher than the number of rules, the rule is inserted at
-            the bottom. If add_pos is not provided, rule is inserted in position 1.
+            the position value is greater than the number of rules, the rule is inserted at
+            the bottom. If add_pos is not provided, rule is inserted in position 1. Mutually
+            exclusive with ``after`` and ``before`` params.
+        :param str after: Rule tag to add this rule after. Mutually exclusive with ``add_pos``
+            and ``before`` params.
+        :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
+            and ``after`` params.
         :raises MissingRequiredInput: when options are specified the need additional 
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -364,8 +382,16 @@ class IPv4Rule(Rule, SubElement):
         else:
             href = self.href
         
+        params = None
+        if not add_pos:
+            if after is not None:
+                params = {'after': after}
+            elif before is not None:
+                params = {'before': before}
+            
         return prepared_request(CreateRuleFailed,
                                 href=href,
+                                params=params,
                                 json=rule_values).create().href
                     
 class IPv4Layer2Rule(Rule, SubElement):
@@ -394,9 +420,12 @@ class IPv4Layer2Rule(Rule, SubElement):
         Create an IPv4 Layer 2 FW rule
         
         :param str name: name of rule
-        :param list sources: list of source href's
-        :param list destinations: list of destination href's
-        :param list services: list of service href's
+        :param sources: source/s for rule
+        :type sources: list[str, Element]
+        :param destinations: destination/s for rule
+        :type destinations: list[str, Element]
+        :param services: service/s for rule
+        :type services: list[str, Element]
         :param list logical_interfaces: logical interfaces by name
         :param str, Action action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
@@ -462,9 +491,12 @@ class EthernetRule(Rule, SubElement):
         Create an Ethernet rule
         
         :param str name: name of rule
-        :param list sources: list of source href's
-        :param list destinations: list of destination href's
-        :param list services: list of service href's
+        :param sources: source/s for rule
+        :type sources: list[str, Element]
+        :param destinations: destination/s for rule
+        :type destinations: list[str, Element]
+        :param services: service/s for rule
+        :type services: list[str, Element]
         :param list logical_interfaces: logical interfaces by name
         :param str action: \|allow\|continue\|discard\|refuse\|blacklist
         :param boolean is_disabled: whether to disable rule or not
@@ -529,6 +561,7 @@ def _add_position(pos, policy_href):
         for position, entry in enumerate(rules):
             if position+1 == pos:
                 rule = entry
+                break
         if rule:
             # Add before
             return SubElement(**rule).resource.add_before

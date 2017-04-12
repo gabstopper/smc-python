@@ -41,17 +41,18 @@ Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF
 .. seealso:: :py:class:`smc.core.engines.Layer3Firewall` and 
              :py:class:`smc.core.engines.Layer3VirtualEngine`
 
-Example of enabling OSPF on an existing engine::
+Enable OSPF on an existing engine using the default OSPF system profile::
 
-    engine.modify_attribute(dynamic_routing={
-                    'ospfv2':{
-                        'enabled': True,
-                        'ospfv2_profile_ref': 
-                        'http://172.18.1.150:8082/6.1/elements/ospfv2_profile/2'}})
-                    
+    engine.enable_ospf()
+
+Or specify a custom profile and router_id::
+
+    engine.enable_ospf(ospf_profile=OSPFProfile('myprofile'),
+                       router_id='10.0.0.0')
+
 Disable OSPF on an engine::
     
-    engine.modify_attribute(dynamic_routing={'ospfv2':{'enabled': False}})
+    engine.disable_ospf()
 
 Example options for elements::
 
@@ -145,18 +146,19 @@ class OSPFArea(Element):
         :raises CreateElementFailed: failed to create with reason
         :return: str href: href location of new element
         """
-        cls.json={'name': name,
-                  'area_id': area_id,
-                  'area_type': area_type,
-                  'inbound_filters_ref': inbound_filters_ref,
-                  'interface_settings_ref': interface_settings_ref,
-                  'ospf_abr_substitute_container': ospf_abr_substitute_container,
-                  'ospfv2_virtual_links_endpoints_container': 
-                                        ospfv2_virtual_links_endpoints_container,
-                  'outbound_filters_ref': outbound_filters_ref,
-                  'shortcut_capable_area': shortcut_capable_area}
+        json = {'name': name,
+                'area_id': area_id,
+                'area_type': area_type,
+                'inbound_filters_ref': inbound_filters_ref,
+                'interface_settings_ref': interface_settings_ref,
+                'ospf_abr_substitute_container': 
+                    ospf_abr_substitute_container,
+                'ospfv2_virtual_links_endpoints_container': 
+                    ospfv2_virtual_links_endpoints_container,
+                'outbound_filters_ref': outbound_filters_ref,
+                'shortcut_capable_area': shortcut_capable_area}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class OSPFInterfaceSetting(Element):
     """
@@ -213,20 +215,20 @@ class OSPFInterfaceSetting(Element):
         :raises CreateElementFailed: create failed with reason
         :return: str href: href location of new element
         """
-        cls.json={'name': name,
-                  'authentication_type': authentication_type,
-                  'password': password,
-                  'key_chain_ref': key_chain_ref,
-                  'dead_interval': dead_interval,
-                  'dead_multiplier': dead_multiplier,
-                  'hello_interval': hello_interval,
-                  'hello_interval_type': hello_interval_type,
-                  'mtu_mismatch_detection': mtu_mismatch_detection,
-                  'retransmit_interval': retransmit_interval,
-                  'router_priority': router_priority,
-                  'transmit_delay': transmit_delay}
+        json = {'name': name,
+                'authentication_type': authentication_type,
+                'password': password,
+                'key_chain_ref': key_chain_ref,
+                'dead_interval': dead_interval,
+                'dead_multiplier': dead_multiplier,
+                'hello_interval': hello_interval,
+                'hello_interval_type': hello_interval_type,
+                'mtu_mismatch_detection': mtu_mismatch_detection,
+                'retransmit_interval': retransmit_interval,
+                'router_priority': router_priority,
+                'transmit_delay': transmit_delay}
         
-        return ElementCreator(cls)    
+        return ElementCreator(cls, json)    
 
 class OSPFKeyChain(Element):
     """
@@ -264,10 +266,10 @@ class OSPFKeyChain(Element):
         :return: str href: href location of new element
         """
         key_chain_entry = [] if key_chain_entry is None else key_chain_entry
-        cls.json={'name': name,
-                  'ospfv2_key_chain_entry': key_chain_entry}
+        json = {'name': name,
+                'ospfv2_key_chain_entry': key_chain_entry}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)
 
 class OSPFProfile(Element):
     """
@@ -320,14 +322,14 @@ class OSPFProfile(Element):
         :raises CreateElementFailed: create failed with reason
         :return: str href: href location of new element
         """
-        cls.json={'name': name,
-                  'domain_settings_ref': domain_settings_ref,
-                  'external_distance': external_distance,
-                  'inter_distance': inter_distance,
-                  'intra_distance': intra_distance,
-                  'redistribution_entry': redistribution_entry}
+        json = {'name': name,
+                'domain_settings_ref': domain_settings_ref,
+                'external_distance': external_distance,
+                'inter_distance': inter_distance,
+                'intra_distance': intra_distance,
+                'redistribution_entry': redistribution_entry}
         
-        return ElementCreator(cls)    
+        return ElementCreator(cls, json)    
 
 class OSPFDomainSetting(Element):
     """
@@ -373,14 +375,14 @@ class OSPFDomainSetting(Element):
         :raises CreateElementFailed: create failed with reason
         :return: str href: href location of new element
         """
-        cls.json={'name': name,
-                  'abr_type': abr_type,
-                  'auto_cost_bandwidth': auto_cost_bandwidth,
-                  'deprecated_algorithm': deprecated_algorithm,
-                  'initial_delay': initial_delay,
-                  'initial_hold_time': initial_hold_time,
-                  'max_hold_time': max_hold_time,
-                  'shutdown_max_metric_lsa': shutdown_max_metric_lsa,
-                  'startup_max_metric_lsa': startup_max_metric_lsa}
+        json = {'name': name,
+                'abr_type': abr_type,
+                'auto_cost_bandwidth': auto_cost_bandwidth,
+                'deprecated_algorithm': deprecated_algorithm,
+                'initial_delay': initial_delay,
+                'initial_hold_time': initial_hold_time,
+                'max_hold_time': max_hold_time,
+                'shutdown_max_metric_lsa': shutdown_max_metric_lsa,
+                'startup_max_metric_lsa': startup_max_metric_lsa}
         
-        return ElementCreator(cls)
+        return ElementCreator(cls, json)

@@ -156,6 +156,14 @@ class DeleteElementFailed(SMCException):
     """
     pass
 
+class UpdateElementFailed(SMCException):
+    """
+    Failure when updating element. When failure is due to ETag
+    being invalid, target was modified before change was 
+    submitted. A resubmit would be required.
+    """
+    pass
+
 class ModificationFailed(SMCException):
     """
     Used when making generic modifications to elements.

@@ -16,31 +16,7 @@ from smc.elements.network import Alias
 from smc.vpn.elements import VPNSite
 from smc.core.route import Antispoofing, Routing, Routes
 from smc.core.contact_address import ContactResource
-
-class EngineFeature:
-    def enable_dns_relay(self, dns_relay_profile, interface):
-        """
-        DNS Relay allows the engine to provide DNS caching or specific
-        host, IP and domain replies to clients. It can also be used 
-        to sinkhole specific DNS requests.
-        
-        :param str,Element dns_relay_profile: href of profile or DNSRelayProfile
-        :param int interface: interface id to enable relay
-        :raises EngineCommandFailed: interface not found
-        :raises ElementNotFound: profile not found
-        :raises ModificationFailed: failure modifying setting
-        :return: None
-        """
-        if isinstance(dns_relay_profile, Element):
-            dns_relay_profile = dns_relay_profile.href
-        
-        data = self.physical_interface.get(interface)
-        
-        d = dict(dns_relay_profile_ref=dns_relay_profile)
-        d.update(dns_relay_interface=([{'address':ip,'nicid':nicid} 
-                                       for ip,ntwk,nicid in data.addresses]))  # @UnusedVariable
-        self.modify_attribute(**d)
-    
+from smc.core.addon import EngineFeature
           
 class Engine(EngineFeature, Element):
     """
@@ -182,17 +158,18 @@ class Engine(EngineFeature, Element):
     
     def rename(self, name):
         """
-        Rename the firewall engine, nodes, and internal gateway (vpn)
+        Rename the firewall engine, nodes, and internal gateway (VPN gw)
 
         :return: None
         """
-        self.modify_attribute(name='{}'.format(name))
-        self.internal_gateway.modify_attribute(name='{} Primary'\
-                                               .format(name))
         for node in self.nodes:
-            node.modify_attribute(name='{} node {}'.format(name, node.nodeid))
+            node.rename(name)
+        self.cache.clear() # clear because node is subset of engine 
+        self.data['name'] = '{}'.format(name)
         self._name = self.data.get('name')
-        
+        self.update()
+        self.internal_gateway.rename(name)
+
     @property
     def nodes(self):
         """
@@ -265,10 +242,11 @@ class Engine(EngineFeature, Element):
         :raises EngineCommandFailed: blacklist failed during apply
         :return: None
         """
-        prepared_request(EngineCommandFailed,
-                         href=self.resource.blacklist,
-                         json=prepare_blacklist(src, dst, duration)
-                         ).create()
+        prepared_request(
+            EngineCommandFailed,
+            href=self.resource.blacklist,
+            json=prepare_blacklist(src, dst, duration)
+            ).create()
 
     def blacklist_flush(self):
         """ 
@@ -277,9 +255,10 @@ class Engine(EngineFeature, Element):
         :raises EngineCommandFailed: flushing blacklist failed with reason
         :return: None
         """
-        prepared_request(EngineCommandFailed,
-                         href=self.resource.flush_blacklist
-                         ).delete()
+        prepared_request(
+            EngineCommandFailed,
+            href=self.resource.flush_blacklist
+            ).delete()
     
     def add_route(self, gateway, network):
         """ 
@@ -295,11 +274,12 @@ class Engine(EngineFeature, Element):
         :raises EngineCommandFailed: invalid route, possibly no network
         :return: None
         """
-        prepared_request(EngineCommandFailed,
-                         href=self.resource.add_route,
-                         params={'gateway': gateway, 
-                                 'network': network}
-                         ).create()
+        prepared_request(
+            EngineCommandFailed,
+            href=self.resource.add_route,
+            params={'gateway': gateway, 
+                    'network': network}
+            ).create()
 
     @property                            
     def routing(self):
@@ -334,9 +314,10 @@ class Engine(EngineFeature, Element):
         :return: list :py:class:`smc.core.route.Routes`
         """
         try:
-            result = prepared_request(EngineCommandFailed,
-                                      href=self.resource.routing_monitoring
-                                      ).read()
+            result = prepared_request(
+                        EngineCommandFailed,
+                        href=self.resource.routing_monitoring
+                        ).read()
             return Routes(result.json)
         except SMCConnectionError:
             raise EngineCommandFailed('Timed out waiting for routes')
@@ -573,9 +554,10 @@ class Engine(EngineFeature, Element):
         :raises TaskRunFailed: refresh failed, possibly locked policy
         :return: generator yielding updates on progress
         """
-        element = prepared_request(TaskRunFailed,
-                                   href=self.resource.refresh
-                                   ).create()
+        element = prepared_request(
+                        TaskRunFailed,
+                        href=self.resource.refresh
+                        ).create()
        
         return task_handler(Task(**element.json), 
                             wait_for_finish=wait_for_finish,
@@ -601,10 +583,11 @@ class Engine(EngineFeature, Element):
         :raises TaskRunFailed: upload failed with reason
         :return: generator yielding updates on progress
         """
-        element = prepared_request(TaskRunFailed,
-                                   href=self.resource.upload,
-                                   params={'filter': policy}
-                                   ).create()
+        element = prepared_request(
+                        TaskRunFailed,
+                        href=self.resource.upload,
+                        params={'filter': policy}
+                        ).create()
         
         return task_handler(Task(**element.json), 
                             wait_for_finish=wait_for_finish,
@@ -620,10 +603,11 @@ class Engine(EngineFeature, Element):
         :return: None
         """
         try:
-            prepared_request(EngineCommandFailed,
-                             href=self.resource.generate_snapshot, 
-                             filename=filename
-                             ).read()
+            prepared_request(
+                EngineCommandFailed,
+                href=self.resource.generate_snapshot, 
+                filename=filename
+                ).read()
         except IOError as e:
             raise EngineCommandFailed("Generate snapshot failed: {}"
                                       .format(e))
@@ -665,6 +649,10 @@ class InternalGateway(SubElement):
         super(InternalGateway, self).__init__(**meta)
         pass
 
+    def rename(self, name):
+        self.data['name'] = name='{} Primary'.format(name)
+        self.update()
+        
     @property
     def vpn_site(self):
         """
@@ -715,10 +703,11 @@ class InternalGateway(SubElement):
         :return: None
         :raises CertificateError: error generating certificate
         """
-        prepared_request(CertificateError,
-                         href=self.resource.generate_certificate,
-                         json=vars(certificate_request)
-                         ).create()
+        prepared_request(
+            CertificateError,
+            href=self.resource.generate_certificate,
+            json=vars(certificate_request)
+            ).create()
 
 class InternalEndpoint(SubElement):
     """
@@ -762,8 +751,7 @@ class VirtualResource(SubElement):
     within a Master Engine. When creating a virtual engine, each virtual
     engine must have a unique virtual resource for mapping. The virtual 
     resource has an identifier (vfw_id) that specifies the engine ID for 
-    that instance. There is currently no modify_attribute method available
-    for this resource.
+    that instance. 
     
     This is called as a resource of an engine. To view all virtual
     resources::
@@ -813,10 +801,11 @@ class VirtualResource(SubElement):
                 'vfw_id': vfw_id,
                 'allocated_domain_ref': allocated_domain}
         
-        return prepared_request(CreateElementFailed,
-                                href=self.href,
-                                json=json
-                                ).create().href
+        return prepared_request(
+                    CreateElementFailed,
+                    href=self.href,
+                    json=json
+                    ).create().href
     
     def all(self):
         """

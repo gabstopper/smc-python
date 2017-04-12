@@ -27,30 +27,35 @@ to view or modify specific aspects of a VLAN, such as addresses, etc.
 import re
 from smc.base.model import prepared_request, SubElement, lookup_class,\
     fetch_collection
-from smc.api.exceptions import EngineCommandFailed, ActionCommandFailed
+from smc.api.exceptions import EngineCommandFailed
 from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface, 
                                      ClusterVirtualInterface, InlineInterface,
                                      CaptureInterface, _add_vlan_to_inline,
                                      SubInterface)
 
-
 def dispatch(instance, builder, interface=None):
     """
-    Dispatch to SMC
+    Dispatch to SMC. Once successfully, reset the
+    engine level cache or instances will not have
+    visibility to newly added interfaces without
+    re-retrieving.
     """
     if interface: # Modify
-        return prepared_request(EngineCommandFailed,
-                         href=interface.href,
-                         json=builder.data,
-                         etag=interface.etag
-                         ).update()
-    # Create
-    return prepared_request(EngineCommandFailed,
-                     href=instance.href,
-                     json=builder.data
-                     ).create()
+        prepared_request(
+            EngineCommandFailed,
+            href=interface.href,
+            json=builder.data,
+            etag=interface.etag
+            ).update()
+    else:
+        # Create
+        prepared_request(
+            EngineCommandFailed,
+            href=instance.href,
+            json=builder.data
+            ).create()
     # Clear cache, next call for attributes will refresh it
-    #instance._engine.cache.clear()
+    instance._engine.cache.clear()
 
 class InterfaceCommon(object):
     """
@@ -277,40 +282,34 @@ class Interface(SubElement):
         
         Example of changing the IP address of an interface::
         
-            engine = Engine('testfw')
-            for intf in engine.interface.all():
-                if intf.name == 'Interface 0':
-                    for subif in intf.sub_interfaces():
-                        if subif.address == '172.18.1.80':
-                            subif.address = '172.18.1.100'
-                    intf.save()
+            >>> engine = Engine('sg_vm')
+            >>> interface = engine.physical_interface.get(1)
+            >>> interface.zone_ref = zone_helper('mynewzone')
+            >>> interface.save()
 
-        :raises EngineCommandFailed: failure to save changes
+        :raises UpdateElementFailed: failure to save changes
         :return: None
         """
-        prepared_request(EngineCommandFailed,
-                         href=self.href,
-                         json=self.data,
-                         etag=self.etag
-                         ).update()
+        self.update()
+        self._engine.cache.clear()
     
     def delete(self):
         """
         Override delete in parent class, delete routing configuration 
         after interface deletion.
+        ::
+        
+            engine = Engine('vm')
+            interface = engine.interface.get(2)
+            interface.delete()
         """
-        prepared_request(ActionCommandFailed,
-                         href=self.href,
-                         headers={'if-match': self.etag}
-                         ).delete()
+        super(Interface, self).delete()
         for routes in self._engine.routing:
             if routes.name == self.name or \
                 routes.name.startswith('VLAN {}.'.format(self.interface_id)):
-                    prepared_request(ActionCommandFailed,
-                                     href=routes.href,
-                                     headers={'if-match': routes.etag}
-                                     ).delete()
+                    routes.delete()
                     break
+
     def all(self):
         """
         Return all interfaces for this engine. This is a common entry
@@ -846,10 +845,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             
             for routes in self._engine.routing:
                 if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
-                    prepared_request(ActionCommandFailed,
-                                     href=routes.href,
-                                     headers={'if-match': routes.etag}
-                                     ).delete()
+                    routes.delete()
                     break
     
     @property

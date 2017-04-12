@@ -90,7 +90,9 @@ class Task(object):
                          href=find_link_by_name('abort', self.link)).delete()
     
     def __call__(self):
-        _task = search.element_by_href_as_json(self.follower)
+        _task = prepared_request(href=self.follower
+                                 ).read().json
+        #_task = search.element_by_href_as_json(self.follower)
         for k, v in _task.items():
             setattr(self, k, v)
     
@@ -173,6 +175,7 @@ def task_handler(task, wait_for_finish=False,
         engine = Engine('myfw')
         for msg in engine.upload('mypolicy', wait_for_finish=True)
             print msg
+    
     """
     if wait_for_finish:
         #first task will not have a last_message attribute

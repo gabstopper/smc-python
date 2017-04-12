@@ -3,9 +3,8 @@ Route module encapsulates functions related to static routing and
 related configurations on NGFW
 """
 from collections import namedtuple
-from smc.base.model import Element, prepared_request, SubElement
+from smc.base.model import Element, SubElement
 from smc.base.util import find_link_by_name
-from smc.api.exceptions import CreateElementFailed, EngineCommandFailed
 
 class Routing(SubElement):
     """
@@ -114,10 +113,7 @@ class Routing(SubElement):
                 else:
                     networks.data['routing_node'].append(node)
         
-        prepared_request(EngineCommandFailed,
-                         href=self.href,
-                         json=self.data,
-                         etag=self.etag).update()
+        self.update()
         
     def all(self):
         """
@@ -242,7 +238,7 @@ class Antispoofing(SubElement):
                 if entry.name == 'Interface 0':
                     entry.add(Network('network-10.1.2.0/24'))
 
-        :param entry: entry to add
+        :param str,Element entry: entry to add
         :return: None
         :raises CreateElementFailed: failed adding entry
         :raises ElementNotFound: element entry specified not in SMC
@@ -257,11 +253,8 @@ class Antispoofing(SubElement):
                 'validity': 'enable'}
         
         self.data['antispoofing_node'].append(node)
-        prepared_request(CreateElementFailed,
-                         href=self.href,
-                         json=self.data,
-                         etag=self.etag).update()
-    
+        self.update()
+
     def all(self):
         return [node for node in iter(self)]
         
