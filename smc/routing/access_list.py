@@ -4,6 +4,7 @@ filters based on IPv4 or IPv6 access lists such as OSPF and BGP.
 """
 from smc.base.model import Element, ElementCreator
 
+
 class AccessList(object):
     """
     AccessListMixin provides methods that are common to all access list
@@ -30,7 +31,8 @@ class AccessList(object):
         :param str name: name of IP Access List
         :param list entries: access control entry
         :raises CreateElementFailed: cannot create element
-        :return: str href: href location of new element
+        :return: href of new element
+        :rtype: str
         """
         access_list_entry = []
         if entries:
@@ -39,7 +41,7 @@ class AccessList(object):
                 access_list_entry.append(
                     {'{}_entry'.format(cls.typeof): {
                         'action': action,
-                        'subnet': subnet}})           
+                        'subnet': subnet}})
         json = {'name': name,
                 'entries': access_list_entry}
 
@@ -56,12 +58,12 @@ class AccessList(object):
         :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
-                    'action': action,
-                    'subnet': subnet}}
+            'action': action,
+            'subnet': subnet}}
 
         self.data.get('entries').append(json)
         self.update()
-       
+
     def remove_entry(self, subnet):
         """
         Remove an AccessList entry by subnet
@@ -72,7 +74,7 @@ class AccessList(object):
         """
         self.data['entries'][:] = [entry
                                    for entry in self.data.get('entries')
-                                   if entry.get('{}_entry'.format(self.typeof))\
+                                   if entry.get('{}_entry'.format(self.typeof))
                                    .get('subnet') != subnet]
         self.update()
 
@@ -81,13 +83,15 @@ class AccessList(object):
         Return a view of the IP Access List in tuple format:
         (subnet, action)
 
-        :return: list tuple
+        :return: ip addresses (subnet,action)
+        :rtype: list(tuple)
         """
-        acls=[]
+        acls = []
         for entry in self.data.get('entries'):
             e = entry.get('{}_entry'.format(self.typeof))
             acls.append((e.get('subnet'), e.get('action')))
         return acls
+
 
 class IPAccessList(AccessList, Element):
     """
@@ -96,11 +100,12 @@ class IPAccessList(AccessList, Element):
     Protocols like OSPF and BGP allow inbound and outbound filters using these.
     """
     typeof = 'ip_access_list'
-  
+
     def __init__(self, name, **meta):
         super(IPAccessList, self).__init__(name, **meta)
         pass
-       
+
+
 class IPv6AccessList(AccessList, Element):
     """
     IPv6AccessList is used by dynamic routing protocols to allow filtering of
@@ -108,8 +113,7 @@ class IPv6AccessList(AccessList, Element):
     Protocols like OSPF and BGP allow inbound and outbound filters using these.
     """
     typeof = 'ipv6_access_list'
-  
+
     def __init__(self, name, **meta):
         super(IPv6AccessList, self).__init__(name, **meta)
         pass
-    

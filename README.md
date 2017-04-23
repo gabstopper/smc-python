@@ -10,7 +10,7 @@ Some of the functionality you get with the SMC Python API:
 * Create any engine types; single firewall, cluster firewalls, ips engines, layer 2 firewalls, master engine and virtual engines.
 * Engine operations such as enabling/disabling AV, GTI, default NAT, Contact Addresses, etc
 * Interface configurations
-* Routing configurations (OSPF, Static)
+* Routing configurations (OSPF, BGP, Static, Antispoofing)
 * Engine level commands such as rebooting, going offline, policy push, enable/disable SSH, etc.
 * Create and modify all network element objects such as Host, Network, Address Ranges, Domain Names, etc.
 * Policy control (create rules, delete rules) for layer 3 firewall policies
@@ -27,9 +27,9 @@ Some of the functionality you get with the SMC Python API:
 
 Python 2.7
 
-Python 3.4, 3.5 (version >- 0.4)
+Python 3.4, 3.5
 
-Requests 
+Requests >= 2.12.0
 
 Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2
 
@@ -61,6 +61,15 @@ Before any commands are run, you must obtain a login session. Once commands are 
 from smc import session
 
 session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxx')
+....do stuff....
+session.logout()
+```
+
+Or log in to a specific Admin Domain and use a specific version of the API:
+
+```python
+session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxx',
+			  domain=mydomain, api_version=6.2)
 ....do stuff....
 session.logout()
 ```

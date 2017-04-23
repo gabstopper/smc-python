@@ -6,6 +6,7 @@ import smc
 
 PY3 = sys.version_info > (3,)
 
+
 def min_smc_version(version):
     """
     Is version at least the minimum provided

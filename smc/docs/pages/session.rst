@@ -9,7 +9,7 @@ the same session.
 
 When exiting, call `smc.api.web.logout()` to remove the active session from the SMC.
 
-.. note:: Idle API sessions will still time out after a default (configurable) amount of time
+.. note:: Idle API sessions will still time out after a default timeout on the SMC server.
 
 Steps to enable API Communication on the Stonesoft Management Center:
 
@@ -37,8 +37,18 @@ constructor. Otherwise the latest API version available will be used:
 
    from smc import session
    session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxx', 
-                 api_version='5.10')
+                 api_version='6.1')
 
+Logging in to a specific Admin Domain:
+
+.. code-block:: python
+
+   session.login(url='http://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxx', 
+                 domain='mydomain')
+
+.. note:: If an admin domain is specified but the SMC does not have domains configured, 
+		  you will be placed in the 'Shared Domain'.
+	
 In order to use SSL connections, you must first associate a private key and certificate
 with the SMC API server. This is done under the Management Server properties and SMC API.
 Obtain the certificate for use by the client.
@@ -75,6 +85,7 @@ Syntax for ~/.smcrc:
    smc_ssl=True
    verify_ssl=True
    ssl_cert_file='/Users/davidlepage/home/mycacert.pem'
+   domain=mydomain
    
 Then from launching scripts, you can do:
 
@@ -108,4 +119,7 @@ Another option is to add the following lines to your script:
 
    import logging
    logging.getLogger()
-   logging.basicConfig(level=logging.DEBUG, format='......')
+   logging.basicConfig(
+       level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
+
+The ``format`` parameter follows the standard python logging module syntax.

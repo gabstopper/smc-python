@@ -6,8 +6,8 @@ to the class hierarchy where you may need to dynamically
 retrieve the class based on entry point. This is tied to the
 top level base class Element.
 """
-import smc.elements.resources
-          
+
+
 def with_metaclass(mcls):
     def decorator(cls):
         body = vars(cls).copy()
@@ -17,20 +17,12 @@ def with_metaclass(mcls):
         return mcls(cls.__name__, cls.__bases__, body)
     return decorator
 
+
 class Registry(type):
     _registry = {}
-        
+
     def __new__(meta, name, bases, clsdict):  # @NoSelf
         cls = super(Registry, meta).__new__(meta, name, bases, clsdict)
         if 'typeof' in clsdict:
             meta._registry[clsdict['typeof']] = cls
         return cls
-    
-    @property
-    def objects(self):
-        """
-        Collection for this resource. Implemented as a class property
-        
-        :return: :py:class:`smc.elements.resources.ElementCollection`
-        """
-        return smc.elements.resources.CollectionManager(self)

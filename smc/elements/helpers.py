@@ -6,17 +6,18 @@ import smc.actions.search as search
 from smc.elements.network import Zone
 from smc.elements.other import LogicalInterface, Location
 from smc.api.exceptions import ElementNotFound
-      
+
+
 def location_helper(name):
     """
     Location finder by name. If location doesn't exist, create it
     and return the href
-    
+
     :param str name
     :return str href: href of location
     """
     location = None
-    try: #SMC >= 6.1.1, locations now searchable
+    try:  # SMC >= 6.1.1, locations now searchable
         location = Location(name).href
     except ElementNotFound:
         location_lst = [x
@@ -29,6 +30,7 @@ def location_helper(name):
         return location
     else:
         return Location.create(name)
+
 
 def zone_helper(zone):
     """
@@ -43,11 +45,12 @@ def zone_helper(zone):
         return zone_ref
     else:
         return Zone.create(zone)
-    
+
+
 def logical_intf_helper(interface):
     """
     Logical Interface finder by name. Create if it doesn't exist
-    
+
     :param interface: logical interface name
     :return str href: href of logical interface
     """
@@ -57,11 +60,13 @@ def logical_intf_helper(interface):
     else:
         return LogicalInterface.create(interface)
 
+
 def domain_helper(name):
     """
     Find a domain based on name
-    
-    :return: str href: href of domain
+
+    :return: href of domain
+    :rtype: str
     """
     domain = search.element_href_use_filter(name, 'admin_domain')
     if domain:

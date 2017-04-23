@@ -243,21 +243,21 @@ htmlhelp_basename = 'smc-pythondoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-     # The paper size ('letterpaper' or 'a4paper').
-     #
-     # 'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    #
+    # 'papersize': 'letterpaper',
 
-     # The font size ('10pt', '11pt' or '12pt').
-     #
-     # 'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    #
+    # 'pointsize': '10pt',
 
-     # Additional stuff for the LaTeX preamble.
-     #
-     # 'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    #
+    # 'preamble': '',
 
-     # Latex figure (float) alignment
-     #
-     # 'figure_align': 'htbp',
+    # Latex figure (float) alignment
+    #
+    # 'figure_align': 'htbp',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
@@ -340,15 +340,19 @@ texinfo_documents = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
 
+
 def remove_module_docstring(app, what, name, obj, options, lines):
     if what == "module" and name == "smc.api.web" and 'members' in options:
         del lines[:]
 
+
 def setup(app):
     app.connect("autodoc-process-docstring", remove_module_docstring)
 
+
 # Monkey-patch functools.wraps
 import functools
+
 
 def no_op_wraps(func):
     """Replaces functools.wraps in order to undo wrapping.
@@ -361,6 +365,7 @@ def no_op_wraps(func):
         return func
     return wrapper
 
+
 functools.wraps = no_op_wraps
 
 # Monkey patch to disable ivar cross linking:
@@ -369,18 +374,18 @@ functools.wraps = no_op_wraps
 #from sphinx.util.docfields import TypedField
 #from sphinx import addnodes
 
-#def patched_make_field(self, types, domain, items):
-    # type: (List, unicode, Tuple) -> nodes.field
+# def patched_make_field(self, types, domain, items):
+# type: (List, unicode, Tuple) -> nodes.field
 #    def handle_item(fieldarg, content):
 #        par = nodes.paragraph()
 #        par += addnodes.literal_strong('', fieldarg)  # Patch: this line added
-        #par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
-        #                           addnodes.literal_strong))
+# par.extend(self.make_xrefs(self.rolename, domain, fieldarg,
+#                           addnodes.literal_strong))
 #        if fieldarg in types:
 #            par += nodes.Text(' (')
-            # NOTE: using .pop() here to prevent a single type node to be
-            # inserted twice into the doctree, which leads to
-            # inconsistencies later when references are resolved
+# NOTE: using .pop() here to prevent a single type node to be
+# inserted twice into the doctree, which leads to
+# inconsistencies later when references are resolved
 #            fieldtype = types.pop(fieldarg)
 #            if len(fieldtype) == 1 and isinstance(fieldtype[0], nodes.Text):
 #                typename = u''.join(n.astext() for n in fieldtype)

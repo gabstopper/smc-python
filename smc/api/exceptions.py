@@ -4,16 +4,19 @@ Exceptions Module
 import smc.api.web
 from smc.base.util import unicode_to_bytes
 
+
 class SMCException(Exception):
     """ Base class for exceptions """
     pass
 
+
 class ConfigLoadError(SMCException):
     """
-    Thrown when there was a problem reading credential information from 
+    Thrown when there was a problem reading credential information from
     file. Typically caused by missing settings.
     """
     pass
+
 
 class SMCConnectionError(SMCException):
     """
@@ -22,18 +25,19 @@ class SMCConnectionError(SMCException):
     due to wrong IP address, wrong port, or time out
     """
     pass
-        
+
+
 class SMCOperationFailure(SMCException):
     """ Exception class for storing results from calls to the SMC
     This is thrown for HTTP methods that do not return the expected HTTP
-    status code. See each http_* method in :py:mod:`smc.api.web` for 
+    status code. See each http_* method in :py:mod:`smc.api.web` for
     expected success status
-    
+
     :param response: response object returned from HTTP method
     :param msg: optional msg to insert
-    
+
     Instance attributes:
-    
+
     :ivar response: http request response object
     :ivar code: http status code
     :ivar status: status from SMC API
@@ -41,6 +45,7 @@ class SMCOperationFailure(SMCException):
     :ivar details: details list from SMC API (may not always exist)
     :ivar smcresult: :py:class:`smc.api.web.SMCResult` object for consistent returns
     """
+
     def __init__(self, response=None):
         # Response is type <class 'requests.models.Response'>
         self.response = response
@@ -48,7 +53,7 @@ class SMCOperationFailure(SMCException):
         self.smcresult = smc.api.web.SMCResult()
         if response is not None:
             self._unpack_response()
-    
+
     def _unpack_response(self):
         details = None
         self.code = self.response.status_code
@@ -61,23 +66,23 @@ class SMCOperationFailure(SMCException):
                 #status = data.get('status', None)
                 message = data.get('message', None)
                 details = data.get('details', None)
-        else: #it's not json
+        else:  # it's not json
             if self.response.text:
                 message = self.response.text
             else:
                 message = "No message returned from SMC server"
-       
+
         self.smcresult.code = self.code
-        
+
         if details:
             details = unicode_to_bytes(' '.join(details)) \
                 if isinstance(details, list) else unicode_to_bytes(details)
             # Some error messages from SMC include line breaks
             details = details.replace('\n', ' ').rstrip()
-    
+
         if message:
             message = unicode_to_bytes(message)
-        
+
         if message and details:
             self.smcresult.msg = '{} {}'.format(message, details)
         elif details:
@@ -88,6 +93,7 @@ class SMCOperationFailure(SMCException):
     def __repr__(self):
         return 'SMCOperationFailure(response=%s)' % (self.response)
 
+
 class CertificateError(SMCException):
     """
     Related to certificate based operations like requests, signing, or
@@ -96,18 +102,21 @@ class CertificateError(SMCException):
     """
     pass
 
+
 class CreateEngineFailed(SMCException):
-    """ 
+    """
     Thrown when a POST operation returns with a failed response.
     API based response will be returned as the exception message
     """
     pass
+
 
 class LoadEngineFailed(SMCException):
     """ Thrown when attempting to load an engine that does not
     exist
     """
     pass
+
 
 class PolicyCommandFailed(SMCException):
     """
@@ -116,6 +125,7 @@ class PolicyCommandFailed(SMCException):
     """
     pass
 
+
 class CreatePolicyFailed(SMCException):
     """
     Thrown when failures occur when creating specific
@@ -123,11 +133,13 @@ class CreatePolicyFailed(SMCException):
     """
     pass
 
+
 class LoadPolicyFailed(SMCException):
     """
     Failure when trying to load a specific policy type
     """
     pass
+
 
 class LoadElementFailed(SMCException):
     """
@@ -136,18 +148,21 @@ class LoadElementFailed(SMCException):
     """
     pass
 
+
 class FetchElementFailed(SMCException):
     """
     Failure when fetching results
     """
     pass
 
+
 class CreateElementFailed(SMCException):
     """
-    Generic exception when there was a failure calling a 
+    Generic exception when there was a failure calling a
     create method
     """
     pass
+
 
 class DeleteElementFailed(SMCException):
     """
@@ -156,13 +171,15 @@ class DeleteElementFailed(SMCException):
     """
     pass
 
+
 class UpdateElementFailed(SMCException):
     """
     Failure when updating element. When failure is due to ETag
-    being invalid, target was modified before change was 
+    being invalid, target was modified before change was
     submitted. A resubmit would be required.
     """
     pass
+
 
 class ModificationFailed(SMCException):
     """
@@ -170,11 +187,13 @@ class ModificationFailed(SMCException):
     """
     pass
 
+
 class ActionCommandFailed(SMCException):
     """
     Action type commands use this exception
     """
     pass
+
 
 class InvalidRuleValue(SMCException):
     """
@@ -182,18 +201,21 @@ class InvalidRuleValue(SMCException):
     """
     pass
 
+
 class CreateRuleFailed(SMCException):
-    """    
+    """
     Indicates a failed response when creating a rule of any type.
     """
     pass
 
+
 class ElementNotFound(SMCException):
     """
-    Generic exception when an attempt is made to load an element 
+    Generic exception when an attempt is made to load an element
     that is not found.
     """
     pass
+
 
 class ResourceNotFound(SMCException):
     """
@@ -204,6 +226,7 @@ class ResourceNotFound(SMCException):
     """
     pass
 
+
 class MissingRequiredInput(SMCException):
     """
     Some functinos will flat out fail if certain fields are not provided.
@@ -211,15 +234,17 @@ class MissingRequiredInput(SMCException):
     user doesn't read the doc's.
     """
     pass
-    
+
+
 class UnsupportedEntryPoint(SMCException):
     """
     An entry point was specified that was not found in this API
-    version. This is likely due to using an older version of the 
-    SMC API that does not support that feature. The exception is 
+    version. This is likely due to using an older version of the
+    SMC API that does not support that feature. The exception is
     thrown specifying the entry point specified.
     """
     pass
+
 
 class UnsupportedEngineFeature(SMCException):
     """
@@ -229,6 +254,7 @@ class UnsupportedEngineFeature(SMCException):
     gateways (used for VPN).
     """
     pass
+
 
 class UnsupportedInterfaceType(SMCException):
     """
@@ -240,6 +266,7 @@ class UnsupportedInterfaceType(SMCException):
     """
     pass
 
+
 class TaskRunFailed(SMCException):
     """
     When running tasks such as policy upload, refresh policy, etc, if the result
@@ -248,14 +275,16 @@ class TaskRunFailed(SMCException):
     """
     pass
 
+
 class LicenseError(SMCException):
     """
-    Thrown when operations to perform Node specific license related operations such as 
+    Thrown when operations to perform Node specific license related operations such as
     bind license, fetch license or cancel license fail.
     For node licensing specific actions, see:
     :py:class: `smc.core.node.Node`
     """
     pass
+
 
 class NodeCommandFailed(SMCException):
     """
@@ -267,9 +296,10 @@ class NodeCommandFailed(SMCException):
     """
     pass
 
+
 class EngineCommandFailed(SMCException):
     """
-    Engines will have some commands that are specifically executed such as adding 
+    Engines will have some commands that are specifically executed such as adding
     blacklist entries, flushing blacklist or adding routes. This exception will be
     thrown if the SMC API responds with any sort of error and wrap the response
     """

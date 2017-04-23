@@ -37,20 +37,19 @@ the resultant element data is stored in a per instance cache.
 		 
 Example of how elements are lazy loaded::
 
-	>>> from smc.elements.network import Host
 	>>> host = Host('kali')
 	>>> vars(host)
-	{'meta': None, '_name': 'kali'}		#Base level attributes, only instance created
+	{'meta': None, '_name': 'kali'} #Base level attributes, only instance created
 	>>> host.href	#Call to retrieve this resource link reference loads instance meta (1 SMC query)
 	'http://172.18.1.150:8082/6.2/elements/host/978'
-	>>> vars(host)
+	>>> vars(host)	
 	{'meta': Meta(name='kali', href='http://172.18.1.150:8082/6.2/elements/host/978', type='host'), '_name': 'kali'}
-	>>> host.data		# Request to a method/attribute that requires the data attribute inflates the instance (1 SMC query)
-	{'third_party_monitoring': {'netflow': False, 'snmp_trap': False}, 'ipv6_address': '2001:db8:85a3::8a2e:370:7334', 'key': 978, 'address': '23.23.23.23', 'secondary': ['7.7.7.7'], 'read_only': False, 'link': [{'rel': 'self', 'href': 'http://172.18.1.150:8082/6.2/elements/host/978', 'type': 'host'}, {'rel': 'export', 'href': 'http://172.18.1.150:8082/6.2/elements/host/978/export'}, {'rel': 'search_category_tags_from_element', 'href': 'http://172.18.1.150:8082/6.2/elements/host/978/search_category_tags_from_element'}], 'system': False, 'name': 'kali'}
-	>>> vars(host)
-	{'meta': Meta(name='kali', href='http://172.18.1.150:8082/6.2/elements/host/978', type='host'), '_name': 'kali', '_cache': <smc.base.model.Cache object at 0x109f23348>}
-	>>> host._cache._cache		# Cache maintains original ETag and raw json data
-	('"OTc4MzExMjcxNDg5NTAyNzk0OTE0"', {'third_party_monitoring': {'netflow': False, 'snmp_trap': False}, 'ipv6_address': '2001:db8:85a3::8a2e:370:7334', 'key': 978, 'address': '23.23.23.23', 'secondary': ['7.7.7.7'], 'read_only': False, 'link': [{'rel': 'self', 'href': 'http://172.18.1.150:8082/6.2/elements/host/978', 'type': 'host'}, {'rel': 'export', 'href': 'http://172.18.1.150:8082/6.2/elements/host/978/export'}, {'rel': 'search_category_tags_from_element', 'href': 'http://172.18.1.150:8082/6.2/elements/host/978/search_category_tags_from_element'}], 'system': False, 'name': 'kali'})
+	>>> host.data	# Request to a method/attribute that requires the data attribute inflates the instance (1 SMC query)
+	{'read_only': False, 'third_party_monitoring': {'netflow': False, 'snmp_trap': False}, 'ipv6_address': '2001:db8:85a3::8a2e:370:7334', 'name': 'kali', 'system': False, 'link': [{'href': 'http://172.18.1.150:8082/6.2/elements/host/978', 'type': 'host', 'rel': 'self'}, {'href': 'http://172.18.1.150:8082/6.2/elements/host/978/export', 'rel': 'export'}, {'href': 'http://172.18.1.150:8082/6.2/elements/host/978/search_category_tags_from_element', 'rel': 'search_category_tags_from_element'}], 'key': 978, 'address': '23.23.23.23', 'secondary': ['7.7.7.7']}
+	>>> vars(host) 
+	{'cache': <smc.base.model.Cache object at 0x103b50850>, 'meta': Meta(name='kali', href='http://172.18.1.150:8082/6.2/elements/host/978', type='host'), 'resource': ElementResource(id=4357758344), '_name': 'kali'}
+
+At most 2 queries will be required to retrieve an element as a resource.
 		
 Cache contents can be viewed in their raw json format by calling the 'data' property.
 

@@ -3,18 +3,31 @@ Dynamic Routing can be enabled on devices configured in FW/VPN mode.
 Configuring dynamic routing consists of enabling the routing protocol
 on the engine and adding the routing elements on the interfaces at the
 engine routing level.
-Adding static routes can be done directly against the engine by using::
-
-    engine = Engine('myengine)
-    engine.add_route(gw, network)
     
 For adding OSPF configurations, several steps are required:
 
 * Enable OSPF on the engine and specific the OSPF Profile
 * Create or locate an existing OSPFArea to be used
-* Modify the routing interface and add and the OSPFArea
+* Modify the routing interface and add the OSPFArea
 
-To use default profiles, these can be obtained by collections::
+Enable OSPF on an existing engine using the default OSPF system profile::
+
+    engine.enable_ospf()
+    
+Create an OSPFArea using the default OSPF Interface Setting profile::
+
+    OSPFArea.create(name='customOSPFArea')
+
+Add OSPF area to an interface routing configuration (add to nicid '0')::
+
+    interface = engine.routing.get(0)
+    interface.add_ospf_area(area)
+                
+Disable OSPF on an engine::
+    
+    engine.disable_ospf()
+
+Finding profiles or elements can also be done through collections::
 
     >>> list(Search('ospfv2_profile').objects.all())
     [OSPFProfile(name=Default OSPFv2 Profile)]
@@ -22,67 +35,43 @@ To use default profiles, these can be obtained by collections::
     >>> list(Search('ospfv2_area').objects.all())
     [OSPFArea(name=area0)]
 
-General Rules:
+The OSPF relationship can be represented as::
 
-OSPFProfile is applied at the engine and has an OSPFDomainSetting reference:
-    
-    *OSPFProfile --> OSPFDomainSetting*
-    
-OSPFArea is applied to an engine routing node and has an OSPFInterfaceSetting reference:
+    Engine --uses an--> OSPF Profile --has-a--> OSPF Domain Setting
+    Engine Routing --uses-an--> OSPF Area --has-a--> OSPF Interface Setting
 
-    *OSPFArea --> OSPFInterfaceSetting*
-
-OSPFArea with message-digest authentication also has a OSPFKeyChain reference:
-    
-    *OSPFArea --> OSPFKeyChain & OSPFInterfaceSetting*
-
-Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF
+Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF.
 
 .. seealso:: :py:class:`smc.core.engines.Layer3Firewall` and 
              :py:class:`smc.core.engines.Layer3VirtualEngine`
 
-Enable OSPF on an existing engine using the default OSPF system profile::
-
-    engine.enable_ospf()
-
-Or specify a custom profile and router_id::
-
-    engine.enable_ospf(ospf_profile=OSPFProfile('myprofile'),
-                       router_id='10.0.0.0')
-
-Disable OSPF on an engine::
-    
-    engine.disable_ospf()
-
-Example options for elements::
-
-    ospf = OSPFArea('testospf')
-    print ospf.name
-    print ospf.describe()
-    print ospf.modify_attribute(area_id=50)
-    print ospf.delete()
-
-See each class definition for more examples on creating the element types.
-
 """
 from smc.base.model import Element, ElementCreator
+from smc.base.util import element_resolver
+
 
 class OSPFArea(Element):
     """
-    OSPFArea is an element that identifies general settings for an
-    OSPF configuration applied to a routing node. The OSPFArea has a 
-    reference to an OSPFInterfaceSetting and is required when
+    OSPF Area is an element that identifies general settings for an
+    OSPF configuration applied to an engine routing node. The OSPFArea
+    has a reference to an OSPFInterfaceSetting and is required when
     creating.
-    
+
+    Create a basic OSPFArea with just area id::
+
+        OSPFArea.create(name='myarea', area_id=0)
+
     Create an OSPFArea and use a custom OSPFInterfaceSetting element::
-    
-        ospf = OSPFInterfaceSetting('myospf')
-        OSPFArea.create(name='customOSPFArea', 
-                        interface_settings_ref=ospf.href, 
-                        area_id=3)
-    
-    Adding ospf_virtual_links_endpoints (interface_settings_ref is optional)::
-    
+
+        OSPFArea.create(
+            name='customOSPFArea', 
+            interface_settings_ref=OSPFInterfaceSetting('myospf'), 
+            area_id=3)
+
+    **Advanced example:**
+
+    Adding ospf_virtual_links_endpoints::
+
         OSPFArea.create(
             name='ospf', 
             interface_settings_ref=intf, 
@@ -99,9 +88,9 @@ class OSPFArea(Element):
     and 'substitute_with'. All references required are of type 
     :py:class:`smc.elements.network.Network`. These elements can either be created or
     retrieved using collections, or by getting the resource directly.
-    
+
     Example of creating an OSPF area and using ABR settings::
-    
+
         OSPFArea.create(
                 name='area_with_abr', 
                 interface_settings_ref=intf, 
@@ -120,17 +109,18 @@ class OSPFArea(Element):
         pass
 
     @classmethod
-    def create(cls, name, interface_settings_ref, area_id=1, 
+    def create(cls, name, interface_settings_ref=None, area_id=1,
                area_default_cost=100, area_type='normal',
-               outbound_filters_ref=None, inbound_filters_ref=None, 
+               outbound_filters_ref=None, inbound_filters_ref=None,
                shortcut_capable_area=False,
                ospfv2_virtual_links_endpoints_container=None,
                ospf_abr_substitute_container=None):
         """
         Create a new OSPF Area
-        
+
         :param str name: name of OSPFArea configuration
-        :param str interface_settings_ref: reference to :py:class:`.OSPFInterfaceSetting`
+        :param str,OSPFInterfaceSetting interface_settings_ref: an OSPFInterfaceSetting
+            element or href. If None, uses the default system profile
         :param str name: area id
         :param int area_default_cost: default cost for this area
         :param str area_type: \|normal\|stub\|not_so_stubby\|totally_stubby\|
@@ -144,52 +134,64 @@ class OSPFArea(Element):
         :param list ospf_abr_substitute_container: substitute types: 
                \|aggregate\|not_advertise\|substitute_with
         :raises CreateElementFailed: failed to create with reason
-        :return: str href: href location of new element
+        :return: href of new element
+        :rtype: str
         """
+        if interface_settings_ref is None:
+            interface_settings_ref = \
+                OSPFInterfaceSetting('Default OSPFv2 Interface Settings').href
+        else:
+            interface_settings_ref = element_resolver(interface_settings_ref)
+
         json = {'name': name,
                 'area_id': area_id,
                 'area_type': area_type,
                 'inbound_filters_ref': inbound_filters_ref,
                 'interface_settings_ref': interface_settings_ref,
-                'ospf_abr_substitute_container': 
-                    ospf_abr_substitute_container,
-                'ospfv2_virtual_links_endpoints_container': 
+                'ospf_abr_substitute_container': ospf_abr_substitute_container,
+                'ospfv2_virtual_links_endpoints_container':
                     ospfv2_virtual_links_endpoints_container,
                 'outbound_filters_ref': outbound_filters_ref,
                 'shortcut_capable_area': shortcut_capable_area}
-        
+
         return ElementCreator(cls, json)
+
+    @property
+    def interface_settings_ref(self):
+        return Element.from_href(self.data.get('interface_settings_ref'))
+
 
 class OSPFInterfaceSetting(Element):
     """
     OSPF Interface Setting indicate specific configurations that are
     applied to the interface and OSPF Area configuration, including
     authentication.
-    
+
     If you require non-default settings applied to your interface
     OSPF instance, you can create a custom interface profile::
-    
-        OSPFInterfaceSetting.create(name='myprofile', 
-                                    dead_interval=30, 
-                                    hello_interval=5)
-                                                 
+
+        OSPFInterfaceSetting.create(
+            name='myprofile', 
+            dead_interval=30, 
+            hello_interval=5)
+
     When using authentication on interface settings, there are two types,
     password authentication (plain text) or message digest. 
-    
+
     When specifying an authentication_type='password', the password parameter
     must be provided. 
-    
+
     When specifying authentication_type='message_digest', the key_chain_ref
     parameter must be specified.
-    """ 
+    """
     typeof = 'ospfv2_interface_settings'
-  
+
     def __init__(self, name, **meta):
         super(OSPFInterfaceSetting, self).__init__(name, **meta)
         pass
 
     @classmethod
-    def create(cls, name, dead_interval=40, hello_interval=10, 
+    def create(cls, name, dead_interval=40, hello_interval=10,
                hello_interval_type='normal', dead_multiplier=1,
                mtu_mismatch_detection=True, retransmit_interval=5,
                router_priority=1, transmit_delay=1,
@@ -197,13 +199,13 @@ class OSPFInterfaceSetting(Element):
                key_chain_ref=None):
         """
         Create custom OSPF interface settings profile
-        
+
         :param str name: name of interface settings
         :param int dead_interval: in seconds
         :param str hello_interval: in seconds
         :param str hello_interval_type: \|normal\|fast_hello
         :param int dead_multipler: fast hello packet multipler
-        :param boolean mtu_mismatch_detection: True|False
+        :param bool mtu_mismatch_detection: True|False
         :param int retransmit_interval: in seconds
         :param int router_priority: set priority
         :param int transmit_delay: in seconds
@@ -213,7 +215,8 @@ class OSPFInterfaceSetting(Element):
         :param str key_chain_ref: reference to key chain (required when 
                authentication_type='message_digest')
         :raises CreateElementFailed: create failed with reason
-        :return: str href: href location of new element
+        :return: href of new element
+        :rtype: str
         """
         json = {'name': name,
                 'authentication_type': authentication_type,
@@ -227,26 +230,28 @@ class OSPFInterfaceSetting(Element):
                 'retransmit_interval': retransmit_interval,
                 'router_priority': router_priority,
                 'transmit_delay': transmit_delay}
-        
-        return ElementCreator(cls, json)    
+
+        return ElementCreator(cls, json)
+
 
 class OSPFKeyChain(Element):
     """
     OSPF Key Chain is used for authenticating OSPFv2 packets. If required,
     create a key chain and specify authentication in the OSPFInterfaceSetting
     referencing this element.
-    
+
     Is message-digest authentication is required on an OSPFInterfaceSetting, 
     first create the key chain and use the reference to create the ospf 
     interface profile::
-    
+
         key_chain = OSPFKeyChain('secure-keychain') #obtain resource
-        OSPFInterfaceSetting.create(name='authenicated-ospf', 
-                                    authentication_type='message_digest', 
-                                    key_chain_ref=key_chain.href)
+        OSPFInterfaceSetting.create(
+            name='authenicated-ospf', 
+            authentication_type='message_digest', 
+            key_chain_ref=key_chain.href)
     """
     typeof = 'ospfv2_key_chain'
-  
+
     def __init__(self, name, **meta):
         super(OSPFKeyChain, self).__init__(name, **meta)
         pass
@@ -255,125 +260,160 @@ class OSPFKeyChain(Element):
     def create(cls, name, key_chain_entry):
         """
         Create a key chain with list of keys
-        
+
         Key_chain_entry format is::
-        
+
             [{'key': 'xxxx', 'key_id': 1-255, 'send_key': True|False}]
-        
+
         :param str name: Name of key chain
         :param list key_chain_entry: list of key chain entries
         :raises CreateElementFailed: create failed with reason
-        :return: str href: href location of new element
+        :return: href of new element
+        :rtype: str
         """
         key_chain_entry = [] if key_chain_entry is None else key_chain_entry
         json = {'name': name,
                 'ospfv2_key_chain_entry': key_chain_entry}
-        
+
         return ElementCreator(cls, json)
+
 
 class OSPFProfile(Element):
     """
-    This element contains administrative distance and redistribution 
-    settings.
-    This is applied to the engine properties under Dynamic Routing.
-    
-    .. note:: An OSPFProfile has a one-to-one link to an OSPFDomainSetting
+    An OSPF Profile contains administrative distance and redistribution 
+    settings. An OSPF Profile is set on the engine element when enabling
+    OSPF.
 
-    Create an engine level OSPFProfile::
+    These settings are always in effect:
 
-        ospf_domain = OSPFDomainSetting('custom') #obtain resource
-        
-        OSPFProfile.create(name='myospfprofile', 
-                           domain_settings_ref=ospf_domain.href)
-                           
-    A redistribution entry specifies how routes are propogated, i.e. to BGP.
-    
-    An example of redistributing routes to BGP with a metric of 15::
-    
-        domain = OSPFDomainSetting('Default OSPFv2 Domain Settings')   
-        OSPFProfile.create(name='dist-to-bgp', 
-                           domain_settings_ref=domain.href, 
-                           redistribution_entry=[{'enabled': True,
-                                                  'filter_type': 'none',
-                                                  'metric': 15,
-                                                  'metric_type': 'external_1',
-                                                  'type': 'bgp'}])
-                            
+    * No autosummary
+
+    Example of creating an OSPFProfile with the default domain profile::
+
+        OSPFProfile.create(name='myospf')
+
+    See :py:class:`smc.core.properties.EngineFeature.enable_ospf` for enabling 
+    ospf on an existing engine.
+
     """
     typeof = 'ospfv2_profile'
-  
+
     def __init__(self, name, **meta):
         super(OSPFProfile, self).__init__(name, **meta)
         pass
 
     @classmethod
-    def create(cls, name, domain_settings_ref, external_distance=110,
-               inter_distance=110, intra_distance=110, 
-               redistribution_entry=None):
+    def create(cls, name, domain_settings_ref=None, external_distance=110,
+               inter_distance=110, intra_distance=110):
         """
-        Create an OSPFProfile
-        
+        Create an OSPF Profile
+
         :param str name: name of profile
-        :param str domain_settings_ref: linked OSPFDomainSetting href
+        :param str,OSPFDomainSetting domain_settings_ref: OSPFDomainSetting 
+            element or href
         :param int external_distance: route metric (E1-E2)
         :param int inter_distance: routes learned from different areas (O IA)
         :param int intra_distance: routes learned from same area (O)
-        :param list redistribution_entry:
         :raises CreateElementFailed: create failed with reason
-        :return: str href: href location of new element
+        :return: href of new element
+        :rtype: str
         """
         json = {'name': name,
-                'domain_settings_ref': domain_settings_ref,
                 'external_distance': external_distance,
                 'inter_distance': inter_distance,
-                'intra_distance': intra_distance,
-                'redistribution_entry': redistribution_entry}
-        
-        return ElementCreator(cls, json)    
+                'intra_distance': intra_distance}
+
+        if not domain_settings_ref:
+            domain_settings_ref = OSPFDomainSetting(
+                'Default OSPFv2 Domain Settings').href
+        else:
+            domain_settings_ref = element_resolver(domain_settings_ref)
+
+        json.update(domain_settings_ref=domain_settings_ref)
+
+        return ElementCreator(cls, json)
+
+    @property
+    def external_distance(self):
+        """
+        External administrative distance. Between 1-255.
+
+        :return: int distance value
+        """
+        return self.data.get('external_distance')
+
+    @property
+    def inter_distance(self):
+        """
+        Inter administrative distance. Between 1-255.
+
+        :return: int distance value
+        """
+        return self.data.get('inter_distance')
+
+    @property
+    def intra_distance(self):
+        """
+        Intra administrative distance. Between 1-255.
+
+        :return: int distance value
+        """
+        return self.data.get('intra_distance')
+
+    @property
+    def domain_settings_ref(self):
+        """
+        OSPF Domain Settings profile used for this OSPF Profile
+
+        :return: :class:`~OSPFDomainSetting`
+        """
+        return Element.from_href(self.data.get('domain_settings_ref'))
+
 
 class OSPFDomainSetting(Element):
     """
-    Use this element to set the area border router (ABR) type, 
-    throttle timer settings, and the max metric router link-state 
+    An OSPF Domain Setting provides settings for area border router (ABR)
+    type, throttle timer settings, and the max metric router link-state 
     advertisement (LSA) settings.
-    
-    An OSPFProfile requires a reference to an OSPFDomainSetting. The
-    OSPFProfile is applied at the engine level.
-    
+
+    An OSPF Profile requires a reference to an OSPF Domain Setting. 
+
     Create a custom OSPF Domain Setting element::
-    
-        OSPFDomainSetting.create(name='mydomain', 
-                                 abr_type='standard', 
-                                 auto_cost_bandwidth=200, 
-                                 deprecated_algorithm=True)
+
+        OSPFDomainSetting.create(
+            name='mydomain', 
+            abr_type='standard', 
+            auto_cost_bandwidth=200, 
+            deprecated_algorithm=True)
     """
     typeof = 'ospfv2_domain_settings'
- 
+
     def __init__(self, name, **meta):
         super(OSPFDomainSetting, self).__init__(name, **meta)
         pass
 
     @classmethod
-    def create(cls, name, abr_type='cisco', auto_cost_bandwidth=100, 
-               deprecated_algorithm=False, initial_delay=200, 
+    def create(cls, name, abr_type='cisco', auto_cost_bandwidth=100,
+               deprecated_algorithm=False, initial_delay=200,
                initial_hold_time=1000, max_hold_time=10000,
                shutdown_max_metric_lsa=0, startup_max_metric_lsa=0):
         """
         Create custom Domain Settings
-        
+
         Domain settings are referenced by an OSPFProfile
-        
+
         :param str name: name of custom domain settings
         :param str abr_type: cisco|shortcut|standard
         :param int auto_cost_bandwidth: Mbits/s
-        :param boolean deprecated_algorithm: RFC 1518 compatibility
+        :param bool deprecated_algorithm: RFC 1518 compatibility
         :param int initial_delay: in milliseconds
         :param int initial_hold_type: in milliseconds
         :param int max_hold_time: in milliseconds
         :param int shutdown_max_metric_lsa: in seconds
         :param int startup_max_metric_lsa: in seconds
         :raises CreateElementFailed: create failed with reason
-        :return: str href: href location of new element
+        :return: href of new element
+        :rtype: str
         """
         json = {'name': name,
                 'abr_type': abr_type,
@@ -384,5 +424,5 @@ class OSPFDomainSetting(Element):
                 'max_hold_time': max_hold_time,
                 'shutdown_max_metric_lsa': shutdown_max_metric_lsa,
                 'startup_max_metric_lsa': startup_max_metric_lsa}
-        
+
         return ElementCreator(cls, json)

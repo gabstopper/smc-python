@@ -47,39 +47,43 @@ route add route=10.6.4.0/255.255.255.0 gateway=10.12.127.33 distance=1 descripti
 import re
 import logging
 from smc import session
-from smc.core.engine import Engine 
+from smc.core.engine import Engine
 logging.getLogger()
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 filename = '/Users/davidlepage/statis routes.txt'
 firewall = 'mcafee2'
 
+
 def mask_convertor(network_and_netmask):
-    netmask = network_and_netmask.split('/')   
+    netmask = network_and_netmask.split('/')
     cidr = sum([bin(int(x)).count('1') for x in netmask.pop().split('.')])
     netmask.append(str(cidr))
     return '/'.join(netmask)
 
+
 if __name__ == '__main__':
 
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001')
-    
-    #Load the engine configuration; raises LoadEngineFailed for not found engine
+    session.login(url='http://172.18.1.150:8082',
+                  api_key='EiGpKD4QxlLJ25dbBEp20001')
+
+    # Load the engine configuration; raises LoadEngineFailed for not found
+    # engine
     engine = Engine(firewall).load()
-    
+
     with open(filename) as f:
         for line in f:
             for match in re.finditer('route=(.*) gateway=(.*) distance.*?', line, re.S):
                 network = mask_convertor(match.group(1))
                 gateway = match.group(2)
-                print "Adding route to network: {}, via gateway: {}".format(\
-                                            network, gateway)
-                
+                print "Adding route to network: {}, via gateway: {}".format(
+                    network, gateway)
+
                 result = engine.add_route(gateway, str(network))
                 if not result.href:
-                    print "Failed adding network: {} with gateway: {}, reason: {}".format(\
-                                                network, gateway, result.msg)
+                    print "Failed adding network: {} with gateway: {}, reason: {}".format(
+                        network, gateway, result.msg)
                 else:
-                    print "Success adding route to network: {} via gateway: {}".format(\
-                                                network, gateway)
+                    print "Success adding route to network: {} via gateway: {}".format(
+                        network, gateway)
     session.logout()

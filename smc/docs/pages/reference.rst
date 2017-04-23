@@ -6,9 +6,20 @@ Base
 ----
  
 .. automodule:: smc.base.model
-	:members: ElementBase, Element
-	:exclude-members: from_meta, from_href, update
+	:exclude-members: from_meta, from_href
+
+.. autoclass:: ElementBase
+	:members:
+	:exclude-members: update
 	
+.. autoclass:: Element
+	:members:
+	:show-inheritance:
+	:exclude-members: from_meta, from_href, update
+		
+	.. automethod:: objects(self)
+	
+		
 .. _element-reference-label:
 
 Elements
@@ -205,6 +216,13 @@ LogicalInterface
    :members:
    :show-inheritance:
 
+AdminDomain
+***********
+
+.. autoclass:: AdminDomain
+	:members:
+	:show-inheritance:
+
 MacAddress
 **********
 
@@ -245,14 +263,6 @@ Engine
    :members:
    :exclude-members: create, VirtualResource, InternalEndpoint, InternalGateway
    :show-inheritance:
-
-Add-Ons
-+++++++
-
-.. automodule:: smc.core.addon
-
-.. autoclass:: EngineFeature
-	:members:
 	
 Appliance Status
 ++++++++++++++++
@@ -287,13 +297,18 @@ OSPF
 
 .. automodule:: smc.routing.ospf
 	:members:
-	
+
+BGP
+***
+
+.. automodule:: smc.routing.bgp
+	:members:
+		
 AccessList
 **********
 
 .. automodule:: smc.routing.access_list
 	:members:
-	:show-inheritance:
 
 PrefixList
 **********
@@ -406,7 +421,15 @@ Node
    :members: Node
    :exclude-members: create
    :show-inheritance:
- 
+
+Properties
+++++++++++
+
+.. automodule:: smc.core.properties
+
+.. autoclass:: EngineProperty
+	:members:
+	 
 Snapshot
 ++++++++
 
@@ -425,14 +448,6 @@ Routing
 +++++++
 
 .. automodule:: smc.core.route
-	:members:
-
-Antispoofing
-************
-
-.. autoclass:: Antispoofing
-	:members:
-	:show-inheritance:
 
 Routing
 *******
@@ -446,6 +461,20 @@ Routes
 
 .. autoclass:: Routes
 	:members:
+
+Antispoofing
+************
+
+.. autoclass:: Antispoofing
+	:members:
+	:show-inheritance:
+
+Traffic Handlers (Netlinks)
+***************************
+
+.. automodule:: smc.elements.netlink
+	:members:
+	:show-inheritance:
 
 Engine Types
 ------------
@@ -731,6 +760,27 @@ VPNCertificate
    :members:
    :show-inheritance:
 
+GatewaySettings
++++++++++++++++
+
+.. autoclass:: smc.vpn.elements.GatewaySettings
+	:members:
+	:show-inheritance:
+
+GatewayNode
++++++++++++
+
+.. autoclass:: smc.vpn.policy.GatewayNode
+	:members:
+	:show-inheritance:
+
+GatewayProfile
+++++++++++++++
+
+.. autoclass:: smc.vpn.elements.GatewayProfile
+	:members:
+	:show-inheritance:
+
 Administration
 --------------
 
@@ -787,8 +837,8 @@ Users
 Collection
 ----------
 
-.. automodule:: smc.elements.resources
-   :members: ElementCollection, Search
+.. automodule:: smc.base.collection
+	:members:
 
 Search
 ------

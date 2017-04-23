@@ -2,10 +2,11 @@ import logging
 from smc.api.session import Session
 
 __author__ = 'David LePage'
-__version__ = '0.5.0'
+__version__ = '0.5.1'
 
 # Default SMC Session
 session = Session()
+
 
 def set_stream_logger(name='smc', level=logging.DEBUG, format_string=None):
     """
@@ -22,6 +23,7 @@ def set_stream_logger(name='smc', level=logging.DEBUG, format_string=None):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+
 # Set default logging handler to avoid "No handler found" warnings.
 # Best practice from http://docs.python-guide.org/en/latest/writing/logging/
 try:  # Python 2.7+
@@ -32,5 +34,3 @@ except ImportError:
             pass
 
 logging.getLogger(__name__).addHandler(NullHandler())
-
-

@@ -25,43 +25,47 @@ from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
 from smc.administration.tasks import task_handler, Task
 from smc.base.model import Element, prepared_request, lookup_class
 
+
 class Policy(Element):
     """ 
     Policy is the base class for all policy types managed by the SMC.
     This base class is not intended to be instantiated directly.
-    
+
     Subclasses should implement create(....) individually as each subclass will likely 
     have different input requirements.
-    
+
     All generic methods that are policy level, such as 'open', 'save', 'force_unlock',
     'export', and 'upload' are encapsulated into this base class.
     """
+
     def __init__(self, name, **meta):
         super(Policy, self).__init__(name, **meta)
         pass
-                                   
+
     def upload(self, engine, wait_for_finish=True):
         """ 
         Upload policy to specific device. This is an asynchronous call
         that will return a 'follower' link that can be queried to determine 
         the status of the task. 
-        
+
         If wait_for_finish is False, the progress
         href is returned when calling this method. If wait_for_finish is
         True, this generator function will return the new messages as they
         arrive.
 
-        :param engine: name of device to upload policy to
+        :param str engine: name of device to upload policy to
         :param wait_for_finish: whether to wait in a loop until the upload completes
         :return: generator with updates, or follower href if wait_for_finish=False
         """
-        element = prepared_request(TaskRunFailed,
-                                   href=self.resource.upload,
-                                   params={'filter': engine}
-                                   ).create()
-        
-        return task_handler(Task(**element.json), 
-                            wait_for_finish=wait_for_finish)
+        element = prepared_request(
+            TaskRunFailed,
+            href=self.resource.upload,
+            params={'filter': engine}
+        ).create()
+
+        return task_handler(
+            Task(**element.json),
+            wait_for_finish=wait_for_finish)
 
     def open(self):
         """ 
@@ -74,9 +78,10 @@ class Policy(Element):
         :return: None
         """
         try:
-            prepared_request(PolicyCommandFailed,
-                             href=self.resource.open
-                             ).create()
+            prepared_request(
+                PolicyCommandFailed,
+                href=self.resource.open
+            ).create()
         except ResourceNotFound:
             pass
 
@@ -87,38 +92,41 @@ class Policy(Element):
         :return: None
         """
         try:
-            prepared_request(PolicyCommandFailed,
-                             href=self.resource.save
-                             ).create()
+            prepared_request(
+                PolicyCommandFailed,
+                href=self.resource.save
+            ).create()
         except ResourceNotFound:
             pass
 
     def force_unlock(self):
         """ Forcibly unlock a locked policy 
 
-        :return: :py:class:`smc.api.web.SMCResult`
+        :return: None
         """
-        prepared_request(PolicyCommandFailed,
-                         href=self.resource.force_unlock
-                         ).create()
-    
+        prepared_request(
+            PolicyCommandFailed,
+            href=self.resource.force_unlock
+        ).create()
+
     def search_rule(self, search):
         """
         Search a rule for a rule tag or name value
         Result will be the meta data for rule (name, href, type)
-        
+
         Searching for a rule in specific policy::
-        
+
             f = FirewallPolicy(policy)
             search = f.search_rule(searchable)
-        
+
         :param str search: search string
-        :return: list rule elements matching criteria
+        :return: rule elements matching criteria
+        :rtype: list(Element)
         """
         result = prepared_request(
-                        href=self.resource.search_rule,
-                        params={'filter': search}
-                        ).read()
+            href=self.resource.search_rule,
+            params={'filter': search}
+        ).read()
         if result.json:
             results = []
             for data in result.json:
@@ -131,20 +139,19 @@ class Policy(Element):
                 results.append(klazz(**data))
             return results
         return []
-   
+
     def search_category_tags_from_element(self):
         pass
-    
+
     @property
     def template(self):
         """
         Each policy is based on a system level template policy that will
         be inherited. 
-        
+
         :return: Template policy based on policy type
         """
-        href = self.data.get('template') #href for template
-        return Element.from_href(href)
+        return Element.from_href(self.data.get('template'))
 
     @property
     def inspection_policy(self):
@@ -152,12 +159,11 @@ class Policy(Element):
         Each policy is required to have a reference to an InspectionPolicy. 
         The policy may be "No Inspection" but will still exist as a 
         reference.
-        
+
         :return: :py:class:`smc.policy.inspection_policy.InspectionPolicy`
         """
-        href = self.data.get('inspection_policy')
-        return Element.from_href(href)
-    
+        return Element.from_href(self.data.get('inspection_policy'))
+
 
 class InspectionPolicy(Policy):
     """
@@ -168,15 +174,11 @@ class InspectionPolicy(Policy):
     on the rule properties.
     """
     typeof = 'inspection_template_policy'
-    
+
     def __init__(self, name, **meta):
         super(InspectionPolicy, self).__init__(name, **meta)
         pass
-    
-    def export(self):
-        #Not valid for inspection policy
-        pass
-    
-    def upload(self):
-        #Not valid for inspection policy
-        pass
+
+    def export(self): pass  # Not valid for inspection policy
+
+    def upload(self): pass  # Not valid for inspection policy

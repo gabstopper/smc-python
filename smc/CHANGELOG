@@ -147,3 +147,15 @@ location used_on field
 DNSRelayProfile
 smc.core.addon module with engine helpers for enabling/disabling engine level features
 remove support for SMC 5.10
+
+$version 0.5.1
+BGP support
+rename smc.core.addon to smc.core.properties
+EngineProperty for enabling/disabling engine level settings
+VPN GatewaySettings
+New collection classes for subelements
+Moved resource collection from smc.elements.resources to smc.base.collection module
+Admin Domains
+Static Netlink (smc.elements.netlink)
+domain login
+pep8 

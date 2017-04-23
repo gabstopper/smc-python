@@ -1,6 +1,6 @@
 """
-Module that controls aspects of the System itself, such as updating dynamic packages,
-updating engines, applying global blacklists, etc.
+Module that controls aspects of the System itself, such as updating dynamic
+packages, updating engines, applying global blacklists, etc.
 
 To load the configuration for system, do::
 
@@ -20,98 +20,98 @@ from smc.administration.updates import EngineUpgrade, UpdatePackage
 from smc.administration.license import License
 from smc.api.common import fetch_json_by_post
 from smc.api.exceptions import ActionCommandFailed
-    
+
+
 class System(SubElement):
     """
-    System level operations such as SMC version, time, update packages, 
+    System level operations such as SMC version, time, update packages,
     and updating engines
-    
-    :ivar smc_version: version of SMC
-    :ivar smc_time: SMC time
-    :ivar last_activated_package: latest update package installed
     """
+
     def __init__(self, **meta):
         entry = search.element_entry_point('system')
         super(System, self).__init__(href=entry)
         pass
-        
-    @property    
+
+    @property
     def smc_version(self):
         """
         Return the SMC version
         """
         return self.resource.get('smc_version').get('value')
-    
+
     @property
     def smc_time(self):
         """
         Return the SMC time
         """
         return self.resource.get('smc_time').get('value')
-    
+
     @property
     def last_activated_package(self):
         """
         Return the last activated package by id
         """
         return self.resource.get('last_activated_package').get('value')
-    
+
     def empty_trash_bin(self):
-        """ 
+        """
         Empty system level trash bin
-        
+
         :raises ActionCommandFailed: failed removing trash
         :return: None
         """
         prepared_request(ActionCommandFailed,
-                         href=self.resource.empty_trash_bin).delete()
+                         href=self.resource.empty_trash_bin
+                         ).delete()
 
     def update_package(self):
         """
-        Show all update packages on SMC 
-        
+        Show all update packages on SMC
+
         :return: list :py:class:`smc.administration.updates.UpdatePackage`
         """
         return [UpdatePackage(**update)
                 for update in self.resource.get('update_package')]
-       
+
     def update_package_import(self):
         pass
-        
+
     def engine_upgrade(self, engine_version=None):
         """
-        List all engine upgrade packages available 
-        
+        List all engine upgrade packages available
+
         Call this function without parameters to see available engine
         versions. Once you have found the engine version to upgrade, use
         the engine_version=href to obtain the guid. Obtain the download
-        link and POST to download using 
+        link and POST to download using
         engine_upgrade_download(download_link) to download the update.
-        
+
         :param engine_version: Version of engine to retrieve
-        :return: dict of settings
+        :return: settings in raw dict format
+        :rtype: dict
         """
         return [EngineUpgrade(**upgrade)
                 for upgrade in self.resource.get('engine_upgrade')]
-    
+
     def uncommitted(self):
         pass
-    
+
     def system_properties(self):
         """
         List of all properties applied to the SMC
         """
         return self.resource.get('system_properties')
-        
+
     def clean_invalid_filters(self):
         pass
-    
+
     def blacklist(self, src, dst, duration=3600):
-        """ 
+        """
         Add blacklist to all defined engines.
         Use the cidr netmask at the end of src and dst, such as:
         1.1.1.1/32, etc.
-        
+
         :param src: source of the entry
         :param dst: destination of blacklist entry
         :raises ActionCommandFailed: blacklist apply failed with reason
@@ -129,56 +129,57 @@ class System(SubElement):
         This will provide details related to whether the license is bound,
         granted date, expiration date, etc.
         ::
-        
+
             for license in system.licenses:
                 print(license, license.expiration_date)
                 .....
-        
+
         :return: list :py:class:`smc.administration.license.License`
         """
         licenses = self.resource.get('licenses')
         return [License(**lic)
                 for lic in licenses['license']]
-      
+
     def license_fetch(self):
         """
         Fetch available licenses for this SMC
         """
         return self.resource.get('license_fetch')
-        
+
     def license_install(self):
         raise NotImplementedError
-        
+
     def license_details(self):
         """
-        This represents the license details for the SMC. This will include information
-        with regards to the POL/POS, features, type, etc
-        
+        This represents the license details for the SMC. This will include
+        information with regards to the POL/POS, features, type, etc
+
         :return: dictionary of key/values
         """
         return self.resource.get('license_details')
-        
+
     def license_check_for_new(self):
         """
         Check for new SMC license
         """
         return self.resource.get('license_check_for_new')
-        
+
     def delete_license(self):
         raise NotImplementedError
-    
+
     def visible_virtual_engine_mapping(self):
-        """ 
-        Mappings for master engines and virtual engines 
-        
-        :return: list of dict items related to master engines and virtual engine mappings
+        """
+        Mappings for master engines and virtual engines
+
+        :return: list of dict items related to master engines and virtual
+            engine mappings
         """
         return self.resource.get('visible_virtual_engine_mapping')
-    
+
     def references_by_element(self, element_href):
         """
         Return all references to element specified.
-        
+
         :param str element_href: element reference
         :return: list list of references where element is used
         """
@@ -188,39 +189,39 @@ class System(SubElement):
             return result.json
         else:
             return []
-    
+
     def export_elements(self, filename='export_elements.zip', typeof='all',
                         wait_for_finish=False):
         """
         Export elements from SMC.
-        
-        Valid types are: 
+
+        Valid types are:
         all (All Elements)|nw (Network Elements)|ips (IPS Elements)|
         sv (Services)|rb (Security Policies)|al (Alerts)|
         vpn (VPN Elements)
-        
+
         :param type: type of element
         :param filename: Name of file for export
         :raises TaskRunFailed: failure during export with reason
         :return: generator with results (if wait_for_finish=True), else href
         """
         valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
-        if not typeof in valid_types:
+        if typeof not in valid_types:
             typeof = 'all'
-    
+
         element = prepared_request(href=self.resource.export_elements,
                                    params={'recursive': True,
                                            'type': typeof}
                                    ).create()
-    
-        return task_handler(Task(**element.json), 
-                            wait_for_finish=wait_for_finish, 
+
+        return task_handler(Task(**element.json),
+                            wait_for_finish=wait_for_finish,
                             filename=filename)
-    
+
     def active_alerts_ack_all(self):
         """
         Acknowledge all active alerts in the SMC
-        
+
         :raises ActionCommandFailed: Failure during acknowledge with reason
         :raises ResourceNotFound: resource supported in version >= 6.2
         :return: None
@@ -228,10 +229,10 @@ class System(SubElement):
         prepared_request(ActionCommandFailed,
                          href=self.resource.active_alerts_ack_all
                          ).delete()
-                         
+
     def import_elements(self):
         raise NotImplementedError
-    
+
     def unlicensed_components(self):
         raise NotImplementedError
 

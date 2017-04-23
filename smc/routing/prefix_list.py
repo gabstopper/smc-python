@@ -4,6 +4,7 @@ OSPF routing.
 """
 from smc.base.model import ElementCreator, Element
 
+
 class PrefixList(object):
     """
     PrefixList provides common methods utilized by all
@@ -40,7 +41,7 @@ class PrefixList(object):
                         'max_prefix_length': max_len,
                         'min_prefix_length': min_len,
                         'subnet': subnet}})
-        
+
         json = {'name': name,
                 'entries': prefix_list_entry}
 
@@ -60,10 +61,10 @@ class PrefixList(object):
         :return: None
         """
         json = {'{}_entry'.format(self.typeof): {
-                    'action': action,
-                    'min_prefix_length': min_prefix_length,
-                    'max_prefix_length': max_prefix_length,
-                    'subnet': subnet}}
+            'action': action,
+            'min_prefix_length': min_prefix_length,
+            'max_prefix_length': max_prefix_length,
+            'subnet': subnet}}
 
         self.data.get('entries').append(json)
         self.update()
@@ -78,23 +79,24 @@ class PrefixList(object):
         """
         self.data['entries'][:] = [entry
                                    for entry in self.data.get('entries')
-                                   if entry.get('{}_entry'.format(self.typeof))\
+                                   if entry.get('{}_entry'.format(self.typeof))
                                    .get('subnet') != subnet]
         self.update()
-        
+
     def view(self):
         """
         Return a view of the IP Access List in tuple format:
         (subnet, min_prefix_length, max_prefix_length, action)
 
-        :return: list tuple
+        :rtype: list(tuple)
         """
-        acls=[]
+        acls = []
         for entry in self.data.get('entries'):
             e = entry.get('{}_entry'.format(self.typeof))
             acls.append((e.get('subnet'), e.get('min_prefix_length'),
                          e.get('max_prefix_length'), e.get('action')))
         return acls
+
 
 class IPPrefixList(PrefixList, Element):
     """
@@ -104,10 +106,11 @@ class IPPrefixList(PrefixList, Element):
     This represents IPv4 prefix lists
     """
     typeof = 'ip_prefix_list'
-    
+
     def __init__(self, name, **meta):
         super(IPPrefixList, self).__init__(name, **meta)
         pass
+
 
 class IPv6PrefixList(PrefixList, Element):
     """
@@ -117,7 +120,7 @@ class IPv6PrefixList(PrefixList, Element):
     This represents IPv6 prefix lists
     """
     typeof = 'ipv6_prefix_list'
-  
+
     def __init__(self, name, **meta):
         super(IPv6PrefixList, self).__init__(name, **meta)
         pass

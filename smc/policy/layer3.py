@@ -42,6 +42,8 @@ from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFa
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Rule, IPv6Rule
 from smc.policy.rule_nat import IPv4NATRule, IPv6NATRule
+from smc.base.collection import create_collection
+
 
 class FirewallRule(object):
     """
@@ -53,99 +55,113 @@ class FirewallRule(object):
     def fw_ipv4_access_rules(self):
         """
         IPv4 rule entry point
-        
-        :return: :py:class:`smc.policy.rule.IPv4Rule`
+
+        :return: collection of :class:`smc.policy.rule.IPv4Rule`
+        :rtype: SubElementCollection
         """
-        return IPv4Rule(href=self.resource.fw_ipv4_access_rules)
+        return create_collection(
+            self.resource.fw_ipv4_access_rules,
+            IPv4Rule)
 
     @property
     def fw_ipv4_nat_rules(self):
         """
         IPv4NAT Rule entry point
-        
-        :return: :py:class:`smc.policy.rule_nat.IPv4NATRule`
+
+        :return: collection of :class:`smc.policy.rule_nat.IPv4NATRule`
+        :rtype: SubElementCollection
         """
-        return IPv4NATRule(href=self.resource.fw_ipv4_nat_rules)
-        
+        return create_collection(
+            self.resource.fw_ipv4_nat_rules,
+            IPv4NATRule)
+
     @property
     def fw_ipv6_access_rules(self):
         """
         IPv6 Rule entry point
-        
-        :return: :py:class:`smc.policy.rule.IPv6Rule`
+
+        :return: collection of :class:`smc.policy.rule.IPv6Rule`
+        :rtype: SubElementCollection
         """
-        return IPv6Rule(href=self.resource.fw_ipv6_access_rules)
-    
+        return create_collection(
+            self.resource.fw_ipv6_access_rules,
+            IPv6Rule)
+
     @property
     def fw_ipv6_nat_rules(self):
         """
         IPv6NAT Rule entry point
-        
-        :return: :py:class:`smc.policy.rule.IPv6NATRule`
+
+        :return: collection of :class:`smc.policy.rule.IPv6NATRule`
+        :rtype: SubElementCollection
         """
-        return IPv6NATRule(href=self.resource.fw_ipv6_nat_rules) 
-    
+        return create_collection(
+            self.resource.fw_ipv6_nat_rules,
+            IPv6NATRule)
+
+
 class FirewallPolicy(FirewallRule, Policy):
     """ 
     FirewallPolicy represents a set of rules installed on layer 3 
     devices. Layer 3 FW's support either ipv4 or ipv6 rules. 
-    
+
     They also have NAT rules and reference to an Inspection and
     File Filtering Policy.
 
     :ivar template: which policy template is used
 
     Instance Resources:
-    
+
     :ivar fw_ipv4_access_rules: :py:class:`~FirewallRule.fw_ipv4_access_rules`
     :ivar fw_ipv4_nat_rules: :py:class:`~FirewallRule.ipv4_nat_rules`
     :ivar fw_ipv6_access_rules: :py:class:`~FirewallRule.ipv6_access_rules`
     :ivar fw_ipv6_nat_rules: :py:class:`~FirewallRule.ipv6_nat_rules`
-    
-    :param str name: name of firewall policy
-    :return: self
+
     """
     typeof = 'fw_policy'
-    
+
     def __init__(self, name, **meta):
         super(FirewallPolicy, self).__init__(name, **meta)
         pass
-    
+
     @classmethod
     def create(cls, name, template):
         """ 
         Create Firewall Policy. Template policy is required for the
         policy. The template parameter should be the name of the
         firewall template.
-        
+
         This policy will then inherit the Inspection and File Filtering
         policy from the specified template.
-        
+
         :mathod: POST
         :param str name: name of policy
         :param str template: name of the FW template to base policy on
         :raises LoadPolicyFailed: Cannot load the policy after creation
         :raises CreatePolicyFailed: policy creation failed with message
         :return: `~FirewallPolicy`
-        
+
         To use after successful creation, reference the policy to obtain
         context::
-        
+
             FirewallPolicy('newpolicy')
         """
         try:
             fw_template = FirewallTemplatePolicy(template).href
         except ElementNotFound:
-            raise LoadPolicyFailed('Cannot find specified firewall template: {}'
-                                   .format(template))
-        json = {'name': name,
-                'template': fw_template}
+            raise LoadPolicyFailed(
+                'Cannot find specified firewall template: {}'
+                .format(template))
+        json = {
+            'name': name,
+            'template': fw_template}
         try:
             result = ElementCreator(cls, json)
             return FirewallPolicy(name, href=result)
         except CreateElementFailed as err:
-            raise CreatePolicyFailed('Failed to create firewall policy: {}'
-                                     .format(err))
+            raise CreatePolicyFailed(
+                'Failed to create firewall policy: {}'.format(err))
+
 
 class FirewallTemplatePolicy(FirewallRule, Policy):
     """
@@ -155,24 +171,20 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
     and rarely need to be modified. However, you may want to view the
     details of rules configured in a template or possibly insert additional
     rules.
-    
+
     For example, view rules in firewall policy template after loading the
     firewall policy::
-    
+
         policy = FirewallPolicy('Amazon Cloud')
         for rule in policy.template.fw_ipv4_access_rules.all():
             print rule
     """
     typeof = 'fw_template_policy'
-    
+
     def __init__(self, name, **meta):
         super(FirewallTemplatePolicy, self).__init__(name, **meta)
-        pass    
-    
-    def export(self):
-        #Not supported on the template
         pass
-    
-    def upload(self):
-        #Not supported on the template
-        pass
+
+    def export(self): pass  # Not supported on the template
+
+    def upload(self): pass  # Not supported on the template

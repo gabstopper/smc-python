@@ -46,24 +46,26 @@ Remove a contact address::
     
 See :py:class:`smc.elements.other.ServerContactAddress` for more information.
 """
-from smc.base.model import prepared_request, Element, fetch_collection
+from smc.base.model import prepared_request, Element
 from smc.api.exceptions import FetchElementFailed, EngineCommandFailed
+
 
 class ContactAddress(object):
     """
     Contact address definition used on engine interfaces
     """
+
     def __init__(self, data):
         self.data = data
-    
+
     @classmethod
     def create(cls, address, location='Default', dynamic=False):
         """
         Create a new contact address.
-        
+
         :param str address: IP Address of contact address
         :param str location: Location element to associate with address
-        :param boolean dynamic: Is this a dynamic address
+        :param bool dynamic: Is this a dynamic address
         :return: `~ContactAddress`
         """
         from smc.elements.helpers import location_helper
@@ -72,65 +74,67 @@ class ContactAddress(object):
                 'dynamic': dynamic,
                 'location_ref': location_ref}
         return ContactAddress(data)
-    
+
     @property
     def address(self):
         """
         Address of the contact address
-        
+
         :rtype: str
         """
         return self.data.get('address')
-    
+
     @property
     def dynamic(self):
         """
         Is this a dynamic IP based contact address
-        
+
         :rtype: boolean
         """
         return self.data.get('dynamic') == 'true'
-    
+
     @property
     def location_ref(self):
         """
         Reference url for the location element
-        
+
         :rtype: str url href of location
         """
         return self.data.get('location_ref')
-    
+
     @property
     def location(self):
         """    
         Each contact address has a location associated which is attached
         to the management/log server to identify when to use the 
         contact address. This is that location element.
-        
+
         :rtype: Element location object
         """
         return Element.from_href(self.location_ref)
-    
+
     def __repr__(self):
         return '{0}(address={1})'.format(self.__class__.__name__, self.address)
-    
+
+
 class ContactResource(object):
     def __init__(self, data):
         self.data = data
-        
+
     def __iter__(self):
         for interface in self.data:
             yield ContactInterface(**interface)
-        
+
     def __call__(self, interface_id):
         match = 'Interface {}'.format(interface_id)
         return [interface
                 for interface in iter(self)
                 if match in interface.name]
-    
+
     def all(self):
         return iter(self)
-        
+
+
 class ContactInterface(object):
     """
     A ContactInterface represents a contact address configuration
@@ -139,6 +143,7 @@ class ContactInterface(object):
     cases may have multiple IP addresses assigned. Each assigned 
     IP can have a unique contact address (or multiple).
     """
+
     def __init__(self, **kw):
         self.href = kw.pop('href', None)
         fullname = kw.pop('name', None)
@@ -150,71 +155,76 @@ class ContactInterface(object):
         contact address is an alternative address which is 
         typically applied when NAT is used between the NGFW
         and another component (such as management server).
-            
+
         :param contact_address: the contact address element
         :type: :py:class:`~ContactAddress`
         :raises EngineCommandFailed: invalid contact address
         :return: None
         """
-        result = prepared_request(FetchElementFailed,
-                                  href=self.href
-                                  ).read()
-        
-        if result.json: # Existing contact addresses
+        result = prepared_request(
+            FetchElementFailed,
+            href=self.href
+        ).read()
+
+        if result.json:  # Existing contact addresses
             data = [address
                     for address in result.json['contact_addresses']
                     if address.get('location_ref') != contact_address.location_ref]
             data.append(contact_address.data)
         else:
             data = [contact_address.data]
-        
+
         data = {'contact_addresses': data}
-        
-        prepared_request(EngineCommandFailed,
-                         href=self.href, 
-                         json=data, 
-                         etag=result.etag
-                         ).update()        
-    
+
+        prepared_request(
+            EngineCommandFailed,
+            href=self.href,
+            json=data,
+            etag=result.etag
+        ).update()
+
     def remove_contact_address(self, contact_address):
         """
         Remove a contact address from an interface.
-        
+
         :param contact_address: the contact address element
         :type contact_address: ContactAddress 
         :raises EngineCommandFailed: problem removing address
         :return: None
         """
-        result = prepared_request(FetchElementFailed,
-                                  href=self.href
-                                  ).read()
+        result = prepared_request(
+            FetchElementFailed,
+            href=self.href
+        ).read()
         if result.json:
             data = [address
                     for address in result.json['contact_addresses']
                     if address.get('address') != contact_address.address]
-            
+
             data = {'contact_addresses': data}
-            
-            prepared_request(EngineCommandFailed,
-                             href=self.href, 
-                             json=data, 
-                             etag=result.etag
-                             ).update()  
-              
+
+            prepared_request(
+                EngineCommandFailed,
+                href=self.href,
+                json=data,
+                etag=result.etag
+            ).update()
+
     @property
     def contact_addresses(self):
         """
         Show any assigned contact addresses.
-            
+
         :return: list :class:`~ContactAddress`
         """
-        result = fetch_collection(self.href)      
+        result = prepared_request(
+            FetchElementFailed,
+            href=self.href).read().json
         if result:
             return [ContactAddress(address)
                     for address in result.get('contact_addresses')]
         return []
-        
+
     def __repr__(self):
         return '{0}(name={1},address={2})'.format(
             self.__class__.__name__, self.name, self.address)
-            

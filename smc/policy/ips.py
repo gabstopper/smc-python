@@ -39,6 +39,8 @@ from smc.policy.rule import IPv4Layer2Rule, EthernetRule
 from smc.base.model import ElementCreator
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
+from smc.base.collection import create_collection
+
 
 class IPSRule(object):
     """
@@ -50,25 +52,32 @@ class IPSRule(object):
     def ips_ipv4_access_rules(self):
         """ 
         IPS ipv4 access rules
-        
-        :return: :py:class:`smc.policy.rule.IPv4Layer2Rule`
+
+        :return: collection of :class:`smc.policy.rule.IPv4Layer2Rule`
+        :rtype: SubElementCollection
         """
-        return IPv4Layer2Rule(href=self.resource.ips_ipv4_access_rules)
-    
-    @property    
+        return create_collection(
+            self.resource.ips_ipv4_access_rules,
+            IPv4Layer2Rule)
+
+    @property
     def ips_ipv6_access_rules(self):
         """
         """
         pass
-    
+
     @property
     def ips_ethernet_rules(self):
         """
         IPS Ethernet access rule
-        
-        :param :py:class:`smc.policy.rule.EthernetRule`
+
+        :return: collection of :class:`smc.policy.rule.EthernetRule`
+        :rtype: SubElementCollection
         """
-        return EthernetRule(href=self.resource.ips_ethernet_rules)
+        return create_collection(
+            self.resource.ips_ethernet_rules,
+            EthernetRule)
+
 
 class IPSPolicy(IPSRule, Policy):
     """
@@ -76,17 +85,17 @@ class IPSPolicy(IPSRule, Policy):
     engine. IPS mode supports both inline and SPAN interface types and 
     ethernet based rules. Layer 2 and IPS engines do not current features that
     require routed interfaces.
-    
+
     :ivar template: which policy template is used
 
     Instance Resources:
-    
+
     :ivar ips_ipv4_access_rules: :py:class:`~IPSRule.ips_ipv4_access_rules`
     :ivar ips_ipv6_access_rules: :py:class:`~IPSRule.ips_ipv6_access_rules`
     :ivar ips_ethernet_rules: :py:class:`~IPSRule.ips_ethernet_rules`
     """
     typeof = 'ips_policy'
-    
+
     def __init__(self, name, **meta):
         super(IPSPolicy, self).__init__(name, **meta)
         pass
@@ -95,7 +104,7 @@ class IPSPolicy(IPSRule, Policy):
     def create(cls, name, template):
         """
         Create an IPS Policy
-        
+
         :param str name: Name of policy
         :param str template: name of template
         :raises CreatePolicyFailed: policy failed to create
@@ -104,18 +113,20 @@ class IPSPolicy(IPSRule, Policy):
         try:
             fw_template = IPSTemplatePolicy(template).href
         except ElementNotFound:
-            raise LoadPolicyFailed('Cannot find specified firewall template: {}'
-                                   .format(template))
-        json = {'name': name,
-                'template': fw_template}
+            raise LoadPolicyFailed(
+                'Cannot find specified firewall template: {}'
+                .format(template))
+        json = {
+            'name': name,
+            'template': fw_template}
         try:
             result = ElementCreator(cls, json)
             return IPSPolicy(name, href=result)
         except CreateElementFailed as err:
-            raise CreatePolicyFailed('Failed to create firewall policy: {}'
-                                     .format(err))
+            raise CreatePolicyFailed(
+                'Failed to create firewall policy: {}'.format(err))
 
-        
+
 class IPSTemplatePolicy(IPSRule, Policy):
     """
     All IPS Policies will reference an IPS policy template.
@@ -124,16 +135,16 @@ class IPSTemplatePolicy(IPSRule, Policy):
     and rarely need to be modified. However, you may want to view the
     details of rules configured in a template or possibly insert additional
     rules.
-    
+
     For example, view rules in an ips policy template after loading the
     ips policy::
-    
+
         policy = IPSPolicy('InlineIPS')
         for rule in policy.template.ips_ipv4_access_rules.all():
             print(rule)
     """
     typeof = 'ips_template_policy'
-    
+
     def __init__(self, name, **meta):
         super(IPSTemplatePolicy, self).__init__(name, **meta)
-        pass 
+        pass
