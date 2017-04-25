@@ -287,7 +287,8 @@ class Interface(SubElement):
                     found = intf
                     break
         if found:
-            found.update(engine=self._engine)  # Update meta
+            found.update(
+                engine=self._engine)  # Update meta
             return lookup_class(found.get('type'), Interface)(**found)
 
         raise EngineCommandFailed(
@@ -510,6 +511,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str network_value: network/cidr (12.12.12.0/24)
         :param str zone_ref: zone reference
         :param bool is_mgmt: enable as management interface
+        :param kw: key word arguments are valid SingleNodeInterface
+            sub-interface settings passed in during create time. For example,
+            'backup_mgt=True' to enable this interface as the management backup.
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
@@ -527,7 +531,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         dispatch(self, builder, interface)
 
     def add_node_interface(self, interface_id, address, network_value,
-                           zone_ref=None, is_mgmt=False):
+                           zone_ref=None, is_mgmt=False, **kw):
         """
         Node interfaces are used on all engine types except single fw
         engines. For inline and IPS engines, this interface type represents
@@ -539,6 +543,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str network_value: network/cidr (12.12.12.0/24)
         :param str zone_ref: zone reference
         :param bool is_mgmt: enable management
+        :param kw: key word arguments are valid NodeInterface sub-interface
+            settings passed in during create time. For example, 'backup_mgt=True'
+            to enable this interface as the management backup.
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
@@ -551,7 +558,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         if zone_ref:
             builder.zone_ref = zone_ref
-        builder.add_ndi_only(address, network_value, is_mgmt=is_mgmt)
+        builder.add_ndi_only(address, network_value, is_mgmt=is_mgmt, **kw)
 
         dispatch(self, builder, interface)
 
@@ -623,7 +630,8 @@ class PhysicalInterface(InterfaceCommon, Interface):
     def add_cluster_virtual_interface(self, interface_id, cluster_virtual,
                                       cluster_mask, macaddress, nodes,
                                       cvi_mode='packetdispatch',
-                                      zone_ref=None, is_mgmt=False):
+                                      zone_ref=None, is_mgmt=False,
+                                      **kw):
         """
         Add cluster virtual interface. A "CVI" interface is used as a VIP
         address for clustered engines. Providing 'nodes' will create the
@@ -647,6 +655,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str cvi_mode: packetdispatch is recommended setting
         :param str zone_ref: if present, set on top level physical interface
         :param bool is_mgmt: enable management
+        :param kw: key word arguments are valid NodeInterface sub-interface
+            settings passed in during create time. For example, 'backup_mgt=True'
+            to enable this interface as the management backup.
         :raises EngineCommandFailed: failure creating interface
         :return: None
         """
@@ -657,7 +668,8 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder.add_cvi_only(cluster_virtual, cluster_mask, is_mgmt=is_mgmt)
 
         for node in nodes:
-            node.update(is_mgmt=is_mgmt)
+            node.update(is_mgmt=is_mgmt,
+                        **kw)
             builder.add_ndi_only(**node)
 
         builder.zone_ref = zone_ref
@@ -870,6 +882,134 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
                     routes.delete()
                     break
+    @property
+    def is_primary_mgt(self):
+        """
+        Is this physical interface tagged as the backup management
+        interface for this cluster.
+        
+        :return: is backup heartbeat
+        :rtype: bool
+        """
+        for sub_interface in self.sub_interfaces():
+            if not isinstance(sub_interface, ClusterVirtualInterface):
+                if sub_interface.primary_mgt:
+                    return True
+        return False
+    
+    @property
+    def is_backup_mgt(self):
+        """
+        Is this physical interface tagged as the backup management
+        interface for this cluster.
+        
+        :return: is backup heartbeat
+        :rtype: bool
+        """
+        for sub_interface in self.sub_interfaces():
+            if sub_interface.backup_mgt:
+                return True
+        return False
+    
+    @property
+    def is_primary_heartbeat(self):
+        """
+        Is this physical interface tagged as the primary heartbeat
+        interface for this cluster.
+        
+        :return: is backup heartbeat
+        :rtype: bool
+        """
+        for sub_interface in self.sub_interfaces():
+            if sub_interface.primary_heartbeat:
+                return True
+        return False
+    
+    @property
+    def is_backup_heartbeat(self):
+        """
+        Is this physical interface tagged as the backup heartbeat
+        interface for this cluster.
+        
+        :return: is backup heartbeat
+        :rtype: bool
+        """
+        for sub_interface in self.sub_interfaces():
+            if sub_interface.backup_heartbeat:
+                return True
+        return False
+    
+    def set_primary_mgt(self, interface_id, auth_request=None):
+        """
+        Set this physical interface as the primary management interface.
+        Calling this will 'unset' the primary management from the interface
+        that is currently set. This will change 'Outgoing', 'Auth Request'
+        and 'Primary Control' interfaces. Call from the engine context.
+        ::
+        
+            engine.physical_interface.set_primary_mgt(1)
+        
+        Or set primary management on a vlan interface::
+        
+            engine.physical_interface.set_primary_mgt('1.100')
+        
+        :param str,int interface_id: interface id to make management
+        :param str,int auth_request: if setting primary mgt on a cluster
+            interface with no CVI, you must pick another interface to set
+            the auth_request field to (default: None)
+        :raises UpdateElementFailed: updating management fails
+        :return: None
+        
+        .. note:: Setting primary management on a cluster interface with no
+            CVI requires you to set interface for auth_request. Also, the
+            primary heartbeat will not follow this interface change.
+        """
+        interfaces = self.all() # Reset all interfaces
+        for intf in interfaces:
+            all_sub = intf.sub_interfaces()
+            has_cvi = any(isinstance(t, ClusterVirtualInterface)
+                          for t in all_sub) # Do we have a cvi
+            if has_cvi:
+                for sub_interface in all_sub:
+                    if sub_interface.nicid == str(interface_id):
+                        if isinstance(sub_interface, ClusterVirtualInterface):
+                            if auth_request is not None and \
+                                (str(auth_request) != sub_interface.nicid):
+                                sub_interface.unset_primary_mgt()
+                            else:
+                                sub_interface.set_primary_mgt() # Set auth_request
+                        else:
+                            sub_interface.set_primary_mgt()
+                            sub_interface.auth_request = False    
+                    else:
+                        sub_interface.unset_primary_mgt()
+                        if auth_request is not None and \
+                            (str(auth_request) == sub_interface.nicid):
+                            if isinstance(sub_interface, ClusterVirtualInterface):
+                                sub_interface.set_primary_mgt() # Set auth_request
+
+            else:
+                for sub_interface in all_sub:
+                    if sub_interface.nicid == str(interface_id):
+                        sub_interface.set_primary_mgt()
+                        # Unset auth request if customized
+                        if auth_request is not None and \
+                            (str(auth_request) != sub_interface.nicid):
+                            sub_interface.auth_request = False
+                    else:
+                        sub_interface.unset_primary_mgt()
+                        if auth_request is not None and \
+                            (str(auth_request) == sub_interface.nicid):
+                            sub_interface.auth_request = True
+            
+        # Modify at engine level due to multiple changes       
+        self._engine.data['physicalInterfaces'] = []
+        for intf in interfaces:
+            self._engine.data['physicalInterfaces'].append(
+                {'physical_interface': intf.data})
+        from pprint import pprint
+        #pprint(self._engine.data)
+        dispatch(self, self._engine, self._engine)
 
     @property
     def aggregate_mode(self):

@@ -37,7 +37,6 @@ class CategoryTag(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'comment': comment}
 
@@ -128,7 +127,6 @@ class Location(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'comment': comment}
 
@@ -178,7 +176,6 @@ class LogicalInterface(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'comment': comment}
 
@@ -217,7 +214,6 @@ class AdminDomain(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'comment': comment}
         
@@ -250,7 +246,6 @@ class MacAddress(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'address': mac_address,
                 'comment': comment}

@@ -7,6 +7,7 @@ engine access.
 """
 from smc.base.model import Element, ElementCreator, prepared_request
 from smc.api.exceptions import ModificationFailed
+from smc.base.util import element_resolver
 
 
 class UserCommon(object):
@@ -61,8 +62,7 @@ class AdminUser(UserCommon, Element):
 
     @classmethod
     def create(cls, name, local_admin=False, allow_sudo=False,
-               superuser=False, admin_domain=None, enabled=True,
-               engine_target=None):
+               superuser=False, enabled=True, engine_target=None):
         """
         Create an admin user account.
 
@@ -70,7 +70,6 @@ class AdminUser(UserCommon, Element):
         :param bool local_admin: is a local admin only
         :param bool allow_sudo: allow sudo on engines
         :param bool superuser: is a super administrator
-        :param str admin_domain: domain for access
         :param bool enabled: is account enabled
         :param str engine_target: engine to allow remote access to
         :raises CreateElementFailed: failure creating element with reason
@@ -78,13 +77,14 @@ class AdminUser(UserCommon, Element):
         :rtype: str
         """
         engines = [] if engine_target is None else engine_target
+    
         json = {'name': name,
                 'enabled': enabled,
                 'allow_sudo': allow_sudo,
                 'engine_target': engines,
                 'local_admin': local_admin,
                 'superuser': superuser}
-
+        
         return ElementCreator(cls, json)
 
     @property

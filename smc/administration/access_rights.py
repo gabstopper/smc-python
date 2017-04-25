@@ -18,7 +18,6 @@ class AccessControlList(Element):
 
     def __init__(self, name, **meta):
         super(AccessControlList, self).__init__(name, **meta)
-        pass
 
     @property
     def _granted_element(self):

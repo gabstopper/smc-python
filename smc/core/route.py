@@ -136,9 +136,9 @@ class Routing(SubElement):
             If interface is a VLAN, you must use a str to specify the
             interface id, such as '3.13' (interface 3, VLAN 13)
 
-        :param str,int interface_id: interface id. For VLANs, use a str
-            value equal to interface.vlan; i.e. '3.13'.
-        :return: `~Routing` element, or None if not found
+        :param str,int interface_id: interface identifier
+        :return: Routing element, or None if not found
+        :rtype: Routing
         """
         for interface in iter(self):
             if interface.nicid == str(interface_id):

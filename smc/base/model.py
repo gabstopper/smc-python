@@ -256,7 +256,7 @@ class ElementLocator(object):
     to the SMC API entry point for the element. Classes deriving from
     :class:`Element` will define this attribute. When loading via
     Host('myhost'), you will have an empty instance as the cache is not
-    hydrateduntil some action is called on it that accesses the instance
+    hydrated until some action is called on it that accesses the instance
     property 'data'.
     Once hydrated, original json is stored in instance.cache.
 
@@ -274,7 +274,8 @@ class ElementLocator(object):
         else:
             if hasattr(instance, 'typeof'):
                 element = fetch_href_by_name(
-                    instance.name, filter_context=instance.typeof)
+                    instance.name,
+                    filter_context=instance.typeof)
                 if element.json:
                     instance.meta = Meta(**element.json[0])
                     return instance.meta.href
@@ -473,7 +474,7 @@ class Element(ElementBase):
                 for tag in
                 prepared_request(
                     href=self.resource.search_category_tags_from_element
-        ).read().json]
+                ).read().json]
 
     def export(self, filename='element.zip', wait_for_finish=False):
         """
@@ -491,7 +492,7 @@ class Element(ElementBase):
                 ActionCommandFailed,
                 href=self.resource.export,
                 filename=filename
-            ).create()
+                ).create()
 
             return task_handler(
                 Task(**element.json),
@@ -515,7 +516,7 @@ class Element(ElementBase):
                     FetchElementFailed,
                     href=href,
                     json={'value': self.href}
-        ).create().json]
+                ).create().json]
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)

@@ -162,6 +162,8 @@ class Engine(EngineProperty, Element):
     def version(self):
         """
         Version of this engine
+        
+        :rtype: str
         """
         return self.attr_by_name('engine_version')
 
@@ -188,7 +190,8 @@ class Engine(EngineProperty, Element):
         Return a list of child nodes of this engine. This can be
         used to iterate to obtain access to node level operations
 
-        :return: list :py:class:`smc.core.node.Node`
+        :return: nodes for this engine
+        :rtype: list(Node)
         """
         return list(sub_collection(self.resource.nodes, Node))
 
@@ -201,7 +204,8 @@ class Engine(EngineProperty, Element):
             for acl in engine.permissions:
                 print(acl, acl.granted_element)
 
-        :return: list :py:class:`smc.administration.access_rights.AccessControlList`
+        :return: access control list permissions
+        :rtype: list(AccessControlList)
         """
         try:
             acls = self.resource.get('permissions')

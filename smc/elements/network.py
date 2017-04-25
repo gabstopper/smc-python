@@ -8,19 +8,19 @@ from smc.api.common import fetch_json_by_href
 
 
 class Host(Element):
-    """ 
+    """
     Class representing a Host object used in access rules
 
     Create a host element with ipv4::
 
-        Host.create(name='myhost', address='1.1.1.1', 
-                    secondary_ip=['1.1.1.2'], 
+        Host.create(name='myhost', address='1.1.1.1',
+                    secondary_ip=['1.1.1.2'],
                     comment='some comment for my host')
 
     Create a host element with ipv6 and secondary ipv4 address::
 
-        Host.create(name='mixedhost', 
-                    ipv6_address='2001:cdba::3257:9652', 
+        Host.create(name='mixedhost',
+                    ipv6_address='2001:cdba::3257:9652',
                     secondary_ip=['1.1.1.1'])
 
     .. note:: Either ipv4 or ipv6 address is required
@@ -29,8 +29,7 @@ class Host(Element):
 
     def __init__(self, name, **meta):
         super(Host, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, address=None, ipv6_address=None,
                secondary=None, comment=None):
@@ -49,7 +48,6 @@ class Host(Element):
         address = address if address else None
         ipv6_address = ipv6_address if ipv6_address else None
         secondaries = [] if secondary is None else secondary
-        comment = comment if comment else ''
         json = {'name': name,
                 'address': address,
                 'ipv6_address': ipv6_address,
@@ -60,7 +58,7 @@ class Host(Element):
 
 
 class AddressRange(Element):
-    """ 
+    """
     Class representing a IpRange object used in access rules
 
     Create an address range element::
@@ -69,11 +67,10 @@ class AddressRange(Element):
 
     """
     typeof = 'address_range'
-
+    
     def __init__(self, name, **meta):
         super(AddressRange, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, iprange, comment=None):
         """
@@ -86,7 +83,6 @@ class AddressRange(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'ip_range': iprange,
                 'comment': comment}
@@ -95,7 +91,7 @@ class AddressRange(Element):
 
 
 class Router(Element):
-    """ 
+    """
     Class representing a Router object used in access rules
 
     Create a router element with ipv4 address::
@@ -104,7 +100,7 @@ class Router(Element):
 
     Create a router element with ipv6 address::
 
-        Host.create(name='mixedhost', 
+        Host.create(name='mixedhost',
                     ipv6_address='2001:cdba::3257:9652')
 
     .. note:: either ipv4 or ipv6 address is required
@@ -113,8 +109,7 @@ class Router(Element):
 
     def __init__(self, name, **meta):
         super(Router, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, address=None, ipv6_address=None,
                secondary_ip=None, comment=None):
@@ -133,7 +128,6 @@ class Router(Element):
         address = address if address else None
         ipv6_address = ipv6_address if ipv6_address else None
         secondary = [] if secondary_ip is None else secondary_ip
-        comment = comment if comment else ''
         json = {'name': name,
                 'address': address,
                 'ipv6_address': ipv6_address,
@@ -144,9 +138,9 @@ class Router(Element):
 
 
 class Network(Element):
-    """ 
+    """
     Class representing a Network object used in access rules
-    Network format should be CIDR based.  
+    Network format should be CIDR based.
 
     Create an ipv4 network element::
 
@@ -162,8 +156,7 @@ class Network(Element):
 
     def __init__(self, name, **meta):
         super(Network, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, ipv4_network=None, ipv6_network=None,
                comment=None):
@@ -180,7 +173,6 @@ class Network(Element):
         """
         ipv4_network = ipv4_network if ipv4_network else None
         ipv6_network = ipv6_network if ipv6_network else None
-        comment = comment if comment else ''
         json = {'name': name,
                 'ipv4_network': ipv4_network,
                 'ipv6_network': ipv6_network,
@@ -192,7 +184,7 @@ class Network(Element):
     def ipv4_network(self):
         """
         Show the full CIDR representation of this ipv4 network
-        
+
         :return: network as CIDR, or None if no ipv4 assigned
         :rtype: str
         """
@@ -202,7 +194,7 @@ class Network(Element):
     def ipv6_network(self):
         """
         Show the full CIDR representation of this ipv6 network
-        
+
         :return: network as CIDR, or None if no ipv6 assigned
         :rtype: str
         """
@@ -210,7 +202,7 @@ class Network(Element):
 
 
 class DomainName(Element):
-    """ 
+    """
     Represents a domain name used as FQDN in policy
     Use this object to reference a DNS resolvable FQDN or
     partial domain name to be used in policy.
@@ -223,8 +215,7 @@ class DomainName(Element):
 
     def __init__(self, name, **meta):
         super(DomainName, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, comment=None):
         """
@@ -235,7 +226,6 @@ class DomainName(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'comment': comment}
 
@@ -248,34 +238,33 @@ class Expression(Element):
     if you wanted to create an expression that negates a specific set of network
     elements to use in a "NOT" rule, an expression would be the element type.
 
-    For example, adding a rule that negates (network A or network B):: 
+    For example, adding a rule that negates (network A or network B)::
 
         sub_expression = Expression.build_sub_expression(
-                            name='mytestexporession', 
+                            name='mytestexporession',
                             ne_ref=['http://172.18.1.150:8082/6.0/elements/host/3999',
-                                    'http://172.18.1.150:8082/6.0/elements/host/4325'], 
+                                    'http://172.18.1.150:8082/6.0/elements/host/4325'],
                             operator='union')
 
-        Expression.create(name='apiexpression', 
+        Expression.create(name='apiexpression',
                           ne_ref=[],
                           sub_expression=sub_expression)
 
-    .. note:: The sub-expression creates the json for the expression 
+    .. note:: The sub-expression creates the json for the expression
               (network A or network B) and is then used as an parameter to create.
     """
     typeof = 'expression'
 
     def __init__(self, name, **meta):
         super(Expression, self).__init__(name, **meta)
-        pass
-
+        
     @staticmethod
     def build_sub_expression(name, ne_ref=None, operator='union'):
         """
         Static method to build and return the proper json for a sub-expression.
         A sub-expression would be the grouping of network elements used as a
         target match. For example, (network A or network B) would be considered
-        a sub-expression. This can be used to compound sub-expressions before 
+        a sub-expression. This can be used to compound sub-expressions before
         calling create.
 
         :param str name: name of sub-expression
@@ -297,7 +286,7 @@ class Expression(Element):
 
         :param str name: name of expression
         :param list ne_ref: network element references for expression
-        :param str operator: \|exclusion (negation)\|union\|intersection 
+        :param str operator: 'exclusion' (negation), 'union', 'intersection'
                (default: exclusion)
         :param dict sub_expression: sub expression used
         :param str comment: optional comment
@@ -305,7 +294,6 @@ class Expression(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         sub_expression = [] if sub_expression is None else [sub_expression]
         json = {'name': name,
                 'operator': operator,
@@ -332,8 +320,7 @@ class URLListApplication(Element):
 
     def __init__(self, name, **meta):
         super(URLListApplication, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, url_entry, comment=None):
         """
@@ -395,8 +382,7 @@ class IPList(Element):
 
     def __init__(self, name, **meta):
         super(IPList, self).__init__(name, **meta)
-        pass
-
+        
     def download(self, filename=None, as_type='zip'):
         """
         Download the IPList. List format can be either zip, text or
@@ -433,7 +419,7 @@ class IPList(Element):
         So if the intent is to add new entries, you should first retrieve
         the existing and append to the content, then upload.
         The only upload type that can be done without loading a file as
-        the source is as_type='json'. 
+        the source is as_type='json'.
 
         :param str filename: required for zip/txt uploads
         :param str json: required for json uploads
@@ -464,7 +450,7 @@ class IPList(Element):
     def create(cls, name, iplist=None, comment=None):
         """
         Create an IP List. It is also possible to add entries by supplying
-        a list of IPs/networks, although this is optional. You can also 
+        a list of IPs/networks, although this is optional. You can also
         use upload/download to add to the iplist.
 
         :param str name: name of ip list
@@ -472,7 +458,7 @@ class IPList(Element):
         :param str comment: optional comment
         :raises CreateElementFailed: element creation failed with reason
         :return: href of new element
-        :rtype: str 
+        :rtype: str
         """
         json = {'name': name,
                 'comment': comment}
@@ -489,7 +475,7 @@ class IPList(Element):
 
 
 class Zone(Element):
-    """ 
+    """
     Class representing a zone used on physical interfaces and
     used in access control policy rules, typically in source and
     destination fields. Zones can be applied on multiple interfaces
@@ -500,14 +486,13 @@ class Zone(Element):
         Zone.create('myzone')
     """
     typeof = 'interface_zone'
-
+    
     def __init__(self, name, **meta):
         super(Zone, self).__init__(name, **meta)
-        pass
-
+        
     @classmethod
     def create(cls, name, comment=None):
-        """ 
+        """
         Create the zone element
 
         :param str zone: name of zone
@@ -515,7 +500,6 @@ class Zone(Element):
         :raises CreateElementFailed: element creation failed with reason
         :return: href location of new element
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'comment': comment}
 
@@ -530,10 +514,6 @@ class Country(Element):
     """
     typeof = 'country'
 
-    def __init__(self, name, **meta):
-        super(Country, self).__init__(name, **meta)
-        pass
-
 
 class IPCountryGroup(Element):
     """
@@ -542,11 +522,6 @@ class IPCountryGroup(Element):
     .. note:: IP Country Group requires SMC API version >= 6.1
     """
     typeof = 'ip_country_group'
-
-    def __init__(self, name, **meta):
-        super(IPCountryGroup, self).__init__(name, **meta)
-        pass
-
 
 class Alias(Element):
     """

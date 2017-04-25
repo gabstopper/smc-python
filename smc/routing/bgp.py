@@ -76,9 +76,9 @@ class AutonomousSystem(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
-                'as_number': as_number}
+                'as_number': as_number,
+                'comment': comment}
 
         return ElementCreator(cls, json)
 

@@ -73,12 +73,38 @@ class ClusterVirtualInterface(object):
     def data(self):
         return {'cluster_virtual_interface': self.__dict__}
 
+    def set_primary_mgt(self):
+        """
+        Set this interface as primary mgt
+        
+        :return: None
+        """
+        self.auth_request = True
+
+    def unset_primary_mgt(self):
+        """
+        Disable primary management on this sub-interface
+        """
+        self.auth_request = False
+
+    @property
+    def vlan_id(self):
+        nicid = self.nicid
+        if nicid:
+            v = nicid.split('.')
+            if len(v) > 1:
+                return nicid.split('.')[1]
+    
     def __getattr__(self, attr):
         return None
 
     def __repr__(self):
-        return '{0}(address={1})'.format(self.__class__.__name__,
-                                         self.address)
+        if self.vlan_id:
+            return '{0}(name={1}, vlan_id={2})'.format(
+                self.__class__.__name__, self.address, self.vlan_id)
+        else:
+            return '{0}(name={1})'.format(
+                self.__class__.__name__, self.address)
 
 
 class InlineInterface(object):
@@ -122,7 +148,7 @@ class InlineInterface(object):
             data.update({k: v})
 
         return cls(data)
-
+        
     @property
     def data(self):
         return {'inline_interface': self.__dict__}
@@ -140,8 +166,8 @@ class InlineInterface(object):
         return None
 
     def __repr__(self):
-        return '{0}(nicid={1})'.format(self.__class__.__name__,
-                                       self.nicid)
+        return '{0}(nicid={1})'.format(
+            self.__class__.__name__, self.nicid)
 
 
 class CaptureInterface(object):
@@ -186,8 +212,8 @@ class CaptureInterface(object):
         return None
 
     def __repr__(self):
-        return '{0}(nicid={1})'.format(self.__class__.__name__,
-                                       self.nicid)
+        return '{0}(nicid={1})'.format(
+            self.__class__.__name__, self.nicid)
 
 
 class NodeInterface(object):
@@ -266,6 +292,24 @@ class NodeInterface(object):
 
         return cls(data)
 
+    def set_primary_mgt(self):
+        """
+        Set this interface as primary mgt
+        
+        :return: None
+        """
+        self.primary_mgt = True
+        self.auth_request = True
+        self.outgoing = True
+    
+    def unset_primary_mgt(self):
+        """
+        Disable primary management on this sub-interface
+        """
+        self.primary_mgt = False
+        self.auth_request = False
+        self.outgoing = False
+    
     @property
     def data(self):
         return {self.typeof: self.__dict__}
@@ -282,8 +326,12 @@ class NodeInterface(object):
         return None
 
     def __repr__(self):
-        return '{0}(address={1})'.format(self.__class__.__name__,
-                                         self.address)
+        if self.vlan_id:
+            return '{0}(name={1}, vlan_id={2})'.format(
+                self.__class__.__name__, self.address, self.vlan_id)
+        else:
+            return '{0}(name={1})'.format(
+                self.__class__.__name__, self.address)
 
 
 class SingleNodeInterface(NodeInterface):
@@ -328,7 +376,7 @@ class SingleNodeInterface(NodeInterface):
             data.update({k: v})
 
         return cls(data)
-
+        
     @classmethod
     def create_dhcp(cls, interface_id, dynamic_index=1, nodeid=1,
                     **kwargs):
@@ -357,15 +405,6 @@ class SingleNodeInterface(NodeInterface):
             data.update({k: v})
 
         return cls(data)
-
-    def __repr__(self):
-        if self.vlan_id:
-            return '{0}(name={1}, vlan_id={2})'.format(self.__class__.__name__,
-                                                       self.address,
-                                                       self.vlan_id)
-        else:
-            return '{0}(name={1})'.format(
-                self.__class__.__name__, self.address)
 
 
 def _add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):

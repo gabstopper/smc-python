@@ -34,7 +34,6 @@ class TCPService(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
         json = {'name': name,
                 'min_dst_port': min_dst_port,
@@ -83,7 +82,6 @@ class UDPService(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         max_dst_port = max_dst_port if max_dst_port is not None else ''
         json = {'name': name,
                 'min_dst_port': min_dst_port,
@@ -121,7 +119,6 @@ class IPService(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'protocol_number': protocol_number,
                 'comment': comment}
@@ -163,7 +160,6 @@ class EthernetService(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'frame_type': frame_type,
                 'name': name,
                 'value1': ethertype,
@@ -224,7 +220,6 @@ class ICMPService(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         icmp_code = icmp_code if icmp_code else ''
         json = {'name': name,
                 'icmp_type': icmp_type,
@@ -261,7 +256,6 @@ class ICMPIPv6Service(Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'icmp_type': icmp_type,
                 'comment': comment}

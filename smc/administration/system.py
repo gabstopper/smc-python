@@ -4,12 +4,18 @@ packages, updating engines, applying global blacklists, etc.
 
 To load the configuration for system, do::
 
-    from smc.administration.system import System
-    system = System()
-    print system.smc_version
-    print system.last_activated_package
-    for pkg in system.update_package():
-        print pkg
+    >>> from smc.administration.system import System
+    >>> system = System()
+    >>> system.smc_version
+    '6.2.0 [10318]'
+    >>> system.last_activated_package
+    '881'
+    >>> for pkg in system.update_package():
+    ...   print(pkg)
+    ... 
+    UpdatePackage(name=Update Package 889)
+    UpdatePackage(name=Update Package 888)
+    UpdatePackage(name=Update Package 887)
 
 """
 import smc.actions.search as search
@@ -116,6 +122,11 @@ class System(SubElement):
         :param dst: destination of blacklist entry
         :raises ActionCommandFailed: blacklist apply failed with reason
         :return: None
+        
+        .. seealso:: :class:`smc.core.engine.Engine.blacklist`. Applying
+            a blacklist at the system level will be a global blacklist entry
+            versus an engine specific entry.
+        
         """
         prepared_request(ActionCommandFailed,
                          href=self.resource.blacklist,

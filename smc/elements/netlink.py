@@ -40,6 +40,7 @@ Add the netlink to the desired routing interface::
 """
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
+from smc.api.exceptions import ElementNotFound, MissingRequiredInput
 
 
 class StaticNetlink(Element):
@@ -49,9 +50,6 @@ class StaticNetlink(Element):
     interfaces versus using DHCP (use a Dynamic NetLink).
     """
     typeof = 'netlink'
-
-    def __init__(self, name, **meta):
-        super(StaticNetlink, self).__init__(name, **meta)
 
     @classmethod
     def create(cls, name, gateway, network, input_speed=None,
@@ -64,8 +62,8 @@ class StaticNetlink(Element):
         required fields.
 
         :param str name: name of netlink Element
-        :param gateway: gateway (engine node) to map this netlink
-            to. This can be an element or str href.
+        :param gateway: gateway to map this netlink to. This can be an element
+            or str href.
         :type gateway: Router,Engine
         :param list network: network/s associated with this netlink.
         :type network: list(str,Element)
@@ -91,11 +89,11 @@ class StaticNetlink(Element):
             not found.
         :raises CreateElementFailed: failure to create netlink with reason
         :return: href of new netlink element
+        :rtype: str
 
         .. note:: To monitor the status of the network links, you must define
                   at least one probe IP address.
         """
-        comment = comment if comment else ''
         json = {'name': name,
                 'gateway_ref': element_resolver(gateway),
                 'ref': element_resolver(network),
@@ -122,6 +120,21 @@ class StaticNetlink(Element):
 
         return ElementCreator(cls, json)
 
+    def add_network(self, network):
+        """
+        Add an additional network to this netlink. The network should be 
+        an element of type Network or str href. Update to this will be 
+        done after calling this method.
+        
+        :param str,Element network: network element to add to this static
+            netlink
+        :raises UpdateElementFailed: if update fails
+        :return: None
+        """
+        network = element_resolver(network)
+        self.data.get('ref', []).append(network)
+        self.update()
+    
     @property
     def domain_server_address(self):
         """
@@ -235,3 +248,116 @@ class StaticNetlink(Element):
         :rtype: list(str)
         """
         return self.data.get('probe_address')
+
+class Multilink(Element):
+    """
+    You can use Multi-Link to distribute outbound traffic between multiple
+    network connections and to provide High Availability and load balancing
+    for outbound traffic.
+    
+    Creating a multilink requires several steps:
+    
+    * Create the static netlink/s
+    * Create the multilink using the netlinks
+    * Add the multilink to an outbound NAT rule
+    
+    Create the static netlink::
+    
+        StaticNetlink.create(
+            name='isp1', 
+            gateway=Router('nexthop'),     # 10.10.0.1
+            network=[Network('comcast')],  # 10.10.0.0/16
+            probe_address=['10.10.0.1'])
+    
+    To create multilink, you must first use :func:`.multilink_member`
+    for each netlink to obtain the correct configuration format::
+    
+        member1 = multilink_member(
+                    StaticNetlink('isp1'), # netlink created above 
+                    nat_range='10.10.0.1-10.10.0.1', # NAT to a single IP
+                    netlink_role='active') 
+    
+    Create the multilink::
+    
+        Multilink.create(
+            name='testmultilink', 
+            multilink_members=[member1])
+    
+    Add a NAT rule with dynamic source nat using the multilink::
+    
+        policy = FirewallPolicy('outbound')
+        policy.fw_ipv4_nat_rules.create(
+            name='mynat',
+            sources=[Network('mynetwork')],
+            destinations='any',
+            services='any',
+            dynamic_src_nat=Multilink('internet'))
+    
+    .. note:: Multi-Link is supported on Single Firewalls, Firewall Clusters,
+        and Virtual Firewalls                 
+    """
+    typeof = 'outbound_multilink'
+   
+    @classmethod
+    def create(cls, name, multilink_members, multilink_method='rtt',
+               retries=2, timeout=3600, comment=None):
+        """
+        Create a new multilink configuration. Multilink requires at least
+        one netlink for operation, although 2 or more are recommeneded.
+        
+        :param str name: name of multilink
+        :param list multilink_members: the output of calling
+            :func:`.multilink_member` to retrieve the proper formatting for
+            this sub element.
+        :param str multilink_method: 'rtt' or 'ratio'. If ratio is used, each
+            netlink must have a probe IP address configured and also have
+            input and output speed configured (default: 'rtt')
+        :param int retries: number of keep alive retries before a destination
+            link is considered unavailable (default: 2)
+        :param int timeout: timeout between retries (default: 3600 seconds)
+        :param str comment: comment for multilink (optional)
+        :raises CreateElementFailed: failure to create multilink
+        :return: href of new element
+        :rtype: str
+        """
+        json = {'name': name,
+                'comment': comment,
+                'multilink_member': multilink_members,
+                'multilink_method': multilink_method,
+                'retries': retries,
+                'timeout': timeout}
+        
+        return ElementCreator(cls, json)
+    
+def multilink_member(netlink, nat_range, netlink_network=None,
+                     netlink_role='active'):
+    """
+    :param StaticNetlink netlink: netlink element for multilink member
+    :param str nat_range: ip address range to use for NAT. This needs
+        to be a range in the same network defined in the netlink
+    :param str,Element: netlink_network: netlink network when multiple
+        networks are defined within a netlink. Only one network can be
+        defined for each multilink member.
+    :param str netlink_role: role for this netlink member. Values can
+        be 'active' or 'standby' (default: 'active')
+    :raises ElementNotFound: if provided netlink or netlink_network is
+        not found.
+    :return: member dict required for calling Multilink create
+    :rtype: dict
+    """
+    member = {}
+    member.update(netlink_ref=netlink.href)
+    if len(netlink.networks) > 1: 
+        if not netlink_network:
+            raise MissingRequiredInput(
+                'Netlink %r has more than one network defined. You must '
+                'specify which network to use with the netlink_network '
+                'parameter' % netlink.name)
+        netlink_network = element_resolver(netlink_network)
+        member.update(network_ref=netlink_network)
+    else:
+        member.update(network_ref=netlink.networks[0].href)
+
+    member.update(ip_range=nat_range,
+                  netlink_role=netlink_role)
+    return member    

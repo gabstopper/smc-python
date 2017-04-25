@@ -121,7 +121,6 @@ class ServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         elements = [] if element is None else element
         json = {'name': name,
                 'element': elements,
@@ -157,7 +156,6 @@ class TCPServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         elements = [] if element is None else element
         json = {'name': name,
                 'element': elements,
@@ -194,7 +192,6 @@ class UDPServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         elements = [] if element is None else element
         json = {'name': name,
                 'element': elements,
@@ -226,7 +223,6 @@ class IPServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        comment = comment if comment else ''
         elements = [] if element is None else element
         json = {'name': name,
                 'element': elements,

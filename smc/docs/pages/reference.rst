@@ -480,8 +480,6 @@ Engine Types
 ------------
 
 .. automodule:: smc.core.engines
-   :members:
-   :undoc-members:
 
 IPS
 +++
@@ -529,7 +527,7 @@ Policy
 ------
 
 .. automodule:: smc.policy.policy
-   :members:
+   :members: Policy
    :show-inheritance:
 
 FirewallPolicy
@@ -823,6 +821,13 @@ AccessControlList
 +++++++++++++++++
 
 .. autoclass:: smc.administration.access_rights.AccessControlList
+	:members:
+	:show-inheritance:
+
+Role
+++++
+
+.. autoclass:: smc.administration.role.Role
 	:members:
 	:show-inheritance:
 	
