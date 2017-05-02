@@ -82,10 +82,9 @@ class Group(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        comment = None if comment is None else comment
-        members = [] if members is None else members
+        elements = [] if members is None else element_resolver(members)
         json = {'name': name,
-                'element': members,
+                'element': elements,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -111,17 +110,17 @@ class ServiceGroup(GroupMixin, Element):
         pass
 
     @classmethod
-    def create(cls, name, element=None, comment=None):
+    def create(cls, name, members=None, comment=None):
         """
         Create the TCP/UDP Service group element
 
         :param str name: name of service group
-        :param list element: list of elements to add to service group
+        :param list members: list of elements to add to service group
         :raises CreateElementFailed: element creation failed with reason
         :return: href of new element
         :rtype: str
         """
-        elements = [] if element is None else element
+        elements = [] if members is None else element_resolver(members)
         json = {'name': name,
                 'element': elements,
                 'comment': comment}
@@ -146,7 +145,7 @@ class TCPServiceGroup(GroupMixin, Element):
         pass
 
     @classmethod
-    def create(cls, name, element=None, comment=None):
+    def create(cls, name, members=None, comment=None):
         """
         Create the TCP Service group
 
@@ -156,7 +155,7 @@ class TCPServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        elements = [] if element is None else element
+        elements = [] if members is None else element_resolver(members)
         json = {'name': name,
                 'element': elements,
                 'comment': comment}
@@ -182,7 +181,7 @@ class UDPServiceGroup(GroupMixin, Element):
         pass
 
     @classmethod
-    def create(cls, name, element=None, comment=None):
+    def create(cls, name, members=None, comment=None):
         """
         Create the UDP Service group
 
@@ -192,7 +191,7 @@ class UDPServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        elements = [] if element is None else element
+        elements = [] if members is None else element_resolver(members)
         json = {'name': name,
                 'element': elements,
                 'comment': comment}
@@ -213,7 +212,7 @@ class IPServiceGroup(GroupMixin, Element):
         pass
 
     @classmethod
-    def create(cls, name, element=None, comment=None):
+    def create(cls, name, members=None, comment=None):
         """
         Create the IP Service group element
 
@@ -223,7 +222,7 @@ class IPServiceGroup(GroupMixin, Element):
         :return: href of new element
         :rtype: str
         """
-        elements = [] if element is None else element
+        elements = [] if members is None else element_resolver(members)
         json = {'name': name,
                 'element': elements,
                 'comment': comment}

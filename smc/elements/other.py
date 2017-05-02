@@ -11,22 +11,23 @@ from smc.api.exceptions import ModificationFailed
 from smc.base.util import element_resolver
 
 
-class CategoryTag(Element):
+class Category(Element):
     """
-    CategoryTag is used to group and categorize elements by
-    type. Once a tag is created, it can be assigned by an 
+    A Category is used by an element to group and categorize elements by
+    some criteria. Once a category is created, it can be assigned to the
     element and used as a search filter when managing large
-    numbers of elements.
+    numbers of elements. A category can be added to a category tag (or tags)
+    to provide a higher level container/group for searching.
     ::
 
-        >>> from smc.elements.other import CategoryTag
-        >>> CategoryTag.create(name='foo', comment='test tag')
+        >>> from smc.elements.other import Category
+        >>> Category.create(name='foo', comment='test tag')
         'http://172.18.1.150:8082/6.1/elements/category_tag/3531'
     """
     typeof = 'category_tag'
 
     def __init__(self, name, **meta):
-        super(CategoryTag, self).__init__(name, **meta)
+        super(Category, self).__init__(name, **meta)
 
     @classmethod
     def create(cls, name, comment=None):
@@ -44,23 +45,29 @@ class CategoryTag(Element):
 
     def search_elements(self):
         """
-        Find all elements assigned to this category tag
+        Find all elements assigned to this category tag. You can also find
+        category tags assigned directly to an element also::
+        
+            >>> host = Host('kali')
+            >>> host.categories
+            [Category(name=myelements), Category(name=foocategory)]
 
-        :return list :py:class:`smc.base.model.Element`
+        :return: :py:class:`smc.base.model.Element`
+        :rtype: list
         """
         return [Element.from_meta(**tag)
                 for tag in
                 prepared_request(
                     href=self.resource.search_elements_from_category_tag
-                    ).read().json]
+                ).read().json]
 
     def add_element(self, element):
         """
         Element can be href or type :py:class:`smc.base.model.Element`
         ::
 
-            >>> from smc.elements.other import CategoryTag
-            >>> category = CategoryTag('foo')
+            >>> from smc.elements.other import Category
+            >>> category = Category('foo')
             >>> category.add_element(Host('kali'))
 
         :param str,Element element: element to add to tag
@@ -82,7 +89,7 @@ class CategoryTag(Element):
         :py:class:`smc.base.model.Element`.
         ::
 
-            >>> from smc.elements.other import CategoryTag
+            >>> from smc.elements.other import Category
             >>> from smc.elements.network import Host
             >>> category.remove_element(Host('kali'))
 
@@ -98,6 +105,102 @@ class CategoryTag(Element):
             json={'value': element}
         ).create()
 
+    def add_category_tag(self, tags):
+        """
+        Add this category to a category tag (group). This provides drop down
+        filters in the SMC UI by category tag.
+        
+        :param list tags: category tag by name
+        :type tags: list(str)
+        :return: None
+        """
+        tags = element_resolver(tags)
+        for tag in tags:
+            self.data['category_parent_ref'].append(tag)
+        self.update()
+    
+    def add_category(self, tags):
+        pass
+    
+    @property
+    def categories(self):
+        """
+        Categories can be children of category tags (groups). Show category
+        tags that have this category as a member.
+        
+        :return: category tag/s for this category
+        :rtype: list
+        """
+        return [Element.from_href(tag)
+                for tag in self.data.get('category_parent_ref')]
+
+
+class CategoryTag(Element):
+    """
+    A Category Tag is a grouping of categories within SMC. Category Tags
+    are used as filters (typically in the SMC UI) to change the view based
+    on the tag.
+    """
+    typeof = 'category_group_tag'
+    
+    def __init__(self, name, **meta):
+        super(CategoryTag, self).__init__(name, **meta)
+    
+    @classmethod
+    def create(cls, name, comment=None):
+        """
+        Create a CategoryTag. A category tag represents a group of categories
+        or a group of category tags (nested groups). These are used to provide
+        filtering views within the SMC and organize elements by user defined
+        criteria.
+        
+        :param str name: name of category tag
+        :param str comment: optional comment
+        :raises CreateElementFailed: problem creating tag
+        :return: href of new element
+        :rtype: str
+        """
+        json = {'name': name,
+                'comment': comment}
+        return ElementCreator(cls, json)
+
+    def remove_category(self, categories):
+        """
+        Remove a category from this Category Tag (group).
+        
+        :param list categories: categories to remove
+        :type categories: list(str,Element)
+        :return: None
+        """
+        categories = element_resolver(categories)
+        diff = [category for category in self.data['category_child_ref']
+                if category not in categories]
+        self.data['category_child_ref'] = diff
+        self.update()
+   
+    @property
+    def child_categories(self):
+        """
+        Return categories or category tag's that are children of this category
+        tag.
+        
+        :return: child categories and/or category tag elements
+        :rtype: list
+        """
+        return [Element.from_href(category)
+                for category in self.data.get('category_child_ref')]
+    
+    @property
+    def parent_categories(self):
+        """
+        If this category tag is a nested elment, return parent category tags
+        that are linked.
+        
+        :return: linked parent category tags (groups)
+        :rtype: list
+        """
+        return [Element.from_href(category)
+                for category in self.data.get('category_parent_ref')]
 
 class Location(Element):
     """
@@ -147,7 +250,7 @@ class Location(Element):
                 for element in
                 prepared_request(
                     href=self.resource.search_nated_elements_from_location
-        ).read().json]
+                ).read().json]
 
 
 class LogicalInterface(Element):

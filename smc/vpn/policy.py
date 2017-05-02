@@ -2,7 +2,6 @@ from smc.base.model import Element, ElementCreator, prepared_request, SubElement
 from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 from smc.base.collection import sub_collection
-from smc.vpn.elements import VPNSite
 
 
 class VPNPolicy(Element):
@@ -140,8 +139,8 @@ class VPNPolicy(Element):
         """
         Close the policy 
 
-        :return: None
         :raises PolicyCommandFailed: close failed with reason
+        :return: None
         """
         prepared_request(
             PolicyCommandFailed,
@@ -150,8 +149,13 @@ class VPNPolicy(Element):
 
     def validate(self):
         """
+        Return a validation string from the SMC after running validate on
+        this VPN policy.
+        
+        :return: status as string
+        :rtype: str
         """
-        return self.resource.get('validate')
+        return self.resource.get('validate').get('value')
 
     def gateway_tunnel(self):
         """
@@ -231,12 +235,13 @@ class GatewayNode(SubElement):
     This template class will return these as a collection. Gateway Node
     references need to be obtained from a VPN Policy reference::
 
-        vpn = VPNPolicy('myvpn')
-        vpn.open()
-        for gw in vpn.central_gateway_node.all():
-            for vpn_site in list(gw.enabled_sites):
-                print(vpn_site)
-        vpn.close()
+        >>> vpn = VPNPolicy('sg_vm_vpn')
+        >>> vpn.open()
+        >>> for gw in vpn.central_gateway_node.all():
+        ...   list(gw.enabled_sites)
+        ... 
+        [GatewayTreeNode(name=Automatic Site for sg_vm_vpn)]
+        >>> vpn.close()
     """
 
     def __init__(self, **meta):
@@ -249,7 +254,7 @@ class GatewayNode(SubElement):
         Get the name from the gateway_profile reference
         """
         return self.resource.name(self.data.get('gateway'))
-
+    
     @property
     def enabled_sites(self):
         """
@@ -259,7 +264,7 @@ class GatewayNode(SubElement):
         :return: collection of :class:`smc.vpn.elements.VPNSite`
         :rtype: SubElementCollection
         """
-        return sub_collection(self.resource.enabled_vpn_site, VPNSite)
+        return sub_collection(self.resource.enabled_vpn_site, GatewayTreeNode)
 
     @property
     def disabled_sites(self):
@@ -270,4 +275,53 @@ class GatewayNode(SubElement):
         :return: collection of :class:`smc.vpn.elements.VPNSite`
         :rtype: SubElementCollection
         """
-        return sub_collection(self.resource.disabled_vpn_site, VPNSite)
+        return sub_collection(self.resource.disabled_vpn_site, GatewayTreeNode)
+
+class GatewayTreeNode(SubElement):
+    """
+    Gateway Tree node is a list of VPN Site elements returned when retrieving
+    a VPN policies enabled or disabled site list. These provide an
+    enable_disable link to the VPN site.
+    ::
+    
+        for gw in policy.central_gateway_node.all():
+            for site in list(gw.enabled_sites):
+                site.enable_disable()
+    """
+    @property
+    def name(self):
+        return self.vpn_site.name
+    
+    """
+    A gateway tree node is a VPN site within either the central or 
+    satellite gateway configuration within a VPN.
+    """
+    def enable_disable(self):
+        """
+        Enable or disable this VPN Site from within the VPN policy context.
+        
+        :raises PolicyCommandFailed: enabling or disabling failed
+        :return: None
+        """
+        prepared_request(
+            PolicyCommandFailed,
+            href=self.resource.self
+            ).delete()
+    
+    @property
+    def vpn_site(self):
+        """
+        The VPN Site element associated with this gateway
+        
+        :return VPNSite element
+        :rtype: VPNSite
+        """
+        return Element.from_href(self.data.get('vpn_site'))
+    
+    def __str__(self):
+        return '{0}(name={1})'.format(
+            self.__class__.__name__, self.name)
+
+    def __repr__(self):
+        return str(self)
+            

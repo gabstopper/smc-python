@@ -73,22 +73,14 @@ class ClusterVirtualInterface(object):
     def data(self):
         return {'cluster_virtual_interface': self.__dict__}
 
-    def set_primary_mgt(self):
-        """
-        Set this interface as primary mgt
-        
-        :return: None
-        """
-        self.auth_request = True
-
-    def unset_primary_mgt(self):
-        """
-        Disable primary management on this sub-interface
-        """
-        self.auth_request = False
-
     @property
     def vlan_id(self):
+        """
+        VLAN ID for this interface, if any
+        
+        :return: VLAN identifier
+        :rtype: str
+        """
         nicid = self.nicid
         if nicid:
             v = nicid.split('.')
@@ -155,11 +147,18 @@ class InlineInterface(object):
 
     @property
     def vlan_id(self):
+        """
+        VLAN ID for this interface, if any
+        
+        :return: VLAN identifier
+        :rtype: str
+        """
         nicids = self.nicid.split('-')
         if nicids:
-            u = set()
+            u = []
             for vlan in nicids:
-                u.add(vlan.split('.')[-1])
+                if vlan.split('.')[-1] not in u:
+                    u.append(vlan.split('.')[-1])
             return '-'.join(u)
 
     def __getattr__(self, attr):
@@ -292,30 +291,18 @@ class NodeInterface(object):
 
         return cls(data)
 
-    def set_primary_mgt(self):
-        """
-        Set this interface as primary mgt
-        
-        :return: None
-        """
-        self.primary_mgt = True
-        self.auth_request = True
-        self.outgoing = True
-    
-    def unset_primary_mgt(self):
-        """
-        Disable primary management on this sub-interface
-        """
-        self.primary_mgt = False
-        self.auth_request = False
-        self.outgoing = False
-    
     @property
     def data(self):
         return {self.typeof: self.__dict__}
 
     @property
     def vlan_id(self):
+        """
+        VLAN ID for this interface, if any
+        
+        :return: VLAN identifier
+        :rtype: str
+        """
         nicid = self.nicid
         if nicid:
             v = nicid.split('.')

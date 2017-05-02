@@ -38,8 +38,10 @@ Element class relationship::
       name                                                   name
       objects
       export()
+      rename
       category_tags
       referenced_by
+      ...
 
 Classes that do not require state on retrieved json or provide basic
 container functionality may inherit from object.
@@ -56,8 +58,8 @@ from smc.api.exceptions import ElementNotFound, \
     DeleteElementFailed, FetchElementFailed, ActionCommandFailed,\
     UpdateElementFailed
 from smc.base.resource import with_metaclass, Registry
-from smc.base.util import find_type_from_self, merge_dicts
-from .util import bytes_to_unicode, unicode_to_bytes
+from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
+    find_type_from_self
 from .mixins import UnicodeMixin
 
 
@@ -458,17 +460,62 @@ class Element(ElementBase):
             return self._name
         return bytes_to_unicode(self._name)
 
-    @property
-    def category_tags(self):
+    def rename(self, name):
         """
-        Search category tags assigned to this element
+        Rename this element.
+        
+        :param str name: new name of element
+        :raises UpdateElementFailed: update failed with reason
+        :return: None
+        """
+        self.modify_attribute(name=name)
+        self._name = name
+    
+    def comment(self, comment):
+        """
+        Add a comment to this element
+        
+        :param str comment: comment to add. Comments are searchable.
+        :return: None
+        """
+        self.modify_attribute(comment=comment)
+    
+    def add_category(self, tags):
+        """
+        Category Tags are used to characterize an element by a type
+        identifier. They can then be searched and returned as a group
+        of elements. If the category tag specified does not exist, it
+        will be created.
+        
+        :param list tags: list of category tag names to add to this
+            element
+        :type tags: list(str)
+        :raises ElementNotFound: Category tag element name not found
+        :return: None
+        
+        .. seealso:: :class:`smc.elements.other.Category`
+        """
+        assert isinstance(tags, list), 'Category input was expecting list.'
+        from smc.elements.other import Category
+        for tag in tags:
+            category = Category(tag)
+            try:
+                category.add_element(self.href)
+            except ElementNotFound:
+                Category.create(name=tag)
+                category.add_element(self.href)
+        
+    @property
+    def categories(self):
+        """
+        Search categories assigned to this element
         ::
 
             >>> from smc.elements.network import Host
-            >>> Host('kali').category_tags
-            [CategoryTag(name=foo), CategoryTag(name=foocategory)]
+            >>> Host('kali').categories
+            [Category(name=foo), Category(name=foocategory)]
 
-        :return: list :py:class:`smc.elements.other.CategoryTag`
+        :return: list :py:class:`smc.elements.other.Category`
         """
         return [Element.from_meta(**tag)
                 for tag in

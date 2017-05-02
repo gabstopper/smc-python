@@ -1,6 +1,6 @@
 from smc.base.model import SubElement
 import smc.actions.search as search
-from smc.api.exceptions import CreateElementFailed
+from smc.api.exceptions import CreateElementFailed, PolicyCommandFailed
 from smc.base.model import Element, ElementCreator, prepared_request
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
@@ -276,8 +276,9 @@ class VPNSite(SubElement):
         network = Network('network-192.168.5.0/25') #get resource
         engine.internal_gateway.vpn_site.create('newsite', [network.href])
 
-    This class is a property of :py:class:`smc.core.engine.InternalGateway` or
-    :py:class:`smc.vpn.elements.ExternalGateway` and should not be accessed directly.
+    This class is a property of :py:class:`smc.core.engine.InternalGateway`
+    or :py:class:`smc.vpn.elements.ExternalGateway` and should not be accessed
+    directly.
     """
 
     def __init__(self, **meta):
@@ -296,8 +297,9 @@ class VPNSite(SubElement):
         :rtype: str
         """
         site_element = element_resolver(site_element)
-        json = {'name': name,
-                'site_element': site_element}
+        json = {
+            'name': name,
+            'site_element': site_element}
         result = prepared_request(
                     href=self.href, json=json
                     ).create()
@@ -305,11 +307,11 @@ class VPNSite(SubElement):
             raise CreateElementFailed(result.msg)
         else:
             return result.href
-
+    
     @property
     def site_element(self):
         """
-        Site elements for this VPN Site
+        Site elements for this VPN Site.
 
         :return: Elements used in this VPN site
         :rtype: list(Element)
@@ -334,8 +336,7 @@ class VPNSite(SubElement):
     @property
     def gateway(self):
         return Element.from_href(self.data.get('gateway'))
-
-
+        
 class VPNProfile(Element):
     """
     Represents a VPNProfile configuration used by the VPNPolicy

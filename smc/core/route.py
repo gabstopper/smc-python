@@ -50,9 +50,26 @@ Then add using::
     >>> rnode = engine.routing.get(0)
     >>> rnode.add_traffic_handler(StaticNetlink('foo'), network='172.18.1.0/24')
 
-.. note:: Not specifying ``network`` will bind OSPF, BGP or the Traffic Handler to
-          all address assigned.
+.. note:: Not specifying ``network`` will bind OSPF, BGP or the Traffic Handler
+    to all address assigned.
 
+Adding a basic static route can be done from the engine directly if it is a
+simple source network to destination route::
+
+    engine.add_route(gateway='192.168.1.254/32', network='172.18.1.0/24')
+
+The route gateway will be mapped to an interface with an address range in
+the 192.168.1.x network automatically.
+    
+For more complex static routes such as ones that may use group elements, use
+the routing node::
+
+    >>> engine = Engine('ve-1')
+    >>> itf = engine.routing.get(0)
+    >>> itf.add_static_route(Router('tmprouter'), destination=[Group('routegroup')])
+
+.. seealso:: :meth:`.Routing.add_static_route`
+    
 Routing node nesting can be represented as::
 
     interface
@@ -178,22 +195,16 @@ class Routing(SubElement):
         netlink = element_resolver(netlink)
         
         netlink = {'href': netlink,
-                   'level': 'gateway'}
+                   'level': 'gateway',
+                   'routing_node': []}
         
         if netlink_gw:
             netlink_gw = element_resolver(netlink_gw)
             netlink_gw = {'level': 'any',
                           'href': netlink_gw}
-            netlink.update(routing_node=[netlink_gw])
-            
-        for networks in iter(self):
-            if len(networks.ip.split(':')) == 1:  # Skip IPv6
-                if network is not None:  # Only place on specific network
-                    if networks.ip == network:
-                        networks.data['routing_node'].append(netlink)
-                else:
-                    networks.data['routing_node'].append(netlink)
-
+            netlink['routing_node'].append(netlink_gw)
+    
+        self._bind_to_ipv4_network(network, netlink)
         self.update()
         
     def add_ospf_area(self, ospf_area,
@@ -236,20 +247,16 @@ class Routing(SubElement):
         communication_mode = communication_mode.upper()
         node = {'href': ospf_area,
                 'communication_mode': communication_mode,
-                'level': 'gateway'}
+                'level': 'gateway',
+                'routing_node': []}
+        
         if communication_mode == 'UNICAST':
             # Need a destination ref, add to sub routing_node
-            node.update(routing_node=[{'href': unicast_ref,
-                                       'level': 'any'}])
+            node['routing_node'].append(
+                {'href': unicast_ref,
+                 'level': 'any'})
 
-        for networks in iter(self):
-            if len(networks.ip.split(':')) == 1:  # Skip IPv6
-                if network is not None:  # Only place on specific network
-                    if networks.ip == network:
-                        networks.data['routing_node'].append(node)
-                else:
-                    networks.data['routing_node'].append(node)
-
+        self._bind_to_ipv4_network(network, node)
         self.update()
 
     def add_bgp_peering(self, bgp_peering, external_bgp_peer,
@@ -279,22 +286,60 @@ class Routing(SubElement):
         external_bgp_peer = element_resolver(external_bgp_peer)
 
         bgp = {'href': bgp_peering,
-               'level': 'gateway'}
+               'level': 'gateway',
+               'routing_node': []}
 
         external_peer = {'href': external_bgp_peer,
                          'level': 'any'}
-        bgp.update(routing_node=[external_peer])
+        
+        bgp['routing_node'].append(external_peer)
+        
+        self._bind_to_ipv4_network(network, bgp)
+        self.update()
 
+    def add_static_route(self, gateway, destination,
+                         network=None):
+        """
+        Add a static route to this route table. Destination can be any element
+        type supported in the routing table such as a Group of network members.
+        ::
+
+            >>> engine = Engine('ve-1')
+            >>> itf = engine.routing.get(0)
+            >>> itf.add_static_route(
+                    gateway=Router('tmprouter'),
+                    destination=[Group('routegroup')])
+        
+        :param str,Element gateway: gateway for this route
+        :param destination: destination network/s for this route.
+        :type destination: list(str,Element)
+        :raises UpdateElementFailed: failure to update routing table
+        :return: None
+        """
+        gateway = element_resolver(gateway)
+        destination = element_resolver(destination)
+
+        route = {'href': gateway,
+                 'level': 'gateway',
+                 'routing_node': []}
+        
+        for dest in destination:
+            route['routing_node'].append(
+                {'href': dest,
+                 'level': 'any'})            
+        
+        self._bind_to_ipv4_network(network, route)
+        self.update()
+    
+    def _bind_to_ipv4_network(self, network, element):
         for networks in iter(self):
             if len(networks.ip.split(':')) == 1:  # Skip IPv6
                 if network is not None:  # Only place on specific network
                     if networks.ip == network:
-                        networks.data['routing_node'].append(bgp)
+                        networks.data['routing_node'].append(element)
                 else:
-                    networks.data['routing_node'].append(bgp)
-
-        self.update()
-
+                    networks.data['routing_node'].append(element)
+                        
     def remove_route_element(self, element, network=None):
         """
         Remove a route element by href or Element. Use this if you want to

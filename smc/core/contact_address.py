@@ -114,7 +114,8 @@ class ContactAddress(object):
         return Element.from_href(self.location_ref)
 
     def __repr__(self):
-        return '{0}(address={1})'.format(self.__class__.__name__, self.address)
+        return '{0}(address={1})'.format(
+            self.__class__.__name__, self.address)
 
 
 class ContactResource(object):

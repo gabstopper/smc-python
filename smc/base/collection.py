@@ -72,7 +72,7 @@ class ElementCollection(object):
 
     def __init__(self, **params):
         self._params = params
-
+    
     def __iter__(self):
         limit = self._params.pop('limit', None)
 

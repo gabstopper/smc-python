@@ -202,6 +202,13 @@ Other
 
 .. automodule:: smc.elements.other
 
+Category
+********
+
+.. autoclass:: Category
+	:members:
+	:show-inheritance:
+
 CategoryTag
 ***********
 
@@ -776,6 +783,13 @@ GatewayProfile
 ++++++++++++++
 
 .. autoclass:: smc.vpn.elements.GatewayProfile
+	:members:
+	:show-inheritance:
+	
+GatewayTreeNode
++++++++++++++++
+
+.. autoclass:: smc.vpn.policy.GatewayTreeNode
 	:members:
 	:show-inheritance:
 
