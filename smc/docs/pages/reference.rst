@@ -330,7 +330,6 @@ Represents classes responsible for configuring interfaces on engines
 
 .. automodule:: smc.core.interfaces
 	:members: Interface
-	:exclude-members: modify_interface
 
 .. autoclass:: InterfaceCommon
 	:members:
@@ -347,6 +346,7 @@ PhysicalVlanInterface
 
 .. autoclass:: PhysicalVlanInterface
 	:members:
+	:exclude-members: create
 	:show-inheritance:
 
 VirtualPhysicalInterface

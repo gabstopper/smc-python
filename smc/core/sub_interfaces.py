@@ -92,10 +92,10 @@ class ClusterVirtualInterface(object):
 
     def __repr__(self):
         if self.vlan_id:
-            return '{0}(name={1}, vlan_id={2})'.format(
+            return '{0}(address={1}, vlan_id={2})'.format(
                 self.__class__.__name__, self.address, self.vlan_id)
         else:
-            return '{0}(name={1})'.format(
+            return '{0}(address={1})'.format(
                 self.__class__.__name__, self.address)
 
 
@@ -314,10 +314,10 @@ class NodeInterface(object):
 
     def __repr__(self):
         if self.vlan_id:
-            return '{0}(name={1}, vlan_id={2})'.format(
+            return '{0}(address={1}, vlan_id={2})'.format(
                 self.__class__.__name__, self.address, self.vlan_id)
         else:
-            return '{0}(name={1})'.format(
+            return '{0}(address={1})'.format(
                 self.__class__.__name__, self.address)
 
 

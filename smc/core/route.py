@@ -252,9 +252,9 @@ class Routing(SubElement):
         
         if communication_mode == 'UNICAST':
             # Need a destination ref, add to sub routing_node
-            node['routing_node'].append(
-                {'href': unicast_ref,
-                 'level': 'any'})
+            node['routing_node'].append({
+                'href': unicast_ref,
+                'level': 'any'})
 
         self._bind_to_ipv4_network(network, node)
         self.update()
@@ -324,9 +324,9 @@ class Routing(SubElement):
                  'routing_node': []}
         
         for dest in destination:
-            route['routing_node'].append(
-                {'href': dest,
-                 'level': 'any'})            
+            route['routing_node'].append({
+                'href': dest,
+                'level': 'any'})            
         
         self._bind_to_ipv4_network(network, route)
         self.update()

@@ -164,5 +164,9 @@ $version 0.5.2
 kwargs to add_single_node_interface, add_node_interface, add_cluster_virtual_interface to pass in 
 sub interface settings during create (versus modify after create)
 Admin Role (smc.administration.role.Role) for permission setting
+Inline modifications of interfaces - significant reduction in calls to SMC when making interface modifications
+PhysicalInterface methods to modify interface options, change VLANs, change interface IDs, etc. Changes handle engine type differences
+
+
 
 

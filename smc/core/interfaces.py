@@ -25,11 +25,13 @@ first getting the top level interface, and calling :func:`~smc.core.interfaces.I
 to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
 from smc.base.model import prepared_request, SubElement, lookup_class
-from smc.api.exceptions import EngineCommandFailed, FetchElementFailed
+from smc.api.exceptions import EngineCommandFailed, FetchElementFailed,\
+    UpdateElementFailed
 from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface,
                                      ClusterVirtualInterface, InlineInterface,
                                      CaptureInterface, _add_vlan_to_inline,
                                      SubInterface)
+from smc.base.util import bytes_to_unicode
 
 
 def dispatch(instance, builder, interface=None):
@@ -79,8 +81,6 @@ class InterfaceCommon(object):
     def contact_addresses(self):
         """
         View the contact address/es for this physical interface.
-        Use :meth:`~add_contact_address` to add a new contact
-        address to the interface.
 
         :return: list :py:class:`smc.core.contact_address.ContactInterface`
 
@@ -129,7 +129,8 @@ class InterfaceCommon(object):
                 if intf.has_vlan:
                     print(intf.vlan_interfaces()) #Show VLANs
 
-        :return: list :py:class:`smc.core.interfaces.PhysicalVlanInterface`
+        :return: :py:class:`smc.core.interfaces.PhysicalVlanInterface`
+        :rtype: list
         """
         if self.has_vlan:
             return [PhysicalVlanInterface(vlan)
@@ -142,7 +143,8 @@ class InterfaceCommon(object):
         engines will typically only have 1 sub-interface, however interfaces
         with VLANs, clusters, or multiple IP's assigned will have multiple.
         It is not required to use this method to access interface attributes.
-        However, it is required to make modifications to the right interface.
+        However, if making changes to a sub-interface setting, this will
+        flatten out the nested interface and provide simple access.
 
         Retrieve interface and type, with address and network::
 
@@ -154,7 +156,8 @@ class InterfaceCommon(object):
                         x.address = '1.1.1.5'    #Change the IP address
                 intf.save() #Save to top level interface
 
-        :return: list :py:mod:`smc.core.sub_interfaces` by type
+        :return: :py:mod:`smc.core.sub_interfaces` by type
+        :rtype: list
         """
         results = []
 
@@ -171,9 +174,7 @@ class InterfaceCommon(object):
                 for vlan in data.get('vlanInterfaces'):
                     inner(vlan)
             else:
-                if self.typeof == TunnelInterface.typeof:
-                    pass
-                else:  # PhysicalVlanInterface
+                if self.typeof != TunnelInterface.typeof:
                     if '.' in data.get('interface_id'):
                         results.append(PhysicalVlanInterface(data))
         inner(data)
@@ -188,11 +189,28 @@ class InterfaceCommon(object):
             if getattr(interface, name):
                 return True
         return False
-    
-    '''
-    def set_ipaddress(self, address, network_value,
-                      replace_ip=None):
+
+    def change_single_ipaddress(self, address, network_value,
+                                replace_ip=None):
+        """
+        Change an existing single firewall IP address. This can also be called
+        on an interface with multiple assigned IP addresses by specifying
+        the ``replace_ip`` parameter to define which IP to change. If the
+        interface has VLANs you must also use the ``replace_ip`` to
+        identify the correct IP address. In the case of VLANs, it is not
+        required to specify the VLAN id. This will also adjust the routing
+        table network for the new IP address if necessary (i.e. network/mask
+        changes will remove the old routing entry that will become obsolete).
         
+        :param str address: new IP address to assign
+        :param str network_value: new network in cidr format; 1.1.1.0/24
+        :param str replace_ip: required if multiple IP addresses exist on
+            an interface. Specify the IP address to change.
+        :raises UpdateElementFailed: failed updating IP address
+        :return: None
+        
+        .. note:: This method does not apply to changing cluster addresses.
+        """
         do_save = False
         for sub in self.sub_interfaces():
             if getattr(sub, 'address'):
@@ -213,15 +231,97 @@ class InterfaceCommon(object):
         
         if do_save:
             self.save()
-            
-            if not ipaddress.ip_address(address) in \
+
+            if not ipaddress.ip_address(bytes_to_unicode(address)) in \
                 ipaddress.ip_network(mask):
 
                 routes = self._engine.routing.get(nicid)
                 for network in routes:
                     if network.ip == mask:
                         network.delete()
-    '''
+    
+    def change_cluster_ipaddress(self, cvi=None, cvi_network_value=None,
+                                 nodes=None, vlan_id=None):
+        """
+        Change a cluster IP address and node addresses. If the cluster
+        interface only has a CVI, provide only ``cvi`` param. If only
+        NDI's are on the interface, provide only ``nodes`` param. Provide
+        both if using CVI and NDI's. If the cluster interface is on a VLAN,
+        you must provide the VLAN id. 
+        
+        Node syntax is the same format as creating cluster interfaces::
+        
+            nodes=[
+                {'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1}, 
+                {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2}]
+                
+        Change only CVI address::
+        
+            >>> itf = engine.interface.get(0)
+            >>> itf.sub_interfaces()
+            [ClusterVirtualInterface(address=1.1.1.250), NodeInterface(address=1.1.1.3), NodeInterface(address=1.1.1.2)]
+            >>> itf.change_cluster_ipaddress(cvi='1.1.1.254')
+            >>> itf.sub_interfaces()
+            [ClusterVirtualInterface(address=1.1.1.254), NodeInterface(address=1.1.1.3), NodeInterface(address=1.1.1.2)]
+        
+        Change NDI addresses only::
+        
+            >>> itf = engine.interface.get(1)
+            >>> itf.sub_interfaces()
+            [NodeInterface(address=2.2.2.1), NodeInterface(address=2.2.2.2)]
+            >>> itf.change_cluster_ipaddress(
+                    nodes=[{'address':'22.22.22.1', 'network_value':'22.22.22.0/24', 'nodeid':1},
+                           {'address':'22.22.22.2', 'network_value':'22.22.22.0/24', 'nodeid':2}])
+            >>> itf.sub_interfaces()
+            [NodeInterface(address=22.22.22.1), NodeInterface(address=22.22.22.2)]
+            
+        :param str cvi: new CVI address. Optional if CVI in use on this
+            interface
+        :param str cvi_network_value: network in cidr format; 1.1.1.0/24
+        :param list nodes: node addresses for interface. Optional if only a
+            Cluster Virtual Interface (CVI) is used or only changing NDI's
+        :type nodes: list(dict)
+        :param str,int vlan_id: Required if the cluster address is on a VLAN
+            
+        .. note:: This does not support changing the cluster address if multiple
+            addresses are assigned.
+        """
+        if self.has_vlan and not vlan_id:
+            raise UpdateElementFailed(
+                'Interface with VLANs configured require a CVI be specified to change '
+                'the correct VLAN address.')
+        
+        do_save = False
+        if vlan_id:
+            interfaces = [intf for intf in self.sub_interfaces()
+                          if intf.vlan_id == str(vlan_id)]
+        else:
+            interfaces = self.sub_interfaces()
+        
+        for interface in interfaces:
+            if cvi and isinstance(interface, ClusterVirtualInterface):
+                interface.address = cvi
+                if cvi_network_value:
+                    interface.network_value = cvi_network_value
+                do_save = True
+            elif nodes and isinstance(interface, NodeInterface):
+                for node in nodes:
+                    if node.get('nodeid') == interface.nodeid:
+                        interface.address = node.get('address')
+                        interface.network_value = node.get('network_value')
+                        do_save = True
+
+        if do_save:
+            self.save()
+            
+            network_value, nicid = next(((i.network_value, i.nicid)
+                                         for i in interfaces), None)
+            
+            routes = self._engine.routing.get(nicid)
+            for route in routes:
+                if route.ip != network_value:
+                    route.delete()
+        
     def change_interface_id(self, interface_id):
         """
         Change the interface ID for this interface. This can be used on any
@@ -251,18 +351,14 @@ class InterfaceCommon(object):
             vlan.interface_id = '{}.{}'.format(
                 interface_id[0], vlan.interface_id.split('.')[-1])
             if vlan.has_interfaces:
-                for sub in vlan.sub_interfaces():                            
+                for sub in vlan.interfaces:                            
                     if isinstance(sub, InlineInterface):
                         vlans = sub.vlan_id.split('-')
-                        if len(vlans) > 1:
-                            vlan2 = vlans[1]
-                        else:
-                            vlan2 = vlans[0]
                         sub.nicid = '{}.{}-{}.{}'.format(
                             interface_id[0], vlans[0],
-                            interface_id[1], vlan2)
+                            interface_id[1], vlans[-1])
 
-        for sub in self.sub_interfaces():
+        for sub in self.interfaces:
             if isinstance(sub, InlineInterface):
                 sub.nicid = '{}'.format('-'.join(interface_id))
         self.save()
@@ -286,13 +382,9 @@ class InterfaceCommon(object):
         """
         The Interface ID automatically maps to a physical network port
         of the same number during the initial configuration of the engine,
-        but the mapping can be changed as necessary.
-        Change the interface ID for an existing interface::
-
-            for x in engine.interface.all():
-                if x.name == 'Interface 1':
-                    x.interface_id = 13
-                    x.save()
+        but the mapping can be changed as necessary. Call 
+        :meth:`.change_interface_id` to change inline, VLAN, cluster and
+        single interface ID's.
 
         :param str value: interface_id
         :rtype: str
@@ -343,10 +435,12 @@ class Interface(SubElement):
 
     def get(self, interface_id):
         """
-        Get the interface by id, if known. The interface is
-        retrieved from the top level Physical or Tunnel Interface.
-        If interface type is unknown, use engine.interface
-        for retrieving::
+        Get the interface by id, if known. The interface is retrieved from
+        the top level Physical or Tunnel Interface. If the interface is an
+        inline interface, you can get only one of the two inline pairs and
+        the same interface will be returned.
+        
+        If interface type is unknown, use engine.interface for retrieving::
 
             >>> engine = Engine('sg_vm')
             >>> intf = engine.interface.get(0)
@@ -357,41 +451,9 @@ class Interface(SubElement):
         :raises EngineCommandFailed: interface not found
         :return: interface object by type (Physical, Tunnel, PhysicalVlanInterface)
         """
-        interface = InterfaceModifier(self._engine)
-        for intf in interface:
-            all_subs = intf.sub_interfaces()
-            if all_subs:
-                for sub_interface in all_subs:
-                    if isinstance(sub_interface, PhysicalVlanInterface):
-                        if str(sub_interface.interface_id).split('.')[0] == \
-                            str(interface_id):
-                            intf._engine = self._engine
-                            return intf
-                    else:
-                        if '-' in sub_interface.nicid:
-                            sub_split = sub_interface.nicid.split('-') # Inline
-                            if str(interface_id) in sub_split:
-                                intf._engine = self._engine
-                                return intf
-                        
-                        if '.' in sub_interface.nicid:
-                            # It's a VLAN just grab top level interface id
-                            if str(interface_id) == intf.interface_id:
-                                intf._engine = self._engine
-                                return intf
-                            
-                        if str(interface_id) == sub_interface.nicid:
-                            intf._engine = self._engine
-                            return intf
-            else: # Interface but no sub interfaces
-                if intf.interface_id == str(interface_id):
-                    intf._engine = self._engine
-                    return intf
+        interface = InterfaceModifier.byEngine(self._engine)
+        return interface.get(interface_id)
 
-        raise EngineCommandFailed(
-            'Interface id {} was not found on this engine.'.format(interface_id))
-
-        
     def save(self):
         """
         Save this interface information back to SMC. When saving
@@ -428,7 +490,6 @@ class Interface(SubElement):
             if routes.name == self.name or \
                     routes.name.startswith('VLAN {}.'.format(self.interface_id)):
                 routes.delete()
-                break
 
     def all(self):
         """
@@ -724,30 +785,45 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         dispatch(self, builder)
 
-    def add_cluster_virtual_interface(self, interface_id, cluster_virtual,
-                                      cluster_mask, macaddress, nodes,
-                                      cvi_mode='packetdispatch',
+    def add_cluster_virtual_interface(self, interface_id, cluster_virtual=None,
+                                      cluster_mask=None, macaddress=None, 
+                                      nodes=None, cvi_mode='packetdispatch',
                                       zone_ref=None, is_mgmt=False,
                                       **kw):
         """
         Add cluster virtual interface. A "CVI" interface is used as a VIP
         address for clustered engines. Providing 'nodes' will create the
-        node specific interfaces.
-        ::
-
-            physical_interface.add_cluster_virtual_interface(
-                    cluster_virtual='5.5.5.1',
-                    cluster_mask='5.5.5.0/24',
-                    macaddress='02:03:03:03:03:03',
-                    nodes=[{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
-                           {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2},
-                           {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}],
-                    zone_ref=zone_helper('Heartbeat'))
+        node specific interfaces. You can also add a cluster address with only
+        a CVI, or only NDI's.
+        
+        Add CVI only:: 
+             
+            engine.physical_interface.add_cluster_virtual_interface(
+                interface_id=30,
+                cluster_virtual='30.30.30.1',
+                cluster_mask='30.30.30.0/24', 
+                macaddress='02:02:02:02:02:06')
+        
+        Add NDI's only:: 
+ 
+            engine.physical_interface.add_cluster_virtual_interface( 
+                interface_id=30, 
+                nodes=nodes) 
+        
+        Add CVI and NDI's::
+        
+            engine.physical_interface.add_cluster_virtual_interface(
+                cluster_virtual='5.5.5.1',
+                cluster_mask='5.5.5.0/24',
+                macaddress='02:03:03:03:03:03',
+                nodes=[{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
+                       {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2}])
 
         :param str,int interface_id: physical interface identifier
         :param str cluster_virtual: CVI address (VIP) for this interface
         :param str cluster_mask: network value for VIP; format: 10.10.10.0/24
-        :param str macaddress: required mac address for this CVI
+        :param str macaddress: mandatory mac address if cluster_virtual and
+            cluster_mask provided
         :param list nodes: list of dictionary items identifying cluster nodes
         :param str cvi_mode: packetdispatch is recommended setting
         :param str zone_ref: if present, set on top level physical interface
@@ -760,17 +836,21 @@ class PhysicalInterface(InterfaceCommon, Interface):
         """
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         builder.interface_id = interface_id
-        builder.macaddress = macaddress
-        builder.cvi_mode = cvi_mode
-        builder.add_cvi_only(cluster_virtual, cluster_mask, is_mgmt=is_mgmt)
+        if cluster_virtual and cluster_mask:
+            builder.macaddress = macaddress
+            builder.cvi_mode = cvi_mode
+            builder.add_cvi_only(cluster_virtual, cluster_mask, is_mgmt=is_mgmt)
+        else:
+            builder.cvi_mode = None
 
+        nodes = nodes if nodes else []
         for node in nodes:
             node.update(is_mgmt=is_mgmt,
                         **kw)
             builder.add_ndi_only(**node)
 
         builder.zone_ref = zone_ref
-
+    
         dispatch(self, builder, interface)
 
     def add_cluster_interface_on_master_engine(self, interface_id,
@@ -978,6 +1058,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
                     routes.delete()
                     break
+
     @property
     def is_primary_mgt(self):
         """
@@ -1044,7 +1125,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :raises UpdateElementFailed: failed modifying interfaces
         :return: None
         """
-        interface = InterfaceModifier(self._engine)
+        interface = InterfaceModifier.byEngine(self._engine)
         interface.set_unset(interface_id, 'primary_heartbeat')
         
         dispatch(self, interface, self._engine)
@@ -1058,7 +1139,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :raises UpdateElementFailed: failure to update interface
         :return: None
         """
-        interface = InterfaceModifier(self._engine)
+        interface = InterfaceModifier.byEngine(self._engine)
         interface.set_unset(interface_id, 'backup_heartbeat')
         
         dispatch(self, interface, self._engine)
@@ -1067,13 +1148,15 @@ class PhysicalInterface(InterfaceCommon, Interface):
                         address=None):
         """
         Specifies the Primary Control IP address for Management Server
-        contact. This will set 'Outgoing', 'Auth Request' and
-        'Primary Control'interfaces'. If this is a cluster interface, the
+        contact. For single FW and cluster FW's, this will enable 'Outgoing',
+        'Auth Request' and the 'Primary Control' interface. For clusters, the
         primary heartbeat will NOT follow this change and should be set
-        seperately using :meth:`.set_primary_heartbeat`.
-        Supported on single interface, cluster interface, interfaces with
-        multiple IPs, and VLAN interfaces.
-        Not a valid setting for virtual engines using a Master Engine.
+        separately using :meth:`.set_primary_heartbeat`.
+        For virtual FW engines, only auth_request and outgoing will be set.
+        For master engines, only primary control and outgoing will be set.
+        
+        Primary management can be set on an interface with single IP's,
+        multiple IP's or VLANs.
         ::
         
             engine.physical_interface.set_primary_mgt(1)
@@ -1104,8 +1187,13 @@ class PhysicalInterface(InterfaceCommon, Interface):
         .. note:: Setting primary management on a cluster interface with no
             CVI requires you to set the interface for auth_request.
         """
-        interface = InterfaceModifier(self._engine)
-        for attribute in ['primary_mgt', 'outgoing']:
+        interface = InterfaceModifier.byEngine(self._engine)
+        
+        intfattr = ['primary_mgt', 'outgoing']
+        if self._engine.type in ['virtual_fw']:
+            intfattr.remove('primary_mgt')
+            
+        for attribute in intfattr:
             interface.set_unset(interface_id, attribute, address)
         
         if auth_request is not None:
@@ -1126,11 +1214,11 @@ class PhysicalInterface(InterfaceCommon, Interface):
         
             engine.physical_interface.set_backup_mgt(2)
             
-        Set backup on interface 1, VLAN 201:
+        Set backup on interface 1, VLAN 201::
     
             engine.physical_interface.set_backup_mgt('1.201')
         
-        Remove management backup from engine:
+        Remove management backup from engine::
         
             engine.physical_interface.set_backup_mgt(None)
      
@@ -1139,7 +1227,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :raises UpdateElementFailed: failure to make modification
         :return: None
         """
-        interface = InterfaceModifier(self._engine)
+        interface = InterfaceModifier.byEngine(self._engine)
         interface.set_unset(interface_id, 'backup_mgt')
         
         dispatch(self, interface, self._engine)
@@ -1157,28 +1245,99 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :raises UpdateElementFailed: failure to make modification
         :return: None
         """
-        interface = InterfaceModifier(self._engine)
+        interface = InterfaceModifier.byEngine(self._engine)
         interface.set_unset(interface_id, 'outgoing')
         
         dispatch(self, interface, self._engine)
+    
+    def change_vlan_id(self, original, new):
+        """
+        Change VLAN ID for a single VLAN, cluster VLAN or inline
+        interface. When changing a single or cluster FW vlan, you
+        can specify the original VLAN and new VLAN as either single
+        int or str value. If modifying an inline interface VLAN when
+        the interface pair has two different VLAN identifiers per
+        interface, use a str value in form: '10-11' (original), and
+        '20-21' (new).
         
+        Single VLAN id::
+        
+            >>> engine = Engine('singlefw')
+            >>> itf = engine.interface.get(1)
+            >>> itf.vlan_interfaces()
+            [PhysicalVlanInterface(vlan_id=11), PhysicalVlanInterface(vlan_id=10)]
+            >>> itf.change_vlan_id(11, 100)
+            >>> itf.vlan_interfaces()
+            [PhysicalVlanInterface(vlan_id=100), PhysicalVlanInterface(vlan_id=10)]
+        
+        Inline interface with unique VLAN on each interface pair::
+        
+            >>> itf = engine.interface.get(2)
+            >>> itf.vlan_interfaces()
+            [PhysicalVlanInterface(vlan_id=2-3)]
+            >>> itf.change_vlan_id('2-3', '20-30')
+            >>> itf.vlan_interfaces()
+            [PhysicalVlanInterface(vlan_id=20-30)]
+        
+        :param str,int original: original VLAN to change.
+        :param str,int new: new VLAN identifier/s.
+        :raises UpdateElementFailed: failed updating the VLAN id
+        :return: None
+        """
+        original = str(original).split('-')
+        for vlan in self.vlan_interfaces():
+
+            if_id, v_id = vlan.interface_id.split('.')
+
+            if v_id == original[0]: # Matched interface_id.vlan
+                new = str(new).split('-')
+                
+                vlan.interface_id = '{}.{}'.format(
+                    if_id, new[0])
+                
+                for interface in vlan.interfaces:
+                    
+                    nics = [nic.split('.')[0]
+                            for nic in interface.nicid.split('-')]
+                
+                    if len(nics) == 2: # Inline
+                        interface.nicid = '{}.{}-{}.{}'.format(
+                            nics[0], new[0], nics[-1], new[-1])
+                    else:
+                        interface.nicid = '{}.{}'.format(
+                            nics[0], new[0])
+                self.save()
+                return  
+    
+    def enable_aggregate_mode(self, mode, interfaces):
+        """    
+        Enable Aggregate (LAGG) mode on this interface. Possible LAGG
+        types are 'ha' and 'lb' (load balancing). For HA, only one
+        secondary interface ID is required. For load balancing mode, up
+        to 7 additional are supported (8 max interfaces).
+        
+        :param str mode: 'lb' or 'ha'
+        :param list interfaces: secondary interfaces for this LAGG
+        :type interfaces: list(str,int)
+        :raises UpdateElementFailed: failed adding aggregate
+        :return: None
+        """
+        if mode in ['lb', 'ha']:
+            self.data['aggregate_mode'] = mode
+            self.data['second_interface_id'] = ','.join(map(str, interfaces))   
+            self.save() 
+    
     @property
     def aggregate_mode(self):
         """
-        LAGG configuration for this physical interface.
-        Options are HA (failover) or LB (load balancing). HA
-        mode LAGG supports a single failover interface. LB
-        supports up to 7 additional secondary NICs. Set the
-        secondary NICs using :func:`second_interface_id`
+        LAGG configuration mode for this interface. Values are 'ha' or
+        'lb' (load balancing). This can return None if LAGG is not
+        configured.
 
-        :param str value: 'lb' or 'ha'
-        :rtype: str
+        :return: aggregate mode set, if any
+        :rtype: str, None
         """
         return self.data.get('aggregate_mode')
-
-    @aggregate_mode.setter
-    def aggregate_mode(self, value):
-        self.data['aggregate_mode'] = value
 
     def add_arp_entry(self, ipaddress, macaddress, netmask=32):
         """
@@ -1193,20 +1352,21 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         :param str ipaddress: ip address for entry
         :param str macaddress: macaddress for ip address
-        :param str,int netmask: netmask for entry
+        :param str,int netmask: netmask for entry (default: 32)
         :return: None
         """
-        self.data['arp_entry'].append(
-            {'ipaddress': ipaddress,
-             'macaddress': macaddress,
-             'netmask': netmask})
+        self.data['arp_entry'].append({
+            'ipaddress': ipaddress,
+            'macaddress': macaddress,
+            'netmask': netmask})
 
     @property
     def arp_entry(self):
         """
-        Return any ARP entries for this physical interface
+        Return any manually configured ARP entries for this physical
+        interface
 
-        :return: arp entries
+        :return: arp entries as dict
         :rtype: list
         """
         return self.data.get('arp_entry')
@@ -1216,14 +1376,11 @@ class PhysicalInterface(InterfaceCommon, Interface):
         """
         HA Cluster mode. Not valid for non-cluster engines.
 
-        :param str value: packetdispatch, unicast, multicast, multicastgmp
+        :return: possible values: packetdispatch, unicast, multicast,
+            multicastgmp
         :rtype: str
         """
         return self.data.get('cvi_mode')
-
-    @cvi_mode.setter
-    def cvi_mode(self, value):
-        self.data['cvi_mode'] = value
 
     @property
     def macaddress(self):
@@ -1276,17 +1433,12 @@ class PhysicalInterface(InterfaceCommon, Interface):
     @property
     def second_interface_id(self):
         """
-        Peer interfaces used in LAGG configuration. Input should
-        be a comma separated string.
+        Peer interfaces used in LAGG configuration.
 
         :param str value: comma seperated nic id's for LAGG peers
         :rtype: str
         """
         return self.data.get('second_interface_id')
-
-    @second_interface_id.setter
-    def second_interface_id(self, value):
-        self.data['second_interface_id'] = value
 
     @property
     def virtual_mapping(self):
@@ -1388,7 +1540,7 @@ class PhysicalVlanInterface(PhysicalInterface):
             for intf in self.sub_interfaces():
                 address = getattr(intf, 'address')
                 if address is not None:
-                    i.append(getattr(intf, 'address'))
+                    i.append(address)
                 else:
                     return None
             return ','.join(i)
@@ -1397,44 +1549,29 @@ class PhysicalVlanInterface(PhysicalInterface):
     @property
     def vlan_id(self):
         """
-        VLAN iD's are set on a physical interface and may
-        also contain IP addressing if on a FW engine (vs.
-        Inline interface).
-
-        Change a VLAN ID from id 12 to 20::
-
-            engine = Engine('testfw')
-            for intf in engine.interface.all():
-                if intf.name == 'Interface 2':
-                    if intf.has_vlan:
-                        for vlan in x.vlan_interfaces():
-                            if vlan.vlan_id == '12':
-                                vlan.vlan_id = '20'
-                intf.save() #Save full interface
-
-        :param str|int value: new vlan id
+        Retrieve the VLAN id/s for this interface. If this is
+        an inline interface with a unique vlan on each interface
+        pair, return will be in format: 'interface1-interface2'. For
+        example: '11-12'; interface 1 has VLAN 11, and interface pair
+        two has VLAN 12.
+        
+        :return: vlan ID
+        :rtype: str
         """
         if self.has_interfaces: # Inline
-            for sub_interface in self.interfaces:
+            for sub_interface in self.sub_interfaces():
+                
+                vlans = self.interface_id.split('.')[-1:]
+                
                 if isinstance(sub_interface, InlineInterface):
-                    vlans = [vlan.split('.')[-1]
-                             for vlan in sub_interface.nicid.split('-')]
-                else:
-                    vlans = sub_interface.nicid.split('.')[-1:]
-                break    
+                    v_split = sub_interface.nicid.split('-')
+                    second_vlan = v_split[-1].split('.')[-1]
+                    if second_vlan not in vlans:
+                        vlans.append(second_vlan)
         else: # Just VLAN
-            vlans = self.interface_id.split('.')[-1:]
-    
-        return ','.join(set(vlans))
-
-    @vlan_id.setter
-    def vlan_id(self, value):
-        intf_id = self.interface_id.split('.')
-        intf_id[1] = str(value)
-        self.interface_id = ('.').join(intf_id)
-        # Once interfaceID is formatted, change nicid on subinterfaces
-        for subintf in self.interfaces:
-            subintf.nicid = ('.').join(intf_id)
+            vlans = self.interface_id.split('.')[-1:]            
+        
+        return '-'.join(vlans)
 
     def __str__(self):
         if self.address is not None:
@@ -1474,9 +1611,14 @@ class InterfaceModifier(object):
     In addition, since we already have the full engine json, this eliminates
     additional SMC calls.
     """
-    def __init__(self, engine):
-        self.engine = engine
-        self._data = []
+    #def __init__(self, engine):
+    def __init__(self, data, **kwargs):
+        self._data = data if data else []
+        self.engine = kwargs.get('engine')
+    
+    @classmethod
+    def byEngine(cls, engine):
+        interfaces = []
         for intf in engine.data.get('physicalInterfaces'):
             for typeof, data in intf.items():
                 subif_type = _interface_helper(data)
@@ -1486,14 +1628,58 @@ class InterfaceModifier(object):
                         (nicids[0], nicids[1])
                 else:
                     name = 'Interface %s' % data.get('interface_id')
+                
                 clazz = lookup_class((typeof), Interface)(
                     name=name,
                     type=typeof,
-                    href=self.href_from_link(data.get('link')))
+                    href=InterfaceModifier.href_from_link(data.get('link')))
                 clazz._add_cache(data=data)
-                self._data.append(clazz)
-                
-    def href_from_link(self, link):
+                interfaces.append(clazz)
+        return cls(interfaces, engine=engine)
+    
+    def get(self, interface_id):
+        # From within engine
+        for intf in self:
+            all_subs = intf.sub_interfaces()
+            if all_subs:
+                intf_found = None
+                for sub_interface in all_subs:
+                    if isinstance(sub_interface, PhysicalVlanInterface):
+                        if str(sub_interface.interface_id).split('.')[0] == \
+                            str(interface_id):
+                            intf_found = intf
+                    else:
+                        if '-' in sub_interface.nicid:
+                            sub_split = sub_interface.nicid.split('-')
+                            # Inline by only 1 of the interfaces specified
+                            if str(interface_id) in sub_split:
+                                intf_found = intf
+                        
+                        if '.' in sub_interface.nicid:
+                            # It's a VLAN just grab top level interface id
+                            if str(interface_id) == intf.interface_id:
+                                intf_found = intf
+                            
+                        if str(interface_id) == sub_interface.nicid:
+                            intf_found = intf
+                    
+                    if intf_found:
+                        intf_found._engine = self.engine
+                        return intf_found
+            
+            else: # Interface but no sub interfaces
+                if intf.interface_id == str(interface_id):
+                    intf._engine = self.engine
+                    return intf
+        raise EngineCommandFailed(
+            'Interface id {} was not found on this engine.'.format(interface_id))
+    
+    @classmethod
+    def byInterface(cls, interface):
+        return cls([interface])
+    
+    @staticmethod        
+    def href_from_link(link):
         for links in link:
             if links.get('href'):
                 return links['href']
@@ -1508,14 +1694,14 @@ class InterfaceModifier(object):
         interfaces. This is used for interface options that can only be
         set on one engine interface.
         """
-        for interface in iter(self):
+        for interface in self:
             for sub_interface in interface.sub_interfaces():
+                # Skip VLAN only interfaces (no addresses)
                 if not isinstance(sub_interface, PhysicalVlanInterface):
-                    value = getattr(sub_interface, attribute)
-                    if value is not None:
+                    if getattr(sub_interface, attribute) is not None:
                         if sub_interface.nicid == str(interface_id):
                             if address is not None: # Find IP on Node Interface
-                                if ipaddress.ip_address(u'{}'.format(address)) in \
+                                if ipaddress.ip_address(bytes_to_unicode(address)) in \
                                     ipaddress.ip_network(sub_interface.network_value):
                                     setattr(sub_interface, attribute, True)
                                 else:
