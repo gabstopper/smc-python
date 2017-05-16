@@ -5,9 +5,13 @@ correct class type.
 
 See :ref:`collection-reference-label` for examples on search capabilities.
 """
+import re
+import copy
 from smc import session
 import smc.base.model
-from smc.api.exceptions import FetchElementFailed, UnsupportedEntryPoint
+from smc.base.decorators import cached_property
+from smc.api.exceptions import FetchElementFailed, UnsupportedEntryPoint,\
+    InvalidSearchFilter
 
 
 class SubElementCollection(object):
@@ -65,35 +69,134 @@ def create_collection(href, cls):
 
 class ElementCollection(object):
     """
-    ElementCollection is generated dynamically from the
-    connection manager and provides methods to obtain
-    data from the SMC.
-    """
+    ElementCollection is generated dynamically from the connection 
+    manager and provides methods to obtain data from the SMC. Filters
+    can be chained together to generate more complex queries. Each time
+    a filter is added, a clone is returned to preserve the parent query
+    parameters.
+    
+    Chaining filters do not affect the parent iterator::
+    
+        >>> iterator = Host.objects.iterator()    <-- Obtain iterator from CollectionManager
+        >>> query1 = iterator.filter('10.10.10.1')
+        >>> query1._params
+        {'filter': '10.10.10.1', 'filter_context': 'host', 'exact_match': False}
+        ...
+        >>> query2 = query1.filter_key(['address'])
+        >>> query2._params
+        {'filter': '10.10.10.1', 'filter_context': 'host', 'exact_match': False, 'filter_key': ['address']}
+        >>> query1._params
+        {'filter': '10.10.10.1', 'filter_context': 'host', 'exact_match': False}
+    
+    Searcb operations can access a collection directly through chained syntax::
+    
+        >>> for router in Router.objects.filter('192.168'):
+        ...   print(router)
+        ... 
+        Router(name=router-192.168.19.241)
+        Router(name=router-192.168.21.241)
+        Router(name=router-192.168.5.241)
+        Router(name=router-192.168.15.241)
+        
+    Adding additional filtering via filter_key::
+    
+        >>> print(list(Router.objects.filter('10.10.10.1').filter_key(['address'])))
+        [Router(name=Router-10.10.10.1)]
 
+    Checking if items from the query exist before accessing::
+    
+        >>> query1 = iterator.filter('10.10.10.1')
+        >>> if query1.exists():
+        ...   list(query1.all())
+        ... 
+        [Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+    
+    Helper methods ``first``, ``last`` and ``exists`` are provided to simplify retrieving a
+    result from the collection::
+    
+        >>> query1 = iterator.filter('10.10.10.1')
+        >>> list(query1)
+        [Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+        >>> query1.first()
+        Router(name=Router-110.10.10.10)
+        >>> query1.last()
+        Router(name=Router-10.10.10.1)
+        >>> query1.count()
+        3
+        >>> query2 = query1.filter_key(['address'])  # Add filter_key to new query
+        >>> list(query2)
+        [Router(name=Router-10.10.10.1)]
+
+    .. note:: ``first``, ``last`` and ``exists`` do not perform filtering when using
+        ``filter_key``. Results on filter_key are only done by retrieving the list of
+        results or iterating.
+    """
     def __init__(self, **params):
         self._params = params
-    
+        self._filter_key = self._format_key_filter()
+        
+    def _format_key_filter(self):
+        # Data structure for filter_key will be formatted to
+        # filter_key=[{'attr': 'value'}]. Also update filter
+        # if /- metacharacters are provided or SMC will return []
+        filter_key = self._params.pop('filter_key', None)
+        if filter_key:
+            if 'filter' not in self._params:
+                raise InvalidSearchFilter(
+                    'You must provide the filter parameter when using '
+                    'the filter_key option.')
+            else:
+                ignore_metachar = r'(.+)([/-].+)'
+                value = str(self._params['filter'])
+                match = re.search(ignore_metachar, value)
+                if match: # Take left of match for initial filter
+                    self._params.update(filter=match.group(1)) 
+                    value = match.group(0) # Use when searching attribute
+                return [{filter_key[0]: value}]
+        
     def __iter__(self):
+        
         limit = self._params.pop('limit', None)
 
         count = 0
-        for item in self.items():
-            yield smc.base.model.Element.from_meta(**item)
-
-            # If the limit is set and has been reached, stop
-            count += 1
+        
+        for item in self._list:
+            element = smc.base.model.Element.from_meta(**item)
+            if self._filter_key:
+                for filters in self._filter_key:
+                    for attr, value in filters.items():
+                        if element.data.get(attr) == value:
+                            yield element
+                            count += 1
+            else:
+                yield element
+                count += 1
+            
             if limit is not None and count >= limit:
                 return
-
-    def items(self, **kwargs):
-        # Return a collection
-        try:
-            return smc.base.model.prepared_request(
+        
+    @cached_property
+    def _list(self):
+        try:        
+            _list = smc.base.model.prepared_request(
                 FetchElementFailed,
                 params=self._params,
-            ).read().json
+                ).read().json
         except FetchElementFailed:
-            return []
+            _list = list()
+        return _list  
+    
+    def _clone(self, **kwargs):
+        """
+        Create a clone of this collection. The only param in the
+        initial collection is the filter context. Each chainable
+        filter is added to the clone and returned to preserve
+        previous iterators and their returned elements.
+        """
+        params = copy.deepcopy(self._params)
+        params.update(**kwargs)
+        clone = self.__class__(**params)
+        return clone
 
     def limit(self, count):
         """
@@ -101,29 +204,117 @@ class ElementCollection(object):
         from the collection.
 
         :param int count: number of records to page
+        :return: :class:`.ElementCollection`
         """
-        self._params.update(limit=count)
-        return self
+        return self._clone(limit=count)
 
     def all(self):
         """
-        Retrieve all elements based on element type
+        Retrieve all elements based on element type. When using the ``all``
+        option, any filters are automatically removed.
+        
+        :return: :class:`.ElementCollection`
         """
-        self._params.pop('filter', None)
-        return self
+        return self._clone()
+
+    def filter_key(self, filter_keys):
+        """
+        Provide a filter key to make a more exact match. Initial queries
+        using ``filter`` will make a 'contains' match which may return
+        more elements than desired. Use a filter_keys list to specify
+        the data attributes that a match is desired.
+            
+        .. note:: The initial query to the SMC will generate a single
+            query but only returns meta data based on the ``filter``
+            parameter. Filter_keys will generate an additional query
+            for each initial element returned in order to retrieve the
+            full element data.
+            
+        :param list filter_keys: apply the filter against the instances
+            specified keys for a more exact_match
+        :return: :class:`.ElementCollection`
+        """
+        return self._clone(filter_key=filter_keys)
 
     def filter(self, filter, exact_match=False):  # @ReservedAssignment
         """
         Filter results for specific element type.
-
+            
+        .. note:: If your filter requires reserved meta characters ``/-``,
+            these will only match the name or comment field. If the intent
+            is to match an element attribute, use the filter_key field.
+            
         :param str,list match_on: any parameter to attempt to match on.
             For example, if this is a service, you could match on service name
             'http' or ports of interest, '80'.
-        :param bool exact_match: Whether match needs to be exact or not
+        :param bool exact_match: Whether match needs to be exact or not. An
+            exact match is a case sensitive match.
+        :return: :class:`.ElementCollection`
         """
-        self._params.update(filter=filter,
-                            exact_match=exact_match)
-        return self
+        return self._clone(filter=filter,
+                           exact_match=exact_match)
+        
+    def first(self):
+        """
+        Returns the first object matched or None if there is no
+        matching object.
+        ::
+                
+            >>> iterator = Host.objects.iterator()
+            >>> c = iterator.filter('kali')
+            >>> if c.exists():
+            >>>    print(c.count())
+            >>>    print(c.first())
+            7
+            Host(name=kali67)
+        
+        :return: element or None
+        """
+        if self._list:
+            return smc.base.model.Element.from_meta(
+                **self._list[0])
+    
+    def last(self):
+        """
+        Returns the last object matched or None if there is no
+        matching object.
+        ::
+                
+            >>> iterator = Host.objects.iterator()
+            >>> c = iterator.filter('kali')
+            >>> if c.exists():
+            >>>    print(c.last())
+            Host(name=kali-foo)
+        
+        :return: element or None
+        """
+        if self._list:
+            return smc.base.model.Element.from_meta(
+                **self._list[-1])
+
+    def exists(self):
+        """
+        Returns True if the query contains any results, and False
+        if not. This is handy for checking existence without having
+        to iterate.
+        ::
+            
+            >>> host = Host.objects.filter('1.1.1.1')
+            >>> if host.exists():
+            ...   print(host.first())
+            ... 
+            Host(name=hax0r)
+        """
+        if self._list:
+            return True
+        return False
+            
+    def count(self):
+        """
+        Return number of results
+        """
+        if self._list:
+            return len(self._list)
 
 
 class CollectionManager(object):
@@ -139,9 +330,9 @@ class CollectionManager(object):
 
     def iterator(self, **kwargs):
         """
-        Return an iterator from the collection manager. The connection
-        manager itself is not iterable, you must call one of the
-        methods below to get the collection
+        Return an iterator from the collection manager. The iterator can
+        be re-used to chain together filters, each chaining event will be
+        it's own unique element collection.
 
         :return: collection instance
         """
@@ -151,7 +342,7 @@ class CollectionManager(object):
         params = {'filter_context': self._cls.typeof}
         params.update(kwargs)
         return collection_cls(**params)
-
+    
     def limit(self, count):
         return self.iterator(limit=count)
     limit.__doc__ = ElementCollection.limit.__doc__
@@ -160,6 +351,10 @@ class CollectionManager(object):
         return self.iterator()
     all.__doc__ = ElementCollection.all.__doc__
 
+    def filter_key(self, filter_keys):
+        return self.iterator(filter_key=filter_keys)
+    filter_key.__doc__ = ElementCollection.filter_key.__doc__
+    
     def filter(self, match, exact_match=False):
         return self.iterator(filter=match,
                              exact_match=exact_match)

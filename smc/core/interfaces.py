@@ -57,7 +57,7 @@ def dispatch(instance, builder, interface=None):
         ).create()
     # Clear cache, next call for attributes will refresh it
     try:
-        del instance._engine.cache
+        del instance._engine._cache
     except AttributeError:
         pass
 
@@ -471,7 +471,7 @@ class Interface(SubElement):
         """
         self.update()
         try:
-            del self._engine.cache
+            del self._engine._cache
         except AttributeError:
             pass
 

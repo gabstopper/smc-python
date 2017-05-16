@@ -22,8 +22,12 @@ class Host(Element):
         Host.create(name='mixedhost',
                     ipv6_address='2001:cdba::3257:9652',
                     secondary_ip=['1.1.1.1'])
-
-    .. note:: Either ipv4 or ipv6 address is required
+    
+    Available attributes:
+    
+    :ivar str address: IPv4 address for this element
+    :ivar str ipv6_address: IPv6 address for this host element
+    :ivar list secondary: secondary IP addresses for this host
     """
     typeof = 'host'
 
@@ -42,8 +46,10 @@ class Host(Element):
         :param list secondary: secondary ip addresses (optional)
         :param str comment: comment (optional)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Host
+        
+        .. note:: Either ipv4 or ipv6 address is required
         """
         address = address if address else None
         ipv6_address = ipv6_address if ipv6_address else None
@@ -56,6 +62,18 @@ class Host(Element):
 
         return ElementCreator(cls, json)
 
+    def add_secondary(self, address, append_lists=False):
+        """
+        Add secondary IP addresses to this host element. If append_list
+        is True, then add to existing list. Otherwise overwrite.
+        
+        :param list address: ip addresses to add in IPv4 or IPv6 format
+        :param bool append_list: add to existing or overwrite (default: append)
+        :return: None
+        """
+        self.update(
+            secondary=address,
+            append_lists=append_lists)
 
 class AddressRange(Element):
     """
@@ -64,7 +82,11 @@ class AddressRange(Element):
     Create an address range element::
 
         IpRange.create('myrange', '1.1.1.1-1.1.1.5')
-
+    
+    Available attributes:
+        
+    :ivar str ip_range: IP range for element. In format:
+        '10.10.10.1-10.10.10.10'
     """
     typeof = 'address_range'
     
@@ -72,7 +94,7 @@ class AddressRange(Element):
         super(AddressRange, self).__init__(name, **meta)
         
     @classmethod
-    def create(cls, name, iprange, comment=None):
+    def create(cls, name, ip_range, comment=None):
         """
         Create an AddressRange element
 
@@ -80,11 +102,11 @@ class AddressRange(Element):
         :param str iprange: iprange of element
         :param str comment: comment (optional)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: AddressRange
         """
         json = {'name': name,
-                'ip_range': iprange,
+                'ip_range': ip_range,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -102,8 +124,12 @@ class Router(Element):
 
         Host.create(name='mixedhost',
                     ipv6_address='2001:cdba::3257:9652')
-
-    .. note:: either ipv4 or ipv6 address is required
+    
+    Available attributes:
+    
+    :ivar str address: IPv4 address for this router
+    :ivar str ipv6_address: IPv6 address for this router
+    :ivar list secondary_ip: list of additional IP's for this router
     """
     typeof = 'router'
 
@@ -122,8 +148,10 @@ class Router(Element):
         :param str secondary_ip: secondary ip address (optional)
         :param str comment: comment (optional)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Router
+        
+        .. note:: either ipv4 or ipv6 address is required
         """
         address = address if address else None
         ipv6_address = ipv6_address if ipv6_address else None
@@ -149,8 +177,11 @@ class Network(Element):
     Create an ipv6 network element::
 
         Network.create(name='mixednetwork', ipv6_network='fc00::/7')
-
-    .. note:: either an ipv4_network or ipv6_network must be specified
+    
+    Available attributes:
+        
+    :ivar str ipv4_network: IPv4 network, in format: 10.10.10.0/24
+    :ivar str ipv6_network: IPv6 network
     """
     typeof = 'network'
 
@@ -168,8 +199,10 @@ class Network(Element):
         :param str ipv6_network: network cidr (optional if ipv4)
         :param str comment: comment (optional)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Network
+        
+        .. note:: Either an ipv4_network or ipv6_network must be specified
         """
         ipv4_network = ipv4_network if ipv4_network else None
         ipv6_network = ipv6_network if ipv6_network else None
@@ -179,26 +212,6 @@ class Network(Element):
                 'comment': comment}
 
         return ElementCreator(cls, json)
-
-    @property
-    def ipv4_network(self):
-        """
-        Show the full CIDR representation of this ipv4 network
-
-        :return: network as CIDR, or None if no ipv4 assigned
-        :rtype: str
-        """
-        return self.data.get('ipv4_network')
-
-    @property
-    def ipv6_network(self):
-        """
-        Show the full CIDR representation of this ipv6 network
-
-        :return: network as CIDR, or None if no ipv6 assigned
-        :rtype: str
-        """
-        return self.data.get('ipv6_network')
 
 
 class DomainName(Element):
@@ -223,8 +236,8 @@ class DomainName(Element):
 
         :param str name: name of domain, i.e. lepages.net, www.lepages.net
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: DomainName
         """
         json = {'name': name,
                 'comment': comment}
@@ -291,8 +304,8 @@ class Expression(Element):
         :param dict sub_expression: sub expression used
         :param str comment: optional comment
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Expression
         """
         sub_expression = [] if sub_expression is None else [sub_expression]
         json = {'name': name,
@@ -311,10 +324,15 @@ class URLListApplication(Element):
 
     Creating a URL List::
 
-        URLListApplication.create(name='whitelist',
-                                  url_entry=['www.google.com', 'www.cnn.com'])
+        URLListApplication.create(
+            name='whitelist',
+            url_entry=['www.google.com', 'www.cnn.com'])
 
     .. note:: URLListApplication requires SMC API version >= 6.1
+    
+    Available attributes:
+    
+    :ivar list url_entry: URL entries as strings
     """
     typeof = 'url_list_application'
 
@@ -330,8 +348,8 @@ class URLListApplication(Element):
         :param list url_entry: list of url's
         :param str comment: optional comment
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: URLListApplication
         """
         json = {'name': name,
                 'url_entry': url_entry,
@@ -457,8 +475,8 @@ class IPList(Element):
         :param list iplist: list of ipaddress
         :param str comment: optional comment
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: IPList
         """
         json = {'name': name,
                 'comment': comment}
@@ -498,7 +516,8 @@ class Zone(Element):
         :param str zone: name of zone
         :param str comment: optional comment
         :raises CreateElementFailed: element creation failed with reason
-        :return: href location of new element
+        :return: instance with meta
+        :rtype: Zone
         """
         json = {'name': name,
                 'comment': comment}

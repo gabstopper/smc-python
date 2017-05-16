@@ -134,8 +134,8 @@ class OSPFArea(Element):
         :param list ospf_abr_substitute_container: substitute types: 
                \|aggregate\|not_advertise\|substitute_with
         :raises CreateElementFailed: failed to create with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: OSPFArea
         """
         if interface_settings_ref is None:
             interface_settings_ref = \
@@ -212,12 +212,13 @@ class OSPFInterfaceSetting(Element):
         :param str authentication_type: \|password\|message_digest
         :param str password: max 8 chars (required when 
                authentication_type='password')
-        :param str key_chain_ref: reference to key chain (required when 
+        :param str,Element key_chain_ref: OSPFKeyChain (required when 
                authentication_type='message_digest')
         :raises CreateElementFailed: create failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: OSPFInterfaceSetting
         """
+        key_chain_ref = element_resolver(key_chain_ref) if key_chain_ref else None
         json = {'name': name,
                 'authentication_type': authentication_type,
                 'password': password,
@@ -268,8 +269,8 @@ class OSPFKeyChain(Element):
         :param str name: Name of key chain
         :param list key_chain_entry: list of key chain entries
         :raises CreateElementFailed: create failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: OSPFKeyChain
         """
         key_chain_entry = [] if key_chain_entry is None else key_chain_entry
         json = {'name': name,
@@ -315,8 +316,8 @@ class OSPFProfile(Element):
         :param int inter_distance: routes learned from different areas (O IA)
         :param int intra_distance: routes learned from same area (O)
         :raises CreateElementFailed: create failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: OSPFProfile
         """
         json = {'name': name,
                 'external_distance': external_distance,
@@ -412,8 +413,8 @@ class OSPFDomainSetting(Element):
         :param int shutdown_max_metric_lsa: in seconds
         :param int startup_max_metric_lsa: in seconds
         :raises CreateElementFailed: create failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: OSPFDomainSetting
         """
         json = {'name': name,
                 'abr_type': abr_type,

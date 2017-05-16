@@ -21,8 +21,8 @@ class Category(Element):
     ::
 
         >>> from smc.elements.other import Category
-        >>> Category.create(name='foo', comment='test tag')
-        'http://172.18.1.150:8082/6.1/elements/category_tag/3531'
+        >>> Category.create(name='footag', comment='test tag')
+        Category(name=footag)
     """
     typeof = 'category_tag'
 
@@ -35,8 +35,8 @@ class Category(Element):
         Add a category element
 
         :param name: name of location
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Category
         """
         json = {'name': name,
                 'comment': comment}
@@ -105,20 +105,22 @@ class Category(Element):
             json={'value': element}
         ).create()
 
-    def add_category_tag(self, tags):
+    def add_category_tag(self, tags, append_lists=True):
         """
         Add this category to a category tag (group). This provides drop down
         filters in the SMC UI by category tag.
         
         :param list tags: category tag by name
+        :param bool append_lists: append to existing tags or overwrite
+            default: append)
         :type tags: list(str)
         :return: None
         """
         tags = element_resolver(tags)
-        for tag in tags:
-            self.data['category_parent_ref'].append(tag)
-        self.update()
-    
+        self.update(
+            category_parent_ref=tags,
+            append_lists=append_lists)
+
     def add_category(self, tags):
         pass
     
@@ -157,8 +159,8 @@ class CategoryTag(Element):
         :param str name: name of category tag
         :param str comment: optional comment
         :raises CreateElementFailed: problem creating tag
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: CategoryTag
         """
         json = {'name': name,
                 'comment': comment}
@@ -175,9 +177,8 @@ class CategoryTag(Element):
         categories = element_resolver(categories)
         diff = [category for category in self.data['category_child_ref']
                 if category not in categories]
-        self.data['category_child_ref'] = diff
-        self.update()
-   
+        self.update(category_child_ref=diff)
+
     @property
     def child_categories(self):
         """
@@ -211,8 +212,6 @@ class Location(Element):
     to identify how to connect. In this case, the location will map to a contact
     address using a public IP.
 
-    :param str name: name of location
-
     .. note:: Locations require SMC API version >= 6.1
     """
     typeof = 'location'
@@ -227,8 +226,8 @@ class Location(Element):
 
         :param name: name of location
         :raises CreateElementFailed: failed creating element with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Location
         """
         json = {'name': name,
                 'comment': comment}
@@ -276,8 +275,8 @@ class LogicalInterface(Element):
         :param str name: name of logical interface
         :param str comment: optional comment
         :raises CreateElementFailed: failed creating element with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: LogicalInterface
         """
         json = {'name': name,
                 'comment': comment}
@@ -293,8 +292,9 @@ class AdminDomain(Element):
         
     Find all available domains::
     
-        print(list(AdminDomain.objects.all()))
-        
+        >>> list(AdminDomain.objects.all())
+        [AdminDomain(name=Shared Domain)]
+  
     .. note:: Admin Domains require and SMC license.
     """
     typeof = 'admin_domain'
@@ -309,13 +309,14 @@ class AdminDomain(Element):
         
         Example::
     
-            AdminDomain.create(name='mydomain', comment='mycomment')
+            >>> AdminDomain.create(name='mydomain', comment='mycomment')
+            >>> AdminDomain(name=mydomain) 
         
         :param str name: name of domain
         :param str comment: optional comment
         :raises CreateElementFailed: failed creating element with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: AdminDomain
         """
         json = {'name': name,
                 'comment': comment}
@@ -330,7 +331,8 @@ class MacAddress(Element):
 
     Creating a MacAddress::
 
-        MacAddress.create(name='mymac', mac_address='22:22:22:22:22:22')
+        >>> MacAddress.create(name='mymac', mac_address='22:22:22:22:22:22')
+        MacAddress(name=mymac)
     """
     typeof = 'mac_address'
 
@@ -346,8 +348,8 @@ class MacAddress(Element):
         :param str mac_address: mac address notation
         :param str comment: optional comment
         :raises CreateElementFailed: failed creating element with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: MacAddress
         """
         json = {'name': name,
                 'address': mac_address,

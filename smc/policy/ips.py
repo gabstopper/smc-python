@@ -108,7 +108,7 @@ class IPSPolicy(IPSRule, Policy):
         :param str name: Name of policy
         :param str template: name of template
         :raises CreatePolicyFailed: policy failed to create
-        :return: :class:`~IPSPolicy`
+        :return: IPSPolicy
         """
         try:
             fw_template = IPSTemplatePolicy(template).href
@@ -120,8 +120,7 @@ class IPSPolicy(IPSRule, Policy):
             'name': name,
             'template': fw_template}
         try:
-            result = ElementCreator(cls, json)
-            return IPSPolicy(name, href=result)
+            return ElementCreator(cls, json)
         except CreateElementFailed as err:
             raise CreatePolicyFailed(
                 'Failed to create firewall policy: {}'.format(err))

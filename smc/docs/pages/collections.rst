@@ -1,14 +1,161 @@
 .. _collection-reference-label:
 
 Collections
------------
+===========
 
 Resource collections are designed to be similar to how Django query sets work and provide a similar API. 
 
-Collections are available on all elements that inherit from :py:class:`smc.base.model.Element`, and are also available for general searching
-purposes. 
+ElementCollection
+-----------------
 
-To access a collection directly on an Element type::
+ElementCollections are available on all elements that inherit from :py:class:`smc.base.model.Element`, and
+are also available for general searching across any element with an SMC entry point.
+
+An :py:class:`~smc.base.collection.ElementCollection` can be constructed without making a single query to the
+SMC database. No query will occur until you do something to evaluate the collection.
+
+You can evaluate a collection in the following ways:
+
+* **Iteration**. An ElementCollection is iterable, and it executes its database query the first time you iterate over
+  it. For example, this will retrieve all host elements::
+
+	>>> for host in Host.objects.all():
+	...    print(host.name, host.address)
+
+* **list()**. Force evaluation of a collection by calling list() on it::
+
+	>>> elements = list(Host.objects.all())
+
+* :py:meth:`~smc.base.collection.ElementCollection.first`. Helper collection method to retrieve only the first element in the search query::
+
+	>>> host = Host.objects.iterator()
+	>>> host.first()
+	Host(name=SMC)
+
+* :py:meth:`~smc.base.collection.ElementCollection.last`. Helper collection method to retrieve only the last element in the search query::
+
+	>>> host = Host.objects.iterator()
+	>>> host.last()
+	Host(name=kali3)
+	
+* :py:meth:`~smc.base.collection.ElementCollection.exists`. Helper collection method to evaluate whether there are results::
+
+	>>> hosts = Host.objects.filter('1.1.1.1')
+	>>> if hosts.exists():
+	...   for host in list(hosts):
+	...     print(host.name, host.address)
+	... 
+	('hax0r', '1.1.1.1')
+	('host', '1.1.1.1')
+	('hostelement', '1.1.1.1')
+	('abcdefghijklmnop', '1.1.1.1')
+
+* :py:meth:`~smc.base.collection.ElementCollection.count`. Helper collection method which returns the number of results.
+  You can still obtain the results after::
+
+	>>> it = Router.objects.iterator()
+	>>> query1 = it.filter('10.10.10.1')
+	>>> query1.count()
+	3
+	>>> list(query1)
+	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+
+
+Methods that return a new ElementCollection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are multiple methods in an ElementCollection that allow you to refine how the query or results are returned.
+Each chained method returns a new ElementCollection with aggregated search parameters.
+
+* :py:meth:`~smc.base.collection.ElementCollection.filter`. Provide a filter string to narrow the search to a string
+  value that will be used in a 'contains' match::
+
+	>>> host = Host.objects.filter('172.18.1')
+	>>> list(host)
+	[Host(name=172.18.1.135), Host(name=SMC)]
+
+* :py:meth:`~smc.base.collection.ElementCollection.filter_key`. Provide an attribute which to match the ``filter`` against. 
+  This requires that first a filter query is made which will return slimmed down results. For each result,
+  another query is made to check the attribute for a match::
+
+	>>> host = Host.objects.filter('172.18.1.254').filter_key(['address'])
+	>>> list(host)
+	[Host(name=172.18.1.254)]
+
+* :py:meth:`~smc.base.collection.ElementCollection.limit`. Limit the number of results to return.
+  ::
+
+	>>> list(Host.objects.all().limit(3))
+	[Host(name=SMC), Host(name=172.18.1.135), Host(name=172.18.2.254)]
+
+* :py:meth:`~smc.base.collection.ElementCollection.all`. Return all results.
+
+	>>> list(Host.objects.all())
+
+
+Basic rules on searching
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* By default searches use a 'contains' logic. If you specify a filter string, the SMC API will return elements that
+  contain that string. Therefore, if partial searches are performed, you may receive multiple matches::
+  
+	>>> list(Router.objects.filter('10.10'))
+	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+
+* When the search is evaluated, the elements returned contain only meta data and not the full payload for each
+  element matching the search. The search query is built based on provided parameters to narrow the scope and
+  only a single query is made to SMC.
+  
+* When using a filter, the SMC API will search the name, comment and relavant field/s for the element type selected.
+
+  Each element type will have it's own searchable fields. For example, in addition to the name and comment field, a Host
+  element will search the address and secondary address fields. This is automatic.
+
+  For example, the following would find Host elements with this value in any of the Host fields specified above::
+
+	>>> Host.objects.filter('111.111.111.111')
+
+* Setting ``exact_match=True`` on the filter query will only match on an element's name or comment field and is a case
+  sensitive match. The SMC is case sensitive, so unless you need an element by exact case, this field is not required.
+  By default, ``exact_match=False``.
+
+* Using a 'filter_key' with a 'filter' will provide element introspection against the attributes to perform an exact match.
+  In general, using a filter_key is most effective when searching for network elements. Since the default search is a 'contains' match,
+  a search for '10.10.10.1' may return elements with values: '10.10.10.1', '10.10.10.10', and '110.10.10.1'. Using a filter key would
+  override the default search behavior and allow a specific attribute to match::
+  
+	>>> list(Router.objects.filter('10.10.10.1'))
+	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+	
+And using a filter_key to get only a specific router element by it's primary field, 'address'::
+	
+	>>> list(Router.objects.filter('10.10.10.1').filter_key(['address']))
+	[Router(name=Router-10.10.10.1)]
+	
+.. note:: When chaining a filter_key to a filter, a single query will be performed using the filter string, returning a list
+		  of 'contains' matches. For each element match returned from the first query, an additional query is performed to
+		  retrieve the element attributes. The first match will be yielded from the iterator.
+		  
+Using a limit on filter_key queries (in the event multiple 'Router' elements use this address)::
+	
+	>>> list(Router.objects.filter('10.10.10.1').filter_key(['address']).limit(1))
+	[Router(name=Router-10.10.10.1)]
+	
+
+Additional Examples
+^^^^^^^^^^^^^^^^^^^
+
+Obtain an iterator from the collection manager for re-use::
+
+	>>> iterator = Router.objects.iterator()
+	>>> query1 = iterator.filter('10.10.10.1')
+	>>> list(query1)
+	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+	>>> query2 = query1.filter_key(['address'])
+	>>> list(query2)
+	[Router(name=Router-10.10.10.1)]
+	
+Access a collection directly on an Element type::
 
 	>>> list(Host.objects.all())
  	[Host(name=SMC), Host(name=172.18.1.135), Host(name=172.18.2.254), Host(name=host)]
@@ -24,40 +171,44 @@ Limit number of return entries::
 Limit and filter the results using a chainable syntax::
 
 	>>> list(Host.objects.filter('172.18.1').limit(5))
-	[Host(name=172.18.1.135), Host(name=SMC), Host(name=ePolicy Orchestrator), Host(name=TIE Server), Host(name=172.18.1.93)]
- 
-You can also obtain the iterator from the connection manager to re-use::
+	[Host(name=172.18.1.135), Host(name=SMC), Host(name=TIE Server), Host(name=172.18.1.93)]
 
-	>>> iterator = Host.objects
-	>>> list(iterator.filter('kali'))
-	[Host(name=kali)]
-	>>> list(iterator.filter('host').limit(3))
-	[Host(name=host), Host(name=host-54.76.110.156), Host(name=host-192.168.4.135)]
-
-Filtering can also be done using keys of a given element. For example, TCP Services define ports for the services and can be filtered::
-
-  >>> list(TCPService.objects.filter('8080'))
-  [TCPService(name=TCP_8080), TCPService(name=HTTP proxy)]
-
-Likewise, an example filtering Host collections based on IP address::
+Get a host collection when partial IP address known::
 
   >>> list(Host.objects.filter('192.168'))
   [Host(name=aws-192.168.4.254), Host(name=host-192.168.4.135), Host(name=host-192.168.4.94), Host(name=host-192.168.4.79)]
 
-Filtering is not limited to a single filter item, it is also possible to provide a list of filterable fields. All matches will be returned::
-
-  >>> list(TCPService.objects.filter(['8080', '22']))
-  [TCPService(name=TCP_8080), TCPService(name=HTTP proxy), TCPService(name=SSH), TCPService(name=ssh_2222), TCPService(name=SSM SSH), TCPService(name=ssh_2200), TCPService(name=H.323 (Call Signaling))]
-
 When filtering is performed, by default search queries will 'wildcard' the results. To only return an exact match of the search query,
 use the optional flag 'exact_match'::
 
-  >>> list(TCPService.objects.filter(['8080', '22'], exact_match=True))
+  >>> list(TCPService.objects.filter('8080'), exact_match=True))
   [TCPService(name=TCP_8080), TCPService(name=HTTP proxy), TCPService(name=SSH), TCPService(name=SSM SSH)]
 
-----
+Additional convenience functions are provided on the collections to simplify navigating
+through results such as ``count``, ``first``, and ``last``::
 
-If a search is reuqired for an element type that is not a pre-defined class of :py:class:`smc.base.model.Element` type 
+	>>> query1 = iterator.filter('10.10.10.1')
+	>>> if query1.exists():
+	...   list(query1.all())
+	... 
+	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+	        
+	>>> list(query1)
+	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
+	>>> query1.first()
+	Router(name=Router-110.10.10.10)
+	>>> query1.last()
+	Router(name=Router-10.10.10.1)
+	>>> query1.count()
+	3
+	>>> query2 = query1.filter_key(['address'])  # Add filter_key to new query
+	>>> list(query2)
+	[Router(name=Router-10.10.10.1)]
+
+Generic Search
+--------------
+
+If a search is required for an element type that is not a pre-defined class of :py:class:`smc.base.model.Element` type 
 in the API, it is still possible to search any valid entry point using :py:class:`smc.elements.resources.Search`.
 
 First, find all available searchable objects::
@@ -79,23 +230,23 @@ And subsequently filtering as well::
 
 There are additional search filters that provide the ability to generalize your searches:
 
-*fw_clusters* - list all firewalls
+* *fw_clusters* - list all firewalls
 
-*engine_clusters* - all clusters
+* *engine_clusters* - all clusters
 
-*ips_clusters* - ips only clusters
+* *ips_clusters* - ips only clusters
 
-*layer2_clusters* - layer2 only clusters
+* *layer2_clusters* - layer2 only clusters
                     
-*network_elements* - all network element types
+* *network_elements* - all network element types
 
-*services* - all service types
+* *services* - all service types
 
-*services_and_applications* - all services and applications
+* *services_and_applications* - all services and applications
 
-*tags* - element tags
+* *tags* - element tags
 
-*situations* - inspection situations
+* *situations* - inspection situations
 
 ----
 

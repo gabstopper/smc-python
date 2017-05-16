@@ -73,8 +73,8 @@ class AutonomousSystem(Element):
         :param str name: name of this AS
         :param int as_number: AS number preferred
         :param str comment: optional string comment
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: AutonomousSystem
         """
         json = {'name': name,
                 'as_number': as_number,
@@ -137,8 +137,8 @@ class BGPProfile(Element):
         :param list subnet_distance: configure specific subnet's with respective distances
         :type tuple subnet_distance: (subnet element(Network), distance(int))
         :raises CreateElementFailed: reason for failure
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: BGPProfile
         """
         json = {'name': name,
                 'external': external_distance,
@@ -233,8 +233,8 @@ class ExternalBGPPeer(Element):
         :param str neighbor_ip: ip address of BGP peer
         :param int neighbor_port: port for BGP, default 179.
         :raises CreateElementFailed: failed creating
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: ExternalBGPPeer
         """
         json = {'name': name,
                 'neighbor_ip': neighbor_ip,
@@ -330,8 +330,8 @@ class BGPPeering(Element):
         :param str ttl_option: ttl check mode. Valid options are: 'disabled', 
             'ttl-security'
         :raises CreateElementFailed: failed creating profile
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: BGPPeering
         """
         json = {'name': name,
                 'local_as_option': local_as_option,
@@ -402,7 +402,8 @@ class BGPConnectionProfile(Element):
         :param int session_hold_timer: The session hold timer, in seconds
         :param int session_keep_alive: The session keep alive timer, in seconds
         :raises CreateElementFailed: failed creating profile
-        :return: :class:`~BGPConnectionProfile`
+        :return: instance with meta
+        :rtype: BGPConnectionProfile
         """
         json = {'name': name,
                 'connect': connect_retry,

@@ -208,6 +208,11 @@ class CreateRuleFailed(SMCException):
     """
     pass
 
+class InvalidSearchFilter(SMCException):
+    """
+    Thrown by collections when using invalid search sequences.
+    """
+    pass
 
 class ElementNotFound(SMCException):
     """

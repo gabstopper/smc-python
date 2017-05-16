@@ -2,24 +2,22 @@
 API Reference
 *************
 
-Base
-----
+Element (Base)
+--------------
  
 .. automodule:: smc.base.model
 	:exclude-members: from_meta, from_href
 
 .. autoclass:: ElementBase
 	:members:
-	:exclude-members: update
-	
+
 .. autoclass:: Element
 	:members:
 	:show-inheritance:
-	:exclude-members: from_meta, from_href, update
+	:exclude-members: from_meta, from_href
 		
 	.. automethod:: objects(self)
-	
-		
+   		
 .. _element-reference-label:
 
 Elements
@@ -106,6 +104,7 @@ Services
 ++++++++
 
 .. automodule:: smc.elements.service
+	:members: ProtocolAgentMixin
 
 TCPService
 **********
@@ -329,11 +328,8 @@ Interfaces
 Represents classes responsible for configuring interfaces on engines
 
 .. automodule:: smc.core.interfaces
-	:members: Interface
+	:members: Interface, InterfaceCommon
 
-.. autoclass:: InterfaceCommon
-	:members:
-	
 PhysicalInterface
 *****************
 
@@ -851,7 +847,6 @@ Users
 .. automodule:: smc.elements.user
 	:members:
 	:show-inheritance:
-	:undoc-members:
  
 Collection
 ----------

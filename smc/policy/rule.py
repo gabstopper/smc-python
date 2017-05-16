@@ -93,7 +93,7 @@ class Rule(object):
         """
         Name attribute of rule element
         """
-        return self.meta.name
+        return self._meta.name
 
     def add_after(self):
         pass
@@ -293,10 +293,10 @@ class IPv4Rule(Rule, SubElement):
 
     def __init__(self, **meta):
         super(IPv4Rule, self).__init__(**meta)
-        self.actions = ['allow', 'discard', 'continue',
-                        'refuse', 'jump', 'apply_vpn',
-                        'enforce_vpn', 'forward_vpn',
-                        'blacklist']
+        self._actions = ['allow', 'discard', 'continue',
+                         'refuse', 'jump', 'apply_vpn',
+                         'enforce_vpn', 'forward_vpn',
+                         'blacklist']
 
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
@@ -341,7 +341,7 @@ class IPv4Rule(Rule, SubElement):
             rule_action = Action()
             rule_action.action = action
 
-        if not rule_action.action in self.actions:
+        if not rule_action.action in self._actions:
             raise CreateRuleFailed('Action specified is not valid for this '
                                    'rule type; action: {}'
                                    .format(rule_action.action))
@@ -404,8 +404,8 @@ class IPv4Layer2Rule(Rule, SubElement):
 
     def __init__(self, **meta):
         super(IPv4Layer2Rule, self).__init__(**meta)
-        self.actions = ['allow', 'continue', 'discard',
-                        'refuse', 'jump', 'blacklist']
+        self._actions = ['allow', 'continue', 'discard',
+                         'refuse', 'jump', 'blacklist']
 
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
@@ -439,7 +439,7 @@ class IPv4Layer2Rule(Rule, SubElement):
             rule_action = Action()
             rule_action.action = action
 
-        if not rule_action.action in self.actions:
+        if not rule_action.action in self._actions:
             raise CreateRuleFailed('Action specified is not valid for this '
                                    'rule type; action: {}'
                                    .format(rule_action.action))
@@ -479,7 +479,7 @@ class EthernetRule(Rule, SubElement):
 
     def __init__(self, **meta):
         super(EthernetRule, self).__init__(**meta)
-        self.actions = ['allow', 'discard']
+        self._actions = ['allow', 'discard']
 
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
@@ -513,7 +513,7 @@ class EthernetRule(Rule, SubElement):
             rule_action = Action()
             rule_action.action = action
 
-        if not rule_action.action in self.actions:
+        if not rule_action.action in self._actions:
             raise CreateRuleFailed('Action specified is not valid for this '
                                    'rule type; action: {}'
                                    .format(rule_action.action))

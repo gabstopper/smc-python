@@ -40,7 +40,7 @@ Add the netlink to the desired routing interface::
 """
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
-from smc.api.exceptions import ElementNotFound, MissingRequiredInput
+from smc.api.exceptions import MissingRequiredInput
 
 
 class StaticNetlink(Element):
@@ -88,8 +88,8 @@ class StaticNetlink(Element):
         :raises ElementNotFound: if using type Element parameters that are
             not found.
         :raises CreateElementFailed: failure to create netlink with reason
-        :return: href of new netlink element
-        :rtype: str
+        :return: instance with meta
+        :rtype: StaticNetlink
 
         .. note:: To monitor the status of the network links, you must define
                   at least one probe IP address.
@@ -317,8 +317,8 @@ class Multilink(Element):
         :param int timeout: timeout between retries (default: 3600 seconds)
         :param str comment: comment for multilink (optional)
         :raises CreateElementFailed: failure to create multilink
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Multilink
         """
         json = {'name': name,
                 'comment': comment,

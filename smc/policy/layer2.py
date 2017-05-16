@@ -129,18 +129,17 @@ class Layer2Policy(Layer2Rule, Policy):
 
         This policy will then inherit the Inspection and File Filtering
         policy from the specified template.
-
-        :mathod: POST
-        :param str name: name of policy
-        :param str template: name of the FW template to base policy on
-        :raises LoadPolicyFailed: cannot find policy by name
-        :raises CreatePolicyFailed: cannot create policy with reason
-        :return: `~FirewallPolicy`
-
+        
         To use after successful creation, reference the policy to obtain
         context::
 
             Layer2Policy('newpolicy')
+            
+        :param str name: name of policy
+        :param str template: name of the FW template to base policy on
+        :raises LoadPolicyFailed: cannot find policy by name
+        :raises CreatePolicyFailed: cannot create policy with reason
+        :return: Layer2Policy
         """
         try:
             fw_template = Layer2TemplatePolicy(template).href
@@ -152,8 +151,7 @@ class Layer2Policy(Layer2Rule, Policy):
             'name': name,
             'template': fw_template}
         try:
-            result = ElementCreator(cls, json)
-            return Layer2Policy(name, href=result)
+            return ElementCreator(cls, json)
         except CreateElementFailed as err:
             raise CreatePolicyFailed(
                 'Failed to create firewall policy: {}'.format(err))

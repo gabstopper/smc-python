@@ -31,8 +31,8 @@ class AccessList(object):
         :param str name: name of IP Access List
         :param list entries: access control entry
         :raises CreateElementFailed: cannot create element
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: AccessList
         """
         access_list_entry = []
         if entries:

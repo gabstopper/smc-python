@@ -6,11 +6,12 @@ from smc.base.collection import sub_collection
 
 class VPNPolicy(Element):
     """
-    Create a new VPN Policy
-
-    vpn = VPNPolicy.create('myVPN')
-    print vpn.vpn_profile
-    print vpn.describe()
+    Create a new VPN Policy.
+    ::
+    
+        vpn = VPNPolicy.create('myVPN')
+        print vpn.vpn_profile
+        print vpn.describe()
 
     When making VPN Policy modifications, you must first call :func:`open`, 
     make your modifications and then call :func:`save` followed by 
@@ -32,7 +33,7 @@ class VPNPolicy(Element):
         :param bool nat: whether to apply NAT to the VPN (default False)
         :param mobile_vpn_toplogy_mode: whether to allow remote vpn
         :param str vpn_profile: reference to VPN profile, or uses default
-        :return: :py:class:`~VPNPolicy`
+        :return: VPNPolicy
         """
         json = {'mobile_vpn_topology_mode': None,
                 'name': name,
@@ -40,8 +41,7 @@ class VPNPolicy(Element):
                 'vpn_profile': vpn_profile}
 
         try:
-            ElementCreator(cls, json)
-            return VPNPolicy(name)
+            return ElementCreator(cls, json)
         except CreateElementFailed as err:
             raise CreatePolicyFailed('VPN Policy create failed. Reason: {}'
                                      .format(err))

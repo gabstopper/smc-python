@@ -13,7 +13,7 @@ class GroupMixin(object):
     objects for existing elements
     """
 
-    def update_members(self, members, append=False):
+    def update_members(self, members, append_lists=False):
         """
         Update group members with member list. Set append=True
         to append to existing members, or append=False to overwrite.
@@ -23,13 +23,9 @@ class GroupMixin(object):
         :param bool append: whether to append
         :return: None
         """
-        if not append:
-            self.data['element'] = []
-
-        for member in element_resolver(members):
-            self.data['element'].append(member)
-
-        self.update()
+        self.update(
+            element=element_resolver(members),
+            append_lists=append_lists)
 
     def obtain_members(self):
         """
@@ -47,7 +43,7 @@ class GroupMixin(object):
 
         :return: None
         """
-        self.modify_attribute(element=[])
+        self.update(element=[])
 
 
 class Group(GroupMixin, Element):
@@ -62,7 +58,12 @@ class Group(GroupMixin, Element):
 
     Group with members::
 
-        Group.create('mygroup', ['member1-href','member2-href'])
+        Group.create('mygroup', [Host('kali'), Network('mynetwork')])
+        
+    Available attributes:
+    
+    :ivar list element: list of elements by href. Call `~obtain_members` to
+        retrieved the resolved list of elements.
     """
     typeof = 'group'
 
@@ -77,10 +78,11 @@ class Group(GroupMixin, Element):
 
         :param str name: Name of element
         :param list members: group members by element names
+        :type members: str,Element 
         :param str comment: optional comment
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: Group
         """
         elements = [] if members is None else element_resolver(members)
         json = {'name': name,
@@ -101,7 +103,12 @@ class ServiceGroup(GroupMixin, Element):
 
         tcp1 = TCPService.create('api-tcp1', 5000)
         udp1 = UDPService.create('api-udp1', 5001)
-        ServiceGroup.create('servicegroup', element=[tcp1.href, udp1.href])
+        ServiceGroup.create('servicegroup', element=[tcp1, udp1])
+    
+    Available attributes:
+    
+    :ivar list element: list of elements by href. Call `~obtain_members` to
+        retrieved the resolved list of elements.    
     """
     typeof = 'service_group'
 
@@ -115,10 +122,11 @@ class ServiceGroup(GroupMixin, Element):
         Create the TCP/UDP Service group element
 
         :param str name: name of service group
-        :param list members: list of elements to add to service group
+        :param list members: elements to add by href or Element
+        :type members: list(str,Element)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: ServiceGroup
         """
         elements = [] if members is None else element_resolver(members)
         json = {'name': name,
@@ -136,7 +144,12 @@ class TCPServiceGroup(GroupMixin, Element):
 
         tcp1 = TCPService.create('api-tcp1', 5000)
         tcp2 = TCPService.create('api-tcp2', 5001)
-        ServiceGroup.create('servicegroup', element=[tcp1.href, tcp2.href])
+        ServiceGroup.create('servicegroup', element=[tcp1, tcp2])
+        
+    Available attributes:
+    
+    :ivar list element: list of elements by href. Call `~obtain_members` to
+        retrieved the resolved list of elements.
     """
     typeof = 'tcp_service_group'
 
@@ -150,14 +163,15 @@ class TCPServiceGroup(GroupMixin, Element):
         Create the TCP Service group
 
         :param str name: name of tcp service group
-        :param list element: tcp services by href
+        :param list element: tcp services by element or href
+        :type element: list(str,Element)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: TCPServiceGroup
         """
-        elements = [] if members is None else element_resolver(members)
+        element = [] if members is None else element_resolver(members)
         json = {'name': name,
-                'element': elements,
+                'element': element,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -172,7 +186,12 @@ class UDPServiceGroup(GroupMixin, Element):
 
         udp1 = UDPService.create('udp-svc1', 5000)
         udp2 = UDPService.create('udp-svc2', 5001)
-        UDPServiceGroup.create('udpsvcgroup', element=[udp1.href, udp2.href])
+        UDPServiceGroup.create('udpsvcgroup', element=[udp1, udp2])
+        
+    Available attributes:
+    
+    :ivar list element: list of elements by href. Call `~obtain_members` to
+        retrieved the resolved list of elements.
     """
     typeof = 'udp_service_group'
 
@@ -187,13 +206,14 @@ class UDPServiceGroup(GroupMixin, Element):
 
         :param str name: name of service group
         :param list element: UDP services or service group by reference
+        :type members: list(str,Element)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: UDPServiceGroup
         """
-        elements = [] if members is None else element_resolver(members)
+        element = [] if members is None else element_resolver(members)
         json = {'name': name,
-                'element': elements,
+                'element': element,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -204,6 +224,10 @@ class IPServiceGroup(GroupMixin, Element):
     IP Service Group
     Used for storing IP Services or IP Service Groups
 
+    Available attributes:
+    
+    :ivar list element: list of elements by href. Call `~obtain_members` to
+        retrieved the resolved list of elements.
     """
     typeof = 'ip_service_group'
 
@@ -217,10 +241,11 @@ class IPServiceGroup(GroupMixin, Element):
         Create the IP Service group element
 
         :param str name: name of service group
-        :param list element: IP services or IP service groups by ref
+        :param list element: IP services or IP service groups by href
+        :type members: list(str,Element)
         :raises CreateElementFailed: element creation failed with reason
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: IPServiceGroup
         """
         elements = [] if members is None else element_resolver(members)
         json = {'name': name,

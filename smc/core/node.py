@@ -32,7 +32,6 @@ class Node(SubElement):
             ...
 
     """
-
     def __init__(self, **meta):
         super(Node, self).__init__(**meta)
 
@@ -41,12 +40,11 @@ class Node(SubElement):
         """
         Node type
         """
-        return self.meta.type
+        return self._meta.type
 
     def rename(self, name):
         # This should be called from engine level
-        self.data['name'] = '{} node {}'.format(name, self.nodeid)
-        self.update()
+        self.update(name='{} node {}'.format(name, self.nodeid))
 
     @property
     def nodeid(self):
@@ -214,11 +212,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: online not available
         :return: None
         """
-        params = {'comment': comment}
         prepared_request(
             NodeCommandFailed,
             href=self.resource.go_online,
-            params=params
+            params={'comment': comment}
         ).update()
 
     def go_offline(self, comment=None):
@@ -229,11 +226,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: offline not available
         :return: None
         """
-        params = {'comment': comment}
         prepared_request(
             NodeCommandFailed,
             href=self.resource.go_offline,
-            params=params
+            params={'comment': comment}
         ).update()
 
     def go_standby(self, comment=None):
@@ -245,11 +241,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: engine cannot go standby
         :return: None
         """
-        params = {'comment': comment}
         prepared_request(
             NodeCommandFailed,
             href=self.resource.go_standby,
-            params=params
+            params={'comment': comment}
         ).update()
 
     def lock_online(self, comment=None):
@@ -260,11 +255,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: cannot lock online
         :return: None
         """
-        params = {'comment': comment}
         prepared_request(
             NodeCommandFailed,
             href=self.resource.lock_online,
-            params=params
+            params={'comment': comment}
         ).update()
 
     def lock_offline(self, comment=None):
@@ -276,11 +270,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: lock offline failed
         :return: None
         """
-        params = {'comment': comment}
         prepared_request(
             NodeCommandFailed,
             href=self.resource.lock_offline,
-            params=params
+            params={'comment': comment}
         ).update()
 
     def reset_user_db(self, comment=None):
@@ -292,12 +285,11 @@ class Node(SubElement):
         :raises NodeCommandFailed: failure resetting db
         :return: None
         """
-        params = {'comment': comment}
         try:
             prepared_request(
                 NodeCommandFailed,
                 href=self.resource.reset_user_db,
-                params=params
+                params={'comment': comment}
             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed(
@@ -309,10 +301,13 @@ class Node(SubElement):
 
         Get all diagnostic/debug settings::
 
-            engine = Engine('myfw')
-            for node in engine:
-                for diag in node.diagnostic():
-                    print diag
+            >>> for node in engine.nodes:
+            ...   node.diagnostic()
+            ... 
+            [Diagnostic('name=SNMP Monitoring,enabled=False'),
+            Diagnostic('name=State synchronisation,enabled=False')
+            ...
+            ...]
 
         Add filter_enabled=True argument to see only enabled settings
 
@@ -376,11 +371,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: reboot failed with reason
         :return: None
         """
-        params = {'comment': comment}
         prepared_request(
             NodeCommandFailed,
             href=self.resource.reboot,
-            params=params
+            params={'comment': comment}
         ).update()
 
     def sginfo(self, include_core_files=False,
@@ -427,12 +421,11 @@ class Node(SubElement):
         :raises NodeCommandFailed: cannot change ssh password
         :return: None
         """
-        params = {'comment': comment}
         try:
             prepared_request(
                 NodeCommandFailed,
                 href=self.resource.change_ssh_pwd,
-                params=params,
+                params={'comment': comment},
                 json={'value': pwd}
             ).update()
         except ResourceNotFound:

@@ -139,7 +139,7 @@ class FirewallPolicy(FirewallRule, Policy):
         :param str template: name of the FW template to base policy on
         :raises LoadPolicyFailed: Cannot load the policy after creation
         :raises CreatePolicyFailed: policy creation failed with message
-        :return: `~FirewallPolicy`
+        :return: FirewallPolicy
 
         To use after successful creation, reference the policy to obtain
         context::
@@ -156,8 +156,7 @@ class FirewallPolicy(FirewallRule, Policy):
             'name': name,
             'template': fw_template}
         try:
-            result = ElementCreator(cls, json)
-            return FirewallPolicy(name, href=result)
+            return ElementCreator(cls, json)
         except CreateElementFailed as err:
             raise CreatePolicyFailed(
                 'Failed to create firewall policy: {}'.format(err))

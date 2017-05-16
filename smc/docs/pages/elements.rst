@@ -79,67 +79,121 @@ Examples of creating elements are as follows::
 
 Check the various reference documentation for defined elements supported.
 
-Modify
+.. _update-elements-label:
+
+Update
 ------  
 
-Modifying elements can be done through either instance methods/properties (if they exist), or
-also through the low-level API.
-Attributes supported by elements are documented in the API Reference: :ref:`element-reference-label`
+Updating elements can be done in multiple ways. By default, any element can be updated
+by setting the attribute on the class instance itself. The attributes should be a supported
+attribute for the respective element type.
 
-For example, modifying a Host element IP address::
+Once the element is set on the class instance and attributes are set, you must call
+update() on the instance to submit the change to the SMC. 
 
-	>>> from smc.elements.network import Host
-	>>> host = Host('kali')
-	>>> print(host.address)
-	55.44.44.44
-	>>> host.modify_attribute(address='12.12.12.12')
-	>>> print(host.address)
-	12.12.12.12
+For example, updating a host element::
+        
+	>>> host = Host.create(name='grace', address='1.1.1.1')
+	>>> host
+	Host(name=grace)
+	>>> host.address
+	'1.1.1.1'
+	>>> host.secondary
+	[]
+	>>> host.address = '3.3.3.3'
+	>>> host.secondary = ['3.3.3.4']
+	>>> host.comment = 'test comment'
+	>>> host.update()
+	'http://172.18.1.150:8082/6.2/elements/host/117046'
+	>>> host.address
+	'3.3.3.3'
+	>>> host.comment
+	'test comment'
+
+By default, only attributes defined in the elements cache are eligible for updating. 
+For example, if you create a new attribute on a host element 'ipv4_network' and run
+update, this attribute will be ignored from the update as it's not a valid attribute
+for :class:`smc.elements.network.Host` elements.
+
+You can override this behavior by providing the kwarg ``ignore_unknown_attr=True`` in
+the call to update. This is generally not required but in some cases valid attributes
+may not be present in the cached data.
 	
+.. note:: When updating attributes on an instance, you should prefix any custom attributes
+	with '_'. Attributes without this prefix will merge into the cache and subsequently cause
+	the update to fail.
+
+Another way to update an element is by providing the kwarg values in the update() call.
+
+Taking the example above, this could be done this way::
+
+	host = Host('kali')
+	host.update(
+		address='3.3.3.3',
+		secondary=['12.12.12.12'],
+		comment='something about this host')
+
+This also results in a single call to the SMC and allows the same functionality as the
+first example.
+
+.. note:: If providing an element update by modifying attributes and kwargs, kwargs will
+	take precendence and overwrite any attributes set. It is recommended to choose one of
+	the two methods rather than using both.
+
+There is also a generic modify_attribute on :class:`smc.base.model.Element` which is
+essentially the same as calling .update() above with the exception that it does not
+look at instance attributes, only the attributes provided in the constructor::
+
+	host = Host('kali')
+	host.modify_attribute(
+		address='3.3.3.3',
+		secondary=['12.12.12.12'],
+		comment='something about this host')
+
+A much more low-level way of modifying an element is to modify the data in cache (dict)
+directly. After making the modifications, you must also call .update() to submit the change.
+
 Modifying a service element after reviewing the element cache::
    
-	>>> from smc.elements.service import TCPService
-	>>> service = TCPService('api-tcp')
-	>>> print(service.href)
-	http://1.1.1.1:8082/6.1/elements/tcp_service/3505
+	>>> service = TCPService.create(name='aservice', min_dst_port=9090)
+	>>> service
+	TCPService(name=aservice)
 	...
-	>>> pprint(service.data)	#Show cache
-	{'key': 3505,
- 	 'link': [{'href': 'http://1.1.1.1:8082/6.1/elements/tcp_service/3505',
-                'method': 'GET',
-                'rel': 'self',
-                'type': 'tcp_service'},
-               {'href': 'http://1.1.1.1:8082/6.1/elements/tcp_service/3505/export',
-                'method': 'POST',
-                'rel': 'export'},
-               {'href': 'http://1.1.1.1:8082/6.1/elements/tcp_service/3505/search_category_tags_from_element',
-                'method': 'GET',
-                'rel': 'search_category_tags_from_element'}],
- 	'min_dst_port': 5000,
- 	'name': 'myapi-tcpservice',
- 	'read_only': False,
- 	'system': False}
-	... 
-	>>> service.modify_attribute(min_dst_port='6000')	#Call modify_attribute
 	>>> pprint(service.data)
-	{'key': 3505,
- 	 'link': [{'href': 'http://1.1.1.1:8082/6.1/elements/tcp_service/3505',
-                'method': 'GET',
-                'rel': 'self',
-                'type': 'tcp_service'},
-               {'href': 'http://1.1.1.1:8082/6.1/elements/tcp_service/3505/export',
-                'method': 'POST',
-                'rel': 'export'},
-               {'href': 'http://1.1.1.1:8082/6.1/elements/tcp_service/3505/search_category_tags_from_element',
-                'method': 'GET',
-                'rel': 'search_category_tags_from_element'}],
- 	'min_dst_port': 6000,
- 	'name': 'myapi-tcpservice',
- 	'read_only': False,
- 	'system': False}
+	{u'key': 3551,
+	 u'link': [{u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551',
+	            u'rel': u'self',
+	            u'type': u'tcp_service'},
+	           {u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551/export',
+	            u'rel': u'export'},
+	           {u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551/search_category_tags_from_element',
+	            u'rel': u'search_category_tags_from_element'}],
+	 u'min_dst_port': 9090,
+	 u'name': u'aservice',
+	 u'read_only': False,
+	 u'system': False}
+	 ...
+	>>> service.data['min_dst_port'] = 9091
+	>>> service.update()	# Submit to SMC, cache is refreshed
+	'http://172.18.1.150:8082/6.2/elements/tcp_service/3551'
+	...
+	>>> pprint(service.data)
+	{u'key': 3551,
+	 u'link': [{u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551',
+	            u'rel': u'self',
+	            u'type': u'tcp_service'},
+	           {u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551/export',
+	            u'rel': u'export'},
+	           {u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551/search_category_tags_from_element',
+	            u'rel': u'search_category_tags_from_element'}],
+	 u'min_dst_port': 9091,
+	 u'name': u'aservice',
+	 u'read_only': False,
+	 u'system': False}
 
-.. note:: Calling :func:`smc.base.model.ElementBase.modify_attribute` will make each change immediately
-		  after it is called and cache refreshed.
+Attributes supported by elements are documented in the API Reference: :ref:`element-reference-label`
+
+
 
 Delete
 ------

@@ -723,8 +723,8 @@ class MatchExpression(Element):
         :param Zone zone: zone to use
         :param str executable: name of executable or group
         :raises ElementNotFound: specified object does not exist
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: MatchExpression
         """
         ref_list = []
         if user:

@@ -235,7 +235,7 @@ class Routing(SubElement):
 
         :param str,OSPFArea ospf_area: OSPF area instance or href
         :param str communication_mode: NOT_FORCED|POINT_TO_POINT|PASSIVE|UNICAST
-        :param str unicast_ref: location ref of host (required for UNICAST)
+        :param str,Element unicast_ref: location ref or Element (required for UNICAST)
         :param str network: if network specified, only add OSPF to this network
             on interface
         :raises EngineCommandFailed: failure updating routing
@@ -252,6 +252,7 @@ class Routing(SubElement):
         
         if communication_mode == 'UNICAST':
             # Need a destination ref, add to sub routing_node
+            unicast_ref = element_resolver(unicast_ref)
             node['routing_node'].append({
                 'href': unicast_ref,
                 'level': 'any'})

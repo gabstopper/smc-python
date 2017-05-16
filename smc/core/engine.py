@@ -19,6 +19,7 @@ from smc.core.contact_address import ContactResource
 from smc.core.properties import EngineProperty
 from smc.elements.servers import LogServer
 from smc.base.collection import create_collection, sub_collection
+from smc.base.util import element_resolver
 
 
 class Engine(EngineProperty, Element):
@@ -154,9 +155,9 @@ class Engine(EngineProperty, Element):
 
     @property
     def type(self):
-        if not self.meta:
-            self.cache()
-        return self.meta.type
+        if not self._meta:
+            self._cache()
+        return self._meta.type
 
     @property
     def version(self):
@@ -176,12 +177,10 @@ class Engine(EngineProperty, Element):
         for node in self.nodes:
             node.rename(name)
         try:
-            del self.cache
+            del self._cache
         except AttributeError:
             pass
-        self.data['name'] = '{}'.format(name)
-        self._name = self.data.get('name')
-        self.update()
+        self.update(name=name)
         self.internal_gateway.rename(name)
 
     @property
@@ -680,7 +679,8 @@ class InternalGateway(SubElement):
 
     List endpoints where VPN can be enabled::
 
-        list(engine.internal_gateway.internal_endpoint.all())
+        >>> list(engine.internal_gateway.internal_endpoint.all())
+        [InternalEndpoint(name=10.0.0.254), InternalEndpoint(name=172.18.1.254)]
 
     """
 
@@ -688,8 +688,7 @@ class InternalGateway(SubElement):
         super(InternalGateway, self).__init__(**meta)
 
     def rename(self, name):
-        self.data['name'] = name = '{} Primary'.format(name)
-        self.update()
+        self.update(name='{} Primary'.format(name))
 
     @property
     def vpn_site(self):
@@ -698,8 +697,10 @@ class InternalGateway(SubElement):
 
         Find all configured sites for engine::
 
-            for site in engine.internal_gateway.vpn_site.all():
-                print site
+            >>> for sites in engine.internal_gateway.vpn_site:
+            ...   sites
+            ... 
+            VPNSite(name=Automatic Site for sg_vm_vpn)
 
         :return: collection of :class:`smc.vpn.elements.VPNSite`
         :rtype: SubElementCollection
@@ -715,8 +716,11 @@ class InternalGateway(SubElement):
 
         Find all internal endpoints for an engine::
 
-            for x in engine.internal_gateway.internal_endpoint.all():
-                print x
+            >>> for gw in engine.internal_gateway.internal_endpoint:
+            ...   gw
+            ... 
+            InternalEndpoint(name=10.0.0.254)
+            InternalEndpoint(name=172.18.1.254)
 
         :return: collection of :class:`.InternalEndpoint`
         :rtype: SubElementCollection
@@ -765,87 +769,30 @@ class InternalEndpoint(SubElement):
     engine, use an engine reference::
 
         >>> engine = Engine('sg_vm')
-        >>> for e in list(engine.internal_gateway.internal_endpoint):
+        >>> for e in engine.internal_gateway.internal_endpoint:
         ...   print(e)
         ...
         InternalEndpoint(name=10.0.0.254)
         InternalEndpoint(name=172.18.1.254)
     
-    Each property defines an attribute that can be modified. The property name
-    maps to the attribute name and return value to the type. For example, to 
-    specify custom endpoint settings::
+    Available attributes:
     
-        vpn.modify_attribute(
-            enabled=True,
-            nat_t=True,
-            force_nat_t=True,
-            ssl_vpn_portal=False,
-            ssl_vpn_tunnel=True,
-            ipsec_vpn=True)
+    :ivar bool enabled: enable this interface as a VPN endpoint
+        (default: False)
+    :ivar bool nat_t: enable NAT-T (default: False)
+    :ivar bool force_nat_t: force NAT-T (default: False)
+    :ivar bool ssl_vpn_portal: enable SSL VPN portal on the interface
+        (default: False)
+    :ivar bool ssl_vpn_tunnel: enable SSL VPN tunnel on the interface
+        (default: False)
+    :ivar bool ipsec_vpn: enable IPSEC VPN on the interface (default: False)
+    :ivar bool udp_encapsulation: Allow UDP encapsulation (default: False)
+    :ivar str balancing_mode: VPN load balancing mode. Valid options are:
+        'standby', 'aggregate', 'active' (default: 'active')
     """
 
     def __init__(self, **meta):
         super(InternalEndpoint, self).__init__(**meta)
-
-    @property
-    def enabled(self):
-        """
-        Is this VPN endpoint enabled
-        
-        :return: True, False
-        :rtype: boolean
-        """
-        return self.data.get('enabled')
-
-    @property
-    def force_nat_t(self):
-        """
-        Is force NAT-T enabled
-        
-        :return: True, False
-        :rtype: boolean
-        """
-        return self.data.get('force_nat_t')
-    
-    @property
-    def nat_t(self):
-        """
-        Is NAT-T enabled
-        
-        :return: True, False
-        :rtype: boolean
-        """
-        return self.data.get('nat_t')
-
-    @property
-    def ssl_vpn_portal(self):
-        """
-        Whether SSL VPN portal is enabled
-        
-        :return: True, False
-        :rtype: boolean
-        """
-        return self.data.get('ssl_vpn_portal')
-    
-    @property
-    def ssl_vpn_tunnel(self):
-        """
-        Whether SSL VPN Tunnel is enabled
-        
-        :return: True, False
-        :rtype: boolean
-        """
-        return self.data.get('ssl_vpn_tunnel')
-    
-    @property
-    def ipsec_vpn(self):
-        """
-        Whether IPSEC vpn is enabled on this VPN interface
-        
-        :return: True, False
-        :rtype: boolean
-        """
-        return self.data.get('ipsec_vpn')
         
     @property
     def physical_interface(self):
@@ -867,6 +814,15 @@ class VirtualResource(SubElement):
     resources::
 
         list(engine.virtual_resource.all())
+        
+    Available attributes:
+    
+    :ivar int connection_limit: Maximum number of connections for this virtual
+        engine. 0 means unlimited (default: 0)
+    :ivar bool show_master_nic: Show the master engine NIC id's in the virtual
+        engine.
+        
+    When updating this element, make modifications and call update()
     """
 
     def __init__(self, **meta):
@@ -921,33 +877,25 @@ class VirtualResource(SubElement):
         """
         return Element.from_href(self.data.get('allocated_domain_ref'))
 
-    @property
-    def connection_limit(self):
+    def set_admin_domain(self, admin_domain):
         """
-        Maximum connections allowed by this virtual engine
-
-        :return: connection limit
-        :rtype: int
+        Virtual Resources can be members of an Admin Domain to provide
+        delegated administration features. Assign an admin domain to
+        this resource. Admin Domains must already exist.
+        
+        :param str,AdminDomain admin_domain: Admin Domain to add
+        :return: None
         """
-        return self.data.get('connection_limit')
-
+        admin_domain = element_resolver(admin_domain)
+        self.data['allocated_domain_ref'] = admin_domain
+        
     @property
     def vfw_id(self):
         """
-        Virtual fw identifier. This is unique per virtual engine.
+        Read-Only virtual engine identifier. This is unique per virtual engine
+        and is set when the virtual resource is created.
 
         :return: vfw id
         :rtype: int
         """
         return self.data.get('vfw_id')
-
-    @property
-    def show_master_nic(self):
-        """
-        Show the Physical Interface IDs of the Master NGFW Engine in the
-        interface properties of the Virtual NGFW Engine.
-
-        :return: True, False if engine can see master engine nic order
-        :rtype: bool
-        """
-        return self.data.get('show_master_nic')

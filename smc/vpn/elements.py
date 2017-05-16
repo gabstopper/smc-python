@@ -1,6 +1,6 @@
 from smc.base.model import SubElement
 import smc.actions.search as search
-from smc.api.exceptions import CreateElementFailed, PolicyCommandFailed
+from smc.api.exceptions import CreateElementFailed
 from smc.base.model import Element, ElementCreator, prepared_request
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
@@ -47,8 +47,8 @@ class GatewaySettings(Element):
         :param boolean mobike_no_rrc: Whether the No RRC flag is set for 
             Mobike Policy
         :raises CreateElementFailed: failed creating profile
-        :return: href of new element
-        :rtype: str
+        :return: instance with meta
+        :rtype: GatewaySettings
         """
         json = {'name': name,
                 'negotiation_expiration': negotiation_expiration,
@@ -108,14 +108,14 @@ class ExternalGateway(Element):
         :param str name: name of test_external gateway
         :param bool trust_all_cas: whether to trust all internal CA's
                (default: True)
-        :return: :py:class:`smc.vpn.elements.ExternalGateway`
+        :return: instance with meta
+        :rtype: ExternalGateway
         """
         json = {'name': name,
                 'trust_all_cas': trust_all_cas}
 
         try:
-            ElementCreator(cls, json)
-            return ExternalGateway(name)
+            return ElementCreator(cls, json)
         except CreateElementFailed as err:
             raise CreateElementFailed(
                 'Failed creating test_external gateway, reason: {}'

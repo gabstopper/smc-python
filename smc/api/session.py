@@ -5,8 +5,7 @@ import json
 import logging
 import requests
 import smc.api.web
-from smc.api.exceptions import SMCConnectionError, ConfigLoadError,\
-    UnsupportedEntryPoint
+from smc.api.exceptions import SMCConnectionError, UnsupportedEntryPoint
 from smc.api.configloader import load_from_file
 
 # requests.packages.urllib3.disable_warnings()
@@ -107,7 +106,7 @@ class Session(object):
         if not url or not api_key:
             cfg = load_from_file(alt_filepath) if alt_filepath\
                     is not None else load_from_file()
-            logger.debug("Read config data: %s", cfg)
+            logger.debug('Read config data: %s', cfg)
             url = cfg.get('url')
             api_key = cfg.get('api_key')
             api_version = cfg.get('api_version')

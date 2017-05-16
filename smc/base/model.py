@@ -46,11 +46,10 @@ Element class relationship::
 Classes that do not require state on retrieved json or provide basic
 container functionality may inherit from object.
 """
-import copy
 from collections import namedtuple
-import functools
 import smc.compat as compat
 import smc.base.collection
+from smc.base.decorators import cached_property, exception
 from smc.api.web import counters
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
@@ -61,21 +60,6 @@ from smc.base.resource import with_metaclass, Registry
 from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
     find_type_from_self
 from .mixins import UnicodeMixin
-
-
-def exception(function):
-    """
-    If exception was specified for prepared_request,
-    inject this into SMCRequest so it can be used for
-    return if needed.
-    """
-    @functools.wraps(function)
-    def wrapper(*exception, **kwargs):
-        result = function(**kwargs)
-        if exception:
-            result.exception = exception[0]
-        return result
-    return wrapper
 
 
 @exception
@@ -102,26 +86,15 @@ class classproperty(object):
         return self.fget(owner_cls)
 
 
-class cached_property(object):
-    """
-    Use for caching a property value on the instance. If the
-    attribute is deleted, it will be recreated when called.
-    """
-
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, obj, cls):
-        if obj is None:
-            return self
-        value = obj.__dict__[self.func.__name__] = self.func(obj)
-        return value
-
-
 def ElementCreator(cls, json):
     """
     Helper method for create classmethods. Returns the href if
-    creation is successful
+    creation is successful. This is a lazy load that will provide
+    only the meta for the element. Additional attribute access
+    will load the full data.
+    
+    :return: instance of type Element with meta
+    :rtype: Element
     """
     result = SMCRequest(
         href=fetch_entry_point(cls.typeof),
@@ -129,7 +102,10 @@ def ElementCreator(cls, json):
     ).create()
     if result.msg:
         raise CreateElementFailed(result.msg)
-    return result.href
+
+    return cls(json.get('name'),
+               type=cls.typeof,
+               href=result.href)
 
 
 def ElementFactory(href):
@@ -144,7 +120,7 @@ def ElementFactory(href):
         e = typeof(name=element.json.get('name'),
                    href=href,
                    type=istype)
-        e.cache = Cache(e, element.json, element.etag)
+        e._cache = Cache(e, element.json, element.etag)
         return e
 
 
@@ -219,7 +195,7 @@ class Cache(object):
             self._cache = (etag, json)
         else:
             self._cache = None
-
+    
     def __call__(self, *args, **kwargs):
         counters.update(cache=1)
         if self._cache is None or kwargs.get('force_refresh'):
@@ -260,7 +236,7 @@ class ElementLocator(object):
     Host('myhost'), you will have an empty instance as the cache is not
     hydrated until some action is called on it that accesses the instance
     property 'data'.
-    Once hydrated, original json is stored in instance.cache.
+    Once hydrated, original json is stored in instance._cache.
 
     Classes deriving from :class:`SubElement` do not have valid entry points in
     the SMC API and will be typically created through a reference link.
@@ -271,16 +247,16 @@ class ElementLocator(object):
 
     def __get__(self, instance, cls=None):
         # Does the instance already have meta data
-        if instance.meta:
-            return instance.meta.href
+        if instance._meta:
+            return instance._meta.href
         else:
             if hasattr(instance, 'typeof'):
                 element = fetch_href_by_name(
                     instance.name,
                     filter_context=instance.typeof)
                 if element.json:
-                    instance.meta = Meta(**element.json[0])
-                    return instance.meta.href
+                    instance._meta = Meta(**element.json[0])
+                    return instance._meta.href
                 raise ElementNotFound(
                     'Cannot find specified element: {}, type: {}'
                     .format(unicode_to_bytes(instance.name),
@@ -309,34 +285,38 @@ class ElementBase(UnicodeMixin):
     def __init__(self, **meta):
         meta_as_kw = meta.pop('meta', None)
         if meta_as_kw:
-            self.meta = Meta(**meta_as_kw)
+            self._meta = Meta(**meta_as_kw)
         else:
-            self.meta = Meta(**meta) if meta else None
+            self._meta = Meta(**meta) if meta else None
 
     def _add_cache(self, data, etag=None):
-        self.cache = Cache(self, data, etag)
+        self._cache = Cache(self, data, etag)
         
     @cached_property
-    def cache(self):
+    def _cache(self):
         return Cache(self)
 
     @cached_property
-    def resource(self):
+    def _resource(self):
         res = ElementResource()
         for link in self.data.get('link'):
             setattr(res, link.get('rel'), link.get('href'))
         return res
 
     @property
+    def resource(self):
+        return self._resource
+        
+    @property
     def data(self):
-        return self.cache.data
+        return self._cache.data
 
     @property
     def etag(self):
         """
         ETag for this element
         """
-        return self.cache.etag
+        return self._cache.etag
 
     def attr_by_name(self, attr):
         """
@@ -361,34 +341,75 @@ class ElementBase(UnicodeMixin):
 
     def update(self, *exception, **kwargs):
         """
-        Update wrapper around cache to handle modifications
-        requests and clear element cache. This is called in
-        various places to ensure the cache stays current.
+        Update the existing element and clear the instance cache.
+        Removing the cache will ensure subsequent calls requiring element
+        attributes will force a new fetch to obtain the latest copy.
+        
+        If attributes are set via kwargs and instance attributes are also
+        set, instance attributes are updated first, then kwargs. Typically
+        you will want to use either instance attributes OR kwargs, not both.
+        
+        For kwargs, if attribute values are a list, you can pass
+        'append_lists=True' to add to an existing list, otherwise overwrite
+        (default: overwrite)
+        
+        .. seealso:: To see different ways to utilize this method for updating,
+            see: :ref:`update-elements-label`.
+        
+        :param exception: pass a custom exception to throw if failure
+        :param kwargs: optional kwargs to update request data to server.
+        :return: href of the element modified
+        :rtype: str
         """
-        if 'href' not in kwargs:
-            kwargs.update(href=self.href)
-
-        if 'json' not in kwargs:
-            # update from copy of cache before clearing
-            kwargs.update(json=copy.deepcopy(self.data))
-
-        # Etag taken from instance
-        if 'etag' not in kwargs:
-            kwargs.update(etag=self.etag)
-
-        # Delete cache
-        del self.cache
-
         if not exception:
             exception = UpdateElementFailed
         else:
             exception = exception[0]
-        # Return href from SMC
-        return prepared_request(
-            exception,
-            **kwargs
-        ).update().href
+        
+        params = {
+            'href': self.href,
+            'etag': self.etag}
+    
+        if 'href' in kwargs:
+            params.update(href=kwargs.pop('href'))
+            
+        if 'etag' in kwargs:
+            params.update(etag=kwargs.pop('etag'))
+        
+        name = kwargs.get('name', None)
+        
+        # Attributes set on the instance
+        instance_attr = {attr: val for attr, val in vars(self).items()
+                         if not attr.startswith('_')}
+        
+        if instance_attr:
+            self.data.update(**instance_attr)
+            
+        # If kwarg settings are provided AND instance variables, kwargs
+        # will overwrite collected instance attributes with the same name.
+        if kwargs:
+            append_lists = kwargs.pop('append_lists', False)
+            merge_dicts(self.data, kwargs, append_lists)
+        
+        params.update(json=self.data)
+        
+        del self._cache
+        
+        # Remove attributes from instance if previously set
+        if instance_attr:
+            for attr in instance_attr.keys():
+                delattr(self, attr)
 
+        result = prepared_request(
+            exception,
+            **params
+            ).update().href
+        
+        if name: # Reset instance name
+            self._name = name
+        
+        return result
+    
     def modify_attribute(self, **kwargs):
         """
         Modify the attribute by key / value pair.
@@ -409,7 +430,15 @@ class ElementBase(UnicodeMixin):
         append_lists = kwargs.pop('append_lists', False)
         merge_dicts(self.data, kwargs, append_lists)
         self.update()
-
+    
+    def __getattr__(self, attr):
+        if attr not in ['typeof']:
+            try:
+                return self.data[attr]
+            except KeyError:
+                pass
+        raise AttributeError("%r object has no attribute %r"
+            % (self.__class__, attr))            
 
 class Element(ElementBase):
     """
@@ -451,6 +480,53 @@ class Element(ElementBase):
         """
         return lookup_class(meta.get('type'))(**meta)
 
+    @classmethod
+    def get_or_create(cls, filter_key=None, **kwargs):
+        """
+        Convenience method to retrieve an Element or create if it does not
+        exist. This is useful for network elements where you may know the
+        value and type but not name of if it already exists. If filter_key
+        is provided, this should define an attribute and value to use for an
+        exact match on the element. Valid attributes are ones required on the
+        elements ``create`` method or can be viewed by obtaining the element
+        and examining the ``data`` attribute. If no filter_key is provided,
+        the name field will be used to find the element.
+        
+        Example of getting an element of type Network::
+        
+            >>> Network.get_or_create(
+                filter_key={'ipv4_network': '123.123.123.0/24'},
+                name='mynetwork',
+                ipv4_network='123.123.123.0/24')
+            Network(name=mynetwork)
+
+        The kwargs should be used to satisfy the elements ``create``
+        classmethod parameters to create in the event it cannot be found.
+        
+        :param dict filter_key: filter key represents the data attribute and
+            value to use to find the element. If none is provided, the name
+            field will be used.
+        :param kwargs: keyword arguments mapping to the elements ``create``
+            method.
+        :raises CreateElementFailed: could not create element with reason
+        :return: element instance by type
+        :rtype: Element
+        """
+        if filter_key:
+            attr, value = next(iter(filter_key.items()))
+            network = cls.objects.filter(value).filter_key([attr])
+            if network.exists():
+                return network.first()
+            element = cls.create(**kwargs)
+        else:
+            try:
+                element = cls(
+                    kwargs.get('name')); element.href
+            except ElementNotFound:
+                element = cls.create(**kwargs)
+        
+        return element
+    
     @property
     def name(self):
         """
@@ -460,6 +536,17 @@ class Element(ElementBase):
             return self._name
         return bytes_to_unicode(self._name)
 
+    @property
+    def comment(self):
+        """
+        Comment for element
+        """
+        return self.data.get('comment', None)
+    
+    @comment.setter
+    def comment(self, comment):
+        self.data['comment'] = comment
+    
     def rename(self, name):
         """
         Rename this element.
@@ -468,19 +555,9 @@ class Element(ElementBase):
         :raises UpdateElementFailed: update failed with reason
         :return: None
         """
-        self.modify_attribute(name=name)
-        self._name = name
-    
-    def comment(self, comment):
-        """
-        Add a comment to this element
-        
-        :param str comment: comment to add. Comments are searchable.
-        :return: None
-        """
-        self.modify_attribute(comment=comment)
-    
-    def add_category(self, tags):
+        self.update(name=name)
+
+    def add_category(self, category):
         """
         Category Tags are used to characterize an element by a type
         identifier. They can then be searched and returned as a group
@@ -495,9 +572,9 @@ class Element(ElementBase):
         
         .. seealso:: :class:`smc.elements.other.Category`
         """
-        assert isinstance(tags, list), 'Category input was expecting list.'
+        assert isinstance(category, list), 'Category input was expecting list.'
         from smc.elements.other import Category
-        for tag in tags:
+        for tag in category:
             category = Category(tag)
             try:
                 category.add_element(self.href)
@@ -585,11 +662,11 @@ class SubElement(ElementBase):
 
     @property
     def name(self):
-        return self.meta.name if self.meta else None
+        return self._meta.name if self._meta else None
 
     @property
     def href(self):
-        return self.meta.href if self.meta else None
+        return self._meta.href if self._meta else None
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)

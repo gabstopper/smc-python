@@ -1,17 +1,25 @@
 """
 Properties provide helper functions to enable, disable or configure
 features of an Engine after it has already been created. When a setting
-is modified, it will perform the update to the engine immediately.
+is modified, the engine instance is updated, however not submitted to the
+SMC until calling .update(). Alternatively, you can provide the kwarg 
+'autocommit=True' to force the update immediately.
 
 Once these settings have been modified, it is still required to update
 the policy on the engine or install a policy for the first time.
+
+For functions with the ``**kw`` parameter, you can optionally provide 
+``autocommit=True`` which will save the change to the SMC at the end of
+the function call. Otherwise the change is 'queued' in the elements cache
+until self.update() is called.
 
 To refresh policy::
 
     engine = Engine('vm')
     engine.add_dns_servers(['3.3.3.3', '4.4.4.4'])
     engine.enable_gti_file_reputation()
-    engine.enable_antivirus(log_level='stored')
+    engine.enable_antivirus(log_level='stored', autocommit=True)
+    #engine.update()    <-- without 'autocommit=True', call .update() to save
     for status in engine.refresh():
         print(status)
 
@@ -19,6 +27,7 @@ Installing new policy::
 
     engine = Engine('vm')
     engine.add_dns_servers(['3.3.3.3', '4.4.4.4'])
+    engine.update()
     for status in engine.upload(policy='vm-fw', wait_for_finish=True):
         print(status)
 
@@ -28,6 +37,7 @@ Installing new policy::
 
 """
 from smc.base.model import Element
+from smc.base.decorators import autocommit
 from smc.routing.ospf import OSPFProfile
 from smc.api.exceptions import UnsupportedEngineFeature
 from smc.elements.profiles import DNSRelayProfile
@@ -41,8 +51,8 @@ class EngineProperty:
     set or changed after the engine exists. Each setting requires
     that policy be refreshed to take effect.
     """
-
-    def enable_dns_relay(self, interface_id, dns_relay_profile=None):
+    @autocommit
+    def enable_dns_relay(self, interface_id, dns_relay_profile=None, **kw):
         """
         DNS Relay allows the engine to provide DNS caching or specific
         host, IP and domain replies to clients. It can also be used
@@ -69,9 +79,9 @@ class EngineProperty:
             d.update(dns_relay_interface=([{'address': ip, 'nicid': nicid}
                                            for ip, _, nicid in data.addresses]))
             self.data.update(**d)
-            self.update()
-
-    def disable_dns_relay(self):
+    
+    @autocommit
+    def disable_dns_relay(self, **kw):
         """
         Disable DNS Relay. This requires a policy push to update the
         engine settings.
@@ -83,7 +93,6 @@ class EngineProperty:
         if self.is_dns_relay_enabled:
             self.data.update(dns_relay_interface=[])
             self.data.pop('dns_relay_profile_ref', None)
-            self.update()
 
     @property
     def is_dns_relay_enabled(self):
@@ -113,7 +122,8 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'Sidewinder Proxy requires a layer 3 engine and version >= v6.1.')
 
-    def enable_sidewinder_proxy(self):
+    @autocommit
+    def enable_sidewinder_proxy(self, **kw):
         """
         Enable Sidewinder Proxy on this engine. This requires
         engine version >= 6.2.
@@ -124,9 +134,9 @@ class EngineProperty:
         """
         if not self.is_sidewinder_proxy_enabled:
             self.data.update(sidewinder_proxy_enabled=True)
-            self.update()
 
-    def disable_sidewinder_proxy(self):
+    @autocommit
+    def disable_sidewinder_proxy(self, **kw):
         """
         Disable Sidewinder Proxy on this engine. This requires
         engine version >= 6.2.
@@ -137,7 +147,6 @@ class EngineProperty:
         """
         if self.is_sidewinder_proxy_enabled:
             self.data.update(sidewinder_proxy_enabled=False)
-            self.update()
 
     @property
     def is_gti_enabled(self):
@@ -156,7 +165,8 @@ class EngineProperty:
             'GTI should be enabled on the Master Engine not directly on the '
             'virtual engine.')
 
-    def enable_gti_file_reputation(self):
+    @autocommit
+    def enable_gti_file_reputation(self, **kw):
         """
         Enable McAfee GTI File Reputation on this engine. Enabling
         GTI requires DNS server settings and GTI must be enabled on
@@ -169,8 +179,8 @@ class EngineProperty:
         if not self.is_gti_enabled:
             gti = self.data['gti_settings']
             gti.update(file_reputation_context='gti_cloud_only')
-            self.update()
-
+    
+    @autocommit
     def disable_gti_file_reputation(self):
         """
         Disable McAfee GTI File Reputation on this engine.
@@ -182,8 +192,7 @@ class EngineProperty:
         if self.is_gti_enabled:
             gti = self.data['gti_settings']
             gti.update(file_reputation_context='disabled')
-            self.update()
-
+    
     @property
     def is_antivirus_enabled(self):
         """
@@ -198,7 +207,8 @@ class EngineProperty:
             'Antivirus is not supported directly on this engine type. If this '
             'is a virtual engine, AV is enabled on the master engine.')
 
-    def enable_antivirus(self, log_level='stored'):
+    @autocommit
+    def enable_antivirus(self, log_level='stored', **kw):
         """
         Enable Antivirus on this engine. Enabling anti-virus requires
         DNS server settings to resolve the AV update servers.
@@ -212,9 +222,9 @@ class EngineProperty:
             av = self.data['antivirus']
             av.update(antivirus_enabled=True,
                       virus_log_level=log_level)
-            self.update()
-
-    def disable_antivirus(self):
+    
+    @autocommit
+    def disable_antivirus(self, **kw):
         """
         Disable Anti-virus on this engine.
 
@@ -225,7 +235,6 @@ class EngineProperty:
         if self.is_antivirus_enabled:
             av = self.data['antivirus']
             av.update(antivirus_enabled=False)
-            self.update()
 
     @property
     def is_bgp_enabled(self):
@@ -243,8 +252,9 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'Dynamic routing is only supported on layer 3 engine types')
 
+    @autocommit
     def enable_bgp(self, autonomous_system, announced_networks,
-                   router_id=None, bgp_profile=None):
+                   router_id=None, bgp_profile=None, **kw):
         """
         Enable BGP on this engine. On master engine, enable BGP on the
         virtual firewall.
@@ -285,9 +295,9 @@ class EngineProperty:
                 'bgp_profile_ref': bgp_profile,
                 'announced_ne_setting': announced,
                 'router_id': router_id}
-            self.update()
 
-    def disable_bgp(self):
+    @autocommit
+    def disable_bgp(self, **kw):
         """
         Disable BGP on this engine.
 
@@ -299,7 +309,6 @@ class EngineProperty:
             routing['bgp'] = {
                 'enabled': False,
                 'announced_ne_setting': []}
-            self.update()
 
     @property
     def is_ospf_enabled(self):
@@ -316,7 +325,8 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'Dynamic routing is only supported on layer 3 engine types')
 
-    def enable_ospf(self, ospf_profile=None, router_id=None):
+    @autocommit
+    def enable_ospf(self, ospf_profile=None, router_id=None, **kw):
         """
         Enable OSPF on this engine. For master engines, enable
         OSPF on the virtual firewall.
@@ -347,9 +357,9 @@ class EngineProperty:
                 'enabled': True,
                 'ospfv2_profile_ref': ospf_profile,
                 'router_id': router_id}
-            self.update()
 
-    def disable_ospf(self):
+    @autocommit
+    def disable_ospf(self, **kw):
         """
         Disable OSPF on this engine.
 
@@ -360,9 +370,9 @@ class EngineProperty:
         if self.is_ospf_enabled:
             routing = self.data['dynamic_routing']
             routing['ospfv2'] = {'enabled': False}
-            self.update()
 
-    def add_dns_servers(self, dns_servers):
+    @autocommit
+    def add_dns_servers(self, dns_servers, **kw):
         """
         Add DNS servers to this engine.
 
@@ -372,7 +382,6 @@ class EngineProperty:
         for num, server in enumerate(dns_servers):
             self.data['domain_server_address'].append(
                 {'rank': num, 'value': server})
-        self.update()
 
     @property
     def dns_servers(self):
@@ -404,7 +413,8 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'This engine type does not support default NAT.')
 
-    def enable_default_nat(self):
+    @autocommit
+    def enable_default_nat(self, **kw):
         """
         Enable default NAT at the engine level for engines that
         support NAT (i.e. layer 3 engines)
@@ -415,9 +425,9 @@ class EngineProperty:
         """
         if not self.is_default_nat_enabled:
             self.data.update(default_nat=True)
-            self.update()
 
-    def disable_default_nat(self):
+    @autocommit
+    def disable_default_nat(self, **kw):
         """
         Disable default NAT on this engine if supported.
 
@@ -427,7 +437,6 @@ class EngineProperty:
         """
         if self.is_default_nat_enabled:
             self.data.update(default_nat=False)
-            self.update()
 
     @property
     def is_sandbox_enabled(self):
@@ -447,8 +456,9 @@ class EngineProperty:
             'Enabling sandbox should be done on the Master Engine, not '
             'directly on the virtual engine.')
 
+    @autocommit
     def enable_sandbox(self, license_key, license_token,
-                       service=None):
+                       service=None, **kw):
         """
         Enable cloud sandbox on this engine. Cloud sandbox provides the ability to
         extract file type content and interrogate for behavioral purposes to
@@ -475,9 +485,9 @@ class EngineProperty:
                            sandbox_service=service)
             self.data.update(cloud_sandbox_settings=sandbox)
             self.data.update(sandbox_type='cloud_sandbox')
-            self.update()
 
-    def disable_sandbox(self):
+    @autocommit
+    def disable_sandbox(self, **kw):
         """
         Disable sandbox on this engine
 
@@ -487,7 +497,6 @@ class EngineProperty:
         if self.is_sandbox_enabled:
             self.data['sandbox_type'] = 'none'
             self.data.pop('cloud_sandbox_settings')
-            self.update()
 
     @property
     def is_url_filtering_enabled(self):
@@ -504,7 +513,8 @@ class EngineProperty:
             'Enabling URL Filtering should be done on the Master Engine, not '
             'directly on the virtual engine.')
 
-    def enable_url_filtering(self):
+    @autocommit
+    def enable_url_filtering(self, **kw):
         """
         Enable URL Filtering on this engine.
 
@@ -515,9 +525,9 @@ class EngineProperty:
         """
         if not self.is_url_filtering_enabled:
             self.data.update(ts_settings={'ts_enabled': True})
-            self.update()
 
-    def disable_url_filtering(self):
+    @autocommit
+    def disable_url_filtering(self, **kw):
         """
         Disable URL Filtering on this engine.
 
@@ -526,7 +536,6 @@ class EngineProperty:
         """
         if self.is_url_filtering_enabled:
             self.data.update(ts_settings={'ts_enabled': False})
-            self.update()
 
     @property
     def location(self):
@@ -537,7 +546,8 @@ class EngineProperty:
         """
         return Element.from_href(self.data.get('location_ref'))
 
-    def set_location(self, location):
+    @autocommit
+    def set_location(self, location, **kw):
         """
         Set the location for this engine.
         ::
@@ -553,7 +563,6 @@ class EngineProperty:
         """
         location = element_resolver(location)
         self.data['location_ref'] = location
-        self.update()
 
     @property
     def log_server(self):
@@ -600,6 +609,9 @@ class EngineProperty:
         :raises UpdateElementFailed: failed to add vpn site
         :return: href of new element
         :rtype: str
+        
+        .. note:: As this is a create operation, this function does not require
+            an additional call to save the operation.
         """
         site_elements = site_elements if site_elements else []
         return self.internal_gateway.vpn_site.create(

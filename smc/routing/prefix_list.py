@@ -30,6 +30,13 @@ class PrefixList(object):
             IPv6PrefixList.create(
                             name='v6prefix',
                             entries=[('ab00::/64', 65, 128, 'deny')])
+        
+        :param str name: name of prefix list
+        :param list entries: list of tuple values specifying (address,
+            min_prefix_length, max_prefix_length, action)
+        :type entries: list(tuple)
+        :return: instance with meta
+        :rtype: PrefixList
         """
         prefix_list_entry = []
         if entries:
