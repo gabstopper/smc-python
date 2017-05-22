@@ -50,7 +50,7 @@ class FileFilteringPolicy(Policy):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.file_filtering_rules,
+            self._resource.file_filtering_rules,
             FileFilteringRule)
 
     def export(self): pass  # Not valid on file filtering policy

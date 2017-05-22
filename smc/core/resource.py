@@ -36,7 +36,7 @@ class Snapshot(SubElement):
             filename = '{}{}'.format(self.name, '.zip')
         try:
             prepared_request(EngineCommandFailed,
-                             href=self.resource.content,
+                             href=self._resource.content,
                              filename=filename
                              ).read()
         except IOError as e:

@@ -26,28 +26,34 @@ the Role resource.
 Available and current permission settings can be found by calling permissions
 attribute::
 
->>> role = Role('newrole')
->>> role.permissions
-[{'alert_mgmt': False}, {'send_advanced_commands': False}, {'license_mgmt': False}, {'element_edit': False},
- {'view_edit_report': False}, {'view_system_alerts': False}, {'view_logs': False}, {'vpn_mgmt': False},
- {'log_pruning_mgmt': False}, {'updates_and_upgrades_mgmt': False}, {'auth_server_user_mgmt': False},
- {'view_audit': False}, {'element_delete': False}, {'element_create': False}, {'upload_policy': False},
- {'send_commands': False}, {'backup_mgmt': False}, {'element_view_content': True}, {'log_mgmt': False},
- {'bookmark_manage': True}, {'admin_mgmt': False}, {'name': 'newrole'}, {'overview_manage': True},
- {'internal_user_mgmt': False}, {'refresh_policy': False}]
+    >>> role = Role('newrole')
+    >>> role.permissions
+    [{'alert_mgmt': False}, {'send_advanced_commands': False}, {'license_mgmt': False}, {'element_edit': False},
+     {'view_edit_report': False}, {'view_system_alerts': False}, {'view_logs': False}, {'vpn_mgmt': False},
+     {'log_pruning_mgmt': False}, {'updates_and_upgrades_mgmt': False}, {'auth_server_user_mgmt': False},
+     {'view_audit': False}, {'element_delete': False}, {'element_create': False}, {'upload_policy': False},
+     {'send_commands': False}, {'backup_mgmt': False}, {'element_view_content': True}, {'log_mgmt': False},
+     {'bookmark_manage': True}, {'admin_mgmt': False}, {'name': 'newrole'}, {'overview_manage': True},
+     {'internal_user_mgmt': False}, {'refresh_policy': False}]
 
 Then enable specific roles::
 
->>> role.enable(['element_create', 'upload_policy'])
+    >>> role.enable(['element_create', 'upload_policy'])
 
 Also disable specific roles::
 
->>> role.disable(['element_create', 'upload_policy'])
+    >>> role.disable(['element_create', 'upload_policy'])
     
 """
 from smc.base.model import Element, ElementCreator
+from smc.base.decorators import autocommit
 
 class Role(Element):
+    """
+    Role class represents granular access control rights that can
+    be applied to specific elements (Engines, Policies or Access Control
+    Lists).
+    """
     typeof = 'role'
     reserved = ['key',
                 'link',
@@ -73,11 +79,13 @@ class Role(Element):
         role.data['name'] = name
     
         return ElementCreator(cls, role.data)
-        
-    def enable(self, values):
+    
+    @autocommit(now=False)   
+    def enable(self, values, autocommit=False):
         """
-        Enable specific permissions on this role. Use :meth:`~permissions` to
-        view valid permission settings and current value/s.
+        Enable specific permissions on this role. Use :py:attr:`~permissions` to
+        view valid permission settings and current value/s. Change is committed
+        immediately.
         
         :param list values: list of values by allowed types
         :return: None
@@ -86,10 +94,12 @@ class Role(Element):
             if value in self.data:
                 self.data[value] = True
     
-    def disable(self, values):
+    @autocommit(now=False)
+    def disable(self, values, autocommit=False):
         """
-        Disable specific permissions on this role. Use :meth:`~permissions` to
-        view valid permission settings and current value/s.
+        Disable specific permissions on this role. Use :py:attr:`~permissions` to
+        view valid permission settings and current value/s. Change is committed
+        immediately.
         
         :param list values: list of values by allowed types
         :return: None

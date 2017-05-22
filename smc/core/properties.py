@@ -51,7 +51,7 @@ class EngineProperty:
     set or changed after the engine exists. Each setting requires
     that policy be refreshed to take effect.
     """
-    @autocommit
+    @autocommit(now=False)
     def enable_dns_relay(self, interface_id, dns_relay_profile=None, **kw):
         """
         DNS Relay allows the engine to provide DNS caching or specific
@@ -80,7 +80,7 @@ class EngineProperty:
                                            for ip, _, nicid in data.addresses]))
             self.data.update(**d)
     
-    @autocommit
+    @autocommit(now=False)
     def disable_dns_relay(self, **kw):
         """
         Disable DNS Relay. This requires a policy push to update the
@@ -122,7 +122,7 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'Sidewinder Proxy requires a layer 3 engine and version >= v6.1.')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_sidewinder_proxy(self, **kw):
         """
         Enable Sidewinder Proxy on this engine. This requires
@@ -135,7 +135,7 @@ class EngineProperty:
         if not self.is_sidewinder_proxy_enabled:
             self.data.update(sidewinder_proxy_enabled=True)
 
-    @autocommit
+    @autocommit(now=False)
     def disable_sidewinder_proxy(self, **kw):
         """
         Disable Sidewinder Proxy on this engine. This requires
@@ -165,7 +165,7 @@ class EngineProperty:
             'GTI should be enabled on the Master Engine not directly on the '
             'virtual engine.')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_gti_file_reputation(self, **kw):
         """
         Enable McAfee GTI File Reputation on this engine. Enabling
@@ -180,7 +180,7 @@ class EngineProperty:
             gti = self.data['gti_settings']
             gti.update(file_reputation_context='gti_cloud_only')
     
-    @autocommit
+    @autocommit(now=False)
     def disable_gti_file_reputation(self):
         """
         Disable McAfee GTI File Reputation on this engine.
@@ -207,7 +207,7 @@ class EngineProperty:
             'Antivirus is not supported directly on this engine type. If this '
             'is a virtual engine, AV is enabled on the master engine.')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_antivirus(self, log_level='stored', **kw):
         """
         Enable Antivirus on this engine. Enabling anti-virus requires
@@ -223,7 +223,7 @@ class EngineProperty:
             av.update(antivirus_enabled=True,
                       virus_log_level=log_level)
     
-    @autocommit
+    @autocommit(now=False)
     def disable_antivirus(self, **kw):
         """
         Disable Anti-virus on this engine.
@@ -252,7 +252,7 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'Dynamic routing is only supported on layer 3 engine types')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_bgp(self, autonomous_system, announced_networks,
                    router_id=None, bgp_profile=None, **kw):
         """
@@ -296,7 +296,7 @@ class EngineProperty:
                 'announced_ne_setting': announced,
                 'router_id': router_id}
 
-    @autocommit
+    @autocommit(now=False)
     def disable_bgp(self, **kw):
         """
         Disable BGP on this engine.
@@ -325,7 +325,7 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'Dynamic routing is only supported on layer 3 engine types')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_ospf(self, ospf_profile=None, router_id=None, **kw):
         """
         Enable OSPF on this engine. For master engines, enable
@@ -358,7 +358,7 @@ class EngineProperty:
                 'ospfv2_profile_ref': ospf_profile,
                 'router_id': router_id}
 
-    @autocommit
+    @autocommit(now=False)
     def disable_ospf(self, **kw):
         """
         Disable OSPF on this engine.
@@ -371,7 +371,7 @@ class EngineProperty:
             routing = self.data['dynamic_routing']
             routing['ospfv2'] = {'enabled': False}
 
-    @autocommit
+    @autocommit(now=False)
     def add_dns_servers(self, dns_servers, **kw):
         """
         Add DNS servers to this engine.
@@ -413,7 +413,7 @@ class EngineProperty:
         raise UnsupportedEngineFeature(
             'This engine type does not support default NAT.')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_default_nat(self, **kw):
         """
         Enable default NAT at the engine level for engines that
@@ -426,7 +426,7 @@ class EngineProperty:
         if not self.is_default_nat_enabled:
             self.data.update(default_nat=True)
 
-    @autocommit
+    @autocommit(now=False)
     def disable_default_nat(self, **kw):
         """
         Disable default NAT on this engine if supported.
@@ -456,7 +456,7 @@ class EngineProperty:
             'Enabling sandbox should be done on the Master Engine, not '
             'directly on the virtual engine.')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_sandbox(self, license_key, license_token,
                        service=None, **kw):
         """
@@ -486,7 +486,7 @@ class EngineProperty:
             self.data.update(cloud_sandbox_settings=sandbox)
             self.data.update(sandbox_type='cloud_sandbox')
 
-    @autocommit
+    @autocommit(now=False)
     def disable_sandbox(self, **kw):
         """
         Disable sandbox on this engine
@@ -513,7 +513,7 @@ class EngineProperty:
             'Enabling URL Filtering should be done on the Master Engine, not '
             'directly on the virtual engine.')
 
-    @autocommit
+    @autocommit(now=False)
     def enable_url_filtering(self, **kw):
         """
         Enable URL Filtering on this engine.
@@ -526,7 +526,7 @@ class EngineProperty:
         if not self.is_url_filtering_enabled:
             self.data.update(ts_settings={'ts_enabled': True})
 
-    @autocommit
+    @autocommit(now=False)
     def disable_url_filtering(self, **kw):
         """
         Disable URL Filtering on this engine.
@@ -546,7 +546,7 @@ class EngineProperty:
         """
         return Element.from_href(self.data.get('location_ref'))
 
-    @autocommit
+    @autocommit(now=False)
     def set_location(self, location, **kw):
         """
         Set the location for this engine.

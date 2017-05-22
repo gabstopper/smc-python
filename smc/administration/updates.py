@@ -27,7 +27,7 @@ class PackageMixin(object):
         try:
             result = prepared_request(
                 ActionCommandFailed,
-                href=self.resource.download
+                href=self._resource.download
             ).create()
 
             return task_handler(
@@ -56,7 +56,7 @@ class PackageMixin(object):
         try:
             result = prepared_request(
                 ActionCommandFailed,
-                href=self.resource.activate,
+                href=self._resource.activate,
                 json={'resource': resource}
             ).create()
 

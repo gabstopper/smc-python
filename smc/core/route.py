@@ -80,7 +80,9 @@ Routing node nesting can be represented as::
 .. note::
     Adding OSPF and BGP is done at the interface level, however can still be applied only to a
     specific network if desired.
-
+    
+When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the configuration
+is updated immediately.
 """
 from collections import namedtuple
 from smc.base.model import SubElement

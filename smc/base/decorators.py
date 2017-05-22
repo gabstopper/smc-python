@@ -2,7 +2,7 @@
 Decorators used in various areas throughout smc-python.
 """
 import functools
-
+from smc import session
 
 class cached_property(object):
     """
@@ -18,21 +18,29 @@ class cached_property(object):
             return self
         value = obj.__dict__[self.func.__name__] = self.func(obj)
         return value
-    
 
-def autocommit(method):
+
+def autocommit(now=False):
     """
-    Decorate a method with this to invoke self.update() at the
-    end of the function call. Otherwise calling update would be
-    required after functions that make modifications to elements.
+    A method decorated with autocommit provides a mechanism to delay (or not)
+    the update of an element. If methods decorated with autocommit should
+    always update after completion, provide autocommit=True to the constructor
+    or set session.AUTOCOMMIT = True.
+    If autocommit is not set, you must make your changes and call .update() on
+    the element.
     """
-    @functools.wraps(method)
-    def inner(self, *args, **kwargs):
-        commit = kwargs.pop('autocommit', False)
-        method(self, *args, **kwargs)
-        if commit:
-            self.update()
-    return inner
+    def _decorator(func):
+        @functools.wraps(func)
+        def _wrapped_func(self, *args, **kwargs):
+            as_kwarg = kwargs.pop('autocommit', None)
+            func(self, *args, **kwargs)
+            if as_kwarg is not None:
+                if as_kwarg:
+                    self.update()
+            elif (now or session.AUTOCOMMIT):
+                self.update()
+        return _wrapped_func
+    return _decorator
 
 
 def exception(function):

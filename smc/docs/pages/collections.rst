@@ -16,7 +16,7 @@ SMC database. No query will occur until you do something to evaluate the collect
 
 You can evaluate a collection in the following ways:
 
-* **Iteration**. An ElementCollection is iterable, and it executes its database query the first time you iterate over
+* **Iteration**. An ElementCollection is iterable, and it executes an SMC query the first time you iterate over
   it. For example, this will retrieve all host elements::
 
 	>>> for host in Host.objects.all():
@@ -30,6 +30,12 @@ You can evaluate a collection in the following ways:
 
 	>>> host = Host.objects.iterator()
 	>>> host.first()
+	Host(name=SMC)
+	
+If you don't need all results and only a single element, rather than getting an ElementCollection
+iterator, you can obtain this directly from the CollectionManager::
+	
+	>>> Host.objects.first()
 	Host(name=SMC)
 
 * :py:meth:`~smc.base.collection.ElementCollection.last`. Helper collection method to retrieve only the last element in the search query::
@@ -60,6 +66,19 @@ You can evaluate a collection in the following ways:
 	>>> list(query1)
 	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
 
+* :py:meth:`~smc.base.collection.ElementCollection.batch`. Iterator returning batches of results with
+  specific by quantity. If limit() is also chained, it is ignored as batch and limit are mutually
+  exclusive operations.
+  ::
+
+	>>> for hosts in Host.objects.batch(2):
+	...   print(hosts)
+	... 
+	[Host(name=SMC), Host(name=172.18.1.135)]
+	[Host(name=172.18.2.254), Host(name=host)]
+	[Host(name=host-54.76.110.156), Host(name=host-192.168.4.135)]
+	[Host(name=external primary DNS resolver), Host(name=host-192.168.4.94)]
+	...
 
 Methods that return a new ElementCollection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -74,13 +93,14 @@ Each chained method returns a new ElementCollection with aggregated search param
 	>>> list(host)
 	[Host(name=172.18.1.135), Host(name=SMC)]
 
-* :py:meth:`~smc.base.collection.ElementCollection.filter_key`. Provide an attribute which to match the ``filter`` against. 
-  This requires that first a filter query is made which will return slimmed down results. For each result,
-  another query is made to check the attribute for a match::
+``filter`` can also take a keyword argument to filter specifically on an attribute. The keyword argument
+should match a valid attribute for the element type, and value to match::
 
-	>>> host = Host.objects.filter('172.18.1.254').filter_key(['address'])
-	>>> list(host)
-	[Host(name=172.18.1.254)]
+	>>> list(Router.objects.filter(address='10.10.10.1'))
+	[Router(name=Router-10.10.10.1)]
+	
+.. note:: When using filter keyword attributes, exact_match is implicit. In addition, the attribute should
+	be of type ``str``.
 
 * :py:meth:`~smc.base.collection.ElementCollection.limit`. Limit the number of results to return.
   ::
@@ -92,7 +112,7 @@ Each chained method returns a new ElementCollection with aggregated search param
 
 	>>> list(Host.objects.all())
 
-
+	
 Basic rules on searching
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -106,7 +126,7 @@ Basic rules on searching
   element matching the search. The search query is built based on provided parameters to narrow the scope and
   only a single query is made to SMC.
   
-* When using a filter, the SMC API will search the name, comment and relavant field/s for the element type selected.
+* When using a filter, the SMC API will search the name, comment and relevant field/s for the element type selected.
 
   Each element type will have it's own searchable fields. For example, in addition to the name and comment field, a Host
   element will search the address and secondary address fields. This is automatic.
@@ -119,26 +139,29 @@ Basic rules on searching
   sensitive match. The SMC is case sensitive, so unless you need an element by exact case, this field is not required.
   By default, ``exact_match=False``.
 
-* Using a 'filter_key' with a 'filter' will provide element introspection against the attributes to perform an exact match.
-  In general, using a filter_key is most effective when searching for network elements. Since the default search is a 'contains' match,
-  a search for '10.10.10.1' may return elements with values: '10.10.10.1', '10.10.10.10', and '110.10.10.1'. Using a filter key would
-  override the default search behavior and allow a specific attribute to match::
+* Using a keyword argument with 'filter' will provide element introspection against the attributes to perform an exact match.
+  In general, using a kwarg is most effective when searching for network elements. Since the default search is a 'contains' match,
+  a search for '10.10.10.1' may return elements with values: '10.10.10.1', '10.10.10.10', and '110.10.10.1'. Using an attribute/value
+  would override the default search behavior and attempt to only match on the specified attribute::
   
 	>>> list(Router.objects.filter('10.10.10.1'))
 	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
 	
-And using a filter_key to get only a specific router element by it's primary field, 'address'::
+The above query returns multiple elements contains matches. To explicitly define the attribute to make an
+exact match, change the filter to use a kwarg (the ``address`` attribute is the defined ipaddress for
+:class:`smc.elements.network.Router`)::
 	
-	>>> list(Router.objects.filter('10.10.10.1').filter_key(['address']))
+	>>> list(Router.objects.filter(address='10.10.10.1'))
 	[Router(name=Router-10.10.10.1)]
-	
-.. note:: When chaining a filter_key to a filter, a single query will be performed using the filter string, returning a list
-		  of 'contains' matches. For each element match returned from the first query, an additional query is performed to
-		  retrieve the element attributes. The first match will be yielded from the iterator.
+
+.. note:: When using keyword matching with ``filter``, a single query will be performed using the attribute value,
+	returning a list of 'contains' matches. For each element match returned from the first query, an additional query
+	is performed to retrieve the element attributes.
 		  
-Using a limit on filter_key queries (in the event multiple 'Router' elements use this address)::
+To reduce the number of additional queries performed when using keyword matching, use a limit on the number
+of return elements::
 	
-	>>> list(Router.objects.filter('10.10.10.1').filter_key(['address']).limit(1))
+	>>> list(Router.objects.filter(address='10.10.10.1').limit(1))
 	[Router(name=Router-10.10.10.1)]
 	
 
@@ -151,7 +174,7 @@ Obtain an iterator from the collection manager for re-use::
 	>>> query1 = iterator.filter('10.10.10.1')
 	>>> list(query1)
 	[Router(name=Router-110.10.10.10), Router(name=Router-10.10.10.10), Router(name=Router-10.10.10.1)]
-	>>> query2 = query1.filter_key(['address'])
+	>>> query2 = query1.filter(address='10.10.10.1')
 	>>> list(query2)
 	[Router(name=Router-10.10.10.1)]
 	
@@ -201,7 +224,7 @@ through results such as ``count``, ``first``, and ``last``::
 	Router(name=Router-10.10.10.1)
 	>>> query1.count()
 	3
-	>>> query2 = query1.filter_key(['address'])  # Add filter_key to new query
+	>>> query2 = query1.filter(address='10.10.10.1')  # Add kwarg to new query
 	>>> list(query2)
 	[Router(name=Router-10.10.10.1)]
 

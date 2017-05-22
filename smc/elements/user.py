@@ -5,40 +5,85 @@ You can create an Admin User, enable superuser, enable/disable the account,
 assign local access to engines, and change the account password for SMC or
 engine access.
 
+It is possible to fully provision an Admin User with specific permissions and
+roles and initial password.
+
+Create the admin::
+    
+    admin = AdminUser.create(name='auditor', superuser=False)
+
+.. note:: If the Admin User should have unrestricted access, set ``superuser=True`` and
+    skip the below sections related to adding permissions and roles.
+    
+Permissions relate to elements that the user will have access to (Policies, Engines or
+AccessControlLists) and the domain where the privileges apply (default is 'Shared Domain').
+
+Create a permission using the default domain of Shared, granting access to a specific
+engine and firewall policy::
+
+    permission = Permission.create(
+                    granted_elements=[Engine('vm'), FirewallPolicy('VM Policy')], 
+                    role=Role('Viewer'))
+
+Create a second permission granting access to all firewalls in the domain 'mydomain'::
+
+    domain_perm = Permission.create(
+        granted_elements=[AccessControlList('ALL Firewalls')],
+        role=Role('Owner'),
+        domain=AdminDomain('mydomain'))
+
+Add the permissions to the Admin User and commit the change immediately::
+
+    admin.add_permission([permission, domain_perm], autocommit=True)
+
+Set an initial password for the Admin User::
+
+    admin.change_password('Newpassword1')
+
+.. note:: Roles are used to define what granular controls will be available to the assigned
+    user, such as read/read write/all. AccessControlLists encapsulate elements into a single
+    container for re-use.
+    
+.. seealso:: :class:`smc.administration.role.Role` and 
+    :class:`smc.administration.access_rights.AccessControlList` for more information.
+
 """
 from smc.base.model import Element, ElementCreator, prepared_request
 from smc.base.decorators import autocommit
 from smc.api.exceptions import ModificationFailed
-from smc.elements.other import AdminDomain
-from smc.base.util import element_resolver
+from smc.administration.access_rights import Permission
 
 
 class UserMixin(object):
+    """
+    User Mixin class providing common operations for Admin Users and 
+    API Clients.
+    """
     def enable_disable(self):
         """
-        Toggle enable and disable of administrator account
+        Toggle enable and disable of administrator account.
+        Change is committed immediately.
 
-        :raises: :py:class: `smc.api.exceptions.ModificationFailed`
+        :raises UpdateElementFailed: failed with reason
         :return: None
         """
-        self.update(href=self.resource.enable_disable)
+        self.update(href=self._resource.enable_disable)
 
     def change_password(self, password):
         """
-        Change user password
+        Change user password. Change is committed immediately.
 
         :param str password: new password
         :return: None
         """
         prepared_request(
             ModificationFailed,
-            href=self.resource.change_password,
+            href=self._resource.change_password,
             params={'password': password}
         ).update()
 
-    @autocommit
-    def add_permission(self, role, elements, domain='Shared Domain',
-                       autocommit=True):
+    @autocommit(now=False)
+    def add_permission(self, permission, autocommit=False):
         """
         Add a permission to this Admin User. A role defines permissions that
         can be enabled or disabled. Elements define the target for permission
@@ -46,32 +91,39 @@ class UserMixin(object):
         elements. Domain specifies where the access is granted. The Shared
         Domain is default unless specific domain provided.
         
-        :param str,Role role: Role reference within SMC
-        :param list elements: elements to grant permissions to (policy,
-            engines, or access control list).
-        :param str,AdminDomain domain: domain to grant access (default:
-            Shared Domain)
+        :param permission: permission/s to add to admin user
+        :type permission: list(Permission)
         :param bool autocommit: autocommit save after calling this function.
-            (default: True)
+            (default: False)
         :raises UpdateElementFailed: failed updating admin user
         :return: None
         """
-        domain = AdminDomain(domain).href
-        role = element_resolver(role)
-        elements = element_resolver(elements)
-        
         if 'permissions' not in self.data:
             self.data['superuser'] = False
-    
-        permission = self.data.get(
-            'permissions', {'permission': []})
-        permission['permission'].append({
-            'granted_domain_ref': domain,
-            'granted_elements': elements,
-            'role_ref': role})
-        self.data['permissions'] = permission                  
-
-    
+            self.data['permissions'] = {'permission':[]}
+        
+        for p in permission:
+            self.data['permissions']['permission'].append(p._as_dict())
+        
+    @property
+    def permissions(self):
+        """
+        Return each permission role mapping for this Admin User. A permission
+        role will have 3 fields:
+        
+        * Domain
+        * Role (Viewer, Operator, etc)
+        * Elements (Engines, Policies, or ACLs)
+        
+        :return: permissions as list
+        :rtype: list(Permission)
+        """
+        if 'permissions' in self.data:
+            _permissions = self.data['permissions']['permission']
+            return [Permission(**perm) for perm in _permissions]
+        return []
+               
+   
 class AdminUser(UserMixin, Element):
     """ Represents an Adminitrator account on the SMC
     Use the constructor to create the user.
@@ -102,7 +154,8 @@ class AdminUser(UserMixin, Element):
 
     @classmethod
     def create(cls, name, local_admin=False, allow_sudo=False,
-               superuser=False, enabled=True, engine_target=None):
+               superuser=False, enabled=True, engine_target=None,
+               comment=None):
         """
         Create an admin user account.
 
@@ -123,10 +176,11 @@ class AdminUser(UserMixin, Element):
                 'allow_sudo': allow_sudo,
                 'engine_target': engines,
                 'local_admin': local_admin,
-                'superuser': superuser}
+                'superuser': superuser,
+                'comment': comment}
         
         return ElementCreator(cls, json)
-
+        
     @property
     def enabled(self):
         """
@@ -146,7 +200,7 @@ class AdminUser(UserMixin, Element):
         """
         prepared_request(
             ModificationFailed,
-            href=self.resource.change_engine_password,
+            href=self._resource.change_engine_password,
             params={'password': password}
         ).update()
 
@@ -197,7 +251,7 @@ class ApiClient(UserMixin, Element):
         :return: None
         """
         prepared_request(ModificationFailed,
-                         href=self.resource.change_password,
+                         href=self._resource.change_password,
                          params={'one_time_password': password},
                          etag=self.etag,
                          ).update()

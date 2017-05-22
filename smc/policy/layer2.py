@@ -71,7 +71,7 @@ class Layer2Rule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.layer2_ipv4_access_rules,
+            self._resource.layer2_ipv4_access_rules,
             IPv4Layer2Rule)
 
     @property
@@ -92,7 +92,7 @@ class Layer2Rule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.layer2_ethernet_rules,
+            self._resource.layer2_ethernet_rules,
             EthernetRule)
 
 

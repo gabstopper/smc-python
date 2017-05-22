@@ -134,9 +134,10 @@ def transform_login(config):
         scheme = 'http'
 
     transformed = {}
-    url = '{}://{}:{}'.format(scheme,
-                              config.get('smc_address'),
-                              config.get('smc_port'))
+    url = '{}://{}:{}'.format(
+        scheme,
+        config.get('smc_address'),
+        config.get('smc_port'))
 
     timeout = config.get('timeout')
     if timeout:
@@ -152,10 +153,11 @@ def transform_login(config):
         except ValueError:
             api_version = None
     
-    transformed.update(url=url,
-                       api_key=config.get('smc_apikey'),
-                       api_version=api_version,
-                       verify=verify,
-                       timeout=timeout,
-                       domain=config.get('domain'))
+    transformed.update(
+        url=url,
+        api_key=config.get('smc_apikey'),
+        api_version=api_version,
+        verify=verify,
+        timeout=timeout,
+        domain=config.get('domain'))
     return transformed

@@ -60,7 +60,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.fw_ipv4_access_rules,
+            self._resource.fw_ipv4_access_rules,
             IPv4Rule)
 
     @property
@@ -72,7 +72,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.fw_ipv4_nat_rules,
+            self._resource.fw_ipv4_nat_rules,
             IPv4NATRule)
 
     @property
@@ -84,7 +84,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.fw_ipv6_access_rules,
+            self._resource.fw_ipv6_access_rules,
             IPv6Rule)
 
     @property
@@ -96,7 +96,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.fw_ipv6_nat_rules,
+            self._resource.fw_ipv6_nat_rules,
             IPv6NATRule)
 
 
@@ -162,6 +162,57 @@ class FirewallPolicy(FirewallRule, Policy):
                 'Failed to create firewall policy: {}'.format(err))
 
 
+class FirewallSubPolicy(Policy):
+    """
+    A Firewall Sub Policy is a rule section within a firewall policy
+    that provides a container to create rules that are referenced from
+    a 'jump' rule. Typically rules in a sub policy are similar in some
+    fashion such as applying to a specific service. Sub Policies can also
+    be delegated from an administrative perspective.
+    
+    Firewall Sub Policies only provide access to creating IPv4 rules. NAT
+    is done on the parent firewall policy::
+    
+        p = FirewallSubPolicy('MySubPolicy')
+        p.fw_ipv4_access_rules.create(
+            name='newule',
+            sources='any',
+            destinations='any',
+            services=[TCPService('SSH')],
+            action='discard')                             
+    """
+    typeof = 'sub_ipv4_fw_policy'
+    
+    def __init__(self, name, **meta):
+        super(FirewallSubPolicy, self).__init__(name, **meta)
+        pass
+
+    @classmethod
+    def create(cls, name):
+        """
+        Create a sub policy. Only name is required. Other settings are
+        inherited from the parent firewall policy (template, inspection
+        policy, etc).
+        
+        :param str name: name of sub policy
+        :raises CreateElementFailed: failed to create policy
+        :rtype: FirewallSubPolicy
+        """
+        return ElementCreator(cls, json={'name': name})
+        
+    @property
+    def fw_ipv4_access_rules(self):
+        """
+        IPv4 rule entry point
+
+        :return: collection of :class:`smc.policy.rule.IPv4Rule`
+        :rtype: SubElementCollection
+        """
+        return create_collection(
+            self._resource.fw_ipv4_access_rules,
+            IPv4Rule)
+    
+    
 class FirewallTemplatePolicy(FirewallRule, Policy):
     """
     All Firewall Policies will reference a firewall policy template.

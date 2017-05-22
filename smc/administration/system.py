@@ -44,21 +44,21 @@ class System(SubElement):
         """
         Return the SMC version
         """
-        return self.resource.get('smc_version').get('value')
+        return self._resource.get('smc_version').get('value')
 
     @property
     def smc_time(self):
         """
         Return the SMC time
         """
-        return self.resource.get('smc_time').get('value')
+        return self._resource.get('smc_time').get('value')
 
     @property
     def last_activated_package(self):
         """
         Return the last activated package by id
         """
-        return self.resource.get('last_activated_package').get('value')
+        return self._resource.get('last_activated_package').get('value')
 
     def empty_trash_bin(self):
         """
@@ -68,7 +68,7 @@ class System(SubElement):
         :return: None
         """
         prepared_request(ActionCommandFailed,
-                         href=self.resource.empty_trash_bin
+                         href=self._resource.empty_trash_bin
                          ).delete()
 
     def update_package(self):
@@ -78,7 +78,7 @@ class System(SubElement):
         :return: list :py:class:`smc.administration.updates.UpdatePackage`
         """
         return [UpdatePackage(**update)
-                for update in self.resource.get('update_package')]
+                for update in self._resource.get('update_package')]
 
     def update_package_import(self):
         pass
@@ -98,7 +98,7 @@ class System(SubElement):
         :rtype: dict
         """
         return [EngineUpgrade(**upgrade)
-                for upgrade in self.resource.get('engine_upgrade')]
+                for upgrade in self._resource.get('engine_upgrade')]
 
     def uncommitted(self):
         pass
@@ -107,7 +107,7 @@ class System(SubElement):
         """
         List of all properties applied to the SMC
         """
-        return self.resource.get('system_properties')
+        return self._resource.get('system_properties')
 
     def clean_invalid_filters(self):
         pass
@@ -129,7 +129,7 @@ class System(SubElement):
         
         """
         prepared_request(ActionCommandFailed,
-                         href=self.resource.blacklist,
+                         href=self._resource.blacklist,
                          json=prepare_blacklist(src, dst, duration)
                          ).create()
 
@@ -147,7 +147,7 @@ class System(SubElement):
 
         :return: list :py:class:`smc.administration.license.License`
         """
-        licenses = self.resource.get('licenses')
+        licenses = self._resource.get('licenses')
         return [License(**lic)
                 for lic in licenses['license']]
 
@@ -155,7 +155,7 @@ class System(SubElement):
         """
         Fetch available licenses for this SMC
         """
-        return self.resource.get('license_fetch')
+        return self._resource.get('license_fetch')
 
     def license_install(self):
         raise NotImplementedError
@@ -167,13 +167,13 @@ class System(SubElement):
 
         :return: dictionary of key/values
         """
-        return self.resource.get('license_details')
+        return self._resource.get('license_details')
 
     def license_check_for_new(self):
         """
         Check for new SMC license
         """
-        return self.resource.get('license_check_for_new')
+        return self._resource.get('license_check_for_new')
 
     def delete_license(self):
         raise NotImplementedError
@@ -185,7 +185,7 @@ class System(SubElement):
         :return: list of dict items related to master engines and virtual
             engine mappings
         """
-        return self.resource.get('visible_virtual_engine_mapping')
+        return self._resource.get('visible_virtual_engine_mapping')
 
     def references_by_element(self, element_href):
         """
@@ -194,7 +194,7 @@ class System(SubElement):
         :param str element_href: element reference
         :return: list list of references where element is used
         """
-        result = fetch_json_by_post(href=self.resource.references_by_element,
+        result = fetch_json_by_post(href=self._resource.references_by_element,
                                     json={'value': element_href})
         if result.json:
             return result.json
@@ -220,7 +220,7 @@ class System(SubElement):
         if typeof not in valid_types:
             typeof = 'all'
 
-        element = prepared_request(href=self.resource.export_elements,
+        element = prepared_request(href=self._resource.export_elements,
                                    params={'recursive': True,
                                            'type': typeof}
                                    ).create()
@@ -238,7 +238,7 @@ class System(SubElement):
         :return: None
         """
         prepared_request(ActionCommandFailed,
-                         href=self.resource.active_alerts_ack_all
+                         href=self._resource.active_alerts_ack_all
                          ).delete()
 
     def import_elements(self):

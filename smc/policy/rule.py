@@ -77,6 +77,7 @@ from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
     CreateRuleFailed, PolicyCommandFailed, FetchElementFailed
 from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
     Service, AuthenticationOptions, TimeRange
+from smc.base.util import element_resolver
 
 
 class Rule(object):
@@ -267,9 +268,9 @@ class IPv4Rule(Rule, SubElement):
                       'http://1.1.1.1/8082/elements/udp_server/myudpservice'], etc
 
     You can obtain services and href for the elements by using the 
-    :py:class:`smc.base.collection.Search` collections::
+    :py:class:`smc.base.collection` collections::
 
-        >>> services = list(Search('tcp_service').objects.filter('80'))
+        >>> services = list(TCPService.objects.filter('80'))
         >>> for service in services:
         ...   print(service, service.href)
         ... 
@@ -301,7 +302,7 @@ class IPv4Rule(Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
                is_disabled=False, vpn_policy=None, add_pos=None,
-               after=None, before=None, **kwargs):
+               after=None, before=None, sub_policy=None, **kwargs):
         """ 
         Create a layer 3 firewall rule
 
@@ -318,6 +319,8 @@ class IPv4Rule(Rule, SubElement):
         :param LogOptions log_options: LogOptions object
         :param str: vpn_policy: vpn policy name; required for enforce_vpn and apply_vpn 
                actions
+        :param str,Element sub_policy: sub policy required when rule has an action of 'jump'.
+            Can be the FirewallSubPolicy element or href.
         :param int add_pos: position to insert the rule, starting with position 1. If
             the position value is greater than the number of rules, the rule is inserted at
             the bottom. If add_pos is not provided, rule is inserted in position 1. Mutually
@@ -356,7 +359,13 @@ class IPv4Rule(Rule, SubElement):
             except ElementNotFound:
                 raise MissingRequiredInput('Cannot find VPN policy specified: {}, '
                                            .format(vpn_policy))
-
+        elif rule_action.action in ['jump']:
+            try:
+                rule_action.sub_policy = element_resolver(sub_policy)
+            except ElementNotFound:
+                raise MissingRequiredInput('Cannot find sub policy specified: {} '
+                                           .format(sub_policy))
+        
         rule_values.update(rule_action())
 
         if log_options is None:
@@ -564,10 +573,10 @@ def _add_position(pos, rules_href):
         if len(rules) >= pos:  # Position somewhere in the list
             for position, entry in enumerate(rules):
                 if position + 1 == pos:
-                    return SubElement(**entry).resource.add_before
+                    return SubElement(**entry)._resource.add_before
         else:  # Put at the end
             last_rule = rules.pop()
-            return SubElement(**last_rule).resource.add_after
+            return SubElement(**last_rule)._resource.add_after
     return rules_href
 
 

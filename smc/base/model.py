@@ -26,7 +26,6 @@ Element class relationship::
                                    |
                                 cache = Cache()
                                 meta = Meta(href,name,type)
-                                attr_by_name()
                                 delete()
                                 modify_attribute()
                                    |
@@ -130,7 +129,7 @@ class ElementResource:
     Resource links are referenced in the element as a list with
     dict items in format {'href', 'rel'}. Attributes are added
     dynamically using 'rel' as name and href as the value. This
-    makes it possible to access a link via self.resource.rel
+    makes it possible to access a link via self._resource.rel
     """
 
     def name(self, href):
@@ -204,7 +203,7 @@ class Cache(object):
                 href=self.instance.href
             ).read()
             self._cache = (result.etag, result.json)
-            getattr(self.instance, 'resource')
+            getattr(self.instance, '_resource')
         return self._cache
 
     @property
@@ -302,10 +301,6 @@ class ElementBase(UnicodeMixin):
         for link in self.data.get('link'):
             setattr(res, link.get('rel'), link.get('href'))
         return res
-
-    @property
-    def resource(self):
-        return self._resource
         
     @property
     def data(self):
@@ -317,14 +312,6 @@ class ElementBase(UnicodeMixin):
         ETag for this element
         """
         return self._cache.etag
-
-    def attr_by_name(self, attr):
-        """
-        Retrieve a specific attribute by name
-
-        :return: value or None if it doesn't exist
-        """
-        return self.data.get(attr)
 
     def delete(self):
         """
@@ -353,6 +340,9 @@ class ElementBase(UnicodeMixin):
         'append_lists=True' to add to an existing list, otherwise overwrite
         (default: overwrite)
         
+        If using attributes, the attribute value can be a callable and it
+        will be evaluated and merged.
+        
         .. seealso:: To see different ways to utilize this method for updating,
             see: :ref:`update-elements-label`.
         
@@ -368,7 +358,8 @@ class ElementBase(UnicodeMixin):
         
         params = {
             'href': self.href,
-            'etag': self.etag}
+            'etag': self.etag
+        }
     
         if 'href' in kwargs:
             params.update(href=kwargs.pop('href'))
@@ -378,13 +369,13 @@ class ElementBase(UnicodeMixin):
         
         name = kwargs.get('name', None)
         
-        # Attributes set on the instance
-        instance_attr = {attr: val for attr, val in vars(self).items()
-                         if not attr.startswith('_')}
+        instance_attr = {k: v() if callable(v) else v
+                         for k, v in vars(self).items()
+                         if not k.startswith('_')}
         
         if instance_attr:
             self.data.update(**instance_attr)
-            
+ 
         # If kwarg settings are provided AND instance variables, kwargs
         # will overwrite collected instance attributes with the same name.
         if kwargs:
@@ -457,7 +448,8 @@ class Element(ElementBase):
         """
         Return a Collection Manager of element type
 
-        :return ElementCollection: collection of element type
+        :return: CollectionManager of the current element type
+        :rtype CollectionManager
         """
         return smc.base.collection.CollectionManager(self)
 
@@ -513,8 +505,7 @@ class Element(ElementBase):
         :rtype: Element
         """
         if filter_key:
-            attr, value = next(iter(filter_key.items()))
-            network = cls.objects.filter(value).filter_key([attr])
+            network = cls.objects.filter(**filter_key)
             if network.exists():
                 return network.first()
             element = cls.create(**kwargs)
@@ -597,7 +588,7 @@ class Element(ElementBase):
         return [Element.from_meta(**tag)
                 for tag in
                 prepared_request(
-                    href=self.resource.search_category_tags_from_element
+                    href=self._resource.search_category_tags_from_element
                 ).read().json]
 
     def export(self, filename='element.zip', wait_for_finish=False):
@@ -614,7 +605,7 @@ class Element(ElementBase):
         try:
             element = prepared_request(
                 ActionCommandFailed,
-                href=self.resource.export,
+                href=self._resource.export,
                 filename=filename
                 ).create()
 

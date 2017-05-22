@@ -110,17 +110,30 @@ For example, updating a host element::
 	>>> host.comment
 	'test comment'
 
-By default, only attributes defined in the elements cache are eligible for updating. 
-For example, if you create a new attribute on a host element 'ipv4_network' and run
-update, this attribute will be ignored from the update as it's not a valid attribute
-for :class:`smc.elements.network.Host` elements.
+An attribute value can also be a callable and will be evaluated during update::
 
-You can override this behavior by providing the kwarg ``ignore_unknown_attr=True`` in
-the call to update. This is generally not required but in some cases valid attributes
-may not be present in the cached data.
+	>>> class Address:
+	...   def __call__(self):
+	...     return '10.10.10.10'
+	... 
+	>>> host = Host('kali')
+	>>> host.address
+	'22.22.22.22'
+	>>> host.address = Address()
+	...
+	>>> pprint(vars(host))
+	{'_cache': <smc.base.model.Cache object at 0x103113f10>,
+	 '_meta': Meta(name=u'kali', href=u'http://172.18.1.150:8082/6.2/elements/host/978', type=u'host'),
+	 '_name': 'kali',
+	 '_resource': ElementResource(id=4383329240),
+	 'address': <__main__.Address instance at 0x105444b48>}
+	>>> host.update()
+	'http://172.18.1.150:8082/6.2/elements/host/978'
+	>>> host.address
+	'10.10.10.10'
 	
 .. note:: When updating attributes on an instance, you should prefix any custom attributes
-	with '_'. Attributes without this prefix will merge into the cache and subsequently cause
+	with '_'. Attributes without this prefix will merge into the cache and could cause
 	the update to fail.
 
 Another way to update an element is by providing the kwarg values in the update() call.
@@ -136,12 +149,12 @@ Taking the example above, this could be done this way::
 This also results in a single call to the SMC and allows the same functionality as the
 first example.
 
-.. note:: If providing an element update by modifying attributes and kwargs, kwargs will
-	take precendence and overwrite any attributes set. It is recommended to choose one of
-	the two methods rather than using both.
+.. note:: If providing an element update by modifying instance attributes and providing kwargs,
+	kwargs will take precendence and overwrite any instance attributes. It is recommended to use
+	one or the other.
 
 There is also a generic modify_attribute on :class:`smc.base.model.Element` which is
-essentially the same as calling .update() above with the exception that it does not
+essentially the same as calling .update(kwargs) above with the exception that it does not
 look at instance attributes, only the attributes provided in the constructor::
 
 	host = Host('kali')
@@ -194,7 +207,6 @@ Modifying a service element after reviewing the element cache::
 Attributes supported by elements are documented in the API Reference: :ref:`element-reference-label`
 
 
-
 Delete
 ------
 
@@ -205,4 +217,13 @@ Deleting a host::
 
 	>>> from smc.elements.network import Host
 	>>> Host('kali').delete()
- 
+
+Functions or methods that modify
+--------------------------------
+
+Some functions or element methods may make modifications to an element depending on the
+operation. These functions are documented and will also be decorated with and ``autcommit``
+decorator.
+This allows you to queue changes locally before submitting them to the SMC by calling ``update``.
+To override this behavior, you can either pass ``autocommit=True`` to these functions or set
+``session.AUTOCOMMIT=True`` on the session.

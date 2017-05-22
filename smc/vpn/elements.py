@@ -132,7 +132,7 @@ class ExternalGateway(Element):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.vpn_site,
+            self._resource.vpn_site,
             VPNSite)
 
     @property
@@ -152,7 +152,7 @@ class ExternalGateway(Element):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.external_endpoint,
+            self._resource.external_endpoint,
             ExternalEndpoint)
 
     @property

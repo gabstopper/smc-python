@@ -163,7 +163,6 @@ class Action(object):
     """
     This represents the action associated with the rule.
     """
-
     def __init__(self, data=None):
         if data is None:
             conn = ConnectionTracking()
@@ -274,6 +273,20 @@ class Action(object):
             self.data['scan_detection'] = value
 
     @property
+    def sub_policy(self):
+        """
+        Sub policy is used when ``action=jump``.
+        
+        :rtype: FirewallSubPolicy
+        """
+        if 'sub_policy' in self.data:
+            return Element.from_href(self.data['sub_policy'])
+
+    @sub_policy.setter
+    def sub_policy(self, value):
+        self.data['sub_policy'] = element_resolver(value)
+    
+    @property
     def user_response(self):
         """
         Read-only user response setting
@@ -286,10 +299,10 @@ class Action(object):
         Return vpn reference. Only used if 'enforce_vpn', 'apply_vpn',
         or 'forward_vpn' is the action type.
 
-        :return: vpn reference
-        :rtype: str
+        :rtype: VPNPolicy
         """
-        return self.data.get('vpn')
+        if 'vpn' in self.data:
+            return self.data.get('vpn')
 
     @vpn.setter
     def vpn(self, value):
@@ -326,7 +339,6 @@ class ConnectionTracking(object):
             rule.action.connection_tracking_options.mss_enforced_min_max = (1400, 1450)
             rule.save()
     """
-
     def __init__(self, data=None):
         self.data = {'mss_enforced': False,
                      'mss_enforced_max': 0,
@@ -419,7 +431,6 @@ class LogOptions(object):
                 rule.options.user_logging = 'enforced'
                 rule.save()
     """
-
     def __init__(self, data=None):
         self.data = {'log_accounting_info_mode': False,
                      'log_closing_mode': True,

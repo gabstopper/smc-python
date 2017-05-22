@@ -59,7 +59,7 @@ class Policy(Element):
         """
         element = prepared_request(
             TaskRunFailed,
-            href=self.resource.upload,
+            href=self._resource.upload,
             params={'filter': engine}
         ).create()
 
@@ -80,7 +80,7 @@ class Policy(Element):
         try:
             prepared_request(
                 PolicyCommandFailed,
-                href=self.resource.open
+                href=self._resource.open
             ).create()
         except ResourceNotFound:
             pass
@@ -94,7 +94,7 @@ class Policy(Element):
         try:
             prepared_request(
                 PolicyCommandFailed,
-                href=self.resource.save
+                href=self._resource.save
             ).create()
         except ResourceNotFound:
             pass
@@ -106,7 +106,7 @@ class Policy(Element):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self.resource.force_unlock
+            href=self._resource.force_unlock
         ).create()
 
     def search_rule(self, search):
@@ -124,7 +124,7 @@ class Policy(Element):
         :rtype: list(Element)
         """
         result = prepared_request(
-            href=self.resource.search_rule,
+            href=self._resource.search_rule,
             params={'filter': search}
         ).read()
         if result.json:

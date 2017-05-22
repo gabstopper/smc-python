@@ -17,7 +17,7 @@ class ServerCommon(object):
         :return: contact addresses in format {location_ref,addresses}
         :rtype: list(dict)
         """
-        result = self.resource.get('contact_addresses')
+        result = self._resource.get('contact_addresses')
         if result:
             return [ServerContactAddress(addresses)
                     for addresses in result.get('multi_contact_addresses')]
@@ -36,8 +36,8 @@ class ServerCommon(object):
         :raises ModificationFailed: failed adding contact address
         :return: None
         """
-        href = self.resource.contact_addresses
-        existing = self.resource.get(href, as_smcresult=True)
+        href = self._resource.contact_addresses
+        existing = self._resource.get(href, as_smcresult=True)
         addresses = _add_contact_address(
             existing.json,
             ServerContactAddress.create(contact_address, location))
@@ -58,8 +58,8 @@ class ServerCommon(object):
         :raises ModificationFailed: failed removing contact address
         :return: None
         """
-        href = self.resource.contact_addresses
-        existing = self.resource.get(href, as_smcresult=True)
+        href = self._resource.contact_addresses
+        existing = self._resource.get(href, as_smcresult=True)
         if existing:
             location_ref = location_helper(location)
             addresses = _remove_contact_address(existing.json, location_ref)

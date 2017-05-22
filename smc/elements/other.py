@@ -58,7 +58,7 @@ class Category(Element):
         return [Element.from_meta(**tag)
                 for tag in
                 prepared_request(
-                    href=self.resource.search_elements_from_category_tag
+                    href=self._resource.search_elements_from_category_tag
                 ).read().json]
 
     def add_element(self, element):
@@ -78,7 +78,7 @@ class Category(Element):
 
         prepared_request(
             ModificationFailed,
-            href=self.resource.category_add_element,
+            href=self._resource.category_add_element,
             json={'value': element}
         ).create()
 
@@ -101,7 +101,7 @@ class Category(Element):
 
         prepared_request(
             ModificationFailed,
-            href=self.resource.category_remove_element,
+            href=self._resource.category_remove_element,
             json={'value': element}
         ).create()
 
@@ -248,7 +248,7 @@ class Location(Element):
         return [Element.from_meta(**element)
                 for element in
                 prepared_request(
-                    href=self.resource.search_nated_elements_from_location
+                    href=self._resource.search_nated_elements_from_location
                 ).read().json]
 
 

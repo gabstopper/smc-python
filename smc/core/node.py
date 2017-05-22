@@ -51,7 +51,7 @@ class Node(SubElement):
         """
         ID of this node
         """
-        return self.attr_by_name('nodeid')
+        return self.data.get('nodeid')
 
     @classmethod
     def _create(cls, name, node_type, nodeid=1):
@@ -82,7 +82,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self.resource.fetch
+                href=self._resource.fetch
             ).create()
         except ResourceNotFound:
             pass
@@ -99,7 +99,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self.resource.bind,
+                href=self._resource.bind,
                 params=params
             ).create()
         except ResourceNotFound:
@@ -115,7 +115,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self.resource.unbind
+                href=self._resource.unbind
             ).create()
         except ResourceNotFound:
             pass
@@ -130,7 +130,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self.resource.cancel_unbind
+                href=self._resource.cancel_unbind
             ).create()
         except ResourceNotFound:
             pass
@@ -156,7 +156,7 @@ class Node(SubElement):
         """
         try:
             result = prepared_request(
-                href=self.resource.initial_contact,
+                href=self._resource.initial_contact,
                 params={'enable_ssh': enable_ssh}
             ).create()
             if result.content:
@@ -184,7 +184,7 @@ class Node(SubElement):
         """
         result = prepared_request(
             NodeCommandFailed,
-            href=self.resource.appliance_status
+            href=self._resource.appliance_status
         ).read()
         return ApplianceStatus(result.json)
 
@@ -198,7 +198,7 @@ class Node(SubElement):
         """
         result = prepared_request(
             NodeCommandFailed,
-            href=self.resource.status
+            href=self._resource.status
         ).read()
         return NodeStatus(**result.json)
 
@@ -214,7 +214,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.go_online,
+            href=self._resource.go_online,
             params={'comment': comment}
         ).update()
 
@@ -228,7 +228,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.go_offline,
+            href=self._resource.go_offline,
             params={'comment': comment}
         ).update()
 
@@ -243,7 +243,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.go_standby,
+            href=self._resource.go_standby,
             params={'comment': comment}
         ).update()
 
@@ -257,7 +257,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.lock_online,
+            href=self._resource.lock_online,
             params={'comment': comment}
         ).update()
 
@@ -272,7 +272,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.lock_offline,
+            href=self._resource.lock_offline,
             params={'comment': comment}
         ).update()
 
@@ -288,7 +288,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self.resource.reset_user_db,
+                href=self._resource.reset_user_db,
                 params={'comment': comment}
             ).update()
         except ResourceNotFound:
@@ -319,7 +319,7 @@ class Node(SubElement):
         try:
             result = prepared_request(
                 NodeCommandFailed,
-                href=self.resource.diagnostic,
+                href=self._resource.diagnostic,
                 params=params
             ).read()
 
@@ -359,7 +359,7 @@ class Node(SubElement):
             debug.append(vars(setting))
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.send_diagnostic,
+            href=self._resource.send_diagnostic,
             json={'diagnostics': debug}
         ).create()
 
@@ -373,7 +373,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self.resource.reboot,
+            href=self._resource.reboot,
             params={'comment': comment}
         ).update()
 
@@ -405,7 +405,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self.resource.ssh,
+                href=self._resource.ssh,
                 params=params
             ).update()
         except ResourceNotFound:
@@ -424,7 +424,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self.resource.change_ssh_pwd,
+                href=self._resource.change_ssh_pwd,
                 params={'comment': comment},
                 json={'value': pwd}
             ).update()
@@ -443,7 +443,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self.resource.time_sync
+                href=self._resource.time_sync
             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed(
@@ -458,7 +458,7 @@ class Node(SubElement):
 
         :return: dict with links to cert info
         """
-        return self.resource.get('certificate_info')
+        return self._resource.get('certificate_info')
 
 
 class NodeStatus(object):

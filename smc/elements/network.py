@@ -425,7 +425,7 @@ class IPList(Element):
                 headers = {'accept': 'application/json'}
 
             prepared_request(
-                href=self.resource.ip_address_list,
+                href=self._resource.ip_address_list,
                 filename=filename,
                 headers=headers
             ).read()
@@ -459,7 +459,7 @@ class IPList(Element):
 
         prepared_request(
             CreateElementFailed,
-            href=self.resource.ip_address_list,
+            href=self._resource.ip_address_list,
             headers=headers, files=files, json=json,
             params=params
         ).create()
@@ -486,7 +486,7 @@ class IPList(Element):
 
             prepared_request(
                 CreateElementFailed,
-                href=element.resource.ip_address_list,
+                href=element._resource.ip_address_list,
                 json={'ip': iplist}
             ).create()
         return result
@@ -594,7 +594,7 @@ class Alias(Element):
         if not self.resolved_value:
             result = prepared_request(
                 ElementNotFound,
-                href=self.resource.resolve,
+                href=self._resource.resolve,
                 params={'for': engine}
             ).read()
 

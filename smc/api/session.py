@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class Session(object):
+    
+    AUTOCOMMIT = False
+    
     def __init__(self):
         self._cache = SessionCache()
         self._session = None

@@ -568,6 +568,20 @@ FileFilteringPolicy
    :members:
    :show-inheritance:
 
+Sub Policy
+----------
+
+Sub Policies are referenced from within a normal policy as a parameter to
+a 'jump' action. They provide rule encapsulation for similar rules and can
+be delegated to an Admin User for more granular policy control.
+
+FirewallSubPolicy
++++++++++++++++++
+
+.. autoclass:: smc.policy.layer3.FirewallSubPolicy
+   :members:
+   :show-inheritance: 
+
 Policy Rules
 ------------
 Represents classes responsible for configuring rule types.
@@ -807,15 +821,15 @@ Updates
 .. automodule:: smc.administration.updates
 	:members: PackageMixin
 
-EngineUpgrade
-*************
+Engine Upgrade
+**************
 
 .. autoclass:: EngineUpgrade
 	:members:
 	:show-inheritance:
 	
-PackageUpdate
-*************
+Dynamic Update
+**************
 
 .. autoclass:: UpdatePackage
 	:members:
@@ -826,6 +840,19 @@ License
 
 .. automodule:: smc.administration.license
 	:members:
+
+Role
+++++
+
+.. automodule:: smc.administration.role
+	:members:
+	:show-inheritance:
+
+Permission
+++++++++++
+
+.. autoclass:: smc.administration.access_rights.Permission
+	:members:
 	
 AccessControlList
 +++++++++++++++++
@@ -833,16 +860,9 @@ AccessControlList
 .. autoclass:: smc.administration.access_rights.AccessControlList
 	:members:
 	:show-inheritance:
-
-Role
-++++
-
-.. autoclass:: smc.administration.role.Role
-	:members:
-	:show-inheritance:
 	
-Users
-+++++
+Administrators
+++++++++++++++
 
 .. automodule:: smc.elements.user
 	:members:

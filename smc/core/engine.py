@@ -107,8 +107,7 @@ class Engine(EngineProperty, Element):
 
         # Set log server reference, if not explicitly provided
         if not log_server_ref and node_type is not 'virtual_fw_node':
-            for log_server in list(LogServer.objects.limit(1)):
-                log_server_ref = log_server.href
+            log_server_ref = LogServer.objects.first().href
 
         base_cfg = {
             'name': name,
@@ -162,11 +161,12 @@ class Engine(EngineProperty, Element):
     @property
     def version(self):
         """
-        Version of this engine
+        Version of this engine. Can be none if the engine has not been
+        initialized yet.
         
-        :rtype: str
+        :rtype: str or None
         """
-        return self.attr_by_name('engine_version')
+        return self.data.get('engine_version')
 
     def rename(self, name):
         """
@@ -192,7 +192,7 @@ class Engine(EngineProperty, Element):
         :return: nodes for this engine
         :rtype: list(Node)
         """
-        return list(sub_collection(self.resource.nodes, Node))
+        return list(sub_collection(self._resource.nodes, Node))
 
     @property
     def permissions(self):
@@ -207,7 +207,7 @@ class Engine(EngineProperty, Element):
         :rtype: list(AccessControlList)
         """
         try:
-            acls = self.resource.get('permissions')
+            acls = self._resource.get('permissions')
             return [Element.from_href(acl)
                     for acl in acls['granted_access_control_list']]
 
@@ -227,8 +227,8 @@ class Engine(EngineProperty, Element):
         :return: :py:class:`smc.core.resources.PendingChanges`
         """
         try:
-            if self.resource.pending_changes:
-                return PendingChanges(self.resource)
+            if self._resource.pending_changes:
+                return PendingChanges(self._resource)
         except ResourceNotFound:
             raise UnsupportedEngineFeature(
                 'Pending changes is an unsupported feature '
@@ -244,7 +244,7 @@ class Engine(EngineProperty, Element):
 
         :return: generator :py:class:`smc.elements.network.Alias`
         """
-        for alias in self.resource.get('alias_resolving'):
+        for alias in self._resource.get('alias_resolving'):
             yield Alias.load(alias)
 
     def blacklist(self, src, dst, duration=3600):
@@ -260,7 +260,7 @@ class Engine(EngineProperty, Element):
         """
         prepared_request(
             EngineCommandFailed,
-            href=self.resource.blacklist,
+            href=self._resource.blacklist,
             json=prepare_blacklist(src, dst, duration)
         ).create()
 
@@ -273,7 +273,7 @@ class Engine(EngineProperty, Element):
         """
         prepared_request(
             EngineCommandFailed,
-            href=self.resource.flush_blacklist
+            href=self._resource.flush_blacklist
         ).delete()
 
     def add_route(self, gateway, network):
@@ -292,7 +292,7 @@ class Engine(EngineProperty, Element):
         """
         prepared_request(
             EngineCommandFailed,
-            href=self.resource.add_route,
+            href=self._resource.add_route,
             params={'gateway': gateway,
                     'network': network}
         ).create()
@@ -313,9 +313,9 @@ class Engine(EngineProperty, Element):
 
         :return: :py:class:`smc.core.route.Routing` element
         """
-        href = self.resource.routing
+        href = self._resource.routing
         return Routing(href=href,
-                       data=self.resource.get(href))
+                       data=self._resource.get(href))
 
     @property
     def routing_monitoring(self):
@@ -337,7 +337,7 @@ class Engine(EngineProperty, Element):
         try:
             result = prepared_request(
                 EngineCommandFailed,
-                href=self.resource.routing_monitoring
+                href=self._resource.routing_monitoring
                 ).read()
             return Routes(result.json)
         except SMCConnectionError:
@@ -355,9 +355,9 @@ class Engine(EngineProperty, Element):
 
         :return: :py:class:`smc.core.route.Antispoofing`
         """
-        href = self.resource.antispoofing
+        href = self._resource.antispoofing
         return Antispoofing(href=href,
-                            data=self.resource.get(href))
+                            data=self._resource.get(href))
 
     @property
     def internal_gateway(self):
@@ -371,7 +371,7 @@ class Engine(EngineProperty, Element):
         :return: :py:class:`~InternalGateway`
         """
         try:
-            result = self.resource.get('internal_gateway')
+            result = self._resource.get('internal_gateway')
             if result:
                 return InternalGateway(**result.pop())
 
@@ -395,7 +395,7 @@ class Engine(EngineProperty, Element):
         """
         try:
             return create_collection(
-                self.resource.virtual_resources,
+                self._resource.virtual_resources,
                 VirtualResource)
 
         except ResourceNotFound:
@@ -426,7 +426,7 @@ class Engine(EngineProperty, Element):
         :return: list :py:class:`smc.core.contact_address.ContactInterface`
         """
         return ContactResource(
-            self.resource.get(self.resource.contact_addresses))
+            self._resource.get(self._resource.contact_addresses))
 
     @property
     def interface(self):
@@ -444,7 +444,7 @@ class Engine(EngineProperty, Element):
         See :py:class:`smc.core.interfaces.Interface` for more info
         """
         return Interface(
-            parent=self.resource.interfaces,
+            parent=self._resource.interfaces,
             engine=self)
 
     @property
@@ -461,7 +461,7 @@ class Engine(EngineProperty, Element):
         """
         try:
             return PhysicalInterface(
-                parent=self.resource.physical_interface,
+                parent=self._resource.physical_interface,
                 engine=self)
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
@@ -487,7 +487,7 @@ class Engine(EngineProperty, Element):
         """
         try:
             return VirtualPhysicalInterface(
-                parent=self.resource.virtual_physical_interface,
+                parent=self._resource.virtual_physical_interface,
                 engine=self)
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
@@ -504,7 +504,7 @@ class Engine(EngineProperty, Element):
         """
         try:
             return TunnelInterface(
-                parent=self.resource.tunnel_interface,
+                parent=self._resource.tunnel_interface,
                 engine=self)
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
@@ -519,7 +519,7 @@ class Engine(EngineProperty, Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self.resource.get('modem_interface')
+            return self._resource.get('modem_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'Modem interfaces are not supported on this engine type: {}'
@@ -533,7 +533,7 @@ class Engine(EngineProperty, Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self.resource.get('adsl_interface')
+            return self._resource.get('adsl_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'ADSL interfaces are not supported on this engine type: {}'
@@ -547,7 +547,7 @@ class Engine(EngineProperty, Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self.resource.get('wireless_interface')
+            return self._resource.get('wireless_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'Wireless interfaces are not supported on this engine type: '
@@ -561,7 +561,7 @@ class Engine(EngineProperty, Element):
         :return: list of dict entries with href,name,type, or None
         """
         try:
-            return self.resource.get('switch_physical_interface')
+            return self._resource.get('switch_physical_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'Switch interfaces are not supported on this engine type: {}'
@@ -588,7 +588,7 @@ class Engine(EngineProperty, Element):
         """
         element = prepared_request(
             TaskRunFailed,
-            href=self.resource.refresh
+            href=self._resource.refresh
             ).create()
 
         return task_handler(
@@ -620,7 +620,7 @@ class Engine(EngineProperty, Element):
         """
         element = prepared_request(
             TaskRunFailed,
-            href=self.resource.upload,
+            href=self._resource.upload,
             params={'filter': policy}
             ).create()
 
@@ -643,7 +643,7 @@ class Engine(EngineProperty, Element):
         try:
             prepared_request(
                 EngineCommandFailed,
-                href=self.resource.generate_snapshot,
+                href=self._resource.generate_snapshot,
                 filename=filename
             ).read()
         except IOError as e:
@@ -661,7 +661,7 @@ class Engine(EngineProperty, Element):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.resource.snapshots, Snapshot)
+            self._resource.snapshots, Snapshot)
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(
@@ -706,7 +706,7 @@ class InternalGateway(SubElement):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self.resource.vpn_site, VPNSite)
+            self._resource.vpn_site, VPNSite)
 
     @property
     def internal_endpoint(self):
@@ -726,20 +726,20 @@ class InternalGateway(SubElement):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.resource.internal_endpoint,
+            self._resource.internal_endpoint,
             InternalEndpoint)
 
     def gateway_certificate(self):
         """
         :return: list
         """
-        return self.resource.get('gateway_certificate')
+        return self._resource.get('gateway_certificate')
 
     def gateway_certificate_request(self):
         """
         :return: list
         """
-        return self.resource.get('gateway_certificate_request')
+        return self._resource.get('gateway_certificate_request')
 
     def generate_certificate(self, certificate_request):
         """
@@ -753,7 +753,7 @@ class InternalGateway(SubElement):
         """
         prepared_request(
             CertificateError,
-            href=self.resource.generate_certificate,
+            href=self._resource.generate_certificate,
             json=vars(certificate_request)
         ).create()
 

@@ -362,21 +362,7 @@ class InterfaceCommon(object):
             if isinstance(sub, InlineInterface):
                 sub.nicid = '{}'.format('-'.join(interface_id))
         self.save()
-                        
-    @property
-    def comment(self):
-        """
-        Optional comment
-
-        :param str value: comment
-        :rtype: str
-        """
-        return self.data.get('comment')
-
-    @comment.setter
-    def comment(self, value):
-        self.data['comment'] = value
-
+    
     @property
     def interface_id(self):
         """
