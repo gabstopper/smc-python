@@ -813,7 +813,8 @@ Tasks
 +++++
 
 .. automodule:: smc.administration.tasks
-    :members: TaskMonitor, TaskDownload, Task, task_history, task_status
+    :members:
+    :show-inheritance:
 
 Updates
 ++++++++

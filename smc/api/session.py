@@ -3,22 +3,58 @@ Session module for tracking existing connection state to SMC
 """
 import json
 import logging
+import collections
 import requests
 import smc.api.web
-from smc.api.exceptions import SMCConnectionError, UnsupportedEntryPoint
-from smc.api.configloader import load_from_file
+from smc.api.exceptions import SMCConnectionError, UnsupportedEntryPoint,\
+    ConfigLoadError
+from smc.api.configloader import load_from_file, load_from_environ
 
 # requests.packages.urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
 
+class _EntryPoint(object):
+    def __init__(self, _listof):
+        self.entries = _listof
+        
+    def __iter__(self):
+        for entry in self.entries:
+            yield EntryPoint(
+                href=entry.get('href'),
+                rel=entry.get('rel'))
+    
+    def __len__(self):
+        return len(self.entries)
+
+    def get(self, rel):
+        for link in iter(self):
+            if link.rel == rel:
+                return link.href
+        raise UnsupportedEntryPoint(
+            "The specified entry point '{}' was not found in this "
+            "version of the SMC API. Check the element documentation "
+            "to determine the correct version and specify the api_version "
+            "parameter during session.login() if necessary.".format(rel))
+
+    def all(self):
+        """
+        Return all available rel's for this API
+        """
+        return [entry_rel.rel for entry_rel in iter(self)]
+
+    
+EntryPoint = collections.namedtuple('EntryPoint', 'href rel')
+    
+
 class Session(object):
     
     AUTOCOMMIT = False
     
     def __init__(self):
-        self._cache = SessionCache()
+        self._entry_points = []
+        self._api_version = None
         self._session = None
         self._connection = None
         self._url = None
@@ -27,9 +63,17 @@ class Session(object):
         self._domain = 'Shared Domain'
 
     @property
+    def entry_points(self):
+        if not len(self._entry_points):
+            raise SMCConnectionError(
+                "No entry points found, it is likely there is no valid "
+                "login session.")
+        return self._entry_points
+    
+    @property
     def api_version(self):
         """ API Version """
-        return self.cache.api_version
+        return self._api_version
 
     @property
     def session(self):
@@ -44,10 +88,6 @@ class Session(object):
     @property
     def connection(self):
         return self._connection
-
-    @property
-    def cache(self):
-        return self._cache
 
     @property
     def url(self):
@@ -107,8 +147,14 @@ class Session(object):
         SMC server.
         """
         if not url or not api_key:
-            cfg = load_from_file(alt_filepath) if alt_filepath\
+            # First try load from file
+            try:
+                cfg = load_from_file(alt_filepath) if alt_filepath\
                     is not None else load_from_file()
+            except ConfigLoadError:
+                # Last ditch effort, try to load from environment
+                cfg = load_from_environ()
+            
             logger.debug('Read config data: %s', cfg)
             url = cfg.get('url')
             api_key = cfg.get('api_key')
@@ -126,27 +172,36 @@ class Session(object):
         if domain:
             self._domain = domain
         
-        self.cache.get_api_entry(self.url, api_version,
-                                 timeout=self.timeout,
-                                 verify=verify)
+        self._api_version = get_api_version(url, api_version, timeout, verify)
+        
+        base = get_api_base(url, self.api_version)
+        
+        self._entry_points = get_entry_points(base, timeout, verify)
+        
         s = requests.session()  # no session yet
 
-        r = s.post(self.cache.get_entry_href('login'),
-                   json={'authenticationkey': self.api_key,
-                         'domain': domain},
-                   headers={'content-type': 'application/json'},
-                   verify=verify)
+        r = s.post(
+            self.entry_points.get('login'),
+            json={'authenticationkey': self.api_key,
+                  'domain': domain},
+            headers={'content-type': 'application/json'},
+            verify=verify)
 
+        logger.info("Using SMC API version: %s", self._api_version)
+        
         if r.status_code == 200:
             self._session = s  # session creation was successful
             self._session.verify = verify  # make verify setting persistent
-            logger.debug("Login succeeded and session retrieved: %s",
-                         self.session_id)
+            logger.debug(
+                "Login succeeded and session retrieved: %s", self.session_id)
+    
             self._connection = smc.api.web.SMCAPIConnection(self)
         else:
-            raise SMCConnectionError("Login failed, HTTP status code: %s and "
-                                     "reason: %s" % (r.status_code, r.reason))
-        logger.debug('Registering class mappings')
+            raise SMCConnectionError(
+                "Login failed, HTTP status code: %s and reason: %s" % (
+                    r.status_code, r.reason))
+    
+        logger.debug('Registering class mappings.')
         # Load the modules to register needed classes
         for pkg in ('smc.policy', 'smc.elements', 'smc.routing',
                     'smc.vpn', 'smc.administration', 'smc.core'):
@@ -156,7 +211,7 @@ class Session(object):
         """ Logout session from SMC """
         if self.session:
             try:
-                r = self.session.put(self.cache.get_entry_href('logout'))
+                r = self.session.put(self.entry_points.get('logout'))
                 if r.status_code == 204:
                     logger.info("Logged out successfully")
                     logger.debug("Call counters: %s" % smc.api.web.counters)
@@ -170,110 +225,87 @@ class Session(object):
                 logger.error("SSL exception thrown during logout: %s", e)
             finally:
                 self.session.cookies.clear()
-                self.cache.api_entry = None
+                self._entry_points = []
 
 
-class SessionCache(object):
-    def __init__(self):
-        self.api_entry = None
-        self.api_version = None
-
-    def get_api_entry(self, url, api_version=None, timeout=10,
-                      verify=True):
-        """
-        Called internally after login to get cache of SMC entry points
-
-        :param: str url: URL for SMC
-        :param str api_version: if specified, use this version, or use latest
-        """
-        try:
-            # Get api versions
-            r = requests.get('%s/api' % url, timeout=timeout,
-                             verify=verify)  # no session required
+def get_entry_points(base_url, timeout=10, verify=True):
+    """
+    Return the entry points in iterable class
+    """
+    try:
+        r = requests.get('%s/api' % (base_url), timeout=timeout,
+                         verify=verify)
+    
+        if r.status_code == 200:
             j = json.loads(r.text)
-            versions = []
-            for version in j['version']:
-                versions.append(version['rel'])
-            versions = [float(i) for i in versions]
+            logger.debug("Successfully retrieved API entry points from SMC")
+            
+            return _EntryPoint(j['entry_point'])
+    
+        else:
+            raise SMCConnectionError("Error occurred during initial api "
+                                     "request, json was not returned. "
+                                     "Return data was: %s" % r.text)
 
-            if api_version is None:  # Use latest
-                api_version = max(versions)
-            else:
-                try:
-                    specified_version = float(api_version)
-                    if specified_version in versions:
-                        api_version = specified_version
-                    else:
-                        api_version = max(versions)
-                except ValueError:
-                    api_version = max(versions)
+    except requests.exceptions.RequestException as e:
+        raise SMCConnectionError(e)
+        
 
-            # else api_version was defined
-            logger.info("Using SMC API version: %s", api_version)
-            smc_url = '{}/{}'.format(url, str(api_version))
-
-            r = requests.get('%s/api' % (smc_url), timeout=timeout,
-                             verify=verify)
-
-            if r.status_code == 200:
-                j = json.loads(r.text)
-                self.api_version = api_version
-                logger.debug(
-                    "Successfully retrieved API entry points from SMC")
-            else:
-                raise SMCConnectionError("Error occurred during initial api "
-                                         "request, json was not returned. "
-                                         "Return data was: %s" % r.text)
-            self.api_entry = j['entry_point']
-
-        except requests.exceptions.RequestException as e:
+def available_api_versions(base_url, timeout=10, verify=True):
+    """
+    Get all available API versions for this SMC
+    
+    :return version numbers
+    :rtype: list
+    """
+    try:
+        r = requests.get('%s/api' % base_url, timeout=timeout,
+                         verify=verify)  # no session required
+        j = json.loads(r.text)
+        versions = []
+        for version in j['version']:
+            versions.append(version['rel'])
+        versions = [float(i) for i in versions]
+        return versions
+    except requests.exceptions.RequestException as e:
             raise SMCConnectionError(e)
 
-    def get_entry_href(self, verb):
-        """
-        Get entry point from entry point cache
-        Call get_all_entry_points to find all available entry points.
-
-        :param str verb: top level entry point into SMC api
-        :return dict: meta data for specified entry point
-        :raises UnsupportedEntryPoint: entry point doesn't exist in this version
-        """
-        if self.api_entry:
-            href = None
-            for entry in self.api_entry:
-                if entry.get('rel') == verb:
-                    href = entry.get('href', None)
-            if not href:
-                raise UnsupportedEntryPoint(
-                    "The specified entry point '{}' was not found in this "
-                    "version of the SMC API. Check the element documentation "
-                    "to determine the correct version and specify the api_version "
-                    "parameter during session.login() if necessary. Current api version "
-                    "is {}".format(verb, self.api_version))
+        
+def get_api_version(base_url, api_version=None, timeout=10, verify=True):
+    """
+    Get the API version specified or resolve the latest version
+    
+    :return api version
+    :rtype: float
+    """
+    versions = available_api_versions(base_url, timeout, verify)
+    
+    if api_version is None:  # Use latest
+        api_version = max(versions)
+    else:
+        try:
+            specified_version = float(api_version)
+            if specified_version in versions:
+                api_version = specified_version
             else:
-                return href
-        else:
-            raise SMCConnectionError("No entry points found, it is likely "
-                                     "there is no valid login session.")
+                api_version = max(versions)
+        except ValueError:
+            api_version = max(versions)
 
-    @property
-    def entry_points(self):
-        return self.get_entry_points()
+    return api_version
 
-    def get_entry_points(self):
-        """
-        Build a list of filter contexts for entry points related to elements.
-        These filters can be used in the filter_context parameter on search methods
-        that support them.
 
-        :return: list names of each available filter context on the element node
-        """
-        return [entry.get('rel') for entry in self.api_entry]
-
-    def get_all_entry_points(self):
-        """ Returns all entry points into SMC api """
-        return self.api_entry
-
+def get_api_base(base_url, api_version=None):
+    """
+    From the base url and optional api version, return the
+    fully qualified API base URL
+    
+    :rtype: str
+    """
+    return '{}/{}'.format(
+        base_url, 
+        str(get_api_version(base_url, api_version)))
+    
 
 def import_submodules(package, recursive=True):
     """

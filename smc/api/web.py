@@ -32,8 +32,7 @@ class SMCAPIConnection(object):
     def __init__(self, session):
         self._session = session
         self.timeout = self._session.timeout
-        self.cache = self._session.cache
-
+        
     @property
     def session(self):
         return self._session.session

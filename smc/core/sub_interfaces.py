@@ -28,6 +28,18 @@ class SubInterface(Sequence):
                 return subif
 
 
+class LoopbackInterface(object):
+    @classmethod
+    def create(cls, address, network_value, **kwargs):
+        data = {'address': address,
+                'network_value': network_value,
+                'nicid': 'Loopback Interface'}
+
+        for k, v in kwargs.items():
+            data.update({k: v})
+        
+        return data
+            
 class ClusterVirtualInterface(object):
     """
     ClusterVirtualInterface

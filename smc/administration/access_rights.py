@@ -5,7 +5,6 @@ access permissions to either Engines, Policies or Domains.
 
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
-from smc.base.decorators import autocommit
 from smc.elements.other import AdminDomain
 
 
@@ -55,31 +54,28 @@ class AccessControlList(Element):
         """
         return [Element.from_href(e) for e in self.granted_element]
 
-    @autocommit(now=False)
-    def add_permission(self, elements, autocommit=False):
+    def add_permission(self, elements):
         """
-        Add permission/s to this ACL.
+        Add permission/s to this ACL. By default this change is committed
+        after the method is called.
         
         :param list elements: Elements to grant access to. Can be engines,
             policies, or other ACLs
         :type elements: list(str,Element)
-        :param bool autocommit: autocommit save after calling this function.
-            (default: True)
         :raises UpdateElementFailed: Failed updating permissions
         :return: None
         """
         elements = element_resolver(elements)
         self.data['granted_element'].extend(elements)
+        self.update()
         
-    @autocommit(now=False)
-    def remove_permission(self, elements, autocommit=False):
+    def remove_permission(self, elements):
         """    
-        Remove permission/s to this ACL.
+        Remove permission/s to this ACL. Change is committed at end of
+        method call.
         
         :param list elements: list of element/s to remove
         :type elements: list(str,Element)
-        :param bool autocommit: autocommit save after calling this function.
-            (default: True)
         :raises UpdateElementFailed: Failed modifying permissions
         :return: None
         """
@@ -87,6 +83,7 @@ class AccessControlList(Element):
         for element in elements:
             if element in self.granted_element:
                 self.data['granted_element'].remove(element)
+        self.update()
 
 
 class Permission(object):

@@ -22,8 +22,8 @@ Create a permission using the default domain of Shared, granting access to a spe
 engine and firewall policy::
 
     permission = Permission.create(
-                    granted_elements=[Engine('vm'), FirewallPolicy('VM Policy')], 
-                    role=Role('Viewer'))
+        granted_elements=[Engine('vm'), FirewallPolicy('VM Policy')], 
+        role=Role('Viewer'))
 
 Create a second permission granting access to all firewalls in the domain 'mydomain'::
 
@@ -32,9 +32,9 @@ Create a second permission granting access to all firewalls in the domain 'mydom
         role=Role('Owner'),
         domain=AdminDomain('mydomain'))
 
-Add the permissions to the Admin User and commit the change immediately::
+Add the permissions to the Admin User::
 
-    admin.add_permission([permission, domain_perm], autocommit=True)
+    admin.add_permission([permission, domain_perm])
 
 Set an initial password for the Admin User::
 
@@ -49,7 +49,6 @@ Set an initial password for the Admin User::
 
 """
 from smc.base.model import Element, ElementCreator, prepared_request
-from smc.base.decorators import autocommit
 from smc.api.exceptions import ModificationFailed
 from smc.administration.access_rights import Permission
 
@@ -82,19 +81,17 @@ class UserMixin(object):
             params={'password': password}
         ).update()
 
-    @autocommit(now=False)
-    def add_permission(self, permission, autocommit=False):
+    def add_permission(self, permission):
         """
         Add a permission to this Admin User. A role defines permissions that
         can be enabled or disabled. Elements define the target for permission
         operations and can be either Access Control Lists, Engines or Policy
         elements. Domain specifies where the access is granted. The Shared
-        Domain is default unless specific domain provided.
+        Domain is default unless specific domain provided. Change is committed
+        at end of method call.
         
         :param permission: permission/s to add to admin user
         :type permission: list(Permission)
-        :param bool autocommit: autocommit save after calling this function.
-            (default: False)
         :raises UpdateElementFailed: failed updating admin user
         :return: None
         """
@@ -104,6 +101,7 @@ class UserMixin(object):
         
         for p in permission:
             self.data['permissions']['permission'].append(p._as_dict())
+        self.update()
         
     @property
     def permissions(self):

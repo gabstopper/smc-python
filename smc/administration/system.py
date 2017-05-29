@@ -20,12 +20,12 @@ To load the configuration for system, do::
 """
 import smc.actions.search as search
 from smc.elements.other import prepare_blacklist
-from .tasks import task_handler, Task
 from smc.base.model import prepared_request, SubElement
 from smc.administration.updates import EngineUpgrade, UpdatePackage
-from smc.administration.license import License
+from smc.administration.license import Licenses
 from smc.api.common import fetch_json_by_post
 from smc.api.exceptions import ActionCommandFailed
+from smc.administration.tasks import DownloadTask
 
 
 class System(SubElement):
@@ -145,11 +145,9 @@ class System(SubElement):
                 print(license, license.expiration_date)
                 .....
 
-        :return: list :py:class:`smc.administration.license.License`
+        :return: list :py:class:`smc.administration.license.Licenses`
         """
-        licenses = self._resource.get('licenses')
-        return [License(**lic)
-                for lic in licenses['license']]
+        return Licenses(self._resource.get('licenses'))
 
     def license_fetch(self):
         """
@@ -201,8 +199,7 @@ class System(SubElement):
         else:
             return []
 
-    def export_elements(self, filename='export_elements.zip', typeof='all',
-                        wait_for_finish=False):
+    def export_elements(self, filename='export_elements.zip', typeof='all'):
         """
         Export elements from SMC.
 
@@ -214,25 +211,24 @@ class System(SubElement):
         :param type: type of element
         :param filename: Name of file for export
         :raises TaskRunFailed: failure during export with reason
-        :return: generator with results (if wait_for_finish=True), else href
+        :return: DownloadTask
         """
         valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
         if typeof not in valid_types:
             typeof = 'all'
 
-        element = prepared_request(href=self._resource.export_elements,
-                                   params={'recursive': True,
-                                           'type': typeof}
-                                   ).create()
+        task = prepared_request(
+            href=self._resource.export_elements,
+            params={'recursive': True,
+                    'type': typeof}
+            ).create()
 
-        return task_handler(Task(**element.json),
-                            wait_for_finish=wait_for_finish,
-                            filename=filename)
-
+        return DownloadTask(
+                filename=filename, **task.json)
+       
     def active_alerts_ack_all(self):
         """
         Acknowledge all active alerts in the SMC
-
         :raises ActionCommandFailed: Failure during acknowledge with reason
         :raises ResourceNotFound: resource supported in version >= 6.2
         :return: None

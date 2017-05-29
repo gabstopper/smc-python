@@ -125,7 +125,7 @@ class FirewallPolicy(FirewallRule, Policy):
         pass
 
     @classmethod
-    def create(cls, name, template):
+    def create(cls, name, template='Firewall Inspection Template'):
         """ 
         Create Firewall Policy. Template policy is required for the
         policy. The template parameter should be the name of the

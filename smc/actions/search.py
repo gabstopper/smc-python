@@ -303,7 +303,7 @@ def all_elements_by_type(name):
 
 def all_entry_points():  # get from session cache
     """ Get all SMC API entry points """
-    return session.cache.get_all_entry_points()
+    return session.entry_points.all()
 
 
 def element_entry_point(name):

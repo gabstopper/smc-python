@@ -11,6 +11,65 @@ except ImportError:
     import ConfigParser as configparser  # @UnusedImport
 
 
+def load_from_environ():
+    """
+    Load the SMC URL, API KEY and optional SSL certificate from
+    the environment.
+    
+    Fields are::
+    
+        SMC_ADDRESS=http://1.1.1.1:8082
+        SMC_API_KEY=123abc
+        SMC_CLIENT_CERT=path/to/cert
+        SMC_TIMEOUT = 30 (seconds)
+        SMC_API_VERSION = 6.1 (optional - uses latest by default)
+        SMC_DOMAIN = name of domain, Shared is default 
+    
+    SMC_CLIENT CERT is only checked IF the SMC_URL is an HTTPS url.
+    """
+    try:
+        from urllib.parse import urlparse
+    except ImportError:
+        from urlparse import urlparse
+    
+    smc_address = os.environ.get('SMC_ADDRESS', '')
+    smc_apikey = os.environ.get('SMC_API_KEY', '')
+    smc_timeout = os.environ.get('SMC_TIMEOUT', None)
+    api_version = os.environ.get('SMC_API_VERSION', None)
+    domain = os.environ.get('SMC_DOMAIN', None)
+    
+    if not smc_apikey or not smc_address:
+        raise ConfigLoadError(
+            'If loading from environment variables, you must provide values '
+            'SMC_ADDRESS and SMC_API_KEY.')
+        
+    config_dict = {}
+        
+    config_dict.update(smc_apikey=smc_apikey)
+    config_dict.update(timeout=smc_timeout)
+    config_dict.update(api_version=api_version)
+    config_dict.update(domain=domain)
+        
+    url = urlparse(smc_address)
+    
+    config_dict.update(smc_address=url.hostname)
+        
+    port = url.port
+    if not port:
+        port = '8082'
+    
+    config_dict.update(smc_port=port)
+        
+    if url.scheme == 'https':
+        config_dict.update(smc_ssl=True)
+        ssl_cert = os.environ.get('SMC_CLIENT_CERT', None)
+        if ssl_cert: # Enable cert validation
+            config_dict.update(verify_ssl=True)
+            config_dict.update(ssl_cert_file=ssl_cert)
+        # Else http
+    
+    return transform_login(config_dict)
+
 def load_from_file(alt_filepath=None):
     """ Attempt to read the SMC configuration from a
     dot(.) file in the users home directory. The order in

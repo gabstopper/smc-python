@@ -22,7 +22,7 @@ overidden.
 """
 from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
     ResourceNotFound
-from smc.administration.tasks import task_handler, Task
+from smc.administration.tasks import ProgressTask
 from smc.base.model import Element, prepared_request, lookup_class
 
 
@@ -42,31 +42,23 @@ class Policy(Element):
         super(Policy, self).__init__(name, **meta)
         pass
 
-    def upload(self, engine, wait_for_finish=True):
+    def upload(self, engine):
         """ 
         Upload policy to specific device. This is an asynchronous call
         that will return a 'follower' link that can be queried to determine 
         the status of the task. 
 
-        If wait_for_finish is False, the progress
-        href is returned when calling this method. If wait_for_finish is
-        True, this generator function will return the new messages as they
-        arrive.
-
         :param str engine: name of device to upload policy to
-        :param wait_for_finish: whether to wait in a loop until the upload completes
-        :return: generator with updates, or follower href if wait_for_finish=False
+        :return: ProgressTask
         """
-        element = prepared_request(
+        task = prepared_request(
             TaskRunFailed,
             href=self._resource.upload,
             params={'filter': engine}
         ).create()
-
-        return task_handler(
-            Task(**element.json),
-            wait_for_finish=wait_for_finish)
-
+    
+        return ProgressTask(**task.json)
+    
     def open(self):
         """ 
         Open policy locks the current policy, Use when making multiple

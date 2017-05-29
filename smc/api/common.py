@@ -38,7 +38,7 @@ class _RequestHandler(object):
         try:
             if self.method == 'GET':
                 if not self.href:
-                    self.href = session.cache.get_entry_href('elements')
+                    self.href = session.entry_points.get('elements')
             result = session.connection.send_request(self.method, self)
 
         except SMCOperationFailure as e:
@@ -121,10 +121,21 @@ def fetch_entry_point(name):
     :rtype: str
     """
     try:
-        return session.cache.get_entry_href(name)  # from entry point cache
+        return session.entry_points.get(name)  # from entry point cache
     except UnsupportedEntryPoint:
         raise
 
+
+def fetch_no_filter(entry_point, filter=None):  # @ReservedAssignment
+    """
+    Fetch elements with no filter_context filter. This will pull from the
+    entry point base.
+    """
+    return SMCRequest(
+        href=session.entry_points.get(entry_point),
+        params={'filter': filter}
+        ).read().json
+    
 
 def fetch_href_by_name(name,
                        filter_context=None,

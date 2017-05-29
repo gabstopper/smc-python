@@ -2,9 +2,9 @@
 Functionality related to updating dynamic update packages and
 engine upgrades
 """
-from .tasks import Task, task_handler
 from smc.base.model import prepared_request, SubElement
 from smc.api.exceptions import ResourceNotFound, ActionCommandFailed
+from smc.administration.tasks import ProgressTask
 
 
 class PackageMixin(object):
@@ -13,57 +13,47 @@ class PackageMixin(object):
     upgrades
     """
 
-    def download(self, wait_for_finish=False, sleep=3):
+    def download(self, timeout=3):
         """
         Download Package or Engine Update
 
-        :method: POST
-        :param bool wait_for_finish: wait for download to complete
-        :param int sleep: number of seconds to sleep if wait_for_finish=True
+        :param int timeout: timeout between queries
         :raises ActionCommandFailed: task kick off failed
         :raises TaskRunFailed: failure during task status
-        :return: generator messages or final href of follower resource
+        :return: ProgressTask
         """
         try:
-            result = prepared_request(
+            task = prepared_request(
                 ActionCommandFailed,
                 href=self._resource.download
             ).create()
 
-            return task_handler(
-                Task(**result.json),
-                wait_for_finish=wait_for_finish,
-                sleep=sleep)
+            return ProgressTask(**task.json)
 
         except ResourceNotFound:
             raise ActionCommandFailed(
                 'Package cannot be downloaded, package state: {}' .format(
                     self.state))
 
-    def activate(self, resource=None, wait_for_finish=False, sleep=3):
+    def activate(self, resource=None, timeout=3):
         """
         Activate this package on the SMC
 
         :param list resource: node href's to activate on. Resource is only
                required for software upgrades
-        :param bool wait_for_finish: True|False, whether to wait
-               for update messages
-        :param int sleep: number of seconds to sleep if wait_for_finish=True
+        :param int timeout: timeout between queries
         :raises ActionCommandFailed: failure during activation (downloading, etc)
         :raises TaskRunFailed: failure during task run
         :return: generator Task generator with updates
         """
         try:
-            result = prepared_request(
+            task = prepared_request(
                 ActionCommandFailed,
                 href=self._resource.activate,
                 json={'resource': resource}
             ).create()
 
-            return task_handler(
-                Task(**result.json),
-                wait_for_finish=wait_for_finish,
-                sleep=sleep)
+            return ProgressTask(**task.json)
 
         except ResourceNotFound:
             raise ActionCommandFailed(
@@ -129,9 +119,9 @@ class UpdatePackage(PackageMixin, SubElement):
 
         for package in system.update_package():
             if package.name == 'Update Package 788': #Use specific package
-                for msg in package.download(wait_for_finish=True):
-                    print msg
-                package.activate() #Activate it on SMC
+                task = package.download().wait()
+                if task.success:
+                    package.activate() #Activate it on SMC
 
     """
 

@@ -46,7 +46,6 @@ Classes that do not require state on retrieved json or provide basic
 container functionality may inherit from object.
 """
 from collections import namedtuple
-import smc.compat as compat
 import smc.base.collection
 from smc.base.decorators import cached_property, exception
 from smc.api.web import counters
@@ -212,7 +211,8 @@ class Cache(object):
 
     @property
     def etag(self):
-        # Etag can be none if cache was manually set
+        # Etag can be none if cache was manually set, assume that
+        # is because data was loaded through a reference
         if self.__call__()[0] is None:
             etag = prepared_request(
                 FetchElementFailed,
@@ -301,7 +301,7 @@ class ElementBase(UnicodeMixin):
         for link in self.data.get('link'):
             setattr(res, link.get('rel'), link.get('href'))
         return res
-        
+
     @property
     def data(self):
         return self._cache.data
@@ -414,7 +414,7 @@ class ElementBase(UnicodeMixin):
             change with reason
         :return: None
         """
-        if self.data.get('system') is True:
+        if self.data.get('system', False):
             raise ModificationFailed(
                 'Cannot modify system element: %s' % self.name)
 
@@ -480,16 +480,15 @@ class Element(ElementBase):
         value and type but not name of if it already exists. If filter_key
         is provided, this should define an attribute and value to use for an
         exact match on the element. Valid attributes are ones required on the
-        elements ``create`` method or can be viewed by obtaining the element
-        and examining the ``data`` attribute. If no filter_key is provided,
-        the name field will be used to find the element.
-        
-        Example of getting an element of type Network::
+        elements ``create`` method or can be viewed by the elements class
+        docs. If no filter_key is provided, the name field will be used to
+        find the element.
+        ::
         
             >>> Network.get_or_create(
-                filter_key={'ipv4_network': '123.123.123.0/24'},
-                name='mynetwork',
-                ipv4_network='123.123.123.0/24')
+                    filter_key={'ipv4_network': '123.123.123.0/24'},
+                    name='mynetwork',
+                    ipv4_network='123.123.123.0/24')
             Network(name=mynetwork)
 
         The kwargs should be used to satisfy the elements ``create``
@@ -505,9 +504,9 @@ class Element(ElementBase):
         :rtype: Element
         """
         if filter_key:
-            network = cls.objects.filter(**filter_key)
-            if network.exists():
-                return network.first()
+            elements = cls.objects.filter(**filter_key)
+            if elements.exists():
+                return elements.first()
             element = cls.create(**kwargs)
         else:
             try:
@@ -518,13 +517,61 @@ class Element(ElementBase):
         
         return element
     
+    @classmethod
+    def update_or_create(cls, filter_key=None, **kwargs):
+        """
+        Update or create the element. If the element exists, update
+        it using the kwargs provided, otherwise create new. Provide a
+        ``filter_key`` dict key/value if you want to match the element
+        by a specific attribute and value. If no filter_key is provided,
+        the name field will be used to find the element.
+        ::
+        
+            >>> host = Host('kali')
+            >>> print(host.address)
+            12.12.12.12
+            >>> host = Host.update_or_create(name='kali', address='10.10.10.10')
+            >>> print(host, host.address)
+            Host(name=kali) 10.10.10.10
+        
+        :param dict filter_key: filter key represents the data attribute and
+            value to use to find the element. If none is provided, the name
+            field will be used.
+        :param kwargs: keyword arguments mapping to the elements ``create``
+            method.
+        :raises CreateElementFailed: could not create element with reason
+        :return: element instance by type
+        :rtype: Element
+        """
+        element = None
+        if filter_key:
+            elements = cls.objects.filter(**filter_key)
+            if elements.exists():
+                element = elements.first()
+        else:
+            try:
+                element = cls(
+                    kwargs.get('name')); element.href
+            except ElementNotFound:
+                element = None
+        
+        params = {k: v() if callable(v) else v
+                  for k, v in kwargs.items()}
+
+        if element:
+            element.update(**params)
+        else:
+            element = cls.create(**params)
+    
+        return element
+    
     @property
     def name(self):
         """
         Name of element
         """
-        if compat.PY3:
-            return self._name
+        #if compat.PY3:
+        #    return self._name
         return bytes_to_unicode(self._name)
 
     @property
@@ -591,28 +638,26 @@ class Element(ElementBase):
                     href=self._resource.search_category_tags_from_element
                 ).read().json]
 
-    def export(self, filename='element.zip', wait_for_finish=False):
+    def export(self, filename='element.zip'):
         """
         Export this element
 
         :param str filename: filename to store exported element
-        :param bool wait_for_finish: wait for update msgs (default: False)
         :raises ActionCommandFailed: invalid permissions, invalid directory..
-        :return: generator yielding updates on progress, or [] if element
-            cannot be exported, like for system elements
+        :return: DownloadTask
         """
-        from smc.administration.tasks import Task, task_handler
+        from smc.administration.tasks import DownloadTask
         try:
-            element = prepared_request(
+            task = prepared_request(
                 ActionCommandFailed,
                 href=self._resource.export,
                 filename=filename
                 ).create()
 
-            return task_handler(
-                Task(**element.json),
-                wait_for_finish=wait_for_finish,
-                filename=filename)
+            return DownloadTask(
+                    filename=filename, **task.json
+            )
+           
         except ResourceNotFound:
             return []
 

@@ -170,6 +170,7 @@ Element.get_or_create helper method
 All created element calls now return an instance of themselves versus just the href
 filter_key, first, last and exists options on search collection
 remove attr_by_name in favor of instance attributes
+config loading from environment variables
 
 
 

@@ -226,4 +226,5 @@ operation. These functions are documented and will also be decorated with and ``
 decorator.
 This allows you to queue changes locally before submitting them to the SMC by calling ``update``.
 To override this behavior, you can either pass ``autocommit=True`` to these functions or set
-``session.AUTOCOMMIT=True`` on the session.
+``session.AUTOCOMMIT=True`` on the session. Most methods will autocommit by default with exception
+of methods defined in :class:`smc.core.properties`.

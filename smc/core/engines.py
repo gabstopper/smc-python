@@ -4,6 +4,7 @@ from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed
 from smc.base.model import prepared_request
 from smc.elements.helpers import logical_intf_helper
+from smc.core.sub_interfaces import LoopbackInterface
 
 
 class Layer3Firewall(Engine):
@@ -89,7 +90,60 @@ class Layer3Firewall(Engine):
                                      'reason: {}.'
                                      .format(result.msg, engine))
 
-
+    @classmethod
+    def create_dynamic(cls, name, interface_id,
+                       dynamic_index=1,
+                       primary_mgt=True,
+                       reverse_connection=True,
+                       automatic_default_route=True,
+                       loopback_ndi='127.0.0.1',
+                       loopback_ndi_network='127.0.0.1/32',
+                       location_ref=None,
+                       log_server_ref=None,
+                       zone_ref=None,
+                       enable_gti=False,
+                       enable_antivirus=False,
+                       sidewinder_proxy_enabled=False,
+                       default_nat=False):
+        """
+        Create a single layer 3 firewall with only a DHCP interface. Useful
+        when creating virtualized FW's such as in Microsoft Azure.
+        """
+        builder = InterfaceBuilder()
+        builder.interface_id = interface_id
+        builder.add_dhcp(dynamic_index, is_mgmt=primary_mgt)
+        builder.zone_ref = zone_ref
+        
+        loopback = LoopbackInterface.create(
+            address=loopback_ndi, 
+            network_value=loopback_ndi_network, 
+            nodeid=1, 
+            auth_request=True, 
+            rank=1)
+        
+        engine = super(Layer3Firewall, cls)._create(
+            name=name,
+            node_type='firewall_node',
+            loopback_ndi=[loopback],
+            physical_interfaces=[{'physical_interface': builder.data}],
+            log_server_ref=log_server_ref,
+            nodes=1, enable_gti=enable_gti,
+            enable_antivirus=enable_antivirus,
+            sidewinder_proxy_enabled=sidewinder_proxy_enabled,
+            default_nat=default_nat,
+            location_ref=location_ref)
+    
+        href = search.element_entry_point('single_fw')
+        result = prepared_request(href=href, json=engine).create()
+        if result.href:
+            return Engine(name=name,
+                          href=result.href,
+                          type='single_fw')
+        else:
+            raise CreateEngineFailed('Could not create the engine, '
+                                     'reason: {}.'
+                                     .format(result.msg, engine))
+        
 class Layer2Firewall(Engine):
     """
     Creates a Layer 2 Firewall with a default inline interface pair

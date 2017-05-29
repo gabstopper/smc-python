@@ -2,10 +2,10 @@
 Helper functions to retrieve various elements that may be required by specific
 constructors.
 """
-import smc.actions.search as search
 from smc.elements.network import Zone
-from smc.elements.other import LogicalInterface, Location
+from smc.elements.other import LogicalInterface, Location, AdminDomain
 from smc.api.exceptions import ElementNotFound
+from smc.api.common import fetch_no_filter
 
 
 def location_helper(name):
@@ -16,20 +16,11 @@ def location_helper(name):
     :param str name
     :return str href: href of location
     """
-    location = None
-    try:  # SMC >= 6.1.1, locations now searchable
-        location = Location(name).href
-    except ElementNotFound:
-        location_lst = [x
-                        for x in search.all_elements_by_type('location')
-                        if x.get('name') == name]
-        # SMC <= SMC 6.1
-        if location_lst:
-            location = location_lst[0].get('href')
-    if location:
-        return location
-    else:
-        return Location.create(name).href
+    locations = [Location(**location) 
+                 for location in fetch_no_filter('location', name)]
+    if not locations:
+        return Location.create(name=name).href
+    return locations[0].href
 
 
 def zone_helper(zone):
@@ -40,11 +31,7 @@ def zone_helper(zone):
     :param str zone: name of zone
     :return str href: href of zone
     """
-    zone_ref = search.element_href_use_filter(zone, 'interface_zone')
-    if zone_ref:
-        return zone_ref
-    else:
-        return Zone.create(zone).href
+    return Zone.get_or_create(name=zone).href
 
 
 def logical_intf_helper(interface):
@@ -54,11 +41,7 @@ def logical_intf_helper(interface):
     :param interface: logical interface name
     :return str href: href of logical interface
     """
-    intf_ref = search.element_href_use_filter(interface, 'logical_interface')
-    if intf_ref:
-        return intf_ref
-    else:
-        return LogicalInterface.create(interface)
+    return LogicalInterface.get_or_create(name=interface).href
 
 
 def domain_helper(name):
@@ -68,6 +51,7 @@ def domain_helper(name):
     :return: href of domain
     :rtype: str
     """
-    domain = search.element_href_use_filter(name, 'admin_domain')
-    if domain:
-        return domain
+    try:
+        return AdminDomain(name).href
+    except ElementNotFound:
+        pass

@@ -162,7 +162,8 @@ class ElementCollection(object):
         for item in self._list:
             element = smc.base.model.Element.from_meta(**item)
             if self._iexact:
-                if all([element.data.get(k) == v for k, v in self._iexact.items()]):
+                #if all([element.data.get(k) == v for k, v in self._iexact.items()]):
+                if all(element.data.get(k) == v for k, v in self._iexact.items()):
                     yield element
                     count += 1
             else:
@@ -500,9 +501,9 @@ class Search(object):
         # URI
         element_uri = str(
             '{}/{}/elements'.format(session.url, session.api_version))
-        types = [element.get('rel')
-                 for element in session.cache.get_all_entry_points()
-                 if element.get('href').startswith(element_uri)]
+        types = [element.rel
+                 for element in session.entry_points
+                 if element.href.startswith(element_uri)]
         types.extend(list(_context_filters))
         return types
 

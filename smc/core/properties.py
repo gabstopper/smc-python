@@ -20,7 +20,7 @@ To refresh policy::
     engine.enable_gti_file_reputation()
     engine.enable_antivirus(log_level='stored', autocommit=True)
     #engine.update()    <-- without 'autocommit=True', call .update() to save
-    for status in engine.refresh():
+    for status in engine.refresh().wait():
         print(status)
 
 Installing new policy::
@@ -28,7 +28,7 @@ Installing new policy::
     engine = Engine('vm')
     engine.add_dns_servers(['3.3.3.3', '4.4.4.4'])
     engine.update()
-    for status in engine.upload(policy='vm-fw', wait_for_finish=True):
+    for status in engine.upload(policy='vm-fw').wait():
         print(status)
 
 .. note::

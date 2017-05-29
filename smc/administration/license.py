@@ -1,6 +1,23 @@
 """
 Module representing read-only licenses in SMC
 """
+class Licenses(object):
+    """
+    List of all available licenses for this Management Server.
+    """
+    def __init__(self, licenses):
+        self.licenses = []
+        for lic in licenses['license']:
+            self.licenses.append(License(**lic))
+    
+    def __iter__(self):
+        return iter(self.licenses)
+    
+    def __len__(self):
+        return len(self.licenses)
+    
+    def __getitem__(self, index):
+        return self.licenses[index]
 
 
 class License(object):
@@ -25,26 +42,18 @@ class License(object):
     typeof = 'licenses'
 
     def __init__(self, **data):
-        self.__dict__.update(data)
+        for d, v in data.items():
+            setattr(self, d, v)
 
     @property
     def name(self):
         return self.license_id
 
-    def __getitem__(self, item):
-        try:
-            return self.__dict__[item]
-        except KeyError:  # Handle missing attributes
-            pass
-
-    __getattr__ = __getitem__
-
-    def __setattr__(self, name, value):
-        raise TypeError(
-            'Cannot set name %r on object of type %s' %
-            (name, self.__class__.__name__))
-
+    def __getattr__(self, attr):
+        return None
+    
     def __repr__(self):
-        return '{0}(id={1},binding={2})'.format(self.__class__.__name__,
-                                                self.name,
-                                                self.binding_state)
+        return '{0}(id={1},binding={2})'.format(
+            self.__class__.__name__,
+            self.name,
+            self.binding_state)

@@ -10,7 +10,7 @@ from smc.core.node import Node
 from smc.core.resource import Snapshot, PendingChanges
 from smc.core.interfaces import PhysicalInterface, \
     VirtualPhysicalInterface, TunnelInterface, Interface
-from smc.administration.tasks import task_handler, Task
+from smc.administration.tasks import ProgressTask
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
 from smc.vpn.elements import VPNSite
@@ -76,7 +76,8 @@ class Engine(EngineProperty, Element):
     @classmethod
     def _create(cls, name, node_type,
                 physical_interfaces,
-                nodes=1, log_server_ref=None,
+                nodes=1, loopback_ndi=None,
+                log_server_ref=None,
                 domain_server_address=None,
                 enable_antivirus=False, enable_gti=False,
                 sidewinder_proxy_enabled=False,
@@ -97,7 +98,11 @@ class Engine(EngineProperty, Element):
         """
         node_list = []
         for nodeid in range(1, nodes + 1):  # start at nodeid=1
-            node_list.append(Node._create(name, node_type, nodeid))
+            node_list.append(Node._create(
+                name,
+                node_type,
+                nodeid,
+                loopback_ndi))
 
         domain_server_list = []
         if domain_server_address:
@@ -567,36 +572,30 @@ class Engine(EngineProperty, Element):
                 'Switch interfaces are not supported on this engine type: {}'
                 .format(self.type))
 
-    def refresh(self, wait_for_finish=True, sleep=3):
+    def refresh(self, timeout=3):
         """
         Refresh existing policy on specified device. This is an asynchronous
         call that will return a 'follower' link that can be queried to
         determine the status of the task.
-
-        Last yield is result href; if wait_for_finish=False, the only yield is
-        the follower href::
-
+        ::
+        
             task = engine.refresh()
-            for message in task:
-                print message
+            for message in task.wait():
+                print('Percentage complete {}%'.format(message))
 
-        :param bool wait_for_finish: whether to wait in a loop until the upload
-            completes
-        :param int sleep: number of seconds to sleep if wait_for_finish=True
+        :param int timeout: timeout between queries
         :raises TaskRunFailed: refresh failed, possibly locked policy
-        :return: generator yielding updates on progress
+        :return: ProgressTask
         """
-        element = prepared_request(
+        task = prepared_request(
             TaskRunFailed,
             href=self._resource.refresh
             ).create()
 
-        return task_handler(
-            Task(**element.json),
-            wait_for_finish=wait_for_finish,
-            sleep=sleep)
+        return ProgressTask(**task.json)
 
-    def upload(self, policy=None, wait_for_finish=False, sleep=3):
+
+    def upload(self, policy=None, timeout=3):
         """
         Upload policy to engine. This is used when a new policy is required
         for an engine, or this is the first time a policy is pushed to an
@@ -607,27 +606,23 @@ class Engine(EngineProperty, Element):
         name is not known::
 
             engine = Engine('myfw')
-            task = engine.upload('Amazon*', wait_for_finish=True)
-            for message in task:
-                print message
+            task = engine.upload('Amazon*')
+            for message in task.wait():
+                print(message)
 
         :param str policy: name of policy to upload to engine; if None, current
             policy
-        :param bool wait_for_finish: whether to wait for async responses
-        :param int sleep: number of seconds to sleep if wait_for_finish=True
+        :param int timeout: timeout between queries
         :raises TaskRunFailed: upload failed with reason
-        :return: generator yielding updates on progress
+        :return: ProgressTask
         """
-        element = prepared_request(
+        task = prepared_request(
             TaskRunFailed,
             href=self._resource.upload,
             params={'filter': policy}
             ).create()
 
-        return task_handler(
-            Task(**element.json),
-            wait_for_finish=wait_for_finish,
-            sleep=sleep)
+        return ProgressTask(**task.json)
 
     def generate_snapshot(self, filename='snapshot.zip'):
         """

@@ -124,6 +124,15 @@ class Routing(SubElement):
         return self.data.get('nic_id')
 
     @property
+    def dynamic_nicid(self):
+        """
+        NIC id for this dynamic interface
+        
+        :return str nic identifier
+        """
+        return self.data.get('dynamic_nicid')
+    
+    @property
     def ip(self):
         """
         IP network / host for this route
@@ -160,8 +169,9 @@ class Routing(SubElement):
         :rtype: Routing
         """
         for interface in iter(self):
-            if interface.nicid == str(interface_id):
-                return interface
+            if interface.nicid == str(interface_id) or \
+                interface.dynamic_nicid == str(interface_id):
+                return interface     
 
     def add_traffic_handler(self, netlink, netlink_gw=None, network=None):
         """
@@ -334,6 +344,36 @@ class Routing(SubElement):
         self._bind_to_ipv4_network(network, route)
         self.update()
     
+    def add_dynamic_gateway(self, networks):
+        """
+        A dynamic gateway object is a router that is attached to
+        a DHCP interface. You can associate networks with this gateway
+        address to identify networks on this interface.
+        ::
+        
+            route = engine.routing.get(0)
+            route.add_dynamic_gateway([Network('mynetwork')])
+        
+        :param list Network: list of network elements to add to
+            this gateway
+        :return: None
+        """
+        networks = element_resolver(networks)
+        
+        route = {'dynamic_classid': 'gateway',
+                 'level': 'gateway',
+                 'routing_node': []}
+        
+        for network in networks:
+            route['routing_node'].append({
+                'href': network,
+                'level': 'any'})
+        
+        for networks in iter(self):
+            networks.data['routing_node'].append(route)
+     
+        self.update()
+            
     def _bind_to_ipv4_network(self, network, element):
         for networks in iter(self):
             if len(networks.ip.split(':')) == 1:  # Skip IPv6

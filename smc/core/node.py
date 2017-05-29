@@ -13,6 +13,7 @@ For example, to load an engine and run node level commands::
         ...
         ...
 """
+import base64
 from collections import namedtuple
 from smc.base.util import save_to_file
 from smc.api.exceptions import LicenseError, NodeCommandFailed, \
@@ -54,7 +55,8 @@ class Node(SubElement):
         return self.data.get('nodeid')
 
     @classmethod
-    def _create(cls, name, node_type, nodeid=1):
+    def _create(cls, name, node_type, nodeid=1,
+                loopback_ndi=None):
         """
         Create the node/s for the engine. This isn't called directly,
         instead it is used when engine.create() is called
@@ -62,11 +64,14 @@ class Node(SubElement):
         :param str name: name of node
         :param str node_type: based on engine type specified
         :param int nodeid: used to identify which node
+        :param list LoopbackInterface loopback_ndi: optional loopback
+            interface for node.
         """
+        loopback = loopback_ndi if loopback_ndi else []
         node = {node_type: {
             'activate_test': True,
             'disabled': False,
-            'loopback_node_dedicated_interface': [],
+            'loopback_node_dedicated_interface': loopback,
             'name': name + ' node ' + str(nodeid),
             'nodeid': nodeid}
         }
@@ -138,7 +143,8 @@ class Node(SubElement):
     def initial_contact(self, enable_ssh=True, time_zone=None,
                         keyboard=None,
                         install_on_server=None,
-                        filename=None):
+                        filename=None,
+                        as_base64=False):
         """
         Allows to save the initial contact for for the specified node
 
@@ -150,6 +156,8 @@ class Node(SubElement):
             configuration needs to be installed on SMC Install server
             (POS is needed)
         :param str filename: filename to save initial_contact to
+        :param bool as_base64: return the initial config in base 64 format. Useful
+            for cloud based engine deployments as userdata
         :raises NodeCommandFailed: IOError handling initial configuration data
         :return: initial contact text information
         :rtype: str
@@ -157,9 +165,13 @@ class Node(SubElement):
         try:
             result = prepared_request(
                 href=self._resource.initial_contact,
-                params={'enable_ssh': enable_ssh}
-            ).create()
+                params={'enable_ssh': enable_ssh}).create()
+    
             if result.content:
+                if as_base64:
+                    result.content = base64.encodestring(
+                        result.content.encode()).decode().replace('\n', '')
+                    
                 if filename:
                     try:
                         save_to_file(filename, result.content)

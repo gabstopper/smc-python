@@ -30,7 +30,7 @@ from smc.api.exceptions import EngineCommandFailed, FetchElementFailed,\
 from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface,
                                      ClusterVirtualInterface, InlineInterface,
                                      CaptureInterface, _add_vlan_to_inline,
-                                     SubInterface)
+                                     SubInterface, LoopbackInterface)
 from smc.base.util import bytes_to_unicode
 
 
@@ -1858,7 +1858,7 @@ class InterfaceBuilder(object):
             ndi.primary_heartbeat = True
 
         self.interfaces.append(ndi.data)
-
+    
     def add_capture(self, logical_interface_ref):
         """
         Add capture interface, only for layer 2, IPS

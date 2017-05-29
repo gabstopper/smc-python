@@ -1,7 +1,7 @@
 import time
 import re
 from smc.base.model import prepared_request
-import smc.actions.search as search
+from smc import session
 from smc.base.util import find_link_by_name
 from smc.api.exceptions import TaskRunFailed, ActionCommandFailed
 
@@ -24,12 +24,15 @@ def task_history():
             if task.in_progress:
                 task.abort()
 
-    :return: :py:class:`~Task`
+    :return: list :py:class:`~Task`
     """
-    task_href = search.element_entry_point('task_progress')
-    return [Task(**search.element_by_href_as_json(task.get('href')))
-            for task in search.element_by_href_as_json(task_href)]
-
+    tasks = prepared_request(
+        href=session.entry_points.get('task_progress')
+        ).read().json
+    
+    return [Task(**prepared_request(href=task['href']).read().json)
+            for task in tasks]
+  
 
 def task_status(follower):
     """
@@ -63,9 +66,9 @@ class Task(object):
     :ivar str follower: href for task, use to query for status
     :ivar str result: result link, used in downloads
     """
-
     def __init__(self, **kwargs):
-        self.success = False
+        self.name = None
+        self.success = False #: 
         self.type = None
         self.last_message = None
         self.in_progress = None
@@ -90,13 +93,15 @@ class Task(object):
         :raises ActionCommandFailed: aborting task failed with reason
         :return: None
         """
-        prepared_request(ActionCommandFailed,
-                         href=find_link_by_name('abort', self.link)
-                         ).delete()
+        prepared_request(
+            ActionCommandFailed,
+            href=find_link_by_name('abort', self.link)
+            ).delete()
 
-    def __call__(self):
-        _task = prepared_request(href=self.follower
-                                 ).read().json
+    def _poll(self):
+        _task = prepared_request(
+            ActionCommandFailed,
+            href=self.follower).read().json
 
         for k, v in _task.items():
             setattr(self, k, v)
@@ -112,97 +117,52 @@ class Task(object):
         return '{0}(type={1})'.format(self.__class__.__name__, self.type)
 
 
-class TaskMonitor(object):
-    """
-    Provides the ability to monitor an asynchronous task based on the
-    follower href returned from the SMC. In case of longer running
-    operations, you may want to call this later for status. Call the
-    task monitor by::
+class ProgressTask(Task):
+    def __init__(self, follower, **kw):
+        super(ProgressTask, self).__init__(follower=follower, **kw)
+        self.type = 'progress_task'
+            
+    def wait(self, timeout=5, max_intervals=300):
+        """
+        Wait for this progress task to complete. Each yielded result
+        is the % progress complete. Once the task is complete, you
+        can obtain the last message by the ``last_message`` attribute.
+        To find success/failure, access ``success`` attribute, and 
+        the ``last_message`` to get the final message.
+            
+        :param int timeout: how long to wait between polling for updates
+        :param int max_intervals: maximum number polling intervals before
+            returning. Default is 60 iterations (5 min)
+        :return: percentage updates as int
+        :rtype: int
+        """
+        i=0
+        while i <= max_intervals:
+            self._poll()
+            if self.progress:
+                yield self.progress
+            if not self.in_progress:
+                break
+            i += 1
+            time.sleep(timeout) 
 
-        task = TaskMonitor(follower_href).watch()
-        for message in task:
-            print message
 
-    :param str follower: follower href returned from asynchronous operation
-    :return: generator receiving messages from task
-    """
-
-    def __init__(self, follower, sleep=10):
-        self.follower = follower
-        self.sleep = sleep
-
-    def watch(self):
-        return task_handler(Task(follower=self.follower),
-                            wait_for_finish=True,
-                            sleep=self.sleep)
-
-
-class TaskDownload(object):
-    """
-    A task that downloads a file from the SMC. When doing operations such
-    as export, SMC will package the data into a zip file and provide the
-    result link for download. This task is used to retrieve the result link
-    and save to specified filename.
-
-    :param str result: follower result link
-    :param str filename: filename provided
-    :raises TaskRunFailed: IOError occurred during task run
-    :raises ActionCommandFailed: attempt to read task status failed
-    :return: None
-    """
-
-    def __init__(self, result, filename):
-        self.result = result
+class DownloadTask(Task):
+    def __init__(self, follower, filename, **kw):
+        super(DownloadTask, self).__init__(follower=follower, **kw)
+        self.type = 'download_task'
         self.filename = filename
-
-    def run(self):
+    
+    def wait(self, timeout=2):
         try:
-            prepared_request(ActionCommandFailed,
-                             href=self.result,
-                             filename=self.filename).read()
+            while self.in_progress:
+                self._poll()
+                time.sleep(timeout)
+            prepared_request(
+                ActionCommandFailed,
+                href=self.result,
+                filename=self.filename).read()
+            return self
         except IOError as io:
-            raise TaskRunFailed("Export task failed with message: {}"
-                                .format(io))
-
-
-def task_handler(task, wait_for_finish=False,
-                 display_msg=True, sleep=3, filename=None):
-    """ Handles asynchronous operations called on engine or node levels
-
-    :method: POST
-    :param Task task: py:class:`smc.administration.tasks.Task`
-    :param bool wait_for_finish: whether to wait for it to finish or not
-    :param bool display_msg: whether to return display messages or not
-    :param int sleep: sleep interval
-    :param str filename: name of file for TaskDownload. Only for operations
-        that would allow for content to be downloaded from the SMC
-
-    If wait_for_finish is False, the generator will yield the follower
-    href only. If true, will return messages as they arrive and location
-    to the result after complete.
-    To obtain messages as they arrive, call generator::
-
-        engine = Engine('myfw')
-        for msg in engine.upload('mypolicy', wait_for_finish=True)
-            print msg
-
-    """
-    if wait_for_finish:
-        # first task will not have a last_message attribute
-        last_msg = ''
-        while True:
-            if display_msg:
-                if task.last_message != last_msg and \
-                        task.last_message is not None:
-                    yield re.sub(clean_html, '', task.last_message)
-                    last_msg = task.last_message
-            if task.success:
-                if filename:  # download file
-                    yield TaskDownload(task.result, filename).run()
-                break
-            elif not task.in_progress and not task.success:
-                break
-            time.sleep(sleep)
-            task()
-    else:
-        yield task.follower
+            raise TaskRunFailed(
+                'Export task failed with message: {}'.format(io))    

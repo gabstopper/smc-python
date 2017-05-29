@@ -17,8 +17,14 @@ Steps to enable API Communication on the Stonesoft Management Center:
 #. Create an API Client and obtain the 'authentication key'
 
 Once you have enabled this and have access to the authentication key (keep this safe), 
-you can establish a session to the SMC by either providing the url and apikey in the 
-constructor, or storing this in a file located ~/.smcrc.
+you can establish a session to the SMC using the following methods (in order):
+
+* Provide credentials in session.login() constructor
+
+* Populate $HOME/.smcrc with configuration settings
+
+* Set environment variables
+
 
 Example of providing the connect information through the constructor:
 
@@ -71,8 +77,10 @@ Using SSL to the SMC without SSL validation (NOT recommended)
    session.login(url='https://1.1.1.1:8082', api_key='xxxxxxxxxxxxxxxxxx',
                  verify=False)
 
+.. seealso:: :meth:`smc.api.session.Session.login`
+
 It is possible to store the SMC connection information in ~/.smcrc in order to simplify
-the login as well as eliminate the need to populate scripts with api key information. 
+the login and eliminate the need to populate scripts with api key information. 
 Syntax for ~/.smcrc:
 
 .. code-block:: python
@@ -100,6 +108,21 @@ Then from launching scripts, you can do:
 .. code-block:: python
 
    session.login(altpath='/home/somedir/test')
+
+If setting environment variables, the following are supported::
+
+	SMC_ADDRESS=http://1.1.1.1:8082
+	SMC_API_KEY=123abc
+	SMC_CLIENT_CERT=path/to/cert
+	SMC_TIMEOUT = 30 (seconds)
+	SMC_API_VERSION = 6.1 (optional - uses latest by default)
+	SMC_DOMAIN = name of domain, Shared is default 
+
+The minimum variables that need to be present are ``SMC_ADDRESS`` and ``SMC_API_KEY``::
+
+	export SMC_ADDRESS = http://1.1.1.1:8082
+	export SMC_API_KEY = foobarkey
+
 
 Once the session has been successfully obtained, there is no reason to re-authenticate a new session
 unless `logout` has been called.

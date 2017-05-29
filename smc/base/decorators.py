@@ -4,6 +4,7 @@ Decorators used in various areas throughout smc-python.
 import functools
 from smc import session
 
+
 class cached_property(object):
     """
     Use for caching a property value on the instance. If the
