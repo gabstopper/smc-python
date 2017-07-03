@@ -85,8 +85,8 @@ When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the 
 is updated immediately.
 """
 from collections import namedtuple
-from smc.base.model import SubElement
-from smc.base.util import find_link_by_name, element_resolver
+from smc.base.model import SubElement, SimpleElement
+from smc.base.util import element_resolver
 
 
 class Routing(SubElement):
@@ -94,15 +94,17 @@ class Routing(SubElement):
     Routing represents the Engine routing configuration and provides the
     ability to view and add features to routing nodes such as OSPF.
     """
-
-    def __init__(self, data, **meta):
+    def __init__(self, data=None, **meta):
         super(Routing, self).__init__(**meta)
-        self._add_cache(data)
-
+        if data is not None:
+            self.data = SimpleElement(**data)
+            
     def __iter__(self):
         for node in self.data['routing_node']:
-            yield(Routing(href=find_link_by_name('self', node.get('link')),
-                          data=node))
+            data = SimpleElement(**node)
+            yield(Routing(
+                    href=data.get_link('self'),
+                    data=node))
 
     @property
     def name(self):
@@ -371,7 +373,7 @@ class Routing(SubElement):
         
         for networks in iter(self):
             networks.data['routing_node'].append(route)
-     
+        
         self.update()
             
     def _bind_to_ipv4_network(self, network, element):
@@ -406,18 +408,23 @@ class Routing(SubElement):
         :return: None
         """
         element = element_resolver(element)
+        routing_node = []
         for networks in iter(self):
             if network is not None:
                 if networks.ip != network:
-                    continue
+                    routing_node.append(networks.data)
                 else:
-                    rnode = [gw for gw in networks.data.get('routing_node')
-                             if gw.get('href') != element]    
+                    rnode = [gw for gw in networks.data['routing_node']
+                             if gw.get('href') != element]
+                    networks.data['routing_node'] = rnode
+                    routing_node.append(networks.data)          
             else:
-                rnode = [gw for gw in networks.data.get('routing_node')
+                rnode = [gw for gw in networks.data['routing_node']
                          if gw.get('href') != element]
-            networks.data['routing_node'] = rnode
-       
+                networks.data['routing_node'] = rnode
+                routing_node.append(networks.data)
+            
+        self.data['routing_node'] = routing_node
         self.update()
                     
     def all(self):
@@ -491,15 +498,18 @@ class Antispoofing(SubElement):
             print(entry)
     """
 
-    def __init__(self, data, **meta):
+    def __init__(self, data=None, **meta):
         super(Antispoofing, self).__init__(**meta)
-        self._add_cache(data)
+        if data is not None:
+            self.data = SimpleElement(**data)
 
     def __iter__(self):
         for node in self.data['antispoofing_node']:
-            yield(Antispoofing(href=find_link_by_name('self', node.get('link')),
-                               data=node))
-
+            data = SimpleElement(**node)
+            yield(Antispoofing(
+                    href=data.get_link('self'),
+                    data=node))
+            
     @property
     def name(self):
         """

@@ -36,7 +36,7 @@ class Snapshot(SubElement):
             filename = '{}{}'.format(self.name, '.zip')
         try:
             prepared_request(EngineCommandFailed,
-                             href=self._resource.content,
+                             href=self.data.get_link('content'),
                              filename=filename
                              ).read()
         except IOError as e:
@@ -50,8 +50,8 @@ class PendingChanges(object):
     yet been committed.
     """
 
-    def __init__(self, resources):
-        self._resource = resources  # Engine reference
+    def __init__(self, engine):
+        self._engine = engine  # Engine resource reference
 
     def pending_changes(self):
         """
@@ -61,7 +61,7 @@ class PendingChanges(object):
         """
         records = []
         for record in prepared_request(
-                        href=self._resource.pending_changes
+                        href=self._engine.data.get_link('pending_changes')
                         ).read().json:
             records.append(ChangeRecord(**record))
         return records
@@ -75,7 +75,7 @@ class PendingChanges(object):
         """
         prepared_request(
             ActionCommandFailed,
-            href=self._resource.approve_all_changes
+            href=self._engine.data.get_link('approve_all_changes')
         ).create()
 
     def disapprove_all_changes(self):
@@ -87,7 +87,7 @@ class PendingChanges(object):
         """
         prepared_request(
             ActionCommandFailed,
-            href=self._resource.disapprove_all_changes
+            href=self._engine.data.get_link('disapprove_all_changes')
         ).create()
 
     @property

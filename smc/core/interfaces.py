@@ -24,13 +24,14 @@ VLANs are properties of specific interfaces and can also be retrieved by
 first getting the top level interface, and calling :func:`~smc.core.interfaces.Interface.vlan_interfaces`
 to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
-from smc.base.model import prepared_request, SubElement, lookup_class
+from smc.base.model import prepared_request, SubElement, lookup_class,\
+    SimpleElement
 from smc.api.exceptions import EngineCommandFailed, FetchElementFailed,\
     UpdateElementFailed
 from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface,
                                      ClusterVirtualInterface, InlineInterface,
                                      CaptureInterface, _add_vlan_to_inline,
-                                     SubInterface, LoopbackInterface)
+                                     SubInterface)
 from smc.base.util import bytes_to_unicode
 
 
@@ -57,7 +58,7 @@ def dispatch(instance, builder, interface=None):
         ).create()
     # Clear cache, next call for attributes will refresh it
     try:
-        del instance._engine._cache
+        del instance._engine.data
     except AttributeError:
         pass
 
@@ -78,11 +79,22 @@ class InterfaceCommon(object):
         return [(i.address, i.network_value, i.nicid)
                 for i in self.sub_interfaces()]
 
+    @property
     def contact_addresses(self):
         """
-        View the contact address/es for this physical interface.
+        Configure an interface contact address for this
+        interface. Note that an interface may have multiple IP
+        addresses assigned so you may need to iterate through
+        contact addresses.
+        ::
+        
+            itf = engine.interface.get(1)
+            for ip in itf.contact_addresses:
+                if ip.address == '31.31.31.31':
+                    ip.add_contact_address(contact_address='2.2.2.2')
+            
 
-        :return: list :py:class:`smc.core.contact_address.ContactInterface`
+        :return: list(InterfaceContactAddress)
 
         .. seealso:: :py:mod:`smc.core.contact_address`
         """
@@ -347,6 +359,8 @@ class InterfaceCommon(object):
         interface_id = str(interface_id).split('-')
         
         self.interface_id = interface_id[0]
+        
+        vlanInterfaces = []
         for vlan in self.vlan_interfaces():
             vlan.interface_id = '{}.{}'.format(
                 interface_id[0], vlan.interface_id.split('.')[-1])
@@ -357,10 +371,12 @@ class InterfaceCommon(object):
                         sub.nicid = '{}.{}-{}.{}'.format(
                             interface_id[0], vlans[0],
                             interface_id[1], vlans[-1])
-
+            vlanInterfaces.append(vlan.data)
         for sub in self.interfaces:
             if isinstance(sub, InlineInterface):
                 sub.nicid = '{}'.format('-'.join(interface_id))
+        if vlanInterfaces:
+            self.data['vlanInterfaces'] = vlanInterfaces
         self.save()
     
     @property
@@ -457,7 +473,7 @@ class Interface(SubElement):
         """
         self.update()
         try:
-            del self._engine._cache
+            del self._engine.data
         except AttributeError:
             pass
 
@@ -1271,30 +1287,46 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :return: None
         """
         original = str(original).split('-')
-        for vlan in self.vlan_interfaces():
-
-            if_id, v_id = vlan.interface_id.split('.')
-
-            if v_id == original[0]: # Matched interface_id.vlan
-                new = str(new).split('-')
-                
-                vlan.interface_id = '{}.{}'.format(
-                    if_id, new[0])
-                
-                for interface in vlan.interfaces:
-                    
-                    nics = [nic.split('.')[0]
-                            for nic in interface.nicid.split('-')]
-                
-                    if len(nics) == 2: # Inline
-                        interface.nicid = '{}.{}-{}.{}'.format(
-                            nics[0], new[0], nics[-1], new[-1])
-                    else:
-                        interface.nicid = '{}.{}'.format(
-                            nics[0], new[0])
-                self.save()
-                return  
+        
+        vlanInterfaces = self.vlan_interfaces()
+        
+        def find():
+            for idx, vlan in enumerate(vlanInterfaces): # Find the interface index
+                _, v_id = vlan.interface_id.split('.')
+                if v_id == original[0]:
+                    return idx
+            return -1 
+        
+        interface_idx = find()
     
+        if interface_idx != -1:
+            vlan = vlanInterfaces.pop(interface_idx)
+
+            new_vlan = str(new).split('-')
+            
+            itf_id, _ = vlan.interface_id.split('.')
+            
+            # Reset top level interface ID
+            vlan.interface_id = '{}.{}'.format(
+                itf_id, new_vlan[0])
+            
+            # Check for embedded interfaces
+            for interface in vlan.interfaces:
+                nics = [nic.split('.')[0]
+                        for nic in interface.nicid.split('-')]
+                
+                if len(nics) == 2: # Inline
+                    interface.nicid = '{}.{}-{}.{}'.format(
+                        nics[0], new_vlan[0], nics[-1], new_vlan[-1])
+                else:
+                    interface.nicid = '{}.{}'.format(
+                        nics[0], new_vlan[0])
+            
+            vlanInterfaces.append(vlan)
+            self.data['vlanInterfaces'] = [v.data for v in vlanInterfaces]    
+            self.save()
+            return  
+      
     def enable_aggregate_mode(self, mode, interfaces):
         """    
         Enable Aggregate (LAGG) mode on this interface. Possible LAGG
@@ -1486,7 +1518,7 @@ class PhysicalVlanInterface(PhysicalInterface):
 
     def __init__(self, data, meta=None):
         super(PhysicalVlanInterface, self).__init__(href=None)
-        self._add_cache(data)
+        self.data = SimpleElement(**data)
 
     @staticmethod
     def create(interface_id, vlan_id,
@@ -1619,7 +1651,7 @@ class InterfaceModifier(object):
                     name=name,
                     type=typeof,
                     href=InterfaceModifier.href_from_link(data.get('link')))
-                clazz._add_cache(data=data)
+                clazz.data = SimpleElement(**data)
                 interfaces.append(clazz)
         return cls(interfaces, engine=engine)
     

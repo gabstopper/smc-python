@@ -57,9 +57,7 @@ class Category(Element):
         """
         return [Element.from_meta(**tag)
                 for tag in
-                prepared_request(
-                    href=self._resource.search_elements_from_category_tag
-                ).read().json]
+                self.data.get_json('search_elements_from_category_tag')]
 
     def add_element(self, element):
         """
@@ -78,7 +76,7 @@ class Category(Element):
 
         prepared_request(
             ModificationFailed,
-            href=self._resource.category_add_element,
+            href=self.data.get_link('category_add_element'),
             json={'value': element}
         ).create()
 
@@ -101,7 +99,7 @@ class Category(Element):
 
         prepared_request(
             ModificationFailed,
-            href=self._resource.category_remove_element,
+            href=self.data.get_link('category_remove_element'),
             json={'value': element}
         ).create()
 
@@ -247,9 +245,7 @@ class Location(Element):
         """
         return [Element.from_meta(**element)
                 for element in
-                prepared_request(
-                    href=self._resource.search_nated_elements_from_location
-                ).read().json]
+                self.data.get_json('search_nated_elements_from_location')]
 
 
 class LogicalInterface(Element):
@@ -356,47 +352,6 @@ class MacAddress(Element):
                 'comment': comment}
 
         return ElementCreator(cls, json)
-
-
-class ServerContactAddress(object):
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def create(cls, address, location):
-        """
-        :param str address: ip address of contact address
-        :param str location: name of location
-        :raises CreateElementFailed: failed creating element with reason
-        :rtype: ServerContactAddress
-        """
-        from smc.elements.helpers import location_helper
-        location_ref = location_helper(location)
-        data = {'addresses': [address],
-                'location_ref': location_ref}
-        return ServerContactAddress(data)
-
-    @property
-    def addresses(self):
-        """                
-        Return list of addresses associated with this contact
-        address
-        
-        :return: list contact addresses
-        """
-        return self.data.get('addresses')
-
-    @property
-    def location_ref(self):
-        return self.data.get('location_ref')
-
-    @property
-    def location(self):
-        return Element.from_href(self.location_ref)
-
-    def __repr__(self):
-        return '{0}(addresses={1})'.format(
-            self.__class__.__name__, ','.join(self.addresses))
 
 
 def prepare_blacklist(src, dst, duration=3600):

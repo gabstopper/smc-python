@@ -57,7 +57,7 @@ class IPSRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.ips_ipv4_access_rules,
+            self.data.get_link('ips_ipv4_access_rules'),
             IPv4Layer2Rule)
 
     @property
@@ -75,7 +75,7 @@ class IPSRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.ips_ethernet_rules,
+            self.data.get_link('ips_ethernet_rules'),
             EthernetRule)
 
 

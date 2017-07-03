@@ -12,7 +12,7 @@ To load the configuration for system, do::
     '881'
     >>> for pkg in system.update_package():
     ...   print(pkg)
-    ... 
+    ...
     UpdatePackage(name=Update Package 889)
     UpdatePackage(name=Update Package 888)
     UpdatePackage(name=Update Package 887)
@@ -44,21 +44,21 @@ class System(SubElement):
         """
         Return the SMC version
         """
-        return self._resource.get('smc_version').get('value')
+        return self.data.get_json('smc_version').get('value')
 
     @property
     def smc_time(self):
         """
         Return the SMC time
         """
-        return self._resource.get('smc_time').get('value')
+        return self.data.get_json('smc_time').get('value')
 
     @property
     def last_activated_package(self):
         """
         Return the last activated package by id
         """
-        return self._resource.get('last_activated_package').get('value')
+        return self.data.get_json('last_activated_package').get('value')
 
     def empty_trash_bin(self):
         """
@@ -67,9 +67,10 @@ class System(SubElement):
         :raises ActionCommandFailed: failed removing trash
         :return: None
         """
-        prepared_request(ActionCommandFailed,
-                         href=self._resource.empty_trash_bin
-                         ).delete()
+        prepared_request(
+            ActionCommandFailed,
+            href=self.data.get_link('empty_trash_bin')
+            ).delete()
 
     def update_package(self):
         """
@@ -78,7 +79,7 @@ class System(SubElement):
         :return: list :py:class:`smc.administration.updates.UpdatePackage`
         """
         return [UpdatePackage(**update)
-                for update in self._resource.get('update_package')]
+                for update in self.data.get_json('update_package')]
 
     def update_package_import(self):
         pass
@@ -98,7 +99,7 @@ class System(SubElement):
         :rtype: dict
         """
         return [EngineUpgrade(**upgrade)
-                for upgrade in self._resource.get('engine_upgrade')]
+                for upgrade in self.data.get_json('engine_upgrade')]
 
     def uncommitted(self):
         pass
@@ -107,7 +108,7 @@ class System(SubElement):
         """
         List of all properties applied to the SMC
         """
-        return self._resource.get('system_properties')
+        return self.data.get_json('system_properties')
 
     def clean_invalid_filters(self):
         pass
@@ -122,14 +123,14 @@ class System(SubElement):
         :param dst: destination of blacklist entry
         :raises ActionCommandFailed: blacklist apply failed with reason
         :return: None
-        
+
         .. seealso:: :class:`smc.core.engine.Engine.blacklist`. Applying
             a blacklist at the system level will be a global blacklist entry
             versus an engine specific entry.
-        
+
         """
         prepared_request(ActionCommandFailed,
-                         href=self._resource.blacklist,
+                         href=self.data.get_link('blacklist'),
                          json=prepare_blacklist(src, dst, duration)
                          ).create()
 
@@ -147,13 +148,13 @@ class System(SubElement):
 
         :return: list :py:class:`smc.administration.license.Licenses`
         """
-        return Licenses(self._resource.get('licenses'))
+        return Licenses(self.data.get_json('licenses'))
 
     def license_fetch(self):
         """
         Fetch available licenses for this SMC
         """
-        return self._resource.get('license_fetch')
+        return self.data.get_json('license_fetch')
 
     def license_install(self):
         raise NotImplementedError
@@ -165,13 +166,13 @@ class System(SubElement):
 
         :return: dictionary of key/values
         """
-        return self._resource.get('license_details')
+        return self.data.get_json('license_details')
 
     def license_check_for_new(self):
         """
         Check for new SMC license
         """
-        return self._resource.get('license_check_for_new')
+        return self.data.get_json('license_check_for_new')
 
     def delete_license(self):
         raise NotImplementedError
@@ -183,7 +184,7 @@ class System(SubElement):
         :return: list of dict items related to master engines and virtual
             engine mappings
         """
-        return self._resource.get('visible_virtual_engine_mapping')
+        return self.data.get_json('visible_virtual_engine_mapping')
 
     def references_by_element(self, element_href):
         """
@@ -192,8 +193,9 @@ class System(SubElement):
         :param str element_href: element reference
         :return: list list of references where element is used
         """
-        result = fetch_json_by_post(href=self._resource.references_by_element,
-                                    json={'value': element_href})
+        result = fetch_json_by_post(
+            href=self.data.get_link('references_by_element'),
+            json={'value': element_href})
         if result.json:
             return result.json
         else:
@@ -218,14 +220,14 @@ class System(SubElement):
             typeof = 'all'
 
         task = prepared_request(
-            href=self._resource.export_elements,
+            href=self.data.get_link('export_elements'),
             params={'recursive': True,
                     'type': typeof}
-            ).create()
+            ).create().json
 
         return DownloadTask(
-                filename=filename, **task.json)
-       
+                filename=filename, task=task)
+
     def active_alerts_ack_all(self):
         """
         Acknowledge all active alerts in the SMC
@@ -233,9 +235,10 @@ class System(SubElement):
         :raises ResourceNotFound: resource supported in version >= 6.2
         :return: None
         """
-        prepared_request(ActionCommandFailed,
-                         href=self._resource.active_alerts_ack_all
-                         ).delete()
+        prepared_request(
+            ActionCommandFailed,
+            href=self.data.get_link('active_alerts_ack_all')
+            ).delete()
 
     def import_elements(self):
         raise NotImplementedError

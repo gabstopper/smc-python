@@ -90,8 +90,9 @@ class VPNPolicy(Element):
         :return: collection of :class:`GatewayNode`
         :rtype: SubElementCollection
         """
-        return sub_collection(self._resource.central_gateway_node,
-                              type('CentralGatewayNode', (GatewayNode,), {}))
+        return sub_collection(
+            self.data.get_link('central_gateway_node'),
+            type('CentralGatewayNode', (GatewayNode,), {}))
 
     @property
     def satellite_gateway_node(self):
@@ -101,8 +102,9 @@ class VPNPolicy(Element):
         :return: collection of :class:`GatewayNode`
         :rtype: SubElementCollection
         """
-        return sub_collection(self._resource.satellite_gateway_node,
-                              type('SatelliteGatewayNode', (GatewayNode,), {}))
+        return sub_collection(
+            self.data.get_link('satellite_gateway_node'),
+            type('SatelliteGatewayNode', (GatewayNode,), {}))
 
     @property
     def mobile_gateway_node(self):
@@ -113,8 +115,9 @@ class VPNPolicy(Element):
         :return: collection of :class:`GatewayNode`
         :rtype: SubElementCollection
         """
-        return sub_collection(self._resource.mobile_gateway_node,
-                              type('MobileGatewayNode', (GatewayNode,), {}))
+        return sub_collection(
+            self.data.get_link('mobile_gateway_node'),
+            type('MobileGatewayNode', (GatewayNode,), {}))
 
     def open(self):
         """
@@ -125,7 +128,7 @@ class VPNPolicy(Element):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self._resource.open
+            href=self.data.get_link('open')
         ).create()
 
     def save(self):
@@ -137,7 +140,7 @@ class VPNPolicy(Element):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self._resource.save
+            href=self.data.get_link('save')
         ).create()
 
     def close(self):
@@ -149,7 +152,7 @@ class VPNPolicy(Element):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self._resource.close
+            href=self.data.get_link('close')
         ).create()
 
     def validate(self):
@@ -160,12 +163,12 @@ class VPNPolicy(Element):
         :return: status as string
         :rtype: str
         """
-        return self._resource.get('validate').get('value')
+        return self.data.get_json('validate').get('value')
 
     def gateway_tunnel(self):
         """
         """
-        return self._resource.get('gateway_tunnel')
+        return self.data.get_json('gateway_tunnel')
 
     def add_central_gateway(self, gateway):
         """ 
@@ -180,7 +183,7 @@ class VPNPolicy(Element):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self._resource.central_gateway_node,
+            href=self.data.get_link('central_gateway_node'),
             json={'gateway': gateway,
                   'node_usage': 'central'}
         ).create()
@@ -201,7 +204,7 @@ class VPNPolicy(Element):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self._resource.satellite_gateway_node,
+            href=self.data.get_link('satellite_gateway_node'),
             json={'gateway': gateway,
                   'node_usage': 'satellite'}
         ).create()
@@ -258,7 +261,7 @@ class GatewayNode(SubElement):
         """
         Get the name from the gateway_profile reference
         """
-        return self._resource.name(self.data.get('gateway'))
+        return Element.from_href(self.data['gateway']).name
     
     @property
     def enabled_sites(self):
@@ -269,7 +272,8 @@ class GatewayNode(SubElement):
         :return: collection of :class:`smc.vpn.elements.VPNSite`
         :rtype: SubElementCollection
         """
-        return sub_collection(self._resource.enabled_vpn_site, GatewayTreeNode)
+        return sub_collection(
+            self.data.get_link('enabled_vpn_site'), GatewayTreeNode)
 
     @property
     def disabled_sites(self):
@@ -280,7 +284,8 @@ class GatewayNode(SubElement):
         :return: collection of :class:`smc.vpn.elements.VPNSite`
         :rtype: SubElementCollection
         """
-        return sub_collection(self._resource.disabled_vpn_site, GatewayTreeNode)
+        return sub_collection(
+            self.data.get_link('disabled_vpn_site'), GatewayTreeNode)
 
 class GatewayTreeNode(SubElement):
     """
@@ -310,7 +315,7 @@ class GatewayTreeNode(SubElement):
         """
         prepared_request(
             PolicyCommandFailed,
-            href=self._resource.self
+            href=self.data.get_link('self')
             ).delete()
     
     @property

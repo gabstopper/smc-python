@@ -87,7 +87,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self._resource.fetch
+                href=self.data.get_link('fetch')
             ).create()
         except ResourceNotFound:
             pass
@@ -104,7 +104,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self._resource.bind,
+                href=self.data.get_link('bind'),
                 params=params
             ).create()
         except ResourceNotFound:
@@ -120,7 +120,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self._resource.unbind
+                href=self.data.get_link('unbind')
             ).create()
         except ResourceNotFound:
             pass
@@ -135,7 +135,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 LicenseError,
-                href=self._resource.cancel_unbind
+                href=self.data.get_link('cancel_unbind')
             ).create()
         except ResourceNotFound:
             pass
@@ -164,9 +164,9 @@ class Node(SubElement):
         """
         try:
             result = prepared_request(
-                href=self._resource.initial_contact,
+                href=self.data.get_link('initial_contact'),
                 params={'enable_ssh': enable_ssh}).create()
-    
+            
             if result.content:
                 if as_base64:
                     result.content = base64.encodestring(
@@ -196,7 +196,7 @@ class Node(SubElement):
         """
         result = prepared_request(
             NodeCommandFailed,
-            href=self._resource.appliance_status
+            href=self.data.get_link('appliance_status')
         ).read()
         return ApplianceStatus(result.json)
 
@@ -210,7 +210,7 @@ class Node(SubElement):
         """
         result = prepared_request(
             NodeCommandFailed,
-            href=self._resource.status
+            href=self.data.get_link('status')
         ).read()
         return NodeStatus(**result.json)
 
@@ -226,7 +226,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.go_online,
+            href=self.data.get_link('go_online'),
             params={'comment': comment}
         ).update()
 
@@ -240,7 +240,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.go_offline,
+            href=self.data.get_link('go_offline'),
             params={'comment': comment}
         ).update()
 
@@ -255,7 +255,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.go_standby,
+            href=self.data.get_link('go_standby'),
             params={'comment': comment}
         ).update()
 
@@ -269,7 +269,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.lock_online,
+            href=self.data.get_link('lock_online'),
             params={'comment': comment}
         ).update()
 
@@ -284,7 +284,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.lock_offline,
+            href=self.data.get_link('lock_offline'),
             params={'comment': comment}
         ).update()
 
@@ -300,7 +300,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self._resource.reset_user_db,
+                href=self.data.get_link('reset_user_db'),
                 params={'comment': comment}
             ).update()
         except ResourceNotFound:
@@ -331,7 +331,7 @@ class Node(SubElement):
         try:
             result = prepared_request(
                 NodeCommandFailed,
-                href=self._resource.diagnostic,
+                href=self.data.get_link('diagnostic'),
                 params=params
             ).read()
 
@@ -371,7 +371,7 @@ class Node(SubElement):
             debug.append(vars(setting))
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.send_diagnostic,
+            href=self.data.get_link('send_diagnostic'),
             json={'diagnostics': debug}
         ).create()
 
@@ -385,7 +385,7 @@ class Node(SubElement):
         """
         prepared_request(
             NodeCommandFailed,
-            href=self._resource.reboot,
+            href=self.data.get_link('reboot'),
             params={'comment': comment}
         ).update()
 
@@ -417,7 +417,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self._resource.ssh,
+                href=self.data.get_link('ssh'),
                 params=params
             ).update()
         except ResourceNotFound:
@@ -436,7 +436,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self._resource.change_ssh_pwd,
+                href=self.data.get_link('change_ssh_pwd'),
                 params={'comment': comment},
                 json={'value': pwd}
             ).update()
@@ -455,7 +455,7 @@ class Node(SubElement):
         try:
             prepared_request(
                 NodeCommandFailed,
-                href=self._resource.time_sync
+                href=self.data.get_link('time_sync')
             ).update()
         except ResourceNotFound:
             raise NodeCommandFailed(
@@ -470,7 +470,7 @@ class Node(SubElement):
 
         :return: dict with links to cert info
         """
-        return self._resource.get('certificate_info')
+        return self.data.get_json('certificate_info')
 
 
 class NodeStatus(object):

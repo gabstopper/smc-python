@@ -11,69 +11,46 @@ Example usage::
     >>> from smc import session
     >>> session.login()
     >>> from smc.core.engine import Engine
-    >>> from smc.core.contact_address import ContactAddress
-    >>> engine = Engine('testfw')
+    >>> engine = Engine('ve-3')
     >>> list(engine.contact_addresses)
-    [ContactInterface(name=Interface 12,address=19.19.19.19), ContactInterface(name=Tunnel Interface 2000,address=12.12.12.12), 
-     ContactInterface(name=Tunnel Interface 2000,address=13.13.13.13), ContactInterface(name=Interface 11,address=17.17.17.17), 
-     ContactInterface(name=Interface 10,address=14.14.14.14), ContactInterface(name=Interface 10,address=10.10.10.10) .... 
-    ...
-    >>> interface1 = engine.contact_addresses(1)    #get by interface
+    [InterfaceContactAddress(name=Interface 0,address=10.29.248.29), InterfaceContactAddress(name=Interface 1,address=10.29.248.33)]
+    >>> interface1 = engine.contact_addresses(1)
     >>> interface1
-    [ContactInterface(name=Interface 1,address=1.1.1.1), ContactInterface(name=Interface 1,address=2.2.2.2)]
+    [InterfaceContactAddress(name=Interface 1,address=10.29.248.33)]
     >>> interface1[0].contact_addresses
     []
-    >>> interface1[1].contact_addresses
-    []
-    >>> for ipv4 in interface1:
-    ...   if ipv4.address == '2.2.2.2':
-    ...     contact = ContactAddress.create('23.23.23.23', location='Default')
-    ...     ipv4.add_contact_address(contact)
+    >>> for interfaces in interface1:
+    ...   if interfaces.address == '10.29.248.33':
+    ...     interfaces.add_contact_address(contact_address='12.12.12.12', location='foo')
     ... 
-    >>> interface1[1].contact_addresses
-    [ContactAddress(address=23.23.23.23)]
+    >>> interface1[0].contact_addresses
+    [ContactAddress(location=foolocation,address=12.12.12.12)]
+    >>> 
 
 Remove a contact address::
     
-    for interface in engine.contact_addresses(1):
-        if interface.address == '2.2.2.2':
-            for contact in interface.contact_addresses:
-                if contact.address == '23.23.23.23':
-                    interface.remove_contact_address(contact)
-                    
+    >>> interface1 = engine.contact_addresses(1)
+    >>> interface1
+    [InterfaceContactAddress(name=Interface 1,address=10.29.248.33)]
+    >>> interface1[0].contact_addresses
+    [ContactAddress(location=foolocation,address=12.12.12.12)]
+    >>> interface1[0].remove_contact_address('12.12.12.12')
+    >>> interface1[0].contact_addresses
+    []
+
 .. note:: Contact Addresses for servers (Management/Log Server) do not use
           this same object definition
-    
-See :py:class:`smc.elements.other.ServerContactAddress` for more information.
 """
-from smc.base.model import prepared_request, Element
-from smc.api.exceptions import FetchElementFailed, EngineCommandFailed
+from smc.base.model import Element, SubElement
+from smc.elements.helpers import location_helper
 
 
 class ContactAddress(object):
     """
     Contact address definition used on engine interfaces
     """
-
-    def __init__(self, data):
-        self.data = data
-
-    @classmethod
-    def create(cls, address, location='Default', dynamic=False):
-        """
-        Create a new contact address.
-
-        :param str address: IP Address of contact address
-        :param str location: Location element to associate with address
-        :param bool dynamic: Is this a dynamic address
-        :return: `~ContactAddress`
-        """
-        from smc.elements.helpers import location_helper
-        location_ref = location_helper(location)
-        data = {'address': address,
-                'dynamic': dynamic,
-                'location_ref': location_ref}
-        return ContactAddress(data)
+    def __init__(self, **kwargs):
+        self.data = kwargs
 
     @property
     def address(self):
@@ -111,11 +88,12 @@ class ContactAddress(object):
 
         :rtype: Element location object
         """
-        return Element.from_href(self.location_ref)
+        return Element.from_href(self.location_ref).name
 
     def __repr__(self):
-        return '{0}(address={1})'.format(
-            self.__class__.__name__, self.address)
+        return '{}(location={},address={})'.format(
+            self.__class__.__name__, self.location,
+            self.address)
 
 
 class ContactResource(object):
@@ -124,7 +102,8 @@ class ContactResource(object):
 
     def __iter__(self):
         for interface in self.data:
-            yield ContactInterface(**interface)
+            #yield ContactInterface(**interface)
+            yield InterfaceContactAddress(**interface)
 
     def __call__(self, interface_id):
         match = 'Interface {}'.format(interface_id)
@@ -136,54 +115,64 @@ class ContactResource(object):
         return iter(self)
 
 
-class ContactInterface(object):
+class InterfaceContactAddress(SubElement):
     """
-    A ContactInterface represents a contact address configuration
-    bound to a specific interface. A contact address can be bound
-    to an interface that can have a layer 3 IP Address and in some
-    cases may have multiple IP addresses assigned. Each assigned 
-    IP can have a unique contact address (or multiple).
+    InterfaceContactAddress is used to specify a unique NAT
+    address on an interface used to contact the engine.
     """
-
-    def __init__(self, **kw):
-        self.href = kw.pop('href', None)
-        fullname = kw.pop('name', None)
-        self.name, self.address = fullname.split('_', 1)
-
-    def add_contact_address(self, contact_address):
+    def __init__(self, **meta):
+        fullname = meta.pop('name', None)
+        name, self._address = fullname.split('_', 1)
+        meta.update(name=name)
+        super(InterfaceContactAddress, self).__init__(**meta)
+        
+    @property
+    def address(self):
+        return self._address
+        
+    @property
+    def contact_addresses(self):
+        """
+        Contact addresses for this interface
+        """
+        if len(self.data):
+            return [ContactAddress(**contact)
+                    for contact in self.data['contact_addresses']]
+        return []
+    
+    def add_contact_address(self, contact_address, location='Default'):
         """
         Add a contact address to this specified interface. A 
         contact address is an alternative address which is 
         typically applied when NAT is used between the NGFW
         and another component (such as management server).
 
-        :param contact_address: the contact address element
+        :param str contact_address: IP address for this contact
+            address.
         :type: :py:class:`~ContactAddress`
         :raises EngineCommandFailed: invalid contact address
         :return: None
         """
-        result = prepared_request(
-            FetchElementFailed,
-            href=self.href
-        ).read()
-
-        if result.json:  # Existing contact addresses
-            data = [address
-                    for address in result.json['contact_addresses']
-                    if address.get('location_ref') != contact_address.location_ref]
-            data.append(contact_address.data)
+        location = location_helper(location)
+        if self.data:
+            seen = False
+            for address in self.data['contact_addresses']:
+                if address['location_ref'] == location:
+                    address['address'] = contact_address
+                    seen = True
+                    break
+            if not seen:
+                self.data['contact_addresses'].append(
+                    {'address': contact_address,
+                     'location_ref': location,
+                     'dynamic': False})
         else:
-            data = [contact_address.data]
-
-        data = {'contact_addresses': data}
-
-        prepared_request(
-            EngineCommandFailed,
-            href=self.href,
-            json=data,
-            etag=result.etag
-        ).update()
-
+            self.data['contact_addresses'] = \
+                [{'address': contact_address,
+                  'location_ref': location,
+                  'dynamic': False}]
+        self.update()
+    
     def remove_contact_address(self, contact_address):
         """
         Remove a contact address from an interface.
@@ -193,39 +182,18 @@ class ContactInterface(object):
         :raises EngineCommandFailed: problem removing address
         :return: None
         """
-        result = prepared_request(
-            FetchElementFailed,
-            href=self.href
-        ).read()
-        if result.json:
+        if self.data:
             data = [address
-                    for address in result.json['contact_addresses']
-                    if address.get('address') != contact_address.address]
-
-            data = {'contact_addresses': data}
-
-            prepared_request(
-                EngineCommandFailed,
-                href=self.href,
-                json=data,
-                etag=result.etag
-            ).update()
-
-    @property
-    def contact_addresses(self):
-        """
-        Show any assigned contact addresses.
-
-        :return: list :class:`~ContactAddress`
-        """
-        result = prepared_request(
-            FetchElementFailed,
-            href=self.href).read().json
-        if result:
-            return [ContactAddress(address)
-                    for address in result.get('contact_addresses')]
-        return []
+                    for address in self.data['contact_addresses']
+                    if address['address'] != contact_address]
+            self.data['contact_addresses'] = data
+            self.update()
+    
+    def __unicode__(self):
+        return u'{0}(name={1},address={2})'.format(
+            self.__class__.__name__, self.name, self.address)
 
     def __repr__(self):
-        return '{0}(name={1},address={2})'.format(
-            self.__class__.__name__, self.name, self.address)
+        return str(self)
+    
+    

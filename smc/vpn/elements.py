@@ -132,7 +132,7 @@ class ExternalGateway(Element):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.vpn_site,
+            self.data.get_link('vpn_site'),
             VPNSite)
 
     @property
@@ -152,7 +152,7 @@ class ExternalGateway(Element):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.external_endpoint,
+            self.data.get_link('external_endpoint'),
             ExternalEndpoint)
 
     @property
@@ -301,8 +301,8 @@ class VPNSite(SubElement):
             'name': name,
             'site_element': site_element}
         result = prepared_request(
-                    href=self.href, json=json
-                    ).create()
+            href=self.href, json=json
+            ).create()
         if result.msg:
             raise CreateElementFailed(result.msg)
         else:

@@ -573,10 +573,10 @@ def _add_position(pos, rules_href):
         if len(rules) >= pos:  # Position somewhere in the list
             for position, entry in enumerate(rules):
                 if position + 1 == pos:
-                    return SubElement(**entry)._resource.add_before
+                    return SubElement(**entry).data.get_link('add_before')
         else:  # Put at the end
             last_rule = rules.pop()
-            return SubElement(**last_rule)._resource.add_after
+            return SubElement(**last_rule).data.get_link('add_after')
     return rules_href
 
 

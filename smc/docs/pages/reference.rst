@@ -4,7 +4,7 @@ API Reference
 
 Element (Base)
 --------------
- 
+
 .. automodule:: smc.base.model
 	:exclude-members: from_meta, from_href
 
@@ -15,9 +15,9 @@ Element (Base)
 	:members:
 	:show-inheritance:
 	:exclude-members: from_meta, from_href
-		
+
 	.. automethod:: objects(self)
-   		
+
 .. _element-reference-label:
 
 Elements
@@ -61,7 +61,7 @@ Router
 DomainName
 **********
 
-.. autoclass:: DomainName 
+.. autoclass:: DomainName
    :members:
    :show-inheritance:
 
@@ -89,7 +89,7 @@ Expression
 Zone
 ****
 
-.. autoclass:: Zone 
+.. autoclass:: Zone
    :members:
    :show-inheritance:
 
@@ -99,7 +99,7 @@ Alias
 .. autoclass:: Alias
 	:members:
 	:show-inheritance:
-   
+
 Services
 ++++++++
 
@@ -109,49 +109,49 @@ Services
 TCPService
 **********
 
-.. autoclass:: TCPService 
+.. autoclass:: TCPService
    :members:
    :show-inheritance:
 
 UDPService
 **********
 
-.. autoclass:: UDPService 
+.. autoclass:: UDPService
    :members:
    :show-inheritance:
-   
+
 IPService
 *********
 
-.. autoclass:: IPService 
+.. autoclass:: IPService
    :members:
    :show-inheritance:
-   
+
 EthernetService
 ***************
 
-.. autoclass:: EthernetService 
+.. autoclass:: EthernetService
    :members:
    :show-inheritance:
-   
+
 Protocol
 ********
 
-.. autoclass:: Protocol 
+.. autoclass:: Protocol
    :members:
    :show-inheritance:
-   
+
 ICMPService
 ***********
 
-.. autoclass:: ICMPService 
+.. autoclass:: ICMPService
    :members:
    :show-inheritance:
-   
+
 ICMPIPv6Service
 ***************
 
-.. autoclass:: ICMPIPv6Service 
+.. autoclass:: ICMPIPv6Service
    :members:
    :show-inheritance:
 
@@ -166,35 +166,54 @@ Group
 
 .. autoclass:: Group
    :members:
-   :show-inheritance:  
+   :show-inheritance:
 
 ServiceGroup
 ************
 
-.. autoclass:: ServiceGroup 
+.. autoclass:: ServiceGroup
    :members:
    :show-inheritance:
-   
+
 TCPServiceGroup
 ***************
 
-.. autoclass:: TCPServiceGroup 
+.. autoclass:: TCPServiceGroup
    :members:
    :show-inheritance:
 
 UDPServiceGroup
 ***************
 
-.. autoclass:: UDPServiceGroup 
+.. autoclass:: UDPServiceGroup
    :members:
    :show-inheritance:
 
 IPServiceGroup
 **************
 
-.. autoclass:: IPServiceGroup 
+.. autoclass:: IPServiceGroup
    :members:
    :show-inheritance:
+
+Servers
++++++++
+
+.. automodule:: smc.elements.servers
+	:members: ContactAddress
+
+ManagementServer
+****************
+
+.. autoclass:: ManagementServer
+	:members: add_contact_address, remove_contact_address, contact_addresses
+
+LogServer
+*********
+
+.. autoclass:: LogServer
+	:members: add_contact_address, remove_contact_address, contact_addresses
+	:show-inheritance:
 
 Other
 +++++
@@ -218,7 +237,7 @@ CategoryTag
 LogicalInterface
 ****************
 
-.. autoclass:: LogicalInterface 
+.. autoclass:: LogicalInterface
    :members:
    :show-inheritance:
 
@@ -232,23 +251,16 @@ AdminDomain
 MacAddress
 **********
 
-.. autoclass:: MacAddress 
+.. autoclass:: MacAddress
    :members:
    :show-inheritance:
 
 Location
 ********
 
-.. autoclass:: Location 
+.. autoclass:: Location
    :members:
    :show-inheritance:
-
-ServerContactAddress
-********************
-
-.. autoclass:: ServerContactAddress
-	:members:
-	:show-inheritance:
 
 Profiles
 ++++++++
@@ -269,7 +281,7 @@ Engine
    :members:
    :exclude-members: create, VirtualResource, InternalEndpoint, InternalGateway
    :show-inheritance:
-	
+
 Appliance Status
 ++++++++++++++++
 
@@ -292,7 +304,7 @@ ContactAddress
 ++++++++++++++
 
 .. automodule:: smc.core.contact_address
-	:members: ContactAddress, ContactInterface
+	:members: ContactAddress, InterfaceContactAddress
 
 Dynamic Routing
 +++++++++++++++
@@ -309,7 +321,7 @@ BGP
 
 .. automodule:: smc.routing.bgp
 	:members:
-		
+
 AccessList
 **********
 
@@ -334,7 +346,7 @@ PhysicalInterface
 *****************
 
 .. autoclass:: PhysicalInterface
-    :members: 
+    :members:
     :show-inheritance:
 
 PhysicalVlanInterface
@@ -358,7 +370,7 @@ TunnelInterface
 .. autoclass:: TunnelInterface
     :members:
     :show-inheritance:
- 
+
 Sub-Interfaces
 ++++++++++++++
 Interfaces will have sub-interfaces that define aspects such as IP addresses,
@@ -380,7 +392,7 @@ InlineInterface
 .. autoclass:: InlineInterface
    :members:
    :exclude-members: create
-   
+
 CaptureInterface
 ****************
 
@@ -402,14 +414,14 @@ SingleNodeInterface
 	:members:
 	:show-inheritance:
 	:exclude-members: create, create_dhcp
-	
+
 InternalEndpoint
 ++++++++++++++++
 
 .. autoclass:: smc.core.engine.InternalEndpoint
    :members:
    :show-inheritance:
-   
+
 InternalGateway
 +++++++++++++++
 
@@ -432,14 +444,14 @@ Properties
 
 .. autoclass:: EngineProperty
 	:members:
-	 
+
 Snapshot
 ++++++++
 
 .. autoclass:: smc.core.resource.Snapshot
 	:members:
 	:show-inheritance:
-	
+
 VirtualResource
 +++++++++++++++
 
@@ -458,7 +470,7 @@ Routing
 .. autoclass:: Routing
 	:members:
 	:show-inheritance:
-	
+
 Routes
 ******
 
@@ -479,6 +491,13 @@ Traffic Handlers (Netlinks)
 	:members:
 	:show-inheritance:
 
+Waiters
++++++++
+
+.. automodule:: smc.core.waiters
+	:members:
+	:show-inheritance:
+
 Engine Types
 ------------
 
@@ -495,7 +514,7 @@ Layer3Firewall
 
 .. autoclass:: Layer3Firewall
    :members:
-   
+
 Layer2Firewall
 ++++++++++++++
 
@@ -580,7 +599,7 @@ FirewallSubPolicy
 
 .. autoclass:: smc.policy.layer3.FirewallSubPolicy
    :members:
-   :show-inheritance: 
+   :show-inheritance:
 
 Policy Rules
 ------------
@@ -608,7 +627,7 @@ IPv4Layer2Rule
 .. autoclass:: IPv4Layer2Rule
    :members:
    :show-inheritance:
-  
+
 EthernetRule
 ************
 
@@ -643,56 +662,56 @@ IPv6NATRule
 .. autoclass:: smc.policy.rule_nat.IPv6NATRule
    :members:
    :show-inheritance:
-    
+
 RuleElements
 ++++++++++++
 
 .. automodule:: smc.policy.rule_elements
 .. autoclass:: smc.policy.rule_elements.RuleElement
 	:members:
-	
+
 Source
 ******
 
 .. autoclass:: Source
 	:members:
 	:show-inheritance:
-	
+
 Destination
 ***********
 
 .. autoclass:: Destination
 	:members:
 	:show-inheritance:
-	
+
 Service
 *******
 
 .. autoclass:: Service
 	:members:
 	:show-inheritance:
-	
+
 Action
 ******
 
 .. autoclass:: Action
 	:members:
 	:show-inheritance:
-	
+
 ConnectionTracking
 ******************
 
 .. autoclass:: ConnectionTracking
 	:members:
 	:show-inheritance:
-	
+
 LogOptions
 **********
 
 .. autoclass:: LogOptions
 	:members:
 	:show-inheritance:
-	
+
 AuthenticationOptions
 *********************
 
@@ -720,14 +739,14 @@ DynamicSourceNAT
 .. autoclass:: DynamicSourceNAT
 	:members:
 	:show-inheritance:
-	
+
 StaticSourceNAT
 ***************
 
 .. autoclass:: StaticSourceNAT
 	:members:
 	:show-inheritance:
-	
+
 DynamicSourceNAT
 ****************
 
@@ -745,22 +764,22 @@ VPNPolicy
 
 .. automodule:: smc.vpn.policy
    :members:
-   :show-inheritance: 
- 
+   :show-inheritance:
+
 ExternalGateway
 +++++++++++++++
 
 .. autoclass:: smc.vpn.elements.ExternalGateway
    :members:
    :show-inheritance:
-   
+
 ExternalEndpoint
 ++++++++++++++++
 
 .. autoclass:: smc.vpn.elements.ExternalEndpoint
    :members:
    :show-inheritance:
-   
+
 VPNSite
 +++++++
 
@@ -795,7 +814,7 @@ GatewayProfile
 .. autoclass:: smc.vpn.elements.GatewayProfile
 	:members:
 	:show-inheritance:
-	
+
 GatewayTreeNode
 +++++++++++++++
 
@@ -828,7 +847,7 @@ Engine Upgrade
 .. autoclass:: EngineUpgrade
 	:members:
 	:show-inheritance:
-	
+
 Dynamic Update
 **************
 
@@ -854,21 +873,21 @@ Permission
 
 .. autoclass:: smc.administration.access_rights.Permission
 	:members:
-	
+
 AccessControlList
 +++++++++++++++++
 
 .. autoclass:: smc.administration.access_rights.AccessControlList
 	:members:
 	:show-inheritance:
-	
+
 Administrators
 ++++++++++++++
 
 .. automodule:: smc.elements.user
 	:members:
 	:show-inheritance:
- 
+
 Collection
 ----------
 
@@ -891,26 +910,26 @@ Below are some common examples of retrieving data from the SMC:
 
    #Only return the href of a particular SMC Element:
    smc.actions.search.element_href(name)
-   
+
    #To obtain full json for an SMC Element:
    smc.actions.search.element_as_json(name)
-   
+
    #To obtain full json data and etag information for SMC Element (etag used for modifying an element):
    smc.actions.search.element_as_json_with_etag(name)
-   
+
    #To find all elements by type:
    smc.actions.search.elements_by_type('host')
-   
+
    #To find all available log servers:
    smc.actions.search.log_servers()
-   
+
    #To find all L3 FW policies:
    smc.actions.search.fw_policies()
-   
+
 
 .. automodule:: smc.actions.search
    :members:
-     
+
 Session
 -------
 

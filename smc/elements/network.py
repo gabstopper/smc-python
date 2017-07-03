@@ -1,7 +1,8 @@
 """
 Module representing network elements used within the SMC
 """
-from smc.base.model import Element, ElementCreator, prepared_request
+from smc.base.model import Element, ElementCreator, prepared_request,\
+    SimpleElement
 from smc.api.exceptions import MissingRequiredInput, CreateElementFailed,\
     ElementNotFound
 from smc.api.common import fetch_json_by_href
@@ -425,7 +426,7 @@ class IPList(Element):
                 headers = {'accept': 'application/json'}
 
             prepared_request(
-                href=self._resource.ip_address_list,
+                href=self.data.get_link('ip_address_list'),
                 filename=filename,
                 headers=headers
             ).read()
@@ -459,7 +460,7 @@ class IPList(Element):
 
         prepared_request(
             CreateElementFailed,
-            href=self._resource.ip_address_list,
+            href=self.data.get_link('ip_address_list'),
             headers=headers, files=files, json=json,
             params=params
         ).create()
@@ -486,7 +487,7 @@ class IPList(Element):
 
             prepared_request(
                 CreateElementFailed,
-                href=element._resource.ip_address_list,
+                href=element.data.get_link('ip_address_list'),
                 json={'ip': iplist}
             ).create()
         return result
@@ -572,7 +573,7 @@ class Alias(Element):
         href = data.get('alias_ref')
         result = fetch_json_by_href(href)
         alias = Alias(result.json.get('name'), href=href)
-        alias._add_cache(result.json, result.etag)
+        alias.data = SimpleElement(etag=result.etag, **result.json)
         alias.resolved_value = data.get('resolved_value')
         return alias
 
@@ -594,7 +595,7 @@ class Alias(Element):
         if not self.resolved_value:
             result = prepared_request(
                 ElementNotFound,
-                href=self._resource.resolve,
+                href=self.data.get_link('resolve'),
                 params={'for': engine}
             ).read()
 

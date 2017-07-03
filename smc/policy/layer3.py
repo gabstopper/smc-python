@@ -10,25 +10,25 @@ To get an existing policy::
     >>> policy = FirewallPolicy('Standard Firewall Policy with Inspection')
     >>> print(policy.template)
     FirewallTemplatePolicy(name=Firewall Inspection Template)
-    
+
 Or through collections::
 
     >>> list(Search('fw_policy').objects.all())
     [FirewallPolicy(name=Standard Firewall Policy with Inspection), FirewallPolicy(name=Layer 3 Virtual FW Policy)]
-    
+
 To create a new policy, use::
 
     policy = FirewallPolicy.create(name='newpolicy', template='layer3_fw_template')
-    
+
 Example rule creation::
 
     policy = FirewallPolicy('Amazon Cloud')
     policy.open() #Only required for SMC API <= 6.0
-    policy.fw_ipv4_access_rules.create(name='mynewrule', sources='any', 
+    policy.fw_ipv4_access_rules.create(name='mynewrule', sources='any',
                                        destinations='any', services='any',
                                        action='permit')
     policy.save() #Only required for SMC API <= 6.0
-    
+
 Example rule deletion::
 
     policy = FirewallPolicy('Amazon Cloud')
@@ -48,7 +48,7 @@ from smc.base.collection import create_collection
 class FirewallRule(object):
     """
     Encapsulates all references to firewall rule related entry
-    points. This is referenced by multiple classes such as 
+    points. This is referenced by multiple classes such as
     FirewallPolicy and FirewallPolicyTemplate.
     """
     @property
@@ -60,7 +60,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.fw_ipv4_access_rules,
+            self.data.get_link('fw_ipv4_access_rules'),
             IPv4Rule)
 
     @property
@@ -72,7 +72,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.fw_ipv4_nat_rules,
+            self.data.get_link('fw_ipv4_nat_rules'),
             IPv4NATRule)
 
     @property
@@ -84,7 +84,7 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.fw_ipv6_access_rules,
+            self.data.get_link('fw_ipv6_access_rules'),
             IPv6Rule)
 
     @property
@@ -96,14 +96,14 @@ class FirewallRule(object):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.fw_ipv6_nat_rules,
+            self.data.get_link('fw_ipv6_nat_rules'),
             IPv6NATRule)
 
 
 class FirewallPolicy(FirewallRule, Policy):
-    """ 
-    FirewallPolicy represents a set of rules installed on layer 3 
-    devices. Layer 3 FW's support either ipv4 or ipv6 rules. 
+    """
+    FirewallPolicy represents a set of rules installed on layer 3
+    devices. Layer 3 FW's support either ipv4 or ipv6 rules.
 
     They also have NAT rules and reference to an Inspection and
     File Filtering Policy.
@@ -126,7 +126,7 @@ class FirewallPolicy(FirewallRule, Policy):
 
     @classmethod
     def create(cls, name, template='Firewall Inspection Template'):
-        """ 
+        """
         Create Firewall Policy. Template policy is required for the
         policy. The template parameter should be the name of the
         firewall template.
@@ -134,7 +134,6 @@ class FirewallPolicy(FirewallRule, Policy):
         This policy will then inherit the Inspection and File Filtering
         policy from the specified template.
 
-        :mathod: POST
         :param str name: name of policy
         :param str template: name of the FW template to base policy on
         :raises LoadPolicyFailed: Cannot load the policy after creation
@@ -169,20 +168,20 @@ class FirewallSubPolicy(Policy):
     a 'jump' rule. Typically rules in a sub policy are similar in some
     fashion such as applying to a specific service. Sub Policies can also
     be delegated from an administrative perspective.
-    
+
     Firewall Sub Policies only provide access to creating IPv4 rules. NAT
     is done on the parent firewall policy::
-    
+
         p = FirewallSubPolicy('MySubPolicy')
         p.fw_ipv4_access_rules.create(
             name='newule',
             sources='any',
             destinations='any',
             services=[TCPService('SSH')],
-            action='discard')                             
+            action='discard')
     """
     typeof = 'sub_ipv4_fw_policy'
-    
+
     def __init__(self, name, **meta):
         super(FirewallSubPolicy, self).__init__(name, **meta)
         pass
@@ -193,13 +192,13 @@ class FirewallSubPolicy(Policy):
         Create a sub policy. Only name is required. Other settings are
         inherited from the parent firewall policy (template, inspection
         policy, etc).
-        
+
         :param str name: name of sub policy
         :raises CreateElementFailed: failed to create policy
         :rtype: FirewallSubPolicy
         """
         return ElementCreator(cls, json={'name': name})
-        
+
     @property
     def fw_ipv4_access_rules(self):
         """
@@ -209,10 +208,10 @@ class FirewallSubPolicy(Policy):
         :rtype: SubElementCollection
         """
         return create_collection(
-            self._resource.fw_ipv4_access_rules,
+            self.data.get_link('fw_ipv4_access_rules'),
             IPv4Rule)
-    
-    
+
+
 class FirewallTemplatePolicy(FirewallRule, Policy):
     """
     All Firewall Policies will reference a firewall policy template.

@@ -253,7 +253,4 @@ class IPServiceGroup(GroupMixin, Element):
                 'comment': comment}
 
         return ElementCreator(cls, json)
-
-
-class SecurityGroup(Element):
-    pass
+        

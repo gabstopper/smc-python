@@ -24,7 +24,7 @@ Element class relationship::
 
                              ElementBase (object)
                                    |
-                                cache = Cache()
+                                data = SimpleElement()
                                 meta = Meta(href,name,type)
                                 delete()
                                 modify_attribute()
@@ -48,7 +48,6 @@ container functionality may inherit from object.
 from collections import namedtuple
 import smc.base.collection
 from smc.base.decorators import cached_property, exception
-from smc.api.web import counters
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
@@ -84,13 +83,28 @@ class classproperty(object):
         return self.fget(owner_cls)
 
 
+def load_element(href, only_etag=False):
+    """
+    Return an instance of a SimpleElement used
+    as a cache for the element
+    """
+    result = prepared_request(
+        FetchElementFailed,
+        href=href
+        ).read()
+    if only_etag:
+        return result.etag
+    return SimpleElement(
+        etag=result.etag, **result.json)
+
+
 def ElementCreator(cls, json):
     """
     Helper method for create classmethods. Returns the href if
     creation is successful. This is a lazy load that will provide
     only the meta for the element. Additional attribute access
     will load the full data.
-    
+
     :return: instance of type Element with meta
     :rtype: Element
     """
@@ -118,108 +132,47 @@ def ElementFactory(href):
         e = typeof(name=element.json.get('name'),
                    href=href,
                    type=istype)
-        e._cache = Cache(e, element.json, element.etag)
+        e.data = SimpleElement(
+            etag=element.etag, **element.json)
         return e
 
 
-class ElementResource:
+class SimpleElement(dict):
     """
-    Convenience class to provide dotted access to resource links.
-    Resource links are referenced in the element as a list with
-    dict items in format {'href', 'rel'}. Attributes are added
-    dynamically using 'rel' as name and href as the value. This
-    makes it possible to access a link via self._resource.rel
+    Basic container for retrieved element. Can be inserted
+    where a cached copy is needed. Also provides methods to
+    retrieve element links and json by link name
     """
+    def __init__(self,*arg,**kw):
+        self._etag = kw.pop('etag', None)
+        super(SimpleElement, self).__init__(*arg, **kw)
 
-    def name(self, href):
+    def etag(self, href):
         """
-        Have the href, reverse call to get name of element
+        ETag can be None if a subset of element json is using
+        this container, such as the case with Routing.
         """
-        resource = prepared_request(
+        if self and self._etag is None:
+            self._etag = load_element(href, only_etag=True)
+        return self._etag
+
+    def get_link(self, rel):
+        """
+        Return link for specified resource
+        """
+        for link in self['link']:
+            if link.get('rel') == rel:
+                return link['href']
+        raise ResourceNotFound('Resource requested: %r is not available '
+                               'on this element.' % rel)
+
+    def get_json(self, res):
+        """
+        Provided the link, return the resources raw json
+        """
+        return prepared_request(
             FetchElementFailed,
-            href=href
-        ).read().json
-        if resource:
-            return resource.get('name')
-
-    def get(self, resource, as_smcresult=False):
-        """
-        Get the json for the resource. This can be either an
-        href or the 'rel' link name which will retrieve the
-        href from this class.
-        Set as_smcresult if you need to retrieve the full
-        SMCResult object. In some cases, nested ETag's are
-        required for certain elements, such as interface contact
-        addresses.
-        """
-        if not resource.startswith('http'):
-            resource = getattr(self, resource)
-        result = prepared_request(
-            href=resource
-        ).read()
-        if result.msg:
-            raise FetchElementFailed(result.msg)
-        if as_smcresult:
-            return result
-        return result.json
-
-    def __repr__(self):
-        return "%s(id=%r)" % (self.__class__.__name__, id(self))
-
-    def __getattr__(self, link):
-        raise ResourceNotFound('Resource requested: %r is not '
-                               'available on this element.' % link)
-
-
-class Cache(object):
-    """
-    Cache is applied at the element level as a dynamic attribute and
-    provides an interface to the elements raw data. Caching is also
-    implemented on the dynamic attribute ``resource``. Resource provides
-    a container for dotted access to a retrieved elements resource links.
-    If an update is made to an element, the cache attribute can be
-    deleted which will cause a refresh on subsequent access to that
-    attribute (or through a reference to it).
-
-    When an element is sent for modification, the cached ETag is used
-    and an exception will be raised if the server side ETag has changed,
-    requiring the request to be made again.
-    """
-    __slots__ = ('_cache', 'instance')
-
-    def __init__(self, instance, json=None, etag=None):
-        self.instance = instance
-        if json is not None:
-            self._cache = (etag, json)
-        else:
-            self._cache = None
-    
-    def __call__(self, *args, **kwargs):
-        counters.update(cache=1)
-        if self._cache is None or kwargs.get('force_refresh'):
-            result = prepared_request(
-                FetchElementFailed,
-                href=self.instance.href
-            ).read()
-            self._cache = (result.etag, result.json)
-            getattr(self.instance, '_resource')
-        return self._cache
-
-    @property
-    def data(self):
-        return self.__call__()[1]
-
-    @property
-    def etag(self):
-        # Etag can be none if cache was manually set, assume that
-        # is because data was loaded through a reference
-        if self.__call__()[0] is None:
-            etag = prepared_request(
-                FetchElementFailed,
-                href=self.instance.href
-            ).read()
-            self._cache = (etag.etag, self._cache[1])
-        return self._cache[0]
+            href=self.get_link(res)).read().json
 
 
 class ElementLocator(object):
@@ -235,7 +188,7 @@ class ElementLocator(object):
     Host('myhost'), you will have an empty instance as the cache is not
     hydrated until some action is called on it that accesses the instance
     property 'data'.
-    Once hydrated, original json is stored in instance._cache.
+    Once hydrated, original json is stored in instance.data.
 
     Classes deriving from :class:`SubElement` do not have valid entry points in
     the SMC API and will be typically created through a reference link.
@@ -288,30 +241,22 @@ class ElementBase(UnicodeMixin):
         else:
             self._meta = Meta(**meta) if meta else None
 
-    def _add_cache(self, data, etag=None):
-        self._cache = Cache(self, data, etag)
-        
     @cached_property
-    def _cache(self):
-        return Cache(self)
-
-    @cached_property
-    def _resource(self):
-        res = ElementResource()
-        for link in self.data.get('link'):
-            setattr(res, link.get('rel'), link.get('href'))
-        return res
-
-    @property
     def data(self):
-        return self._cache.data
+        return load_element(self.href)
 
     @property
     def etag(self):
-        """
-        ETag for this element
-        """
-        return self._cache.etag
+        return self.data.etag(self.href)
+
+    def __getattr__(self, key):
+        if key not in ['typeof']:
+            try:
+                return self.data[key]
+            except KeyError:
+                pass
+        raise AttributeError("%r object has no attribute %r"
+                % (self.__class__, key))
 
     def delete(self):
         """
@@ -331,21 +276,21 @@ class ElementBase(UnicodeMixin):
         Update the existing element and clear the instance cache.
         Removing the cache will ensure subsequent calls requiring element
         attributes will force a new fetch to obtain the latest copy.
-        
+
         If attributes are set via kwargs and instance attributes are also
         set, instance attributes are updated first, then kwargs. Typically
         you will want to use either instance attributes OR kwargs, not both.
-        
+
         For kwargs, if attribute values are a list, you can pass
         'append_lists=True' to add to an existing list, otherwise overwrite
         (default: overwrite)
-        
+
         If using attributes, the attribute value can be a callable and it
         will be evaluated and merged.
-        
+
         .. seealso:: To see different ways to utilize this method for updating,
             see: :ref:`update-elements-label`.
-        
+
         :param exception: pass a custom exception to throw if failure
         :param kwargs: optional kwargs to update request data to server.
         :return: href of the element modified
@@ -355,37 +300,38 @@ class ElementBase(UnicodeMixin):
             exception = UpdateElementFailed
         else:
             exception = exception[0]
-        
+
         params = {
             'href': self.href,
             'etag': self.etag
         }
-    
+
         if 'href' in kwargs:
             params.update(href=kwargs.pop('href'))
-            
+
         if 'etag' in kwargs:
             params.update(etag=kwargs.pop('etag'))
-        
+
         name = kwargs.get('name', None)
-        
+
+        json = self.data    # Get element data
+        del self.data       # Delete the cache before processing attributes
+
         instance_attr = {k: v() if callable(v) else v
                          for k, v in vars(self).items()
                          if not k.startswith('_')}
-        
+
         if instance_attr:
-            self.data.update(**instance_attr)
- 
+            json.update(**instance_attr)
+
         # If kwarg settings are provided AND instance variables, kwargs
         # will overwrite collected instance attributes with the same name.
         if kwargs:
             append_lists = kwargs.pop('append_lists', False)
-            merge_dicts(self.data, kwargs, append_lists)
-        
-        params.update(json=self.data)
-        
-        del self._cache
-        
+            merge_dicts(json, kwargs, append_lists)
+
+        params.update(json=json)
+
         # Remove attributes from instance if previously set
         if instance_attr:
             for attr in instance_attr.keys():
@@ -395,12 +341,12 @@ class ElementBase(UnicodeMixin):
             exception,
             **params
             ).update().href
-        
+
         if name: # Reset instance name
             self._name = name
-        
+
         return result
-    
+
     def modify_attribute(self, **kwargs):
         """
         Modify the attribute by key / value pair.
@@ -412,24 +358,27 @@ class ElementBase(UnicodeMixin):
         :raises ElementNotFound: cannot find element specified
         :raises ModificationFailed, UpdateElementFailed: failure applying
             change with reason
-        :return: None
+        :return: href of the element modified
+        :rtype: str
         """
         if self.data.get('system', False):
             raise ModificationFailed(
                 'Cannot modify system element: %s' % self.name)
 
+        params = {
+            'href': self.href,
+            'etag': self.etag
+        }
         append_lists = kwargs.pop('append_lists', False)
         merge_dicts(self.data, kwargs, append_lists)
-        self.update()
-    
-    def __getattr__(self, attr):
-        if attr not in ['typeof']:
-            try:
-                return self.data[attr]
-            except KeyError:
-                pass
-        raise AttributeError("%r object has no attribute %r"
-            % (self.__class__, attr))            
+        params.update(json=self.data)
+        del self.data
+
+        return prepared_request(
+            UpdateElementFailed,
+            **params
+            ).update().href
+
 
 class Element(ElementBase):
     """
@@ -484,7 +433,7 @@ class Element(ElementBase):
         docs. If no filter_key is provided, the name field will be used to
         find the element.
         ::
-        
+
             >>> Network.get_or_create(
                     filter_key={'ipv4_network': '123.123.123.0/24'},
                     name='mynetwork',
@@ -493,7 +442,7 @@ class Element(ElementBase):
 
         The kwargs should be used to satisfy the elements ``create``
         classmethod parameters to create in the event it cannot be found.
-        
+
         :param dict filter_key: filter key represents the data attribute and
             value to use to find the element. If none is provided, the name
             field will be used.
@@ -514,9 +463,9 @@ class Element(ElementBase):
                     kwargs.get('name')); element.href
             except ElementNotFound:
                 element = cls.create(**kwargs)
-        
+
         return element
-    
+
     @classmethod
     def update_or_create(cls, filter_key=None, **kwargs):
         """
@@ -526,14 +475,14 @@ class Element(ElementBase):
         by a specific attribute and value. If no filter_key is provided,
         the name field will be used to find the element.
         ::
-        
+
             >>> host = Host('kali')
             >>> print(host.address)
             12.12.12.12
             >>> host = Host.update_or_create(name='kali', address='10.10.10.10')
             >>> print(host, host.address)
             Host(name=kali) 10.10.10.10
-        
+
         :param dict filter_key: filter key represents the data attribute and
             value to use to find the element. If none is provided, the name
             field will be used.
@@ -554,7 +503,7 @@ class Element(ElementBase):
                     kwargs.get('name')); element.href
             except ElementNotFound:
                 element = None
-        
+
         params = {k: v() if callable(v) else v
                   for k, v in kwargs.items()}
 
@@ -562,16 +511,14 @@ class Element(ElementBase):
             element.update(**params)
         else:
             element = cls.create(**params)
-    
+
         return element
-    
+
     @property
     def name(self):
         """
         Name of element
         """
-        #if compat.PY3:
-        #    return self._name
         return bytes_to_unicode(self._name)
 
     @property
@@ -580,15 +527,15 @@ class Element(ElementBase):
         Comment for element
         """
         return self.data.get('comment', None)
-    
+
     @comment.setter
     def comment(self, comment):
         self.data['comment'] = comment
-    
+
     def rename(self, name):
         """
         Rename this element.
-        
+
         :param str name: new name of element
         :raises UpdateElementFailed: update failed with reason
         :return: None
@@ -601,13 +548,13 @@ class Element(ElementBase):
         identifier. They can then be searched and returned as a group
         of elements. If the category tag specified does not exist, it
         will be created.
-        
+
         :param list tags: list of category tag names to add to this
             element
         :type tags: list(str)
         :raises ElementNotFound: Category tag element name not found
         :return: None
-        
+
         .. seealso:: :class:`smc.elements.other.Category`
         """
         assert isinstance(category, list), 'Category input was expecting list.'
@@ -619,7 +566,7 @@ class Element(ElementBase):
             except ElementNotFound:
                 Category.create(name=tag)
                 category.add_element(self.href)
-        
+
     @property
     def categories(self):
         """
@@ -633,14 +580,21 @@ class Element(ElementBase):
         :return: list :py:class:`smc.elements.other.Category`
         """
         return [Element.from_meta(**tag)
-                for tag in
-                prepared_request(
-                    href=self._resource.search_category_tags_from_element
-                ).read().json]
+                for tag in self.data.get_json(
+                    'search_category_tags_from_element')]
 
     def export(self, filename='element.zip'):
         """
-        Export this element
+        Export this element.
+
+        Usage::
+
+            engine = Engine('myfirewall')
+            extask = engine.export(filename='fooexport.zip')
+            while not extask.done():
+                extask.wait(3)
+            print("Finished download task: %s" % extask.message())
+            print("File downloaded to: %s" % extask.filename)
 
         :param str filename: filename to store exported element
         :raises ActionCommandFailed: invalid permissions, invalid directory..
@@ -650,14 +604,14 @@ class Element(ElementBase):
         try:
             task = prepared_request(
                 ActionCommandFailed,
-                href=self._resource.export,
+                href=self.data.get_link('export'),
                 filename=filename
-                ).create()
+                ).create().json
 
             return DownloadTask(
-                    filename=filename, **task.json
+                filename=filename, task=task
             )
-           
+
         except ResourceNotFound:
             return []
 

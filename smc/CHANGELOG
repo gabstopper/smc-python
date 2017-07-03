@@ -29,7 +29,7 @@ added methods for managing group members
 
 $version 0.3.5
 Add IPv6 support for creating Host, Network and Router objects
-Unicode mixin for classes that print via __str__ 
+Unicode mixin for classes that print via __str__
 Rewrite of policy classes and move to smc.policy
 URL List support
 
@@ -82,7 +82,7 @@ unittests - coverage = 93%
 $version 0.4.3
 element cache descriptor
 api client export
-locations are now directly searchable (SMC >= 6.1.1) 
+locations are now directly searchable (SMC >= 6.1.1)
 unique VLANs on inline interfaces
 add 'used_on' field to NAT rules
 policy search_rule
@@ -161,7 +161,7 @@ domain login
 pep8
 
 $version 0.5.2
-kwargs to add_single_node_interface, add_node_interface, add_cluster_virtual_interface to pass in 
+kwargs to add_single_node_interface, add_node_interface, add_cluster_virtual_interface to pass in
 sub interface settings during create (versus modify after create)
 Admin Role (smc.administration.role.Role) for permission setting
 Inline modifications of interfaces - significant reduction in calls to SMC when making interface modifications
@@ -172,6 +172,11 @@ filter_key, first, last and exists options on search collection
 remove attr_by_name in favor of instance attributes
 config loading from environment variables
 
+$version 0.5.4
+Threaded task poller for upload and refresh operations
+VSS Containers
+Session reauthentication after timeout will occur if a previously session is detected
+Node waiters for monitoring status of an engine
 
 
 

@@ -4,7 +4,7 @@ engine upgrades
 """
 from smc.base.model import prepared_request, SubElement
 from smc.api.exceptions import ResourceNotFound, ActionCommandFailed
-from smc.administration.tasks import ProgressTask
+from smc.administration.tasks import Task, TaskOperationPoller
 
 
 class PackageMixin(object):
@@ -13,29 +13,33 @@ class PackageMixin(object):
     upgrades
     """
 
-    def download(self, timeout=3):
+    def download(self, timeout=5,
+                 wait_for_finish=False):
         """
         Download Package or Engine Update
 
         :param int timeout: timeout between queries
         :raises ActionCommandFailed: task kick off failed
         :raises TaskRunFailed: failure during task status
-        :return: ProgressTask
+        :return: Task or TaskOperationPoller
         """
         try:
             task = prepared_request(
                 ActionCommandFailed,
-                href=self._resource.download
-            ).create()
+                href=self.data.get_link('download')
+            ).create().json
 
-            return ProgressTask(**task.json)
+            return TaskOperationPoller(
+                task=task, timeout=timeout,
+                wait_for_finish=wait_for_finish)
 
         except ResourceNotFound:
             raise ActionCommandFailed(
                 'Package cannot be downloaded, package state: {}' .format(
                     self.state))
 
-    def activate(self, resource=None, timeout=3):
+    def activate(self, resource=None, timeout=3,
+                 wait_for_finish=False):
         """
         Activate this package on the SMC
 
@@ -49,11 +53,13 @@ class PackageMixin(object):
         try:
             task = prepared_request(
                 ActionCommandFailed,
-                href=self._resource.activate,
+                href=self.data.get_link('activate'),
                 json={'resource': resource}
-            ).create()
+            ).create().json
 
-            return ProgressTask(**task.json)
+            return TaskOperationPoller(
+                task=task, timeout=timeout,
+                wait_for_finish=wait_for_finish)
 
         except ResourceNotFound:
             raise ActionCommandFailed(

@@ -66,7 +66,7 @@ class UserMixin(object):
         :raises UpdateElementFailed: failed with reason
         :return: None
         """
-        self.update(href=self._resource.enable_disable)
+        self.update(href=self.data.get_link('enable_disable'))
 
     def change_password(self, password):
         """
@@ -77,7 +77,7 @@ class UserMixin(object):
         """
         prepared_request(
             ModificationFailed,
-            href=self._resource.change_password,
+            href=self.data.get_link('change_password'),
             params={'password': password}
         ).update()
 
@@ -198,7 +198,7 @@ class AdminUser(UserMixin, Element):
         """
         prepared_request(
             ModificationFailed,
-            href=self._resource.change_engine_password,
+            href=self.data.get_link('change_engine_password'),
             params={'password': password}
         ).update()
 

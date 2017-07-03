@@ -32,7 +32,7 @@ class SMCAPIConnection(object):
     def __init__(self, session):
         self._session = session
         self.timeout = self._session.timeout
-        
+
     @property
     def session(self):
         return self._session.session
@@ -116,8 +116,11 @@ class SMCAPIConnection(object):
                 else:  # Unsupported method
                     return SMCResult(msg='Unsupported method: %s' % method)
 
-            except SMCOperationFailure:
-                raise
+            except SMCOperationFailure as error:
+                if error.code in (401,):
+                    self._session.refresh()
+                    return self.send_request(method, request)
+                raise error
             except requests.exceptions.RequestException as e:
                 raise SMCConnectionError(
                     "Connection problem to SMC, ensure the "
@@ -214,13 +217,15 @@ class SMCResult(object):
                     result = response.json()
                 except ValueError:
                     result = None
+                # Search results return list, direct link fetch
+                # will return a dict or list
                 if result:
                     if 'result' in result:
                         self.json = result.get('result')
                     else:
                         self.json = result
                 else:
-                    self.json = []
+                    self.json = result  # Empty dict
                 return self.json
             elif response.headers.get('content-type') == 'application/octet-stream':
                 self.content = response.text if response.text else None

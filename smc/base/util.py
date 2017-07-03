@@ -69,8 +69,8 @@ def find_link_by_name(link_name, linklist):
     for entry in linklist:
         if entry.get('rel') == link_name:
             return entry.get('href')
-    raise smc.api.exceptions.ResourceNotFound('Resource link {} not found.'
-                                              .format(link_name))
+    raise smc.api.exceptions.ResourceNotFound(
+        'Resource link {} not found.'.format(link_name))
 
 
 def find_type_from_self(linklist):
