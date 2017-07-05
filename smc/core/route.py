@@ -197,8 +197,8 @@ class Routing(SubElement):
                 netlink_gw=Router('myrtr'),
                 network='172.18.1.0/24')
             
-        :param str,Element netlink: netlink Element type or str href
-        :param str,Element netlink_gw: gateway for the netlink element. Can be
+        :param StaticNetlink,Multilink netlink: netlink element
+        :param Element netlink_gw: gateway for the netlink element. Can be
             None if no gateway is needed. Element type is typically of type
             :class:`smc.elements.network.Router`.
         :param str network: if network specified, only add OSPF to this network on interface
@@ -206,17 +206,19 @@ class Routing(SubElement):
         :raises ElementNotFound: ospf area not found
         :return: None
         """
-        netlink = element_resolver(netlink)
-        
-        netlink = {'href': netlink,
-                   'level': 'gateway',
-                   'routing_node': []}
+        netlink = {
+            'href': netlink.href,
+            'level': 'gateway',
+            'routing_node': [],
+            'name': netlink.name}
         
         if netlink_gw:
-            netlink_gw = element_resolver(netlink_gw)
-            netlink_gw = {'level': 'any',
-                          'href': netlink_gw}
-            netlink['routing_node'].append(netlink_gw)
+            netlink_gateway = {
+                'level': 'any',
+                'href': netlink_gw.href,
+                'name': netlink_gw.name}
+        
+            netlink['routing_node'].append(netlink_gateway)
     
         self._bind_to_ipv4_network(network, netlink)
         self.update()
@@ -247,29 +249,29 @@ class Routing(SubElement):
         .. note:: If UNICAST is specified, you must also provide a unicast_ref
                   to identify the remote host
 
-        :param str,OSPFArea ospf_area: OSPF area instance or href
+        :param OSPFArea ospf_area: OSPF area instance or href
         :param str communication_mode: NOT_FORCED|POINT_TO_POINT|PASSIVE|UNICAST
-        :param str,Element unicast_ref: location ref or Element (required for UNICAST)
+        :param Element unicast_ref: Element used as unicast gw (required for UNICAST)
         :param str network: if network specified, only add OSPF to this network
             on interface
         :raises EngineCommandFailed: failure updating routing
         :raises ElementNotFound: ospf area not found
         :return: None
         """
-        ospf_area = element_resolver(ospf_area)
-
         communication_mode = communication_mode.upper()
-        node = {'href': ospf_area,
-                'communication_mode': communication_mode,
-                'level': 'gateway',
-                'routing_node': []}
+        node = {
+            'href': ospf_area.href,
+            'communication_mode': communication_mode,
+            'level': 'gateway',
+            'routing_node': [],
+            'name': ospf_area.name}
         
         if communication_mode == 'UNICAST':
             # Need a destination ref, add to sub routing_node
-            unicast_ref = element_resolver(unicast_ref)
             node['routing_node'].append({
-                'href': unicast_ref,
-                'level': 'any'})
+                'href': unicast_ref.href,
+                'level': 'any',
+                'name': unicast_ref.name})
 
         self._bind_to_ipv4_network(network, node)
         self.update()
@@ -289,23 +291,23 @@ class Routing(SubElement):
                 BGPPeering('mypeer'),
                 ExternalBGPPeer('neighbor'))
 
-        :param str,BGPPeering bgp_peering: BGP Peer element
-        :param str,ExternalBGPPeer external_bgp_peer: peer element or href
+        :param BGPPeering bgp_peering: BGP Peer element
+        :param ExternalBGPPeer external_bgp_peer: peer element or href
         :param str network: if network specified, only add OSPF to this network
             on interface
         :raises UpdateElementFailed: failed to add BGP
         :return: None
         """
-        bgp_peering = element_resolver(bgp_peering)
+        bgp = {
+            'href': bgp_peering.href,
+            'level': 'gateway',
+            'routing_node': [],
+            'name': bgp_peering.name}
 
-        external_bgp_peer = element_resolver(external_bgp_peer)
-
-        bgp = {'href': bgp_peering,
-               'level': 'gateway',
-               'routing_node': []}
-
-        external_peer = {'href': external_bgp_peer,
-                         'level': 'any'}
+        external_peer = {
+            'href': external_bgp_peer.href,
+            'level': 'any',
+            'name': external_bgp_peer.name}
         
         bgp['routing_node'].append(external_peer)
         
@@ -325,23 +327,23 @@ class Routing(SubElement):
                     gateway=Router('tmprouter'),
                     destination=[Group('routegroup')])
         
-        :param str,Element gateway: gateway for this route
-        :param destination: destination network/s for this route.
-        :type destination: list(str,Element)
+        :param Element gateway: gateway for this route (Router, Host)
+        :param Element destination: destination network/s for this route.
+        :type destination: list(Host, Router, ..)
         :raises UpdateElementFailed: failure to update routing table
         :return: None
         """
-        gateway = element_resolver(gateway)
-        destination = element_resolver(destination)
-
-        route = {'href': gateway,
-                 'level': 'gateway',
-                 'routing_node': []}
+        route = {
+            'href': gateway.href,
+            'level': 'gateway',
+            'routing_node': [],
+            'name': gateway.name}
         
         for dest in destination:
             route['routing_node'].append({
-                'href': dest,
-                'level': 'any'})            
+                'href': dest.href,
+                'level': 'any',
+                'name': dest.name})            
         
         self._bind_to_ipv4_network(network, route)
         self.update()
@@ -360,16 +362,16 @@ class Routing(SubElement):
             this gateway
         :return: None
         """
-        networks = element_resolver(networks)
-        
-        route = {'dynamic_classid': 'gateway',
-                 'level': 'gateway',
-                 'routing_node': []}
+        route = {
+            'dynamic_classid': 'gateway',
+            'level': 'gateway',
+            'routing_node': []}
         
         for network in networks:
             route['routing_node'].append({
-                'href': network,
-                'level': 'any'})
+                'href': network.href,
+                'level': 'any',
+                'name': network.name})
         
         for networks in iter(self):
             networks.data['routing_node'].append(route)
@@ -550,6 +552,15 @@ class Antispoofing(SubElement):
         """
         return self.data.get('validity')
 
+    @property
+    def nicid(self):
+        """
+        NIC id for this interface
+
+        :return str nic identifier
+        """
+        return self.data.get('nic_id')
+
     def add(self, entry):
         """
         Add an entry to this antispoofing node level.
@@ -561,18 +572,18 @@ class Antispoofing(SubElement):
                 if entry.name == 'Interface 0':
                     entry.add(Network('network-10.1.2.0/24'))
 
-        :param str,Element entry: entry to add
+        :param Element entry: entry to add, i.e. Network('mynetwork'), Host(..)
         :return: None
         :raises CreateElementFailed: failed adding entry
         :raises ElementNotFound: element entry specified not in SMC
         """
-        entry = element_resolver(entry)
-
-        node = {'antispoofing_node': [],
-                'auto_generated': 'false',
-                'href': entry,
-                'level': self.level,
-                'validity': 'enable'}
+        node = {
+            'antispoofing_node': [],
+            'auto_generated': 'false',
+            'href': entry.href,
+            'level': self.level,
+            'validity': 'enable',
+            'name': entry.name}
 
         self.data['antispoofing_node'].append(node)
         self.update()

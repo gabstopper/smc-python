@@ -53,7 +53,7 @@ smc = {'HostConfig': {
         '8916/tcp': [{'HostPort': '8916'}],
         '8917/tcp': [{'HostPort': '8917'}],
         '8918/tcp': [{'HostPort': '8918'}]}, },
-       'Image': 'dwlepage70/smc:v6.2.0',
+       'Image': 'dwlepage70/smc:v6.2.1',
        'Labels': {},
        'Mounts': [],
        'NetworkingConfig': {
@@ -292,7 +292,7 @@ if __name__ == '__main__':
             time.sleep(5)
         else:
             if response.get('ExitCode') == 0:
-                print("Completed command successfully")
+                print("Completed command successfully, running image: %s" % smc['Image'])
             else:
                 print("Command failed: %s" % response)
             break

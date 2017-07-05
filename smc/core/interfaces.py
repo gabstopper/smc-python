@@ -375,6 +375,8 @@ class InterfaceCommon(object):
         for sub in self.interfaces:
             if isinstance(sub, InlineInterface):
                 sub.nicid = '{}'.format('-'.join(interface_id))
+            elif getattr(sub, 'nicid'):
+                sub.nicid = interface_id[0]
         if vlanInterfaces:
             self.data['vlanInterfaces'] = vlanInterfaces
         self.save()
@@ -538,7 +540,7 @@ class TunnelInterface(InterfaceCommon, Interface):
         pass
 
     def add_single_node_interface(self, tunnel_id, address, network_value,
-                                  nodeid=1, zone_ref=None):
+                                  zone_ref=None):
         """
         Creates a tunnel interface with sub-type single_node_interface. This is
         to be used for single layer 3 firewall instances.
@@ -546,7 +548,6 @@ class TunnelInterface(InterfaceCommon, Interface):
         :param str,int tunnel_id: the tunnel id for the interface, used as nicid also
         :param str address: ip address of interface
         :param str network_value: network cidr for interface; format: 1.1.1.0/24
-        :param int nodeid: nodeid, used only for clusters
         :param str zone_ref: zone reference for interface
         :raises EngineCommandFailed: failure during creation
         :return: None
@@ -907,16 +908,17 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         See :py:class:`smc.core.sub_interfaces.InlineInterface` for more information
         """
-        builder = InterfaceBuilder()
+        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         builder.interface_id = interface_id.split('-')[0]
-        builder.add_inline(interface_id, logical_interface_ref,
-                           zone_ref=zone_ref_intf2)
+        if interface is None:
+            builder.add_inline(interface_id, logical_interface_ref,
+                               zone_ref=zone_ref_intf2)
 
         builder.add_vlan_to_inline(interface_id, vlan_id, vlan_id2,
                                    logical_interface_ref,
                                    zone_ref_intf1, zone_ref_intf2)
 
-        dispatch(self, builder)
+        dispatch(self, builder, interface)
 
     def add_vlan_to_node_interface(self, interface_id, vlan_id,
                                    virtual_mapping=None,
@@ -989,7 +991,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         Add IP addresses to VLANs on a firewall cluster. The minimum params
         required are ``interface_id`` and ``vlan_id``.
         To create a VLAN interface with a CVI, specify ``cluster_virtual``
-        and ``cluster_mask`` (optionally ``macaddress``).
+        and ``cluster_mask`` and ``macaddress``.
         If this interface should participate in load balancing, provide a
         value for ``macaddress`` and ``cvi_mode``.
 

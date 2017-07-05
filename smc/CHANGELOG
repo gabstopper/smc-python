@@ -178,5 +178,8 @@ VSS Containers
 Session reauthentication after timeout will occur if a previously session is detected
 Node waiters for monitoring status of an engine
 
+$version 0.5.5
+SMC version 6.2.1 validated
+minor fixes related to routing and antispoofing
 
 

@@ -304,8 +304,7 @@ class ElementCollection(object):
         :return: element or None
         """
         if self._list:
-            return smc.base.model.Element.from_meta(
-                **self._list[0])
+            return list(self)[0]
     
     def last(self):
         """
@@ -322,8 +321,7 @@ class ElementCollection(object):
         :return: element or None
         """
         if self._list:
-            return smc.base.model.Element.from_meta(
-                **self._list[-1])
+            return list(self)[-1]
 
     def exists(self):
         """

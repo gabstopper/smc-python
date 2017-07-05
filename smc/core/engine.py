@@ -415,8 +415,7 @@ class Engine(EngineProperty, Element):
             interface1 = engine.contact_addresses(1) # For interface 1
             for ipv4 in interface1:
                 if ipv4.address == '2.2.2.2':
-                    contact = ContactAddress.create('10.10.10.10', location='Default')
-                    ipv4.add_contact_address(contact)
+                    ipv4.add_contact_address('10.10.10.10')
 
             print(list(engine.contact_addresses))    # list all
 
