@@ -14,7 +14,7 @@ To get an existing policy::
 Or through collections::
 
     >>> from smc.policy.layer2 import Layer2Policy
-    >>> list(Search('layer2_policy').objects.all())
+    >>> list(Layer2Policy.objects.all())
     [Layer2Policy(name=MyLayer2Policy)]
     
 To create a new policy, use::
@@ -68,7 +68,7 @@ class Layer2Rule(object):
         Layer2 Firewall access rule
 
         :return: collection of :class:`smc.policy.rule.IPv4Layer2Rule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('layer2_ipv4_access_rules'),
@@ -89,7 +89,7 @@ class Layer2Rule(object):
         Layer 2 Ethernet access rule
 
         :return: collection of :class:`smc.policy.rule.EthernetRule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('layer2_ethernet_rules'),
@@ -153,8 +153,7 @@ class Layer2Policy(Layer2Rule, Policy):
         try:
             return ElementCreator(cls, json)
         except CreateElementFailed as err:
-            raise CreatePolicyFailed(
-                'Failed to create firewall policy: {}'.format(err))
+            raise CreatePolicyFailed(err)
 
 
 class Layer2TemplatePolicy(Layer2Rule, Policy):
@@ -178,7 +177,5 @@ class Layer2TemplatePolicy(Layer2Rule, Policy):
     def __init__(self, name, **meta):
         super(Layer2TemplatePolicy, self).__init__(name, **meta)
         pass
-
-    def export(self): pass  # Not supported on the template
 
     def upload(self): pass  # Not supported on the template

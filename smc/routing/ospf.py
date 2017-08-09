@@ -29,10 +29,10 @@ Disable OSPF on an engine::
 
 Finding profiles or elements can also be done through collections::
 
-    >>> list(Search('ospfv2_profile').objects.all())
+    >>> list(OSPFProfile.objects.all())
     [OSPFProfile(name=Default OSPFv2 Profile)]
         
-    >>> list(Search('ospfv2_area').objects.all())
+    >>> list(OSPFArea.objects.all())
     [OSPFArea(name=area0)]
 
 The OSPF relationship can be represented as::

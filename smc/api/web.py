@@ -58,7 +58,7 @@ class SMCAPIConnection(object):
                     logger.debug(vars(response))
                     counters.update(read=1)
 
-                    if response.status_code not in (200, 304):
+                    if response.status_code not in (200, 204, 304):
                         raise SMCOperationFailure(response)
 
                 elif method == SMCAPIConnection.POST:
@@ -66,7 +66,6 @@ class SMCAPIConnection(object):
                         return self.file_upload(request)
 
                     response = self.session.post(request.href,
-                                                 # data=json.dumps(request.json),
                                                  json=request.json,
                                                  headers=request.headers,
                                                  params=request.params)
@@ -80,6 +79,9 @@ class SMCAPIConnection(object):
                         raise SMCOperationFailure(response)
 
                 elif method == SMCAPIConnection.PUT:
+                    if request.files:  # File upload request
+                        return self.file_upload(request)
+                    
                     # Etag should be set in request object
                     request.headers.update(Etag=request.etag)
 
@@ -137,10 +139,11 @@ class SMCAPIConnection(object):
         Called when GET request specifies a filename to retrieve.
         """
         logger.debug(vars(request))
-        response = self.session.get(request.href,
-                                    params=request.params,
-                                    headers=request.headers,
-                                    stream=True)
+        response = self.session.get(
+            request.href,
+            params=request.params,
+            headers=request.headers,
+            stream=True)
 
         if response.status_code == 200:
             logger.debug("Streaming to file... Content length: {}"
@@ -165,18 +168,22 @@ class SMCAPIConnection(object):
 
     def file_upload(self, request):
         """
-        Perform a file upload POST to SMC. Request should have the
+        Perform a file upload PUT/POST to SMC. Request should have the
         files attribute set which will be an open handle to the
         file that will be binary transfer.
         """
         logger.debug(vars(request))
-        response = self.session.post(request.href,
-                                     params=request.params,
-                                     files=request.files
-                                     )
-        if response.status_code == 202:
-            logger.debug('Success sending file in elapsed time: {}'
-                         .format(response.elapsed))
+        command = getattr(self.session, request._method.lower())
+        
+        response = command(
+            request.href,
+            params=request.params,
+            files=request.files)
+
+        if response.status_code in (202, 204):
+            logger.debug(
+                'Success sending file in elapsed time: {}'
+                .format(response.elapsed))
             return SMCResult(response)
 
         raise SMCOperationFailure(response)

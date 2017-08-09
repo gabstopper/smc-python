@@ -1,12 +1,8 @@
 [run]
 omit = 
 	__init__.py
-	smc/actions/locators.py
-	smc/actions/parser.py
 	smc/actions/test.py
 	smc/actions/shortcuts.py
-	smc/elements/_build*
-	smc/elements/collection_new*
 
 [report]
 # Regexes for lines to exclude from consideration

@@ -1,4 +1,67 @@
-from .util import unicode_to_bytes
+from smc.api.exceptions import FetchElementFailed, ActionCommandFailed
+from smc.api.common import SMCRequest
+
+
+class SMCCommand(object):
+    """
+    Mixin class to simplify using REST operations to SMC. This is inherited by
+    ElementBase so all sub classes have access to these methods. This mixin
+    represents GET,POST,PUT,DELETE operations that are not direct updates to
+    an elements attributes (use .update() and delete()), but rather generic calls
+    to execute some operation related to the element. For example, Node commands
+    such as 'Go Online', etc require PUT be called. Since the element itself is
+    not modified, update calls do not require the ETag attribute.
+    
+    If the 'resource' kwarg is provided, this should contain the name of the resource
+    'rel' link and it will resolve the link automatically. Otherwise provide 'href'
+    kwarg to identify the destination for the operation. In addition, you can provide
+    a custom exception class as the first arg otherwise a default will be chosen based
+    on the operation type.
+    
+    :raises ResourceNotFound: only raised in the case where a 'resource' kwarg
+        link is provided where that link does not exist.
+    """
+    
+    def read_cmd(self, *exception, **kwargs):
+        exc = FetchElementFailed
+        if exception:
+            exc = exception[0]
+        
+        request = self._request(exc, **kwargs)
+        return request.read().json
+
+    def send_cmd(self, *exception, **kwargs):
+        exc = ActionCommandFailed
+        if exception:
+            exc = exception[0]
+        
+        request = self._request(exc, **kwargs)
+        return request.create().json
+    
+    def del_cmd(self, *exception, **kwargs):
+        exc = ActionCommandFailed
+        if exception:
+            exc = exception[0]
+        
+        request = self._request(exc, **kwargs)
+        return request.delete().json
+    
+    def upd_cmd(self, *exception, **kwargs):
+        exc = ActionCommandFailed
+        if exception:
+            exc = exception[0]
+        
+        request = self._request(exc, **kwargs)
+        return request.update()
+        
+    def _request(self, exception, **kwargs):
+        link = kwargs.pop('resource', None)
+        if link is not None:
+            kwargs.update(href=self.data.get_link(link))
+        
+        request = SMCRequest(**kwargs)
+        request.exception = exception
+        return request
 
 
 class UnicodeMixin(object):
@@ -18,4 +81,3 @@ class UnicodeMixin(object):
         def __str__(x): return x.__unicode__()
     else:
         def __str__(x): return unicode(x).encode('utf-8')
-        #__str__ = lambda x: unicode_to_bytes(unicode(x))

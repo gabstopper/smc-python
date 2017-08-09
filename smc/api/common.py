@@ -1,7 +1,7 @@
 """
 Middle tier helper module to wrap CRUD operations and catch exceptions
 
-SMCRequest is the general data structure that is sent to the prepared_request
+SMCRequest is the general data structure that is sent to the send_request
 method in smc.api.web.SMCConnection to submit the data to the SMC.
 """
 import logging

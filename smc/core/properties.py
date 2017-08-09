@@ -1,5 +1,5 @@
 """
-Properties provide helper functions to enable, disable or configure
+AddOnMixin provide helper functions to enable, disable or configure
 features of an Engine after it has already been created. When a setting
 is modified, the engine instance is updated, however not submitted to the
 SMC until calling .update(). Alternatively, you can provide the kwarg 
@@ -40,12 +40,12 @@ from smc.base.model import Element
 from smc.base.decorators import autocommit
 from smc.routing.ospf import OSPFProfile
 from smc.api.exceptions import UnsupportedEngineFeature
-from smc.elements.profiles import DNSRelayProfile
+from smc.elements.profiles import DNSRelayProfile, SandboxService
 from smc.routing.bgp import BGPProfile
 from smc.base.util import element_resolver
 
 
-class EngineProperty:
+class AddOn:
     """
     Engine features that enable specific functionality and can be
     set or changed after the engine exists. Each setting requires
@@ -617,10 +617,3 @@ class EngineProperty:
         return self.internal_gateway.vpn_site.create(
             name, site_elements)
         
-    
-class SandboxService(Element):
-    typeof = 'sandbox_service'
-
-    def __init__(self, name, **meta):
-        super(SandboxService, self).__init__(name, **meta)
-        pass

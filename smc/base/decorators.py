@@ -1,8 +1,42 @@
 """
 Decorators used in various areas throughout smc-python.
 """
+import warnings
 import functools
 from smc import session
+
+
+def deprecated(func_replacement):
+    """
+    Use this decorator on functions that are marked as deprecated.
+    It takes a single argument of the function name it's being
+    replaced with.
+    """
+    def _deprecated(func):
+        @functools.wraps(func)
+        def new_func(*args, **kwargs):
+            warnings.simplefilter('always', DeprecationWarning) #turn off filter 
+            warnings.warn(
+                'Call to deprecated function {}. Use new function: {}() instead.'
+                .format(func.__name__, func_replacement),
+                category=DeprecationWarning, stacklevel=2)
+            warnings.simplefilter('default', DeprecationWarning) #reset filter
+            return func(*args, **kwargs)
+        return new_func
+    return _deprecated
+
+
+class classproperty(object):
+    """
+    Used for collection manager so objects can be accessed as a
+    class property and also from the instance
+    """
+
+    def __init__(self, fget):
+        self.fget = fget
+
+    def __get__(self, instance, owner_cls):
+        return self.fget(owner_cls)
 
 
 class cached_property(object):

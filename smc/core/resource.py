@@ -1,6 +1,8 @@
 from collections import namedtuple
-from smc.api.exceptions import EngineCommandFailed, ActionCommandFailed
-from smc.base.model import SubElement, prepared_request
+from smc.api.exceptions import EngineCommandFailed, ElementNotFound,\
+    LoadPolicyFailed
+from smc.base.model import SubElement, Element
+from smc.policy.interface import InterfacePolicy
 
 
 class Snapshot(SubElement):
@@ -11,6 +13,11 @@ class Snapshot(SubElement):
         for snapshot in engine.snapshots:
             print snapshot.describe()
 
+    Snapshots can be generated manually, but also will be generated
+    automatically when a policy is pushed::
+    
+        engine.generate_snapshot(filename='mysnapshot.zip')
+    
     Snapshots can also be downloaded::
 
         for snapshot in engine.snapshots:
@@ -35,60 +42,109 @@ class Snapshot(SubElement):
         if not filename:
             filename = '{}{}'.format(self.name, '.zip')
         try:
-            prepared_request(EngineCommandFailed,
-                             href=self.data.get_link('content'),
-                             filename=filename
-                             ).read()
+            self.read_cmd(
+                EngineCommandFailed,
+                resource='content',
+                filename=filename)
+
         except IOError as e:
             raise EngineCommandFailed("Snapshot download failed: {}"
                                       .format(e))
 
 
+class L2FWSettings(object):
+    """
+    Layer 2 Settings specify how the engine will handle policy for any
+    layer 2 interfaces defined.
+    
+    :ivar interface_policy: InterfacePolicy for this engine
+    :ivar bypass_overload_traffic: boolnea value representing whether to
+        allow traffic through during overload. Only valid on IPS or Capture
+        L2 interface.
+    :ivar tracking_mode: connection tracking mode. Valid options: 'normal',
+        'strict', 'loose'.
+    """
+    def __init__(self, l2_interface_policy_ref=None,
+                 bypass_overload_traffic=False,
+                 tracking_mode='normal'):
+        
+        self.l2_interface_policy_ref = l2_interface_policy_ref
+        self.bypass_overload_traffic = bypass_overload_traffic
+        self.tracking_mode = tracking_mode
+    
+    @classmethod
+    def create(cls, interface_policy=None, bypass_overload_traffic=False,
+               tracking_mode='normal'):
+        try:
+            policy = interface_policy.href if interface_policy else None
+        except ElementNotFound:
+            raise LoadPolicyFailed(
+                'Interface Policy: %r specified was not found.' %
+                    interface_policy.name)
+        return {
+            'l2_interface_policy_ref': policy,
+            'bypass_overload_traffic': bypass_overload_traffic,
+            'tracking_mode': tracking_mode}
+        
+    @property
+    def interface_policy(self):
+        if self.l2_interface_policy_ref:
+            return InterfacePolicy.from_href(self.l2_interface_policy_ref)
+
+        
 class PendingChanges(object):
     """
     Pending changes apply to the engine having changes that have not
     yet been committed.
+    Retrieve from the engine level::
+    
+        >>> for changes in engine.pending_changes.all():
+        ...   print(changes, changes.resolve_element)
+        ... 
+        (ChangeRecord(approved_on=u'', changed_on=u'2017-07-12 15:24:40 (GMT)', 
+        element=u'http://172.18.1.150:8082/6.2/elements/fw_cluster/116', 
+        event_type=u'stonegate.object.update', modifier=u'admin'), 
+        FirewallCluster(name=sg_vm))
+    
+    Approve all changes::
+    
+        >>> engine.pending_changes.approve_all()
+        
+    Conversely, reject all pending changes::
+    
+        >>> engine.pending_changes.disapprove_all()
+    
     """
 
     def __init__(self, engine):
         self._engine = engine  # Engine resource reference
 
-    def pending_changes(self):
+    def all(self):
         """
         List of pending changes and details of the change
 
-        :return: :py:class:`smc.core.resource.ChangeRecord`
+        :return: list :py:class:`smc.core.resource.ChangeRecord`
         """
-        records = []
-        for record in prepared_request(
-                        href=self._engine.data.get_link('pending_changes')
-                        ).read().json:
-            records.append(ChangeRecord(**record))
-        return records
-
-    def approve_all_changes(self):
+        return [ChangeRecord(**record)
+                for record in self._engine.read_cmd(resource='pending_changes')]
+    
+    def approve_all(self):
         """
         Approve all pending changes
 
         :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
-        prepared_request(
-            ActionCommandFailed,
-            href=self._engine.data.get_link('approve_all_changes')
-        ).create()
+        self._engine.send_cmd(resource='approve_all_changes')
 
-    def disapprove_all_changes(self):
+    def disapprove_all(self):
         """
         Disapprove all pending changes
 
         :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
-        prepared_request(
-            ActionCommandFailed,
-            href=self._engine.data.get_link('disapprove_all_changes')
-        ).create()
+        self._engine.send_cmd(resource='disapprove_all_changes')
 
     @property
     def has_changes(self):
@@ -97,9 +153,23 @@ class PendingChanges(object):
 
         :rtype: bool
         """
-        return bool(self.pending_changes())
+        return bool(self.all())
 
 
-ChangeRecord = namedtuple(
-    'ChangeRecord',
-    'approved_on changed_on element event_type modifier')
+class ChangeRecord(namedtuple(
+        'ChangeRecord', 'approved_on changed_on element event_type modifier')):
+    """
+    Change record details for any pending changes.
+    
+    :param approved_on: approved on datetime, may be empty if not approved
+    :param change_on: changed on datetime
+    :param element: element affected
+    :param event_type: type of change, update, delete, etc.
+    :param modifier: account making the modification
+    """
+    __slots__ = ()
+    
+    @property
+    def resolve_element(self):
+        return Element.from_href(self.element)
+

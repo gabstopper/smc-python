@@ -1,12 +1,17 @@
 from setuptools import setup, find_packages
 
-def readme():
-    with open('README.rst') as f:
-        return f.read()
+
+with open('README.rst') as f:
+    readme = f.read()
+
+with open('HISTORY.rst') as f:
+    history = f.read()
+
     
 setup(name='smc-python',
-      version='0.5.5',
+      version='0.5.6',
       description='Python based API to Stonesoft Security Management Center',
+      long_description=readme + '\n\n' + history,
       url='http://github.com/gabstopper/smc-python',
       author='David LePage',
       author_email='dwlepage70@gmail.com',

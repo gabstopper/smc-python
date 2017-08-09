@@ -181,6 +181,13 @@ class UpdateElementFailed(SMCException):
     pass
 
 
+class CreateVPNFailed(SMCException):
+    """
+    Creating a policy or route based VPN failed.
+    """
+    pass
+
+
 class ModificationFailed(SMCException):
     """
     Used when making generic modifications to elements.

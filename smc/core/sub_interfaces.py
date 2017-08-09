@@ -5,28 +5,27 @@ the top level interface, there are sub-interface configurations that identify th
 basic settings such as ip address, network, administrative settings etc. These are
 not called directly but used as a reference to the top level interface.
 """
-from collections import Sequence
+import sys
+import inspect
+            
+
+def get_sub_interface(typeof):
+    for itf in clsmembers:
+        try:
+            if getattr(itf[1], 'typeof') == typeof:
+                return itf[1]
+        except AttributeError: pass
 
 
-class SubInterface(Sequence):
-    def __init__(self, subif):
-        self.subif = subif if subif is not None else []
-
-    def __getitem__(self, i):
-        intf = self.subif[i]
-        for k, v in intf.items():
-            return SubInterface.get_subinterface(k)(v)
-
-    def __len__(self):
-        return len(self.subif)
-
-    @staticmethod
-    def get_subinterface(typeof):
-        for subif in [NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
-                      CaptureInterface, InlineInterface]:
-            if subif.typeof == typeof:
-                return subif
-
+def all_interfaces(data):
+    """
+    Return a list of subinterfaces based on the interface
+    list.
+    """
+    return [get_sub_interface(kind)(value)
+            for interface in data
+            for kind, value in interface.items()]
+        
 
 class LoopbackInterface(object):
     @classmethod
@@ -39,6 +38,7 @@ class LoopbackInterface(object):
             data.update({k: v})
         
         return data
+
             
 class ClusterVirtualInterface(object):
     """
@@ -83,7 +83,7 @@ class ClusterVirtualInterface(object):
 
     @property
     def data(self):
-        return {'cluster_virtual_interface': self.__dict__}
+        return {self.typeof: self.__dict__}
 
     @property
     def vlan_id(self):
@@ -142,8 +142,7 @@ class InlineInterface(object):
         :param str zone_ref: reference to zone, set on second inline pair
         :rtype: dict
         """
-        data = {'failure_mode': 'normal',
-                'inspect_unspecified_vlans': True,
+        data = {'inspect_unspecified_vlans': True,
                 'nicid': interface_id,
                 'logical_interface_ref': logical_interface_ref,
                 'zone_ref': zone_ref}
@@ -155,8 +154,8 @@ class InlineInterface(object):
         
     @property
     def data(self):
-        return {'inline_interface': self.__dict__}
-
+        return {self.typeof: self.__dict__}
+    
     @property
     def vlan_id(self):
         """
@@ -180,6 +179,38 @@ class InlineInterface(object):
         return '{0}(nicid={1})'.format(
             self.__class__.__name__, self.nicid)
 
+
+class InlineIPSInterface(InlineInterface):
+    """
+    An Inline IPS Interface is a new interface type introduced
+    in SMC version 6.3. This interface type is the same as a
+    normal IPS interface except that it is applied on a Layer 3
+    Firewall.
+    
+    .. versionadded:: 0.5.6
+        Requires SMC 6.3.
+    """
+    typeof = 'inline_ips_interface'
+    
+    def __init__(self, data):
+        super(InlineIPSInterface, self).__init__(data)
+    
+
+class InlineL2FWInterface(InlineInterface):
+    """
+    An Inline L2FW Interface is a new interface type introduced
+    in SMC version 6.3. This interface type is the a layer 2 FW
+    interface on a layer 3 firewall. By default this interface
+    type does not support bypass mode and will discard on overload.
+    
+    .. versionadded:: 0.5.6
+        Requires SMC 6.3.
+    """
+    typeof = 'inline_l2fw_interface'
+    
+    def __init__(self, data):
+        super(InlineL2FWInterface, self).__init__(data)
+        
 
 class CaptureInterface(object):
     """
@@ -217,7 +248,7 @@ class CaptureInterface(object):
 
     @property
     def data(self):
-        return {'capture_interface': self.__dict__}
+        return {self.typeof: self.__dict__}
 
     def __getattr__(self, attr):
         return None
@@ -428,3 +459,5 @@ def _add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):
             pass
     vals.update(nicid=nicid)
     return inline_intf
+
+clsmembers = inspect.getmembers(sys.modules[__name__], inspect.isclass)

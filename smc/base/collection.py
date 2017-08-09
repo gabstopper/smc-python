@@ -10,8 +10,8 @@ import copy
 from itertools import islice
 from smc import session
 import smc.base.model
-from smc.base.decorators import cached_property
-from smc.api.exceptions import FetchElementFailed, UnsupportedEntryPoint
+from smc.base.decorators import cached_property, classproperty
+from smc.api.exceptions import FetchElementFailed, InvalidSearchFilter
 
 
 class SubElementCollection(object):
@@ -51,20 +51,21 @@ def sub_collection(href, cls):
 
 def create_collection(href, cls):
     """
-    This collection type inserts a 'create' method into the collection.
+    This collection type inserts a ``create`` method into the collection.
     This will proxy to the sub elements create method while restricting
-    access to other attributes that woulnd't be initialized yet.
+    access to other attributes that wouldn't be initialized yet.
+    
+    .. py:method:: create(...)
+    
+        Create method is inserted dynamically for the collection class type.
+        See the class types documentation, or use help().
+
+    :rtype: SubElementCollection    
     """
-
-    def create(self, *args, **kwargs):
-        func = getattr(self.cls, 'create')
-        return func(self.cls(href=href), *args, **kwargs)  # Proxy to instance
-
-    create.__doc__ = cls.create.__doc__
-    create.__name__ = cls.create.__name__
+    instance = cls(href=href)
+    meth = getattr(instance, 'create')
     return type(
-        cls.__name__, (SubElementCollection,), {'create': create}
-    )(href, cls)
+         cls.__name__, (SubElementCollection,), {'create': meth})(href, cls)
 
 
 def _strip_metachars(val):
@@ -162,7 +163,6 @@ class ElementCollection(object):
         for item in self._list:
             element = smc.base.model.Element.from_meta(**item)
             if self._iexact:
-                #if all([element.data.get(k) == v for k, v in self._iexact.items()]):
                 if all(element.data.get(k) == v for k, v in self._iexact.items()):
                     yield element
                     count += 1
@@ -175,10 +175,12 @@ class ElementCollection(object):
     
     @cached_property
     def _list(self):
-        try:        
+        try:
+            params = {k:self._params[k] for k in self._params if 'href' not in k}
             _list = smc.base.model.prepared_request(
                 FetchElementFailed,
-                params=self._params,
+                href=self._params.get('href'),
+                params=params,
                 ).read().json
         except FetchElementFailed:
             _list = list()
@@ -260,9 +262,10 @@ class ElementCollection(object):
         if not exact_match:
             _filter = _strip_metachars(_filter)
         
-        return self._clone(filter=_filter,
-                           iexact=iexact,
-                           exact_match=exact_match)
+        return self._clone(
+            filter=_filter,
+            iexact=iexact,
+            exact_match=exact_match)
     
     def batch(self, num):
         """
@@ -304,6 +307,7 @@ class ElementCollection(object):
         :return: element or None
         """
         if self._list:
+            self._params.update(limit=1)
             return list(self)[0]
     
     def last(self):
@@ -414,98 +418,134 @@ class CollectionManager(object):
         if not exact_match:
             _filter = _strip_metachars(_filter)
         
-        return self.iterator(filter=_filter,
-                             iexact=iexact,
-                             exact_match=exact_match)
-    
+        return self.iterator(
+            filter=_filter,
+            iexact=iexact,
+            exact_match=exact_match)
+
     filter.__doc__ = ElementCollection.filter.__doc__
 
 
-class Search(object):
+CONTEXTS = frozenset(['fw_clusters', 'engine_clusters', 'ips_clusters',
+                      'layer2_clusters', 'network_elements', 'services',
+                      'services_and_applications', 'tags', 'situations'])
+
+    
+class Search(ElementCollection):
     """
-    Search is an interface to the collection manager and provides a way to
-    search for any object by type, as long as there is a valid entry point.
-    The returned elements will be the defined class element if it exists,
-    otherwise a dynamic class is returned deriving from
-    :py:class:`smc.base.model.Element`
-
-    :param str resource: name of resource, should be entry point name as found
-        from called :func:`~Search.object_types()`
+    .. versionchanged:: 0.5.6
+        Added entry_point and context_filter chaining to make search syntax
+        the same as direct element object searches.
+    
+    Search extends ElementCollection and provides a way to search for any object
+    by type, as long as there is a valid entry point. Syntax for general searches
+    are the same as initializing a search by a specific element::
+    
+        Search.object_types()    # Get all available search entry points
+        ...
+        Search.objects.entry_point('ips_alert') # Search for IPS Alerts
+        ...
+        Search.objects.entry_point('network').filter('1.1.1') # Network with filter
+        ...
+        Search.objects.context_filter('engine_clusters') # by context filter
+        ...
+        Search.objects.filter('2.2.2.2') # All element types with filter
+        ...
+        Search.objects.entry_point('router,host')) # Search using multiple element types
+        ...
+        Search.objects.entry_point('router,host').filter('2.2.2.2') # with filter
+        
+    Search also provides convenience shortcuts to find duplicate and unused elements::
+    
+        Search.objects.unused()
+        ...
+        Search objects.duplicates()
+    
+    If searching a broad range of elements, it is advisable to return results in
+    batches::
+    
+        for batch in Search.objects.batch(100): # All elements search
+            ...
+    
+    .. note:: If no entry point is specified, the search is done at the 'elements'
+        entry point which contains all SMC elements. It is recommended
+        to use ``filter`` and possibly ``batch`` to control the result set.
     """
 
-    def __init__(self, resource):
-        self._resource = resource.lower()  # Entry point as string
-        self._validate(self._resource)  # Does entry point exist
-
-    @property
+    def __init__(self, **params):
+        super(Search, self).__init__(**params)
+    
+    @classproperty
     def objects(self):
         """
-        A collection resource for the element selected. Search parameter
-        generates a dynamic class that is registered in the global registry
-        when it is created. It will only be registered once for any given
-        search filter.
-        If the class already exists (it's a pre-defined class of type Element),
-        it will be retrieved from the registry.
-
-        :return: :class:`~ElementCollection`
+        :rtype: SearchE
         """
-        if smc.base.model.lookup_class(self._resource) is smc.base.model.Element:
-            # Dynamic class of type Element for the Collection Manager
-            # Class will be auto registered and then retrieved in the
-            # collection
-            attrs = {'typeof': self._resource}
-            cls_name = '{0}Element'.format(
-                self._resource.replace(',', '_').title())
-            element_cls = type(str(cls_name), (smc.base.model.Element,), attrs)
+        return self()
+    
+    def entry_point(self, entry_point):
+        """
+        Provide an entry point for element types to search.
+        
+        :param str entry_point: valid entry point. Use `~object_types()`
+            to find all available entry points.
+        """
+        if len(entry_point.split(',')) == 1:
+            self._params.update(
+                href=session.entry_points.get(entry_point))
+            return self
         else:
-            # Existing class of this type already exists, or it's a context
-            # filter
-            element_cls = smc.base.model.lookup_class(self._resource)
-        # Return the collection from manager
-        return CollectionManager(element_cls)
+            self._params.update(
+                filter_context=entry_point)
+            return self
 
-    def _validate(self, name):
+    def context_filter(self, context):
         """
-        Return dict of all entry points, dict will be {'href', 'rel', 'method'}
-        This is used to filter out elements not bound to the elements URI.
-        Note: Search filters may be combined by using comma, such as
-        Search('router,host'), so split out and check each one.
+        Provide a context filter to search.
+        
+        :param str context: Context filter by name
         """
-        extracted_filters = name.split(
-            ',')  # Multiple filters, format: 'router,host'
-        for filter_name in extracted_filters:
-            if filter_name.lower() not in Search.object_types():
-                raise UnsupportedEntryPoint(
-                    'An entry point was specified that does '
-                    'not exist. Entry point: %s' % filter_name)
+        if context in CONTEXTS:
+            self._params.update(filter_context=context)
+            return self
+        raise InvalidSearchFilter(
+            'Context filter %r was invalid. Available filters: %s' %
+            (context, CONTEXTS))
+
+    def unused(self):
+        """
+        Return unused user-created elements.
+        
+        :rtype: list(Element)
+        """
+        self._params.update(
+            href=session.entry_points.get('search_unused'))
+        return self
+        
+    def duplicates(self):
+        """
+        Return duplicate user-created elements.
+        
+        :rtype: list(Element)
+        """
+        self._params.update(
+            href=session.entry_points.get('search_duplicate'))
+        return self
 
     @staticmethod
     def object_types():
         """
-        Return a list of all entry points within the SMC. These can be used to
-        search for any elements using it's type::
+        Show all available 'entry points' available for searching. An entry
+        point defines a uri that provides unfiltered access to all elements
+        of the entry point type.
 
-            >>> list(Search('vpn').objects.all())
-            [VPNPolicy(name=Amazon AWS), VPNPolicy(name=sg_vm_vpn)]
-
-        And subsequently filtering as well::
-
-            >>> list(Search('vpn').objects.filter('AWS'))
-            [VPNPolicy(name=Amazon AWS)]
-
-        :return: list of entry points
+        :return: list of entry points by name
+        :rtype: list(str)
         """
-        # Return all elements from the root of the API nested under elements
-        # URI
+        # Return all elements from the root of the API nested under elements URI
         element_uri = str(
             '{}/{}/elements'.format(session.url, session.api_version))
         types = [element.rel
                  for element in session.entry_points
                  if element.href.startswith(element_uri)]
-        types.extend(list(_context_filters))
+        types.extend(list(CONTEXTS))
         return types
-
-
-_context_filters = ('fw_clusters', 'engine_clusters', 'ips_clusters',
-                    'layer2_clusters', 'network_elements', 'services',
-                    'services_and_applications', 'tags', 'situations')

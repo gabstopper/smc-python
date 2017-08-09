@@ -70,11 +70,11 @@ Examples of rule operations::
     IPv4Rule(name=discard at bottom) discard at bottom discard
 
 """
-from smc.base.model import Element, SubElement, prepared_request
+from smc.base.model import Element, SubElement
 from smc.elements.other import LogicalInterface
-from smc.vpn.policy import VPNPolicy
+from smc.vpn.policy import PolicyVPN
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
-    CreateRuleFailed, PolicyCommandFailed, FetchElementFailed
+    CreateRuleFailed, PolicyCommandFailed
 from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
     Service, AuthenticationOptions, TimeRange
 from smc.base.util import element_resolver
@@ -235,8 +235,90 @@ class Rule(object):
     #    if time_range:
     #        return TimeRange(self.data.get('time_range'))
 
+class RulePosition(object):
+    """
+    Mixin to add a specific position for the rule.
+    """
+    def add_at_position(self, pos):
+        if pos <= 0:
+            pos = 1
+        rules = self.read_cmd(href=self.href)
+        if rules:
+            if len(rules) >= pos:  # Position somewhere in the list
+                for position, entry in enumerate(rules):
+                    if position + 1 == pos:
+                        return self.__class__(**entry).data.get_link('add_before')
+            else:  # Put at the end
+                last_rule = rules.pop()
+                return self.__class__(**last_rule).data.get_link('add_after')
+        return self.href
 
-class IPv4Rule(Rule, SubElement):
+    def add_before_after(self, before=None, after=None):
+        params = None
+        if after is not None:
+            params = {'after': after}
+        elif before is not None:
+            params = {'before': before}
+        return params
+    
+
+class RuleCommon(object):
+    def update_targets(self, sources, destinations, services):
+        source = Source()
+        destination = Destination()
+        service = Service()
+    
+        if sources is not None:
+            if isinstance(sources, str) and sources.lower() == 'any':
+                source.set_any()
+            else:
+                source.add_many(sources)
+        else:
+            source.set_none()
+    
+        if destinations is not None:
+            if isinstance(destinations, str) and destinations.lower() == 'any':
+                destination.set_any()
+            else:
+                destination.add_many(destinations)
+        else:
+            destination.set_none()
+    
+        if services is not None:
+            if isinstance(services, str) and services.lower() == 'any':
+                service.set_any()
+            else:
+                service.add_many(services)
+        else:
+            service.set_none()
+    
+        e = {}
+        e.update(source())
+        e.update(destination())
+        e.update(service())
+        return e
+    
+    def update_logical_if(self, logical_interfaces):
+        e = {}
+        if logical_interfaces is None:
+            e.update(logical_interfaces={'any': True})
+        else:
+            try:
+                logicals = []
+                for interface in logical_interfaces:
+                    logicals.append(LogicalInterface(interface).href)
+                e.update(logical_interfaces={
+                    'logical_interface': logicals})
+            
+            except ElementNotFound:
+                raise MissingRequiredInput(
+                    'Cannot find Logical interface specified '
+                    ': {}'.format(logical_interfaces))
+        return e
+        
+
+
+class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
     """ 
     Represents an IPv4 Rule for a layer 3 engine.
 
@@ -280,7 +362,7 @@ class IPv4Rule(Rule, SubElement):
 
     Services by application (get all facebook applications)::
 
-        >>> applications = Search('application_situation').objects.filter('facebook')
+        >>> applications = Search.objects.entry_point('application_situation').filter('facebook')
         >>> print(list(applications))
         [ApplicationSituation(name=Facebook-Plugins-Share-Button), ApplicationSituation(name=Facebook-Plugins]
         ...
@@ -291,14 +373,12 @@ class IPv4Rule(Rule, SubElement):
         sources='any'
     """
     typeof = 'fw_ipv4_access_rule'
-
+    _actions = ['allow', 'discard', 'continue', 'refuse', 'jump',
+                'apply_vpn', 'enforce_vpn', 'forward_vpn', 'blacklist']
+    
     def __init__(self, **meta):
         super(IPv4Rule, self).__init__(**meta)
-        self._actions = ['allow', 'discard', 'continue',
-                         'refuse', 'jump', 'apply_vpn',
-                         'enforce_vpn', 'forward_vpn',
-                         'blacklist']
-
+    
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
                is_disabled=False, vpn_policy=None, add_pos=None,
@@ -332,10 +412,10 @@ class IPv4Rule(Rule, SubElement):
         :raises MissingRequiredInput: when options are specified the need additional 
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
-        :return: href of new element
-        :rtype: str
+        :return: the created ipv4 rule
+        :rtype: IPv4Rule
         """
-        rule_values = _rule_common(sources, destinations, services)
+        rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name)
 
         if isinstance(action, Action):
@@ -354,7 +434,7 @@ class IPv4Rule(Rule, SubElement):
                 raise MissingRequiredInput('A VPN policy must be specified when '
                                            'rule action has a VPN action')
             try:
-                vpn = VPNPolicy(vpn_policy).href
+                vpn = PolicyVPN(vpn_policy).href
                 rule_action.vpn = vpn
             except ElementNotFound:
                 raise MissingRequiredInput('Cannot find VPN policy specified: {}, '
@@ -377,27 +457,26 @@ class IPv4Rule(Rule, SubElement):
         rule_values.update(auth_options())
         rule_values.update(is_disabled=is_disabled)
 
-        if add_pos is not None:
-            href = _add_position(add_pos, self.href)
-        else:
-            href = self.href
-
         params = None
-        if not add_pos:
-            if after is not None:
-                params = {'after': after}
-            elif before is not None:
-                params = {'before': before}
-
-        return prepared_request(
+        
+        href = self.href
+        if add_pos is not None:
+            href = self.add_at_position(add_pos)
+        else:
+            params = self.add_before_after(before, after)
+    
+        location = self._request(
             CreateRuleFailed,
             href=href,
             params=params,
-            json=rule_values
-        ).create().href
+            json=rule_values).create().href
+        
+        return IPv4Rule(name=name,
+                        href=location,
+                        type=self.typeof)
 
 
-class IPv4Layer2Rule(Rule, SubElement):
+class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
     """
     Create IPv4 rules for Layer 2 Firewalls
 
@@ -410,15 +489,16 @@ class IPv4Layer2Rule(Rule, SubElement):
                                                services='any')
     """
     typeof = 'layer2_ipv4_access_rule'
-
+    _actions = ['allow', 'continue', 'discard',
+                'refuse', 'jump', 'blacklist']
+    
     def __init__(self, **meta):
         super(IPv4Layer2Rule, self).__init__(**meta)
-        self._actions = ['allow', 'continue', 'discard',
-                         'refuse', 'jump', 'blacklist']
 
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
-               logical_interfaces=None, add_pos=None):
+               logical_interfaces=None, add_pos=None,
+               after=None, before=None):
         """
         Create an IPv4 Layer 2 FW rule
 
@@ -429,16 +509,24 @@ class IPv4Layer2Rule(Rule, SubElement):
         :type destinations: list[str, Element]
         :param services: service/s for rule
         :type services: list[str, Element]
-        :param list logical_interfaces: logical interfaces by name
         :param str, Action action: \|allow\|continue\|discard\|refuse\|blacklist
         :param bool is_disabled: whether to disable rule or not
+        :param list logical_interfaces: logical interfaces by name
+        :param int add_pos: position to insert the rule, starting with position 1. If
+            the position value is greater than the number of rules, the rule is inserted at
+            the bottom. If add_pos is not provided, rule is inserted in position 1. Mutually
+            exclusive with ``after`` and ``before`` params.
+        :param str after: Rule tag to add this rule after. Mutually exclusive with ``add_pos``
+            and ``before`` params.
+        :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
+            and ``after`` params.
         :raises MissingRequiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
-        :return: href of new element
-        :rtype: str
+        :return: newly created rule
+        :rtype: IPv4Layer2Rule
         """
-        rule_values = _rule_common(sources, destinations, services)
+        rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
 
@@ -455,21 +543,29 @@ class IPv4Layer2Rule(Rule, SubElement):
 
         rule_values.update(rule_action())
 
-        rule_values.update(_rule_l2_common(logical_interfaces))
+        rule_values.update(self.update_logical_if(logical_interfaces))
 
+        params = None
+        
+        href = self.href
         if add_pos is not None:
-            href = _add_position(add_pos, self.href)
+            href = self.add_at_position(add_pos)
         else:
-            href = self.href
-
-        return prepared_request(
+            params = self.add_before_after(before, after)
+ 
+        location = self._request(
             CreateRuleFailed,
             href=href,
-            json=rule_values
-        ).create().href
+            params=params,
+            json=rule_values).create().href
+        
+        return IPv4Layer2Rule(
+            name=name,
+            href=location,
+            type=self.typeof)
 
 
-class EthernetRule(Rule, SubElement):
+class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
     """
     Ethernet Rule represents a policy on a layer 2 or IPS engine.
 
@@ -485,14 +581,15 @@ class EthernetRule(Rule, SubElement):
                                             action='discard')
     """
     typeof = 'ethernet_rule'
+    _actions = ['allow', 'discard']
 
     def __init__(self, **meta):
         super(EthernetRule, self).__init__(**meta)
-        self._actions = ['allow', 'discard']
 
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
-               logical_interfaces=None, add_pos=None):
+               logical_interfaces=None, add_pos=None,
+               after=None, before=None):
         """
         Create an Ethernet rule
 
@@ -503,16 +600,24 @@ class EthernetRule(Rule, SubElement):
         :type destinations: list[str, Element]
         :param services: service/s for rule
         :type services: list[str, Element]
-        :param list logical_interfaces: logical interfaces by name
         :param str action: \|allow\|continue\|discard\|refuse\|blacklist
         :param bool is_disabled: whether to disable rule or not
+        :param list logical_interfaces: logical interfaces by name
+        :param int add_pos: position to insert the rule, starting with position 1. If
+            the position value is greater than the number of rules, the rule is inserted at
+            the bottom. If add_pos is not provided, rule is inserted in position 1. Mutually
+            exclusive with ``after`` and ``before`` params.
+        :param str after: Rule tag to add this rule after. Mutually exclusive with ``add_pos``
+            and ``before`` params.
+        :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
+            and ``after`` params.
         :raises MissingReuqiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
-        :return: href of new element
-        :rtype: str
+        :return: newly created rule
+        :rtype: EthernetRule
         """
-        rule_values = _rule_common(sources, destinations, services)
+        rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
 
@@ -529,18 +634,26 @@ class EthernetRule(Rule, SubElement):
 
         rule_values.update(rule_action())
 
-        rule_values.update(_rule_l2_common(logical_interfaces))
+        rule_values.update(self.update_logical_if(logical_interfaces))
 
+        params = None
+        
+        href = self.href
         if add_pos is not None:
-            href = _add_position(add_pos, self.href)
+            href = self.add_at_position(add_pos)
         else:
-            href = self.href
+            params = self.add_before_after(before, after)
 
-        return prepared_request(
+        location = self._request(
             CreateRuleFailed,
             href=href,
-            json=rule_values
-        ).create().href
+            params=params,
+            json=rule_values).create().href
+        
+        return EthernetRule(
+            name=name,
+            href=location,
+            type=self.typeof)
 
 
 class IPv6Rule(IPv4Rule):
@@ -557,85 +670,3 @@ class IPv6Rule(IPv4Rule):
     def __init__(self, **meta):
         super(IPv6Rule, self).__init__(**meta)
         pass
-
-
-def _add_position(pos, rules_href):
-    """
-    Add the position for the rule. If the position is a larger number
-    than number of rules, it will be placed at the end. Otherwise
-    inserted into the position specified.
-    """
-    if pos <= 0:
-        pos = 1
-    rules = prepared_request(
-        FetchElementFailed, href=rules_href).read().json
-    if rules:
-        if len(rules) >= pos:  # Position somewhere in the list
-            for position, entry in enumerate(rules):
-                if position + 1 == pos:
-                    return SubElement(**entry).data.get_link('add_before')
-        else:  # Put at the end
-            last_rule = rules.pop()
-            return SubElement(**last_rule).data.get_link('add_after')
-    return rules_href
-
-
-def _rule_l2_common(logical_interfaces):
-    """
-    Common values for layer 2 ethernet / IPS rule parameters.
-    In particular, logical interfaces are an additional parameter that 
-    can be used as a rule match parameter.
-    """
-    rule_values = {}
-    if logical_interfaces is None:
-        rule_values.update(logical_interfaces={'any': True})
-    else:
-        try:
-            logicals = []
-            for interface in logical_interfaces:
-                logicals.append(LogicalInterface(interface).href)
-            rule_values.update(logical_interfaces={
-                               'logical_interface': logicals})
-        except ElementNotFound:
-            raise MissingRequiredInput('Cannot find Logical interface specified '
-                                       ': {}'.format(logical_interfaces))
-    return rule_values
-
-
-def _rule_common(sources, destinations, services):
-    """
-    Common rule elements
-    """
-    source = Source()
-    destination = Destination()
-    service = Service()
-
-    if sources is not None:
-        if isinstance(sources, str) and sources.lower() == 'any':
-            source.set_any()
-        else:
-            source.add_many(sources)
-    else:
-        source.set_none()
-
-    if destinations is not None:
-        if isinstance(destinations, str) and destinations.lower() == 'any':
-            destination.set_any()
-        else:
-            destination.add_many(destinations)
-    else:
-        destination.set_none()
-
-    if services is not None:
-        if isinstance(services, str) and services.lower() == 'any':
-            service.set_any()
-        else:
-            service.add_many(services)
-    else:
-        service.set_none()
-
-    e = {}
-    e.update(source())
-    e.update(destination())
-    e.update(service())
-    return e

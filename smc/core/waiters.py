@@ -49,6 +49,10 @@ STATE = frozenset(['INITIAL', 'READY', 'ERROR', 'SERVER_ERROR', 'NO_STATUS',
 
 
 class NodeWaiter(threading.Thread):
+    """
+    Node Waiter provides a common threaded interface to monitoring
+    a nodes status and wait for a specific response.
+    """
     def __init__(self, resource, status, timeout=5,
                  max_wait=36, **kw):
         threading.Thread.__init__(self)

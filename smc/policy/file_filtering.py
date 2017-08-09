@@ -47,7 +47,7 @@ class FileFilteringPolicy(Policy):
         File filtering rules for this policy.
 
         :return: collection of :class:`.FileFilteringRule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('file_filtering_rules'),

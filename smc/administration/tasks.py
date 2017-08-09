@@ -5,7 +5,8 @@ upload, refresh, or making backups.
 This module provides that ability to access task specific attributes
 and optionally poll for status of an operation.
 
-An example of using a task poller (use 'wait_for_finish=True')::
+An example of using a task poller when uploading an engine policy
+(use 'wait_for_finish=True')::
 
     engine = Engine('myfirewall')
     poller = engine.upload(policy=fwpolicy, wait_for_finish=True)
@@ -17,63 +18,51 @@ An example of using a task poller (use 'wait_for_finish=True')::
 """
 import re
 import time
-import datetime
 import threading
-from smc import session
-from smc.base.model import prepared_request, SimpleElement, Element
+from smc.base.mixins import SMCCommand
+from smc.base.model import SimpleElement, Element
 from smc.api.exceptions import TaskRunFailed, ActionCommandFailed,\
     ResourceNotFound
+from smc.base.collection import Search
+from smc.base.util import millis_to_utc
+
 
 clean_html = re.compile(r'<.*?>')
 
 
-def millis_to_utc(millis):
-    return datetime.datetime(1970, 1, 1) + datetime.timedelta(milliseconds=millis)
-
-
-def task_history():
+def TaskHistory():
     """
-    Get all tasks stored by the SMC
-
-    Example of aborting an existing task by follower link::
-
-        for task in task_history():
-            if task.follower == task:
-                task.abort()
-
-    Abort any in progress tasks::
-
-        for task in task_history():
-            if task.in_progress:
-                task.abort()
-
-    :return: list :py:class:`~Task`
+    Task history retrieves a list of tasks in an event queue.
+    
+    :return: list of task events
+    :rtype: Task
     """
-    tasks = prepared_request(
-        href=session.entry_points.get('task_progress')
-        ).read().json
+    events = Search.objects.entry_point('task_progress')
+    return [event.task for event in events]
+        
 
-    return [Task(prepared_request(href=task['href']).read().json)
-            for task in tasks]
-
-
-def task_status(follower):
+class TaskProgress(Element):
     """
-    Return the task specified.
-
-    Return specific task::
-
-        task = task_status('http://......')
-
-    :param str follower: task follower link
-    :return: :py:class:`~Task`
+    Task Progress represents a task event queue. These
+    tasks may be completed or still running. The task event
+    queue events can be retrieved by calling `~TaskHistory`.
     """
-    for task in task_history():
-        if task.href == follower:
-            return task
+    typeof = 'task_progress'
+    
+    def __init__(self, name, **meta):
+        super(TaskProgress, self).__init__(name, **meta)
+    
+    @property
+    def task(self):
+        """
+        Return the task associated with this event
+        
+        :rtype: Task
+        """
+        return Task(self.data)
+        
 
-
-class Task(object):
+class Task(SMCCommand):
     """
     Task representation. This is generic and the format is used for
     any calls to SMC that return an asynchronous follower link to
@@ -165,10 +154,9 @@ class Task(object):
         :return: None
         """
         try:
-            prepared_request(
-                ActionCommandFailed,
-                href=self.data.get_link('abort')
-                ).delete()
+            self.del_cmd(
+                resource='abort')
+    
         except ResourceNotFound:
             pass
         except ActionCommandFailed:
@@ -188,11 +176,12 @@ class Task(object):
         Gets the current status of this task and returns a
         new task object.
 
-        :raises TaskRunFailed
+        :raises TaskRunFailed: fail to update task status
         """
-        task = prepared_request(
+        task = self.read_cmd(
             TaskRunFailed,
-            href=self.href).read().json
+            href=self.href)
+
         return Task(task)
 
     def __getattr__(self, key):
@@ -326,11 +315,12 @@ class DownloadTask(TaskOperationPoller):
     def download(self, timeout):
         self.wait(timeout)
         try:
-            location = prepared_request(
+            location = self.task._request(
                 ActionCommandFailed,
                 href=self.task.result_url,
                 filename=self.filename).read()
             self.filename = location.content
+    
         except IOError as io:
             raise TaskRunFailed(
                 'Export task failed with message: {}'.format(io))

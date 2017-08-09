@@ -1,5 +1,5 @@
-from smc.policy.rule import Rule, _rule_common
-from smc.base.model import prepared_request, Element, SubElement
+from smc.policy.rule import Rule, RuleCommon
+from smc.base.model import Element, SubElement
 from smc.policy.rule_elements import LogOptions, Destination
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
     CreateRuleFailed
@@ -386,7 +386,7 @@ class StaticDestNAT(NAT):
         self({'translated_value': t_ports})
 
 
-class IPv4NATRule(NATRule, SubElement):
+class IPv4NATRule(RuleCommon, NATRule, SubElement):
     """
     Create NAT Rules for relevant policy types. Rule requirements are 
     similar to a normal rule with exception of the NAT field and no action
@@ -483,9 +483,10 @@ class IPv4NATRule(NATRule, SubElement):
         :type used_on: str,Element
         :raises InvalidRuleValue: if rule requirements are not met
         :raises CreateRuleFailed: rule creation failure
-        :return: None
+        :return: newly created NAT rule
+        :rtype: IPv4NATRule
         """
-        rule_values = _rule_common(sources, destinations, services)
+        rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name)
         rule_values.update(is_disabled=is_disabled)
 
@@ -519,9 +520,16 @@ class IPv4NATRule(NATRule, SubElement):
             rule_values.update(options=options.data)
 
         rule_values.update(used_on=used_on)
-        return prepared_request(CreateRuleFailed,
-                                href=self.href,
-                                json=rule_values).create().href
+        
+        location = self._request(
+            CreateRuleFailed,
+            href=self.href,
+            json=rule_values).create().href
+        
+        return IPv4NATRule(
+            name=name,
+            href=location,
+            type=self.typeof)
 
 
 class IPv6NATRule(IPv4NATRule):

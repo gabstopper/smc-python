@@ -299,7 +299,7 @@ class Action(object):
         Return vpn reference. Only used if 'enforce_vpn', 'apply_vpn',
         or 'forward_vpn' is the action type.
 
-        :rtype: VPNPolicy
+        :rtype: PolicyVPN
         """
         if 'vpn' in self.data:
             return self.data.get('vpn')

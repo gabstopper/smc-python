@@ -37,7 +37,16 @@ Example of providing the connect information through the constructor:
    session.logout()
 
 If a specific API version is requested, you can add the following argument to the login
-constructor. Otherwise the latest API version available will be used:
+constructor. Otherwise the latest API version available will be used.
+
+To find supported versions using unauthenticated call to SMC:
+::
+
+	>>> from smc.api.session import available_api_versions
+	>>> available_api_versions('http://1.1.1.1:8082')
+	[5.1, 6.1, 6.2]
+
+Set up connection to specific version:
 
 .. code-block:: python
 

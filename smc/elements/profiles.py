@@ -195,3 +195,11 @@ class DNSRelayProfile(Element):
         :return: list of dict (domain, dns server/s)
         """
         return self.data.get('domain_specific_dns_server', [])
+
+
+class SandboxService(Element):
+    typeof = 'sandbox_service'
+
+    def __init__(self, name, **meta):
+        super(SandboxService, self).__init__(name, **meta)
+        pass

@@ -49,7 +49,7 @@ context.
 Create the VPN Policy and apply the internal gateway as the 'Central Gateway' and the
 ExternalGateway as the 'Satellite Gateway'::
     
-	>>> vpn = VPNPolicy.create(name='myVPN', nat=True)
+	>>> vpn = PolicyVPN.create(name='myVPN', nat=True)
 	>>> print(vpn.name, vpn.vpn_profile)
 	(u'myVPN', u'http://172.18.1.150:8082/6.1/elements/vpn_profile/2')
    	...
@@ -59,8 +59,8 @@ ExternalGateway as the 'Satellite Gateway'::
 	>>> vpn.save()
 	>>> vpn.close()
 
-.. note:: You must call :func:`smc.vpn.policy.VPNPolicy.open` before modifications can be
-	      made. You also must call :func:`smc.vpn.policy.VPNPolicy.save` and 
-	      :func:`smc.vpn.policy.VPNPolicy.close`
+.. note:: You must call :func:`smc.vpn.policy.PolicyVPN.open` before modifications can be
+	      made. You also must call :func:`smc.vpn.policy.PolicyVPN.save` and 
+	      :func:`smc.vpn.policy.PolicyVPN.close`
 	  
 See :py:mod:`smc.examples.vpn_to_external` for a full example 

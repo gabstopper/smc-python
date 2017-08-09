@@ -2,9 +2,9 @@
 Functionality related to updating dynamic update packages and
 engine upgrades
 """
-from smc.base.model import prepared_request, SubElement
+from smc.base.model import SubElement
 from smc.api.exceptions import ResourceNotFound, ActionCommandFailed
-from smc.administration.tasks import Task, TaskOperationPoller
+from smc.administration.tasks import TaskOperationPoller
 
 
 class PackageMixin(object):
@@ -24,11 +24,8 @@ class PackageMixin(object):
         :return: Task or TaskOperationPoller
         """
         try:
-            task = prepared_request(
-                ActionCommandFailed,
-                href=self.data.get_link('download')
-            ).create().json
-
+            task = self.send_cmd(resource='download')
+        
             return TaskOperationPoller(
                 task=task, timeout=timeout,
                 wait_for_finish=wait_for_finish)
@@ -51,11 +48,9 @@ class PackageMixin(object):
         :return: generator Task generator with updates
         """
         try:
-            task = prepared_request(
-                ActionCommandFailed,
-                href=self.data.get_link('activate'),
-                json={'resource': resource}
-            ).create().json
+            task = self.send_cmd(
+                resource='activate',
+                json={'resource': resource})
 
             return TaskOperationPoller(
                 task=task, timeout=timeout,
@@ -81,11 +76,9 @@ class EngineUpgrade(PackageMixin, SubElement):
     one, then download for installation::
 
         for upgrade in system.engine_upgrade():
-            print "Available upgrade: {}".format(upgrade)
-            if upgrade.name ==
-                'Security Engine upgrade 6.0.1 build 16019 for x86-64':
-                for msg in upgrade.download():
-                    print msg
+            if upgrade.name == 'NGFW upgrade 6.1.3 build 17053 for X86-64-small':
+                upgrade.download(wait_for_finish=True).wait()
+
     """
 
     def __init__(self, **meta):

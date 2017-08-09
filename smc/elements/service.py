@@ -75,7 +75,7 @@ class UDPService(ProtocolAgentMixin, Element):
 
     Create a UDP Service for port range 5000-5005::
 
-        >>> UDPService('udpservice', 5000, 5005).create()
+        >>> UDPService.create('udpservice', 5000, 5005)
         UDPService(name=udpservice)
         
     Available attributes:
@@ -122,7 +122,7 @@ class IPService(ProtocolAgentMixin, Element):
 
     Create an IP Service for protocol 93 (AX.25)::
 
-        >>> IPService('ipservice', 93).create()
+        >>> IPService.create('ipservice', 93)
         IPService(name=ipservice)
         
     Available attributes:

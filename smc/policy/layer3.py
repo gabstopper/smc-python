@@ -13,7 +13,7 @@ To get an existing policy::
 
 Or through collections::
 
-    >>> list(Search('fw_policy').objects.all())
+    >>> list(FirewallPolicy.objects.all())
     [FirewallPolicy(name=Standard Firewall Policy with Inspection), FirewallPolicy(name=Layer 3 Virtual FW Policy)]
 
 To create a new policy, use::
@@ -57,7 +57,7 @@ class FirewallRule(object):
         IPv4 rule entry point
 
         :return: collection of :class:`smc.policy.rule.IPv4Rule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('fw_ipv4_access_rules'),
@@ -69,7 +69,7 @@ class FirewallRule(object):
         IPv4NAT Rule entry point
 
         :return: collection of :class:`smc.policy.rule_nat.IPv4NATRule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('fw_ipv4_nat_rules'),
@@ -81,7 +81,7 @@ class FirewallRule(object):
         IPv6 Rule entry point
 
         :return: collection of :class:`smc.policy.rule.IPv6Rule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('fw_ipv6_access_rules'),
@@ -93,7 +93,7 @@ class FirewallRule(object):
         IPv6NAT Rule entry point
 
         :return: collection of :class:`smc.policy.rule.IPv6NATRule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('fw_ipv6_nat_rules'),
@@ -157,8 +157,7 @@ class FirewallPolicy(FirewallRule, Policy):
         try:
             return ElementCreator(cls, json)
         except CreateElementFailed as err:
-            raise CreatePolicyFailed(
-                'Failed to create firewall policy: {}'.format(err))
+            raise CreatePolicyFailed(err)
 
 
 class FirewallSubPolicy(Policy):
@@ -205,7 +204,7 @@ class FirewallSubPolicy(Policy):
         IPv4 rule entry point
 
         :return: collection of :class:`smc.policy.rule.IPv4Rule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('fw_ipv4_access_rules'),
@@ -233,7 +232,5 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
     def __init__(self, name, **meta):
         super(FirewallTemplatePolicy, self).__init__(name, **meta)
         pass
-
-    def export(self): pass  # Not supported on the template
 
     def upload(self): pass  # Not supported on the template

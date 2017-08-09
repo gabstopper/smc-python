@@ -1,8 +1,20 @@
 """
 Utility functions used in different areas of smc-python
 """
+import datetime
 import smc.compat as compat
 import smc.api.exceptions
+    
+
+def millis_to_utc(millis):
+    """
+    Given milliseconds, convert to datetime object in UTC
+    
+    :param int millis: milliseconds
+    :return datetime in UTC
+    :rtype: datetime
+    """
+    return datetime.datetime(1970, 1, 1) + datetime.timedelta(milliseconds=millis) 
 
 
 def save_to_file(filename, content):

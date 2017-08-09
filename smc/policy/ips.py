@@ -13,7 +13,7 @@ To get an existing policy::
 Or through collections::
 
     >>> from smc.policy.ips import IPSPolicy
-    >>> list(Search('ips_policy').objects.all())
+    >>> list(IPSPolicy.objects.all())
     [IPSPolicy(name=Default IPS Policy), IPSPolicy(name=High-Security Inspection IPS Policy)]
     
 To create a new policy, use::
@@ -54,7 +54,7 @@ class IPSRule(object):
         IPS ipv4 access rules
 
         :return: collection of :class:`smc.policy.rule.IPv4Layer2Rule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('ips_ipv4_access_rules'),
@@ -72,7 +72,7 @@ class IPSRule(object):
         IPS Ethernet access rule
 
         :return: collection of :class:`smc.policy.rule.EthernetRule`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('ips_ethernet_rules'),
@@ -122,8 +122,7 @@ class IPSPolicy(IPSRule, Policy):
         try:
             return ElementCreator(cls, json)
         except CreateElementFailed as err:
-            raise CreatePolicyFailed(
-                'Failed to create firewall policy: {}'.format(err))
+            raise CreatePolicyFailed(err)
 
 
 class IPSTemplatePolicy(IPSRule, Policy):
@@ -147,3 +146,5 @@ class IPSTemplatePolicy(IPSRule, Policy):
     def __init__(self, name, **meta):
         super(IPSTemplatePolicy, self).__init__(name, **meta)
         pass
+
+    def upload(self): pass

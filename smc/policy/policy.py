@@ -23,7 +23,7 @@ overidden.
 from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
     ResourceNotFound
 from smc.administration.tasks import TaskOperationPoller
-from smc.base.model import Element, prepared_request, lookup_class
+from smc.base.model import Element, lookup_class
 
 
 class Policy(Element):
@@ -58,11 +58,10 @@ class Policy(Element):
         :raises: TaskRunFailed
         :return: TaskOperationPoller
         """
-        task = prepared_request(
+        task = self.send_cmd(
             TaskRunFailed,
-            href=self.data.get_link('upload'),
-            params={'filter': engine}
-            ).create().json
+            resource='upload',
+            params={'filter': engine})
 
         return TaskOperationPoller(
             task=task,
@@ -81,10 +80,10 @@ class Policy(Element):
         :return: None
         """
         try:
-            prepared_request(
+            self.send_cmd(
                 PolicyCommandFailed,
-                href=self.data.get_link('open')
-            ).create()
+                resource='open')
+
         except ResourceNotFound:
             pass
 
@@ -95,10 +94,10 @@ class Policy(Element):
         :return: None
         """
         try:
-            prepared_request(
+            self.send_cmd(
                 PolicyCommandFailed,
-                href=self.data.get_link('save')
-            ).create()
+                resource='save')
+
         except ResourceNotFound:
             pass
 
@@ -107,10 +106,9 @@ class Policy(Element):
 
         :return: None
         """
-        prepared_request(
+        self.send_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('force_unlock')
-        ).create()
+            resource='force_unlock')
 
     def search_rule(self, search):
         """
@@ -126,25 +124,23 @@ class Policy(Element):
         :return: rule elements matching criteria
         :rtype: list(Element)
         """
-        result = prepared_request(
-            href=self.data.get_link('search_rule'),
-            params={'filter': search}
-        ).read()
-        if result.json:
+        result = self.read_cmd(
+            resource='search_rule',
+            params={'filter': search})
+        
+        if result:
             results = []
-            for data in result.json:
-                if data.get('type') == 'ips_ethernet_rule':
+            for data in result:
+                if 'ethernet' in data.get('type'):
                     klazz = lookup_class('ethernet_rule')
-                elif data.get('type') == 'ips_ipv4_access_rule':
+                elif data.get('type') in [
+                    'ips_ipv4_access_rule', 'l2_interface_ipv4_access_rule']:
                     klazz = lookup_class('layer2_ipv4_access_rule')
                 else:
                     klazz = lookup_class(data.get('type'))
                 results.append(klazz(**data))
             return results
         return []
-
-    def search_category_tags_from_element(self):
-        pass
 
     @property
     def template(self):

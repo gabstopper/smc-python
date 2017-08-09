@@ -2,25 +2,28 @@
 Classes representing basic models for data obtained or retrieved from the SMC
 
 ElementBase is the top level parent class that provides the instance level
-cache, meta data and basic methods operate on retrieved data.
+cache, meta data and basic methods to model the retrieved elements.
 
-Element is the common interface that exposes methods that and a retrieval
-descriptor for elements that have direct entry point in the SMC API.
+Element is the common interface that exposes methods and a retrieval
+descriptor for elements that have a direct entry point in the SMC API.
 The href descriptor provides a transparent way to retrieve the object using
 entry point filters based on providing only the ``name`` attribute on an
-instance.
+instance. All instance data is lazy loaded. When an element is first retrieved,
+a single query is made to find the element and it's meta data. Subsequent access
+to methods or properties that access the elements ``data`` attribute will cause
+a second query to obtain the elements full json.
 
-The SubElement interface defines references of Element classes, for example,
-obtaining a reference to an engine interface and it's sub-interfaces.
-SubElements are not directly searchable through entry points like
-:class:`Element` instances.
+The SubElement interface defines elements without a direct entry point and instead
+are references of Element classes, for example, obtaining a reference to an engine
+interface and it's sub-interfaces. SubElements are therefore not directly searchable
+through entry points like :class:`Element` instances.
 
 A class attribute 'typeof' is used by a filter when an object needs to
 be loaded. This value should be the elements entry point. SubElement
 classes may also have the typeof attribute which will then register
 the class with the registry metaclass for use with factory functions.
 
-Element class relationship::
+Element class relationship (abbreviated)::
 
                              ElementBase (object)
                                    |
@@ -28,6 +31,7 @@ Element class relationship::
                                 meta = Meta(href,name,type)
                                 delete()
                                 modify_attribute()
+                                 .....
                                    |
                          ----------------------
                          |                    |
@@ -35,7 +39,7 @@ Element class relationship::
         |------------------------------------------------------|
       href = ElementLocator()                                href
       name                                                   name
-      objects
+      objects                                                ....
       export()
       rename
       category_tags
@@ -47,16 +51,15 @@ container functionality may inherit from object.
 """
 from collections import namedtuple
 import smc.base.collection
-from smc.base.decorators import cached_property, exception
+from smc.base.decorators import cached_property, classproperty, exception
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
-    DeleteElementFailed, FetchElementFailed, ActionCommandFailed,\
-    UpdateElementFailed
+    DeleteElementFailed, FetchElementFailed, UpdateElementFailed
 from smc.base.resource import with_metaclass, Registry
 from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
     find_type_from_self
-from .mixins import UnicodeMixin
+from .mixins import UnicodeMixin, SMCCommand
 
 
 @exception
@@ -70,28 +73,16 @@ def prepared_request(*exception, **kwargs):
     return SMCRequest(**kwargs)
 
 
-class classproperty(object):
+def LoadElement(href, only_etag=False):
     """
-    Used for collection manager so objects can be accessed as a
-    class property and also from the instance
+    Return an instance of a element as a SimpleElement dict
+    used as a cache.
+    
+    :rtype SimpleElement
     """
-
-    def __init__(self, fget):
-        self.fget = fget
-
-    def __get__(self, instance, owner_cls):
-        return self.fget(owner_cls)
-
-
-def load_element(href, only_etag=False):
-    """
-    Return an instance of a SimpleElement used
-    as a cache for the element
-    """
-    result = prepared_request(
-        FetchElementFailed,
-        href=href
-        ).read()
+    request = SMCRequest(href=href)
+    request.exception = FetchElementFailed
+    result = request.read()
     if only_etag:
         return result.etag
     return SimpleElement(
@@ -110,8 +101,8 @@ def ElementCreator(cls, json):
     """
     result = SMCRequest(
         href=fetch_entry_point(cls.typeof),
-        json=json
-    ).create()
+        json=json).create()
+    
     if result.msg:
         raise CreateElementFailed(result.msg)
 
@@ -125,7 +116,7 @@ def ElementFactory(href):
     Factory returns an object of type Element when only
     the href is provided.
     """
-    element = prepared_request(href=href).read()
+    element = SMCRequest(href=href).read()
     if element.json:
         istype = find_type_from_self(element.json.get('link'))
         typeof = lookup_class(istype)
@@ -153,9 +144,13 @@ class SimpleElement(dict):
         this container, such as the case with Routing.
         """
         if self and self._etag is None:
-            self._etag = load_element(href, only_etag=True)
+            self._etag = LoadElement(href, only_etag=True)
         return self._etag
-
+    
+    @property
+    def links(self):
+        return {link['rel']:link['href'] for link in self['link']}
+    
     def get_link(self, rel):
         """
         Return link for specified resource
@@ -165,14 +160,6 @@ class SimpleElement(dict):
                 return link['href']
         raise ResourceNotFound('Resource requested: %r is not available '
                                'on this element.' % rel)
-
-    def get_json(self, res):
-        """
-        Provided the link, return the resources raw json
-        """
-        return prepared_request(
-            FetchElementFailed,
-            href=self.get_link(res)).read().json
 
 
 class ElementLocator(object):
@@ -219,9 +206,9 @@ class ElementLocator(object):
                     'and cannot be referenced directly, type: {}'
                     .format(instance))
 
-
+    
 @with_metaclass(Registry)
-class ElementBase(UnicodeMixin):
+class ElementBase(UnicodeMixin, SMCCommand):
     """
     Element base provides a meta data container and an
     instance cache as well as methods to retrieve aspects
@@ -243,7 +230,7 @@ class ElementBase(UnicodeMixin):
 
     @cached_property
     def data(self):
-        return load_element(self.href)
+        return LoadElement(self.href)
 
     @property
     def etag(self):
@@ -265,12 +252,11 @@ class ElementBase(UnicodeMixin):
         :raises DeleteElementFailed: possible dependencies, record locked, etc
         :return: None
         """
-        prepared_request(
+        self.del_cmd(
             DeleteElementFailed,
             href=self.href,
-            headers={'if-match': self.etag}
-        ).delete()
-
+            headers={'if-match': self.etag})
+        
     def update(self, *exception, **kwargs):
         """
         Update the existing element and clear the instance cache.
@@ -337,15 +323,14 @@ class ElementBase(UnicodeMixin):
             for attr in instance_attr.keys():
                 delattr(self, attr)
 
-        result = prepared_request(
-            exception,
-            **params
-            ).update().href
-
+        request = SMCRequest(**params) 
+        request.exception = exception
+        result = request.update()
+        
         if name: # Reset instance name
             self._name = name
 
-        return result
+        return result.href
 
     def modify_attribute(self, **kwargs):
         """
@@ -374,10 +359,9 @@ class ElementBase(UnicodeMixin):
         params.update(json=self.data)
         del self.data
 
-        return prepared_request(
-            UpdateElementFailed,
-            **params
-            ).update().href
+        request = SMCRequest(**params) 
+        request.exception = UpdateElementFailed
+        return request.update().href
 
 
 class Element(ElementBase):
@@ -580,8 +564,8 @@ class Element(ElementBase):
         :return: list :py:class:`smc.elements.other.Category`
         """
         return [Element.from_meta(**tag)
-                for tag in self.data.get_json(
-                    'search_category_tags_from_element')]
+                for tag in self.read_cmd(
+                    resource='search_category_tags_from_element')]
 
     def export(self, filename='element.zip'):
         """
@@ -602,11 +586,9 @@ class Element(ElementBase):
         """
         from smc.administration.tasks import DownloadTask
         try:
-            task = prepared_request(
-                ActionCommandFailed,
-                href=self.data.get_link('export'),
-                filename=filename
-                ).create().json
+            task = self.send_cmd(
+                resource='export',
+                filename=filename)
 
             return DownloadTask(
                 filename=filename, task=task
@@ -626,11 +608,9 @@ class Element(ElementBase):
         """
         href = fetch_entry_point('references_by_element')
         return [Element.from_meta(**ref)
-                for ref in prepared_request(
-                    FetchElementFailed,
+                for ref in self.send_cmd(
                     href=href,
-                    json={'value': self.href}
-                ).create().json]
+                    json={'value': self.href})]
 
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
@@ -666,6 +646,17 @@ class SubElement(ElementBase):
 
 
 def lookup_class(typeof, default=Element):
+    cls = Registry._registry.get(typeof, None)
+    if cls is None: # Create a dynamic class from meta type field
+        attrs = {'typeof': typeof}
+        # There are multiple entry points for specific aliases
+        # that should derive from the smc.elements.network.Alias
+        # class so it has access to Alias class methods like ``resolve``.
+        if 'alias' in typeof:
+            default = Registry._registry.get('alias')
+        cls_name = '{0}Dynamic'.format(typeof.title())
+        return type(cls_name.replace('_',''), (default,), attrs)
+        
     return Registry._registry.get(typeof, default)
 
 

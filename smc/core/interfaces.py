@@ -28,11 +28,13 @@ from smc.base.model import prepared_request, SubElement, lookup_class,\
     SimpleElement
 from smc.api.exceptions import EngineCommandFailed, FetchElementFailed,\
     UpdateElementFailed
-from smc.core.sub_interfaces import (NodeInterface, SingleNodeInterface,
-                                     ClusterVirtualInterface, InlineInterface,
-                                     CaptureInterface, _add_vlan_to_inline,
-                                     SubInterface)
+from smc.core.sub_interfaces import (
+    NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
+    InlineInterface, CaptureInterface, _add_vlan_to_inline,
+    get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface)
 from smc.base.util import bytes_to_unicode
+from smc.base.decorators import deprecated
+from smc.elements.other import LogicalInterface
 
 
 def dispatch(instance, builder, interface=None):
@@ -42,7 +44,7 @@ def dispatch(instance, builder, interface=None):
     visibility to newly added interfaces without
     re-retrieving.
     """
-    if interface:  # Modify
+    if interface: # Modify
         prepared_request(
             EngineCommandFailed,
             href=interface.href,
@@ -93,8 +95,8 @@ class InterfaceCommon(object):
                 if ip.address == '31.31.31.31':
                     ip.add_contact_address(contact_address='2.2.2.2')
             
-
-        :return: list(InterfaceContactAddress)
+        :return: list of interface contact addresses
+        :rtype: InterfaceContactAddress
 
         .. seealso:: :py:mod:`smc.core.contact_address`
         """
@@ -126,8 +128,7 @@ class InterfaceCommon(object):
     @property
     def interfaces(self):
         if self.has_interfaces:
-            return [subif for subif in SubInterface(
-                self.data.get('interfaces'))]
+            return all_interfaces(self.data['interfaces'])
         return []
 
     def vlan_interfaces(self):
@@ -181,7 +182,7 @@ class InterfaceCommon(object):
                 for intf in data['interfaces']:
                     for if_type, values in intf.items():
                         results.append(
-                            SubInterface.get_subinterface(if_type)(values))
+                            get_sub_interface(if_type)(values))
             elif data.get('vlanInterfaces'):
                 for vlan in data.get('vlanInterfaces'):
                     inner(vlan)
@@ -450,6 +451,17 @@ class Interface(SubElement):
             >>> intf = engine.interface.get(0)
             >>> print(intf, intf.addresses)
             (PhysicalInterface(name=Interface 0), [('172.18.1.254', '172.18.1.0/24', '0')])
+        
+        Get an interface by index and VLAN (interface 1, VLAN 100)::
+        
+            >>> engine = Engine('sg_vm')
+            >>> intf = engine.interface.get('1.100')
+            
+        Get an inline interface (note: if your inline pair is interface 2 and 3
+        you can also get either one of those individual interface id's and the
+        inline pair will be returned)::
+        
+            >>> intf = engine.interface.get('2-3')
 
         :param str,int interface_id: interface ID to retrieve
         :raises EngineCommandFailed: interface not found
@@ -538,7 +550,7 @@ class TunnelInterface(InterfaceCommon, Interface):
     def __init__(self, **meta):
         super(TunnelInterface, self).__init__(**meta)
         pass
-
+    
     def add_single_node_interface(self, tunnel_id, address, network_value,
                                   zone_ref=None):
         """
@@ -649,9 +661,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         :param str,int interface_id: interface identifier
         :param int virtual_mapping: virtual firewall id mapping
-               See :py:class:`smc.core.engine.VirtualResource.vfw_id`
+               See :class:`smc.core.engine.VirtualResource.vfw_id`
         :param str virtual_resource_name: virtual resource name
-               See :py:class:`smc.core.engine.VirtualResource.name`
+               See :class:`smc.core.engine.VirtualResource.name`
         :raises EngineCommandFailed: failure creating interface
         :return: None
         """
@@ -662,9 +674,13 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         dispatch(self, builder)
 
+    @deprecated('add_layer3_interface')
     def add_single_node_interface(self, interface_id, address, network_value,
                                   zone_ref=None, is_mgmt=False, **kw):
         """
+        .. deprecated:: 0.5.6
+            Use add_layer3_interface
+            
         Adds an interface to a single fw instance.
 
         :param str,int interface_id: interface identifier
@@ -684,16 +700,18 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         See :py:class:`smc.core.sub_interfaces.SingleNodeInterface` for more information
         """
-        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        if zone_ref:
-            builder.zone_ref = zone_ref
-        builder.add_sni_only(address, network_value, is_mgmt, **kw)
+        return self.add_layer3_interface(
+            interface_id, address, 
+            network_value, zone_ref,
+            is_mgmt, **kw)
 
-        dispatch(self, builder, interface)
-
+    @deprecated('add_layer3_interface')
     def add_node_interface(self, interface_id, address, network_value,
                            zone_ref=None, is_mgmt=False, **kw):
         """
+        .. deprecated:: 0.5.6
+            Use add_layer3_interface
+        
         Node interfaces are used on all engine types except single fw
         engines. For inline and IPS engines, this interface type represents
         a layer 3 routed (node dedicated) interface. For clusters, use the
@@ -716,25 +734,64 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         See :py:class:`smc.core.sub_interfaces.NodeInterface` for more information
         """
+        return self.add_layer3_interface(
+            interface_id, address,
+            network_value, zone_ref,
+            is_mgmt, **kw)
+
+    def add_layer3_interface(self, interface_id, address, network_value,
+                             zone_ref=None, is_mgmt=False, **kw):
+        """
+        Add a layer 3 interface on a non-clustered engine.
+        For Layer 2 FW and IPS engines, this interface type represents
+        a layer 3 routed (node dedicated) interface. For clusters, use the
+        cluster related methods such as :func:`add_cluster_virtual_interface`
+
+        :param str,int interface_id: interface identifier
+        :param str address: ip address
+        :param str network_value: network/cidr (12.12.12.0/24)
+        :param str zone_ref: zone reference
+        :param bool is_mgmt: enable management
+        :param kw: keyword arguments are passed to the sub-interface during
+            create time. If the engine is a single FW, the sub-interface type
+            is :class:`smc.core.sub_interfaces.SingleNodeInterface`. For all
+            other engines, the type is :class:`smc.core.sub_interfaces.NodeInterface`
+            For example, pass 'backup_mgt=True' to enable this interface as the
+            management backup.
+        :raises EngineCommandFailed: failure creating interface
+        :return: None
+
+        .. note::
+            If an existing ip address exists on the interface and zone_ref is
+            provided, this value will overwrite any previous zone definition.
+        """
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         if zone_ref:
             builder.zone_ref = zone_ref
-        builder.add_ndi_only(address, network_value, is_mgmt=is_mgmt, **kw)
+        if self._engine.type in ('single_fw',):
+            builder.add_sni_only(address, network_value, is_mgmt, **kw)
+        else:
+            builder.add_ndi_only(address, network_value, is_mgmt=is_mgmt, **kw)
 
         dispatch(self, builder, interface)
-
+    
     def add_capture_interface(self, interface_id, logical_interface_ref,
                               zone_ref=None):
         """
-        Add a capture interface. Supported only on Layer 2 and IPS engines.
-
+        Add a capture interface. Capture interfaces are supported on
+        Layer 2 FW and IPS engines.
+        
+        ..note::
+            Capture interface are supported on Layer 3 FW/clusters for NGFW engines
+            version >= 6.3 and SMC >= 6.3.
+        
         :param str,int interface_id: interface identifier
         :param str logical_interface_ref: logical interface reference
         :param str zone_ref: zone reference
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
-        See :py:class:`smc.core.sub_interfaces.CaptureInterface` for more information
+        See :class:`smc.core.sub_interfaces.CaptureInterface` for more information
         """
         builder = InterfaceBuilder()
         builder.interface_id = interface_id
@@ -744,28 +801,133 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         dispatch(self, builder)
 
-    def add_inline_interface(self, interface_id, logical_interface_ref,
+    def add_inline_interface(self, interface_id, logical_interface_ref=None,
+                             vlan_id=None, vlan_id2=None,
                              zone_ref_intf1=None,
-                             zone_ref_intf2=None):
+                             zone_ref_intf2=None,
+                             failure_mode='normal',
+                             **kw):
         """
-        Add an inline interface pair
-
+        .. versionchanged:: 0.5.6
+            VLANs can be specified when when creating interface.
+        
+        Add an inline interface pair. Use this when adding inline interfaces
+        on a Layer 2 Firewall or IPS Engine.
+        
         :param str interface_id: interface id; '1-2', '3-4', etc
-        :param str logical_interface_ref: logical interface reference
+        :param str logical_interface_ref: logical interface reference. If None,
+            'default_eth' logical interface will be used.
+        :param int vlan_id: optional VLAN id for first inline interface
+        :param int vlan_id2: optional VLAN id for second inline interface
         :param zone_ref_intf1: zone for inline interface 1
         :param zone_ref_intf2: zone for inline interface 2
+        :param str failure_mode: 'normal' or 'bypass'. Note: if specifying
+            bypass, the inline interfaces must be using fail-open physical
+            interfaces for bypass to work.
         :raises EngineCommandFailed: failure creating interface
         :return: None
-
-        See :py:class:`smc.core.sub_interfaces.InlineInterface` for more information
         """
-        builder = InterfaceBuilder()
+        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         builder.interface_id = interface_id.split('-')[0]
-        builder.zone_ref = zone_ref_intf1
-        builder.add_inline(interface_id, logical_interface_ref, zone_ref_intf2)
+        if not vlan_id:
+            builder.zone_ref = zone_ref_intf1
+        
+        builder.add_l2_inline(
+            interface_id, logical_interface_ref, 
+            vlan_id, vlan_id2, zone_ref_intf1, zone_ref_intf2,
+            failure_mode=failure_mode, **kw)
 
-        dispatch(self, builder)
-
+        dispatch(self, builder, interface)
+        
+    def add_inline_l2fw_interface(self, interface_id, logical_interface_ref=None,
+                                  vlan_id=None, vlan_id2=None,
+                                  zone_ref_intf1=None,
+                                  zone_ref_intf2=None):
+        """
+        .. versionadded:: 0.5.6
+            Requires NGFW engine >=6.3 and layer 3 FW or cluster
+        
+        An inline L2 FW interface is a new interface type for Layer 3 NGFW
+        engines version >=6.3. Traffic passing an Inline Layer 2 Firewall
+        interface will have a default action in access rules of Discard.
+        Layer 2 Firewall interfaces are not bypass capable, so when NGFW is
+        powered off, in an offline state or overloaded, traffic is blocked on
+        this interface. If a VLAN ID is provided, it will be used on both
+        inline interfaces.
+        
+        :param str interface_id: interface id; '1-2', '3-4', etc
+        :param str logical_interface_ref: logical interface reference. If
+            None, 'default_eth' will be used.
+        :param str vlan_id: optional VLAN id for first interface pair
+        :param str vlan_id2: optional VLAN id for second interface pair
+        :param zone_ref_intf1: zone for first interface in pair
+        :param zone_ref_intf2: zone for second interface in pair
+        :raises EngineCommandFailed: failure creating interface
+        :return: None
+        
+        .. note:: If a VLAN ID is provided with zones, the zones will be applied
+            to the VLAN interfaces. If an inline interface with VLAN is applied
+            on a layer 3 FW/cluster, only a single VLAN (vlan_id) is supported.
+        """
+        if_type = InlineL2FWInterface
+        if self._engine.type not in ('single_fw', 'fw_cluster'):
+            if_type = InlineInterface
+        
+        return self.add_inline_interface(
+            interface_id, logical_interface_ref,
+            vlan_id, vlan_id2,
+            zone_ref_intf1, zone_ref_intf2,
+            if_type=if_type)
+    
+    def add_inline_ips_interface(self, interface_id, logical_interface_ref=None,
+                                 vlan_id=None, vlan_id2=None,
+                                 failure_mode='normal',
+                                 zone_ref_intf1=None,
+                                 zone_ref_intf2=None):
+        """
+        .. versionadded:: 0.5.6
+            Using an inline interface on a layer 3 FW requires SMC and engine
+            version >= 6.3.
+            
+        An inline IPS interface is a new interface type for Layer 3 NGFW
+        engines version >=6.3. Traffic passing an Inline IPS interface will
+        have a access rule default action of Allow. Inline IPS interfaces are
+        bypass capable. When using bypass interfaces and NGFW is powered off,
+        in an offline state or overloaded, traffic is allowed through without
+        inspection regardless of the access rules.
+        
+        Zone references will be applied to the VLANs if specified. If the
+        intent is to only apply zones at the top level interface pair, first
+        add the interface with zones (no VLANs), then add VLANs as a second
+        step.
+        
+        :param str interface_id: interface id; '1-2', '3-4', etc
+        :param str logical_interface_ref: logical interface reference.
+            If None, 'default_eth' will be used.
+        :param str vlan_id: optional VLAN id for first interface pair
+        :param str vlan_id2: optional VLAN id for second interface pair
+        :param str failure_mode: 'normal' or 'bypass' (default: normal).
+            Bypass mode requires fail open interfaces.
+        :param zone_ref_intf1: zone for first interface in pair
+        :param zone_ref_intf2: zone for second interface in pair
+        :raises EngineCommandFailed: failure creating interface
+        :return: None
+        
+        .. note:: If a VLAN ID is provided with zones, the zones will be applied
+            to the VLAN interfaces. If an inline interface with VLAN is applied
+            on a layer 3 FW/cluster, only a single VLAN (vlan_id) is supported.
+        """
+        if_type = InlineIPSInterface
+        if self._engine.type not in ('single_fw', 'fw_cluster'):
+            if_type = InlineInterface
+        
+        return self.add_inline_interface(
+            interface_id, logical_interface_ref,
+            vlan_id, vlan_id2,
+            zone_ref_intf1, zone_ref_intf2,
+            failure_mode=failure_mode,
+            if_type=if_type)
+        
     def add_dhcp_interface(self, interface_id, dynamic_index,
                            is_mgmt=False, zone_ref=None):
         """
@@ -779,7 +941,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
-        See :py:class:`~DHCPInterface` for more information
+        See :class:`~DHCPInterface` for more information
         """
         builder = InterfaceBuilder()
         builder.interface_id = interface_id
@@ -848,8 +1010,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
 
         nodes = nodes if nodes else []
         for node in nodes:
-            node.update(is_mgmt=is_mgmt,
-                        **kw)
+            node.update(is_mgmt=is_mgmt, **kw)
             builder.add_ndi_only(**node)
 
         builder.zone_ref = zone_ref
@@ -884,47 +1045,58 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder.zone_ref = zone_ref
 
         dispatch(self, builder)
-
-    def add_vlan_to_inline_interface(self, interface_id, vlan_id,
-                                     vlan_id2=None,
-                                     logical_interface_ref=None,
-                                     zone_ref_intf1=None,
-                                     zone_ref_intf2=None):
+    
+    def add_layer3_vlan_interface(self, interface_id, vlan_id,
+                                  address=None, network_value=None,
+                                  virtual_mapping=None,
+                                  virtual_resource_name=None,
+                                  zone_ref=None):
         """
-        Add a VLAN to inline interface. VLANs and zones can both be
-        unique per inline interface pair.
-
-        :param str interface_id: interfaces for inline pair, '1-2', '5-6'
-        :param int vlan_id: vlan identifier for interface 1
-        :param int vlan_id2: vlan identifier for interface 2 (if none, vlan_id used)
-        :param str logical_interface_ref: logical interface reference to use
-        :param str zone_ref_intf1: zone for inline interface 1
-        :param str zone_ref_intf2: zone for inline interface 2
+        Add a Layer 3 VLAN interface. Optionally specify an address
+        and netmask if assigning an IP to the VLAN. This method will
+        also assign an IP address to an existing VLAN, or add an additional
+        address to an existing VLAN. This method may commonly be used on a
+        Master Engine to create VLANs for virtual firewall engines.
+        
+        :param str,int interface_id: interface identifier
+        :param int vlan_id: vlan identifier
+        :param str address: optional IP address to assign to VLAN
+        :param str network_value: network cidr if address is specified. In
+            format: 10.10.10.0/24.
+        :param int virtual_mapping: virtual engine mapping id
+               See :class:`smc.core.engine.VirtualResource.vfw_id`
+        :param str virtual_resource_name: name of virtual resource
+               See :class:`smc.core.engine.VirtualResource.name`
         :raises EngineCommandFailed: failure creating interface
         :return: None
-
-        .. note::
-            If the inline interface does not exist, it will be created automatically.
-
-        See :py:class:`smc.core.sub_interfaces.InlineInterface` for more information
         """
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        builder.interface_id = interface_id.split('-')[0]
-        if interface is None:
-            builder.add_inline(interface_id, logical_interface_ref,
-                               zone_ref=zone_ref_intf2)
-
-        builder.add_vlan_to_inline(interface_id, vlan_id, vlan_id2,
-                                   logical_interface_ref,
-                                   zone_ref_intf1, zone_ref_intf2)
+        if address is None:
+            builder.add_vlan_only(
+                vlan_id, virtual_mapping, 
+                virtual_resource_name, zone_ref=None)
+        else:
+            if self._engine.type in ('single_fw',):
+                builder.add_ndi_to_vlan(
+                    address, network_value, vlan_id,
+                    zone_ref=zone_ref,
+                    cls=SingleNodeInterface)
+            else:
+                builder.add_ndi_to_vlan(
+                    address, network_value, vlan_id,
+                    zone_ref=zone_ref)
 
         dispatch(self, builder, interface)
-
+    
+    @deprecated('add_layer3_vlan_interface')
     def add_vlan_to_node_interface(self, interface_id, vlan_id,
                                    virtual_mapping=None,
                                    virtual_resource_name=None,
                                    zone_ref=None):
         """
+        .. deprecated:: 0.5.6
+            Use add_layer3_vlan_interface
+            
         Add vlan to a routed interface. Interface is created if
         it doesn't already exist. This can be used on any engine
         type, but is typically used to create an interface on a
@@ -933,27 +1105,30 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str,int interface_id: interface identifier
         :param int vlan_id: vlan identifier
         :param int virtual_mapping: virtual engine mapping id
-               See :py:class:`smc.core.engine.VirtualResource.vfw_id`
+               See :class:`smc.core.engine.VirtualResource.vfw_id`
         :param str virtual_resource_name: name of virtual resource
-               See :py:class:`smc.core.engine.VirtualResource.name`
+               See :class:`smc.core.engine.VirtualResource.name`
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
         .. note::
             If the interface does not exist, it will be create automatically.
         """
-        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        builder.interface_id = interface_id
-        builder.add_vlan_only(vlan_id, virtual_mapping,
-                              virtual_resource_name, zone_ref)
+        return self.add_layer3_vlan_interface(
+            interface_id, vlan_id,
+            virtual_mapping=virtual_mapping, 
+            virtual_resource_name=virtual_resource_name,
+            zone_ref=zone_ref)
 
-        dispatch(self, builder, interface)
-
+    @deprecated('add_layer3_vlan_interface')
     def add_ipaddress_to_vlan_interface(self, interface_id, address,
                                         network_value,
                                         vlan_id,
                                         zone_ref=None):
         """
+        .. deprecated:: 0.5.6
+            Use add_layer3_vlan_interface
+            
         When an existing interface VLAN exists but has no IP address assigned,
         use this to add an ip address to the VLAN. Multiple addresses on the
         same interface can also be added using this method.
@@ -970,16 +1145,10 @@ class PhysicalInterface(InterfaceCommon, Interface):
         .. note::
             If the interface vlan does not exist, it will be create automatically.
         """
-        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        if self._engine.type in ['single_fw']:
-            builder.add_ndi_to_vlan(address, network_value, vlan_id,
-                                    zone_ref=zone_ref,
-                                    cls=SingleNodeInterface)
-        else:
-            builder.add_ndi_to_vlan(address, network_value, vlan_id,
-                                    zone_ref=zone_ref)
-
-        dispatch(self, builder, interface)
+        return self.add_layer3_vlan_interface(
+            interface_id, vlan_id,
+            address, network_value,
+            zone_ref=zone_ref)
 
     def add_ipaddress_and_vlan_to_cluster(self, interface_id, vlan_id,
                                           nodes=None, cluster_virtual=None,
@@ -990,10 +1159,8 @@ class PhysicalInterface(InterfaceCommon, Interface):
         """
         Add IP addresses to VLANs on a firewall cluster. The minimum params
         required are ``interface_id`` and ``vlan_id``.
-        To create a VLAN interface with a CVI, specify ``cluster_virtual``
-        and ``cluster_mask`` and ``macaddress``.
-        If this interface should participate in load balancing, provide a
-        value for ``macaddress`` and ``cvi_mode``.
+        To create a VLAN interface with a CVI, specify ``cluster_virtual``,
+        ``cluster_mask`` and ``macaddress``.
 
         To create a VLAN with only NDI, specify ``nodes`` parameter.
 
@@ -1022,6 +1189,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             to add additional VLANs and interface addresses.
         """
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
+        builder.zone_ref = zone_ref
         if cluster_virtual and cluster_mask:   # Add CVI
             builder.add_cvi_to_vlan(cluster_virtual, cluster_mask, vlan_id)
             if macaddress:
@@ -1035,33 +1203,6 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 builder.add_ndi_to_vlan(**node)
 
         dispatch(self, builder, interface)
-
-    def remove_vlan(self, interface_id, vlan_id):
-        """
-        Remove a VLAN from any engine, given the interface_id and
-        VLAN id.
-
-        :param str,int interface_id: interface identifier
-        :param int vlan_id: vlan identifier
-        :return: None
-
-        .. note::
-            If a VLAN to be removed has IP addresses assigned, they
-            will be removed along with any associated entries in the
-            route table.
-        """
-        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        if interface is None:
-            raise EngineCommandFailed('Remove VLAN command failed. Interface {} '
-                                      'was not found.'.format(interface_id))
-        else:
-            builder.remove_vlan(vlan_id)
-            dispatch(self, builder, interface)
-
-            for routes in self._engine.routing:
-                if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
-                    routes.delete()
-                    break
 
     @property
     def is_primary_mgt(self):
@@ -1288,47 +1429,59 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :raises UpdateElementFailed: failed updating the VLAN id
         :return: None
         """
-        original = str(original).split('-')
+        vlanInterfaces = []
+        for vlan in self.vlan_interfaces():
+            if vlan.vlan_id == str(original):
+                new_vlan = str(new).split('-')
+                interface_id = self.interface_id
+                new_ifid = '{}.{}'.format(interface_id, new_vlan[0])
+                # Interfaces in VLAN
+                for interface in vlan.interfaces:
+                    if interface.nicid == vlan.interface_id:
+                        setattr(interface, 'nicid', new_ifid)
+                    elif isinstance(interface, InlineInterface):
+                        if interface.vlan_id == str(original):
+                            itfs = [i.split('.')[0] for i in interface.nicid.split('-')]
+                            # Reset the VLANs
+                            interface.nicid = '{}.{}-{}.{}'.format(
+                                itfs[0], new_vlan[0], itfs[-1], new_vlan[-1])
+                # Reset top level interface        
+                vlan.interface_id = new_ifid
+                vlanInterfaces.append(vlan.data)
+            else:
+                vlanInterfaces.append(vlan.data)
         
-        vlanInterfaces = self.vlan_interfaces()
-        
-        def find():
-            for idx, vlan in enumerate(vlanInterfaces): # Find the interface index
-                _, v_id = vlan.interface_id.split('.')
-                if v_id == original[0]:
-                    return idx
-            return -1 
-        
-        interface_idx = find()
+        self.data['vlanInterfaces'] = vlanInterfaces
+        self.save()
+        return 
     
-        if interface_idx != -1:
-            vlan = vlanInterfaces.pop(interface_idx)
+    def remove_vlan(self, interface_id, vlan_id):
+        """
+        Remove a VLAN from any engine, given the interface_id and
+        VLAN id.
 
-            new_vlan = str(new).split('-')
-            
-            itf_id, _ = vlan.interface_id.split('.')
-            
-            # Reset top level interface ID
-            vlan.interface_id = '{}.{}'.format(
-                itf_id, new_vlan[0])
-            
-            # Check for embedded interfaces
-            for interface in vlan.interfaces:
-                nics = [nic.split('.')[0]
-                        for nic in interface.nicid.split('-')]
+        :param str,int interface_id: interface identifier
+        :param int vlan_id: vlan identifier
+        :return: None
+
+        .. note::
+            If a VLAN to be removed has IP addresses assigned, they
+            will be removed along with any associated entries in the
+            route table.
+        """
+        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
+        if interface is None:
+            raise EngineCommandFailed('Remove VLAN command failed. Interface {} '
+                                      'was not found.'.format(interface_id))
+        else:
+            builder.remove_vlan(vlan_id)
+            dispatch(self, builder, interface)
+
+            for routes in self._engine.routing:
+                if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
+                    routes.delete()
+                    break
                 
-                if len(nics) == 2: # Inline
-                    interface.nicid = '{}.{}-{}.{}'.format(
-                        nics[0], new_vlan[0], nics[-1], new_vlan[-1])
-                else:
-                    interface.nicid = '{}.{}'.format(
-                        nics[0], new_vlan[0])
-            
-            vlanInterfaces.append(vlan)
-            self.data['vlanInterfaces'] = [v.data for v in vlanInterfaces]    
-            self.save()
-            return  
-      
     def enable_aggregate_mode(self, mode, interfaces):
         """    
         Enable Aggregate (LAGG) mode on this interface. Possible LAGG
@@ -1631,7 +1784,7 @@ class InterfaceModifier(object):
     In addition, since we already have the full engine json, this eliminates
     additional SMC calls.
     """
-    #def __init__(self, engine):
+    
     def __init__(self, data, **kwargs):
         self._data = data if data else []
         self.engine = kwargs.get('engine')
@@ -1641,7 +1794,7 @@ class InterfaceModifier(object):
         interfaces = []
         for intf in engine.data.get('physicalInterfaces'):
             for typeof, data in intf.items():
-                subif_type = _interface_helper(data)
+                subif_type = extract_sub_interface(data)
                 if isinstance(subif_type, InlineInterface):
                     nicids = subif_type.nicid.split('-')
                     name = 'Interface %s - Interface %s (Inline)' %\
@@ -1651,6 +1804,7 @@ class InterfaceModifier(object):
                 
                 clazz = lookup_class((typeof), Interface)(
                     name=name,
+                    #name=subif_type.name,
                     type=typeof,
                     href=InterfaceModifier.href_from_link(data.get('link')))
                 clazz.data = SimpleElement(**data)
@@ -1693,10 +1847,6 @@ class InterfaceModifier(object):
                     return intf
         raise EngineCommandFailed(
             'Interface id {} was not found on this engine.'.format(interface_id))
-    
-    @classmethod
-    def byInterface(cls, interface):
-        return cls([interface])
     
     @staticmethod        
     def href_from_link(link):
@@ -1813,34 +1963,9 @@ class InterfaceBuilder(object):
             zone_ref=zone_ref)
 
         self.vlanInterfaces.append(vlan)
-
-    def add_vlan_to_inline(self, interface_id, vlan_id, vlan_id2,
-                           logical_interface_ref, zone_ref_intf1=None,
-                           zone_ref_intf2=None):
-        """
-        Add a VLAN to inline interface, layer 2 and IPS only
-        """
-        first_intf = interface_id.split('-')[0]
-        vlan = PhysicalVlanInterface.create(
-            first_intf,
-            vlan_id,
-            zone_ref=zone_ref_intf1)
-
-        inline_intf = InlineInterface.create(
-            interface_id,
-            logical_interface_ref,
-            zone_ref=zone_ref_intf2)
-
-        vlan.get('interfaces').append(
-            _add_vlan_to_inline(
-                inline_intf.data,
-                vlan_id,
-                vlan_id2))
-
-        self.vlanInterfaces.append(vlan)
-
+    
     def add_cvi_only(self, address, network_value,
-                     zone=None, is_mgmt=False):
+                     is_mgmt=False):
         """
         Add a CVI and NDI
         """
@@ -1903,17 +2028,86 @@ class InterfaceBuilder(object):
 
         self.interfaces.append(capture.data)
 
-    def add_inline(self, interface_id, logical_interface_ref, zone_ref=None):
+    def add_inline(self, interface_id, logical_interface_ref,
+                   failure_mode='normal', zone_ref=None):
         """
-        Add inline interface, only for layer 2, IPS
+        Add inline interface. This is a generic builder for
+        inline interfaces on layer 2 and IPS engines only.
+        For layer 3 FW engines, use add_l2_inline.
         """
         inline = InlineInterface.create(
             interface_id,
             logical_interface_ref=logical_interface_ref,
+            failure_mode=failure_mode,
             zone_ref=zone_ref)  # Zone ref directly on the inline interface
 
         self.interfaces.append(inline.data)
+    
+    def add_l2_inline(self, interface_id, logical_interface_ref,
+                      vlan_id=None, vlan_id2=None,
+                      zone_ref_intf1=None,
+                      zone_ref_intf2=None,
+                      if_type=InlineInterface,
+                      **kw):
+        """
+        Add a layer 2 inline interface. This handles inline interfaces
+        for L2FW, IPS engine and Layer 3 FW.
+        
+        For inline IPS interfaces, use **kw to provide failure_mode setting
+        if needed. Default is 'normal'.
+        
+        :param if_type: specify the sub interface type. Default is InlineInterface.
+            If this should be an inline interface for an l3 firewall, this value
+            will be InlineIPSInterface or InlineL2FWInterface.
+        """
+        if logical_interface_ref is None:
+            logical_interface_ref = LogicalInterface('default_eth').href
+        
+        if not self.interfaces:
+            # Create base parent inline
+            inline = if_type.create(
+                interface_id,
+                logical_interface_ref=logical_interface_ref)
+            
+            if not vlan_id:
+                setattr(inline, 'zone_ref', zone_ref_intf2)
+            
+            if if_type is not InlineL2FWInterface:
+                setattr(inline, 'failure_mode', kw.get('failure_mode', 'normal'))
+                
+            self.interfaces.append(inline.data)
+        
+        if vlan_id:
+            first_intf = interface_id.split('-')[0]
 
+            vlan = PhysicalVlanInterface.create(
+                first_intf,
+                vlan_id,
+                zone_ref=zone_ref_intf1)
+            
+            inline_intf = if_type.create(
+                interface_id,
+                logical_interface_ref,
+                zone_ref=zone_ref_intf2)
+            
+            if if_type is not InlineL2FWInterface:
+                # Get failure mode setting from parent interface
+                parent_if = if_type(self.interfaces[0][if_type.typeof])
+                setattr(inline_intf, 'failure_mode', parent_if.failure_mode)
+            
+            if if_type is not InlineInterface:
+                # Layer 3 FW inline interfaces can only have 1 VLAN on the
+                # interface pair, whereas L2FW and IPS can each have unique.
+                vlan_id2 = vlan_id
+            
+            vlan.get('interfaces').append(
+                _add_vlan_to_inline(
+                    inline_intf.data,
+                    vlan_id,
+                    vlan_id2))
+
+            self.vlanInterfaces.append(vlan)
+            
     def add_dhcp(self, dynamic_index, is_mgmt=False):
         """
         Add a DHCP interface
@@ -2024,10 +2218,8 @@ class InterfaceBuilder(object):
         return (builder, interface)  # Return builder, interface ref
 
 
-def _interface_helper(data):
-    """
-    Return sub interface instance
-    """
+def extract_sub_interface(data):
     for intf in data['interfaces']:
         for if_type, values in intf.items():
-            return SubInterface.get_subinterface(if_type)(values)
+            return get_sub_interface(if_type)(values)
+

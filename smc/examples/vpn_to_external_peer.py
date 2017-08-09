@@ -12,7 +12,7 @@ from smc import session
 from smc.elements.network import Network
 from smc.core.engines import Engine, Layer3Firewall
 from smc.vpn.elements import ExternalGateway
-from smc.vpn.policy import VPNPolicy
+from smc.vpn.policy import PolicyVPN
 
 
 def create_single_fw():
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     """
     Create the VPN Policy
     """
-    vpn = VPNPolicy.create(name='myVPN', nat=True)
+    vpn = PolicyVPN.create(name='myVPN', nat=True)
     print vpn.name, vpn.vpn_profile
 
     vpn.open()

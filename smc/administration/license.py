@@ -53,7 +53,8 @@ class License(object):
         return None
     
     def __repr__(self):
-        return '{0}(id={1},binding={2})'.format(
+        return '{0}(id={1},binding={2},bound_to={3})'.format(
             self.__class__.__name__,
             self.name,
-            self.binding_state)
+            self.binding_state,
+            self.bound_to)

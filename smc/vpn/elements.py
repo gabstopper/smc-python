@@ -1,7 +1,7 @@
 from smc.base.model import SubElement
-import smc.actions.search as search
+from smc.base.collection import Search
 from smc.api.exceptions import CreateElementFailed
-from smc.base.model import Element, ElementCreator, prepared_request
+from smc.base.model import Element, ElementCreator
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
 
@@ -87,9 +87,7 @@ class ExternalGateway(Element):
     protected networks. Example of full provisioning::
 
         Network.create(name='mynetwork', ipv4_network='172.18.1.0/24')
-        ExternalGateway.create(name='mygw')
-
-        gw = ExternalGateway('mygw')
+        gw = ExternalGateway.create(name='mygw')
         gw.external_endpoint.create(name='myendpoint', address='10.10.10.10')
         gw.vpn_site.create(name='mysite', site_element=[Network('mynetwork')])
 
@@ -114,12 +112,7 @@ class ExternalGateway(Element):
         json = {'name': name,
                 'trust_all_cas': trust_all_cas}
 
-        try:
-            return ElementCreator(cls, json)
-        except CreateElementFailed as err:
-            raise CreateElementFailed(
-                'Failed creating test_external gateway, reason: {}'
-                .format(err))
+        return ElementCreator(cls, json)
 
     @property
     def vpn_site(self):
@@ -129,7 +122,7 @@ class ExternalGateway(Element):
         the VPN tunnel.
 
         :return: collection of :class:`smc.vpn.elements.VPNSite`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('vpn_site'),
@@ -143,13 +136,13 @@ class ExternalGateway(Element):
         Gateway. 
         Add a new endpoint to an existing test_external gateway::
 
-            >>> list(Search('external_gateway').objects.all())
+            >>> list(ExternalGateway.objects.all())
             [ExternalGateway(name=cisco-remote-side), ExternalGateway(name=remoteside)]
             >>> gateway.external_endpoint.create('someendpoint', '12.12.12.12')
             'http://1.1.1.1:8082/6.1/elements/external_gateway/22961/external_endpoint/27467'
 
         :return: collection of :class:`smc.vpn.elements.ExternalEndpoint`
-        :rtype: SubElementCollection
+        :rtype: create_collection
         """
         return create_collection(
             self.data.get_link('external_endpoint'),
@@ -183,6 +176,11 @@ class ExternalEndpoint(SubElement):
     to define the details of the non-SMC managed gateway. This class is a property
     of :py:class:`smc.vpn.elements.ExternalGateway` and should not be called 
     directly.
+    Add an endpoint to existing External Gateway::
+    
+        gw = ExternalGateway('aws')
+        gw.external_endpoint.create(name='aws01', address='2.2.2.2')
+    
     """
 
     def __init__(self, **meta):
@@ -203,7 +201,8 @@ class ExternalEndpoint(SubElement):
         :param bool nat_t: True|False (default: False)
         :param bool dynamic: is a dynamic VPN (default: False)
         :raises CreateElementFailed: create element with reason
-        :return: href of new element
+        :return: newly created element
+        :rtype: ExternalEndpoint
         """
         json = {'name': name,
                 'address': address,
@@ -213,11 +212,15 @@ class ExternalEndpoint(SubElement):
                 'nat_t': nat_t,
                 'ipsec_vpn': ipsec_vpn}
 
-        result = prepared_request(href=self.href, json=json).create()
-        if result.msg:
-            raise CreateElementFailed(result.msg)
-        else:
-            return result.href
+        location = self._request(
+            CreateElementFailed,
+            href=self.href,
+            json=json).create().href
+        
+        return ExternalEndpoint(
+            name=name,
+            href=location,
+            type='external_endpoint')
 
     @property
     def force_nat_t(self):
@@ -300,13 +303,16 @@ class VPNSite(SubElement):
         json = {
             'name': name,
             'site_element': site_element}
-        result = prepared_request(
-            href=self.href, json=json
-            ).create()
-        if result.msg:
-            raise CreateElementFailed(result.msg)
-        else:
-            return result.href
+        
+        location = self._request(
+            CreateElementFailed,
+            href=self.href,
+            json=json).create().href
+            
+        return VPNSite(
+            name=name,
+            href=location,
+            type='vpn_site')
     
     @property
     def site_element(self):
@@ -339,7 +345,7 @@ class VPNSite(SubElement):
         
 class VPNProfile(Element):
     """
-    Represents a VPNProfile configuration used by the VPNPolicy
+    Represents a VPNProfile configuration used by the PolicyVPN
     """
     typeof = 'vpn_profile'
 
@@ -383,7 +389,8 @@ class VPNCertificate(object):
     def __init__(self, organization, common_name, public_key_algorithm="dsa",
                  signature_algorithm="rsa_sha_256", public_key_length=2048,
                  country=None, organization_unit=None, state_province=None,
-                 locality=None, certificate_authority_href=None):
+                 locality=None, certificate_authority_href=None,
+                 certificate_authority_type='RSA'):
         self.country = country
         self.locality = locality
         self.organization = organization
@@ -395,12 +402,20 @@ class VPNCertificate(object):
         self.state_province = state_province
         self.certificate_authority_href = certificate_authority_href
         if not self.certificate_authority_href:
-            self.default_certificate_authority()
+            self.default_certificate_authority(
+                certificate_authority_type)
 
-    def default_certificate_authority(self):
+    def default_certificate_authority(self, type='RSA'):  # @ReservedAssignment
         """
-        Used internally to find the href of the SMC's VPN Certificate Authority
+        Return the location of the SMC's VPN Certificate Authority
+        
+        :param str type: 'RSA' or 'ECDSA' (default: 'RSA')
+        :rtype: str
+        :return: location href of CA
         """
-        authorities = search.all_elements_by_type('vpn_certificate_authority')
+        authorities = Search.objects.entry_point('vpn_certificate_authority')
         for authority in authorities:
-            self.certificate_authority_href = authority.get('href')
+            if type in authority.name:
+                self.certificate_authority_href = authority.href
+
+        

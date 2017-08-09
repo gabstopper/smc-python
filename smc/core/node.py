@@ -16,9 +16,9 @@ For example, to load an engine and run node level commands::
 import base64
 from collections import namedtuple
 from smc.base.util import save_to_file
+from smc.base.model import SubElement
 from smc.api.exceptions import LicenseError, NodeCommandFailed, \
     ResourceNotFound
-from smc.base.model import SubElement, prepared_request
 
 
 class Node(SubElement):
@@ -85,10 +85,10 @@ class Node(SubElement):
         :return: None
         """
         try:
-            prepared_request(
+            self.send_cmd(
                 LicenseError,
-                href=self.data.get_link('fetch')
-            ).create()
+                resource='fetch')
+        
         except ResourceNotFound:
             pass
 
@@ -102,11 +102,11 @@ class Node(SubElement):
         """
         params = {'license_item_id': license_item_id}
         try:
-            prepared_request(
+            self.send_cmd(
                 LicenseError,
-                href=self.data.get_link('bind'),
-                params=params
-            ).create()
+                resource='bind',
+                params=params)
+        
         except ResourceNotFound:
             pass
 
@@ -118,10 +118,10 @@ class Node(SubElement):
         :return: None
         """
         try:
-            prepared_request(
+            self.send_cmd(
                 LicenseError,
-                href=self.data.get_link('unbind')
-            ).create()
+                resource='unbind')
+        
         except ResourceNotFound:
             pass
 
@@ -133,10 +133,10 @@ class Node(SubElement):
         :return: None
         """
         try:
-            prepared_request(
+            self.send_cmd(
                 LicenseError,
-                href=self.data.get_link('cancel_unbind')
-            ).create()
+                resource='cancel_unbind')
+    
         except ResourceNotFound:
             pass
 
@@ -163,8 +163,9 @@ class Node(SubElement):
         :rtype: str
         """
         try:
-            result = prepared_request(
-                href=self.data.get_link('initial_contact'),
+            result = self._request(
+                NodeCommandFailed,
+                resource='initial_contact',
                 params={'enable_ssh': enable_ssh}).create()
             
             if result.content:
@@ -181,9 +182,8 @@ class Node(SubElement):
                             'contact to file: {}'.format(e))
 
             return result.content
-        except ResourceNotFound:
-            raise NodeCommandFailed(
-                'Initial contact not supported on this node type')
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     @property
     def appliance_status(self):
@@ -194,11 +194,11 @@ class Node(SubElement):
         :return: status information for this appliance
         :rtype: list
         """
-        result = prepared_request(
+        result = self.read_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('appliance_status')
-        ).read()
-        return ApplianceStatus(result.json)
+            resource='appliance_status')
+    
+        return ApplianceStatus(result)
 
     def status(self):
         """
@@ -208,11 +208,11 @@ class Node(SubElement):
 
         :return: :py:class:`~NodeStatus`
         """
-        result = prepared_request(
+        result = self.read_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('status')
-        ).read()
-        return NodeStatus(**result.json)
+            resource='status')
+    
+        return NodeStatus(**result)
 
     def go_online(self, comment=None):
         """
@@ -224,11 +224,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: online not available
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('go_online'),
-            params={'comment': comment}
-        ).update()
+            resource='go_online',
+            params={'comment': comment})
 
     def go_offline(self, comment=None):
         """
@@ -238,11 +237,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: offline not available
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('go_offline'),
-            params={'comment': comment}
-        ).update()
+            resource='go_offline',
+            params={'comment': comment})
 
     def go_standby(self, comment=None):
         """
@@ -253,11 +251,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: engine cannot go standby
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('go_standby'),
-            params={'comment': comment}
-        ).update()
+            resource='go_standby',
+            params={'comment': comment})
 
     def lock_online(self, comment=None):
         """
@@ -267,11 +264,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: cannot lock online
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('lock_online'),
-            params={'comment': comment}
-        ).update()
+            resource='lock_online',
+            params={'comment': comment})
 
     def lock_offline(self, comment=None):
         """
@@ -282,11 +278,10 @@ class Node(SubElement):
         :raises NodeCommandFailed: lock offline failed
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('lock_offline'),
-            params={'comment': comment}
-        ).update()
+            resource='lock_offline',
+            params={'comment': comment})
 
     def reset_user_db(self, comment=None):
         """
@@ -298,14 +293,13 @@ class Node(SubElement):
         :return: None
         """
         try:
-            prepared_request(
+            self.upd_cmd(
                 NodeCommandFailed,
-                href=self.data.get_link('reset_user_db'),
-                params={'comment': comment}
-            ).update()
-        except ResourceNotFound:
-            raise NodeCommandFailed(
-                'Reset userdb not supported on this node type')
+                resource='reset_user_db',
+                params={'comment': comment})
+
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     def diagnostic(self, filter_enabled=False):
         """
@@ -329,18 +323,15 @@ class Node(SubElement):
         """
         params = {'filter_enabled': filter_enabled}
         try:
-            result = prepared_request(
+            result = self.read_cmd(
                 NodeCommandFailed,
-                href=self.data.get_link('diagnostic'),
-                params=params
-            ).read()
+                resource='diagnostic',
+                params=params)
 
             return [(Diagnostic(**diagnostic))
-                    for diagnostic in result.json.get('diagnostics')]
-        except ResourceNotFound:
-            raise NodeCommandFailed(
-                'Diagnostic not supported on this node type: {}'
-                .format(self.type))
+                    for diagnostic in result.get('diagnostics')]
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     def send_diagnostic(self, diagnostic):
         """
@@ -369,12 +360,12 @@ class Node(SubElement):
         debug = []
         for setting in diagnostic:
             debug.append(vars(setting))
-        prepared_request(
+        
+        self.send_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('send_diagnostic'),
-            json={'diagnostics': debug}
-        ).create()
-
+            resource='send_diagnostic',
+            json={'diagnostics': debug})
+        
     def reboot(self, comment=None):
         """
         Send reboot command to this node.
@@ -383,26 +374,66 @@ class Node(SubElement):
         :raises NodeCommandFailed: reboot failed with reason
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             NodeCommandFailed,
-            href=self.data.get_link('reboot'),
-            params={'comment': comment}
-        ).update()
+            resource='reboot',
+            params={'comment': comment})
+
+    def power_off(self):
+        """
+        Power off engine.
+        
+        .. versionadded:: 0.5.6
+            Requires engine version >=6.3
+        """
+        try:
+            self.upd_cmd(
+                NodeCommandFailed,
+                resource='power_off')
+            
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
+    
+    def reset_to_factory(self):
+        """
+        Reset the engine to factory defaults.
+        
+        .. versionadded:: 0.5.6
+            Requires engine version >=6.3
+        """
+        try:
+            self.upd_cmd(
+                NodeCommandFailed,
+                resource='reset_to_factory')
+            
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     def sginfo(self, include_core_files=False,
                include_slapcat_output=False,
                filename='sginfo.gz'):
         """
-        Get the SG Info of the specified node
+        Get the SG Info of the specified node. Optionally provide
+        a filename, otherwise default to 'sginfo.gz'. Once you run
+        gzip -d <filename>, the inner contents will be in .tar format.
 
         :param include_core_files: flag to include or not core files
         :param include_slapcat_output: flag to include or not slapcat output
+        :raises NodeCommandFailed: failed getting sginfo with reason
+        :return: string path of download location
+        :rtype: str
         """
-        # params = {'include_core_files': include_core_files,
-        #          'include_slapcat_output': include_slapcat_output}
-        # result = prepared_request(href=self._link('sginfo'),
-        #                          filename=filename).read()
-        raise NotImplementedError
+        params = {
+            'include_core_files': include_core_files,
+            'include_slapcat_output': include_slapcat_output}
+        
+        result = self._request(
+            NodeCommandFailed,
+            resource='sginfo',
+            filename=filename,
+            params=params).read()
+        
+        return result.content
 
     def ssh(self, enable=True, comment=None):
         """
@@ -413,16 +444,16 @@ class Node(SubElement):
         :raises NodeCommandFailed: cannot enable SSH daemon
         :return: None
         """
-        params = {'enable': enable, 'comment': comment}
         try:
-            prepared_request(
+            self.upd_cmd(
                 NodeCommandFailed,
-                href=self.data.get_link('ssh'),
-                params=params
-            ).update()
-        except ResourceNotFound:
-            raise NodeCommandFailed(
-                'SSH not supported on this node type: {}'.format(self.type))
+                resource='ssh',
+                params={
+                    'enable': enable,
+                    'comment': comment})
+
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     def change_ssh_pwd(self, pwd=None, comment=None):
         """
@@ -434,16 +465,14 @@ class Node(SubElement):
         :return: None
         """
         try:
-            prepared_request(
+            self.upd_cmd(
                 NodeCommandFailed,
-                href=self.data.get_link('change_ssh_pwd'),
+                resource='change_ssh_pwd',
                 params={'comment': comment},
-                json={'value': pwd}
-            ).update()
-        except ResourceNotFound:
-            raise NodeCommandFailed(
-                'Change SSH pwd not supported on this node type: {}'
-                .format(self.type))
+                json={'value': pwd})
+            
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     def time_sync(self):
         """
@@ -453,14 +482,12 @@ class Node(SubElement):
         :return: None
         """
         try:
-            prepared_request(
+            self.upd_cmd(
                 NodeCommandFailed,
-                href=self.data.get_link('time_sync')
-            ).update()
-        except ResourceNotFound:
-            raise NodeCommandFailed(
-                'Time sync not supported on this node type: {}'
-                .format(self.type))
+                resource='time_sync')
+
+        except ResourceNotFound as e:
+            raise NodeCommandFailed(e)
 
     def certificate_info(self):
         """
@@ -470,7 +497,7 @@ class Node(SubElement):
 
         :return: dict with links to cert info
         """
-        return self.data.get_json('certificate_info')
+        return self.read_cmd(resource='certificate_info')
 
 
 class NodeStatus(object):
@@ -530,9 +557,9 @@ class ApplianceStatus(object):
 
         engine = Engine('sg_vm')
         for x in engine.nodes:
-            for status in x.appliance_status.hardware_status:
+            for status in x.appliance_status.hardware:
                 print(status, status.items)
-            for status in x.appliance_status.interface_status:
+            for status in x.appliance_status.interface:
                 print(status, status.items)
     """
 
@@ -540,18 +567,37 @@ class ApplianceStatus(object):
         self._data = data
 
     @property
-    def hardware_status(self):
+    def hardware(self):
         """
         Hardware status for the engine
-
+        ::
+        
+            >>> for node in engine.nodes:
+            ...    for x in node.appliance_status.hardware:
+            ...        print(x)
+            HardwareStatus(name=Anti-Malware)
+            HardwareStatus(name=File Systems)
+            HardwareStatus(name=GTI Cloud)
+            HardwareStatus(name=Sandbox)
+            HardwareStatus(name=MLC Connection)
+            
         :return: iterator :py:class:`smc.core.node.HardwareStatus`
         """
         return HardwareStatus(self._data.get('hardware_statuses'))
 
     @property
-    def interface_status(self):
+    def interface(self):
         """
         Interface status for the engine
+        ::
+        
+            >>> for node in engine.nodes:
+            ...    for x in node.appliance_status.interface:
+            ...        print(x)
+            InterfaceStatus(interface=0,name=eth0_0,status=Up)
+            InterfaceStatus(interface=1,name=eth0_1,status=Up)
+            InterfaceStatus(interface=2,name=eth0_2,status=Up)
+            InterfaceStatus(interface=3,name=eth0_3,status=Down)
 
         :return: iterator :py:class:`smc.core.node.InterfaceStatus`
         """
@@ -583,7 +629,7 @@ class HardwareStatus(object):
         Value is the value of this combination.
 
         :return: All status for given hardware selection
-        :rtype: list
+        :rtype: list namedtuple('label param value')
         """
         totals = []
         for item in self._data.get('items'):
@@ -627,7 +673,7 @@ class InterfaceStatus(object):
         type and how the interface is used (i.e. Normal, Aggregate)
 
         :return: interface statuses as read-only namedtuple
-        :rtype: namedtuple
+        :rtype: namedtuple('interface_id name status speed_duplex mtu port capability')
         """
         t = namedtuple(
             'Status',

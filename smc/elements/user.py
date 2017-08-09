@@ -48,7 +48,7 @@ Set an initial password for the Admin User::
     :class:`smc.administration.access_rights.AccessControlList` for more information.
 
 """
-from smc.base.model import Element, ElementCreator, prepared_request
+from smc.base.model import Element, ElementCreator
 from smc.api.exceptions import ModificationFailed
 from smc.administration.access_rights import Permission
 
@@ -75,11 +75,10 @@ class UserMixin(object):
         :param str password: new password
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             ModificationFailed,
-            href=self.data.get_link('change_password'),
-            params={'password': password}
-        ).update()
+            resource='change_password',
+            params={'password': password})
 
     def add_permission(self, permission):
         """
@@ -196,11 +195,10 @@ class AdminUser(UserMixin, Element):
         :raises ModificationFailed: failed setting password on engine
         :return: None
         """
-        prepared_request(
+        self.upd_cmd(
             ModificationFailed,
-            href=self.data.get_link('change_engine_password'),
-            params={'password': password}
-        ).update()
+            resource='change_engine_password',
+            params={'password': password})
 
 
 class ApiClient(UserMixin, Element):
@@ -231,13 +229,14 @@ class ApiClient(UserMixin, Element):
         :return: instance with meta
         :rtype: ApiClient
         """
-        json = {'enabled': enabled,
-                'name': name,
-                'superuser': superuser}
+        json = {
+            'enabled': enabled,
+            'name': name,
+            'superuser': superuser}
 
         return ElementCreator(cls, json)
-
-    '''    
+   
+    '''
     def one_time_password(self, password):
         """
         Generate a one-time password for a single session. As the
@@ -248,9 +247,14 @@ class ApiClient(UserMixin, Element):
         :raises: :py:class:`smc.api.exceptions.ModificationFailed`
         :return: None
         """
-        prepared_request(ModificationFailed,
-                         href=self._resource.change_password,
-                         params={'one_time_password': password},
-                         etag=self.etag,
-                         ).update()
+        self.upd_cmd(
+            ModificationFailed,
+            resource='change_password',
+            params={'one_time_password': password})
+        
+        #prepared_request(ModificationFailed,
+        #                 href=self._resource.change_password,
+        #                 params={'one_time_password': password},
+        #                 etag=self.etag,
+        #                 .update()
     '''

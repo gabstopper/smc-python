@@ -1,18 +1,18 @@
-from smc.base.model import Element, ElementCreator, prepared_request, SubElement
+from smc.base.model import Element, ElementCreator, SubElement
 from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 from smc.base.collection import sub_collection
-from smc.base.util import element_resolver
+from smc.vpn.elements import VPNProfile
 
 
-class VPNPolicy(Element):
+class PolicyVPN(Element):
     """
     Create a new VPN Policy.
     ::
     
-        >>> VPNPolicy.create(name='myvpn')
-        VPNPolicy(name=myvpn)
-        >>> v = VPNPolicy('myvpn')
+        >>> PolicyVPN.create(name='myvpn')
+        PolicyVPN(name=myvpn)
+        >>> v = PolicyVPN('myvpn')
         >>> print(v.vpn_profile)
         VPNProfile(name=VPN-A Suite)
 
@@ -23,7 +23,7 @@ class VPNPolicy(Element):
     typeof = 'vpn'
 
     def __init__(self, name, **meta):
-        super(VPNPolicy, self).__init__(name, **meta)
+        super(PolicyVPN, self).__init__(name, **meta)
         pass
 
     @classmethod
@@ -35,21 +35,20 @@ class VPNPolicy(Element):
         :param name: name of vpn policy
         :param bool nat: whether to apply NAT to the VPN (default False)
         :param mobile_vpn_toplogy_mode: whether to allow remote vpn
-        :param str vpn_profile: reference to VPN profile, or uses default
-        :rtype: VPNPolicy
+        :param VPNProfile vpn_profile: reference to VPN profile, or uses default
+        :rtype: PolicyVPN
         """
-        if vpn_profile is not None:
-            vpn_profile = element_resolver(vpn_profile)
-        json = {'mobile_vpn_topology_mode': None,
+        vpn_profile = vpn_profile if vpn_profile else VPNProfile('VPN-A Suite')
+        
+        json = {'mobile_vpn_topology_mode': mobile_vpn_toplogy_mode,
                 'name': name,
                 'nat': nat,
-                'vpn_profile': vpn_profile}
+                'vpn_profile': vpn_profile.href}
 
         try:
             return ElementCreator(cls, json)
         except CreateElementFailed as err:
-            raise CreatePolicyFailed('VPN Policy create failed. Reason: {}'
-                                     .format(err))
+            raise CreatePolicyFailed(err)
 
     @property
     def nat(self):
@@ -126,10 +125,9 @@ class VPNPolicy(Element):
         :return: None
         :raises PolicyCommandFailed: couldn't open policy with reason
         """
-        prepared_request(
+        self.send_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('open')
-        ).create()
+            resource='open')
 
     def save(self):
         """
@@ -138,10 +136,9 @@ class VPNPolicy(Element):
         :return: None
         :raises PolicyCommandFailed: save failed with reason
         """
-        prepared_request(
+        self.send_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('save')
-        ).create()
+            resource='save')
 
     def close(self):
         """
@@ -150,10 +147,9 @@ class VPNPolicy(Element):
         :raises PolicyCommandFailed: close failed with reason
         :return: None
         """
-        prepared_request(
+        self.send_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('close')
-        ).create()
+            resource='close')
 
     def validate(self):
         """
@@ -163,12 +159,14 @@ class VPNPolicy(Element):
         :return: status as string
         :rtype: str
         """
-        return self.data.get_json('validate').get('value')
+        return self.read_cmd(
+            resource='validate').get('value')
 
     def gateway_tunnel(self):
         """
         """
-        return self.data.get_json('gateway_tunnel')
+        return self.read_cmd(
+            resource='gateway_tunnel')
 
     def add_central_gateway(self, gateway):
         """ 
@@ -181,12 +179,11 @@ class VPNPolicy(Element):
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
-        prepared_request(
+        self.send_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('central_gateway_node'),
+            resource='central_gateway_node',
             json={'gateway': gateway,
-                  'node_usage': 'central'}
-        ).create()
+                  'node_usage': 'central'})
 
     def add_satellite_gateway(self, gateway):
         """
@@ -202,12 +199,11 @@ class VPNPolicy(Element):
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
-        prepared_request(
+        self.send_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('satellite_gateway_node'),
+            resource='satellite_gateway_node',
             json={'gateway': gateway,
-                  'node_usage': 'satellite'}
-        ).create()
+                  'node_usage': 'satellite'})
 
     @staticmethod
     def add_internal_gateway_to_vpn(internal_gateway_href, vpn_policy,
@@ -223,7 +219,7 @@ class VPNPolicy(Element):
         :rtype: bool
         """
         try:
-            vpn = VPNPolicy(vpn_policy)
+            vpn = PolicyVPN(vpn_policy)
             vpn.open()
             if vpn_role == 'central':
                 vpn.add_central_gateway(internal_gateway_href)
@@ -243,7 +239,7 @@ class GatewayNode(SubElement):
     This template class will return these as a collection. Gateway Node
     references need to be obtained from a VPN Policy reference::
 
-        >>> vpn = VPNPolicy('sg_vm_vpn')
+        >>> vpn = PolicyVPN('sg_vm_vpn')
         >>> vpn.open()
         >>> for gw in vpn.central_gateway_node.all():
         ...   list(gw.enabled_sites)
@@ -313,10 +309,9 @@ class GatewayTreeNode(SubElement):
         :raises PolicyCommandFailed: enabling or disabling failed
         :return: None
         """
-        prepared_request(
+        self.del_cmd(
             PolicyCommandFailed,
-            href=self.data.get_link('self')
-            ).delete()
+            resource='self')
     
     @property
     def vpn_site(self):

@@ -1,8 +1,7 @@
-import smc.actions.search as search
-from smc.core.interfaces import _interface_helper, InterfaceBuilder
+from smc.core.interfaces import extract_sub_interface, InterfaceBuilder
 from smc.core.engine import Engine
-from smc.api.exceptions import CreateEngineFailed
-from smc.base.model import prepared_request
+from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
+from smc.base.model import ElementCreator
 from smc.elements.helpers import logical_intf_helper
 from smc.core.sub_interfaces import LoopbackInterface
 
@@ -79,17 +78,12 @@ class Layer3Firewall(Engine):
             enable_ospf=enable_ospf,
             ospf_profile=ospf_profile)
 
-        href = search.element_entry_point('single_fw')
-        result = prepared_request(href=href, json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='single_fw')
-        else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}.'
-                                     .format(result.msg, engine))
-
+        try:
+            return ElementCreator(cls, json=engine)
+        
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+        
     @classmethod
     def create_dynamic(cls, name, interface_id,
                        dynamic_index=1,
@@ -133,16 +127,12 @@ class Layer3Firewall(Engine):
             default_nat=default_nat,
             location_ref=location_ref)
     
-        href = search.element_entry_point('single_fw')
-        result = prepared_request(href=href, json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='single_fw')
-        else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}.'
-                                     .format(result.msg, engine))
+        try:
+            return ElementCreator(cls, json=engine)
+        
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+
         
 class Layer2Firewall(Engine):
     """
@@ -209,16 +199,11 @@ class Layer2Firewall(Engine):
             nodes=1, enable_gti=enable_gti,
             enable_antivirus=enable_antivirus)
 
-        href = search.element_entry_point('single_layer2')
-        result = prepared_request(href=href,
-                                  json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='single_layer2')
-        else:
-            raise CreateEngineFailed('Could not create the engine, reason: {}'
-                                     .format(result.msg))
+        try:
+            return ElementCreator(cls, json=engine)
+        
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
 
 
 class IPS(Engine):
@@ -281,16 +266,11 @@ class IPS(Engine):
             nodes=1, enable_gti=enable_gti,
             enable_antivirus=enable_antivirus)
 
-        href = search.element_entry_point('single_ips')
-        result = prepared_request(href=href,
-                                  json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='single_ips')
-        else:
-            raise CreateEngineFailed('Could not create the engine, reason: {}'
-                                     .format(result.msg))
+        try:
+            return ElementCreator(cls, json=engine)
+    
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
 
 
 class Layer3VirtualEngine(Engine):
@@ -357,8 +337,7 @@ class Layer3VirtualEngine(Engine):
 
             # set auth request and outgoing on one of the interfaces
             if interface.get('interface_id') == outgoing_intf:
-                #intf = _interface_helper(physical.data)
-                intf = _interface_helper(builder.data)
+                intf = extract_sub_interface(builder.data)
                 intf.outgoing = True
                 intf.auth_request = True
 
@@ -379,17 +358,12 @@ class Layer3VirtualEngine(Engine):
             # Master Engine provides this service
             engine.pop('log_server_ref', None)
 
-        href = search.element_entry_point('virtual_fw')
-        result = prepared_request(href=href, json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='virtual_fw')
-        else:
-            raise CreateEngineFailed('Could not create the virtual engine, '
-                                     'reason: {}'
-                                     .format(result.msg))
-
+        try:
+            return ElementCreator(cls, json=engine)
+    
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+    
 
 class FirewallCluster(Engine):
     """ 
@@ -458,18 +432,12 @@ class FirewallCluster(Engine):
             enable_antivirus=enable_antivirus,
             default_nat=default_nat)
 
-        href = search.element_entry_point('fw_cluster')
-        result = prepared_request(href=href,
-                                  json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='fw_cluster')
-        else:
-            raise CreateEngineFailed('Could not create the firewall, '
-                                     'reason: {}'
-                                     .format(result.msg))
-
+        try:
+            return ElementCreator(cls, json=engine)
+    
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+        
 
 class MasterEngine(Engine):
     """
@@ -522,18 +490,12 @@ class MasterEngine(Engine):
         engine.update(master_type=master_type,
                       cluster_mode='standby')
 
-        href = search.element_entry_point('master_engine')
-        result = prepared_request(href=href,
-                                  json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='master_engine')
-        else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'
-                                     .format(result.msg))
-
+        try:
+            return ElementCreator(cls, json=engine)
+    
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+    
 
 class MasterEngineCluster(Engine):
     """
@@ -541,7 +503,8 @@ class MasterEngineCluster(Engine):
     Clusters are currently supported in an active/standby configuration
     only. 
     """
-
+    typeof = 'master_engine'
+    
     def __init__(self, name, **meta):
         super(MasterEngineCluster, self).__init__(name, **meta)
         pass
@@ -599,14 +562,9 @@ class MasterEngineCluster(Engine):
         engine.update(master_type=master_type,
                       cluster_mode='standby')
 
-        href = search.element_entry_point('master_engine')
-        result = prepared_request(href=href,
-                                  json=engine).create()
-        if result.href:
-            return Engine(name=name,
-                          href=result.href,
-                          type='master_engine')
-        else:
-            raise CreateEngineFailed('Could not create the engine, '
-                                     'reason: {}'
-                                     .format(result.msg))
+        try:
+            return ElementCreator(cls, json=engine)
+            
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+        

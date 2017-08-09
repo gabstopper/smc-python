@@ -16,7 +16,7 @@ SMC database. No query will occur until you do something to evaluate the collect
 
 You can evaluate a collection in the following ways:
 
-* **Iteration**. An ElementCollection is iterable, and it executes an SMC query the first time you iterate over
+* **Iteration**. An ElementCollection is iterable, and it executes the SMC query the first time you iterate over
   it. For example, this will retrieve all host elements::
 
 	>>> for host in Host.objects.all():
@@ -228,77 +228,102 @@ through results such as ``count``, ``first``, and ``last``::
 	>>> list(query2)
 	[Router(name=Router-10.10.10.1)]
 
-Generic Search
+General Search
 --------------
 
 If a search is required for an element type that is not a pre-defined class of :py:class:`smc.base.model.Element` type 
-in the API, it is still possible to search any valid entry point using :py:class:`smc.elements.resources.Search`.
+in the API, it is still possible to search any valid entry point using :py:class:`smc.base.collections.Search`.
 
-First, find all available searchable objects::
+Search extends ElementCollection and provides additional methods:
+
+* :py:meth:`~smc.base.collection.Search.entry_point`. Entry points are top level collections available from the SMC.
+
+
+* :py:meth:`~smc.base.collection.Search.context_filter`. Context filters are special filters that can return more generalized results such as all engines, etc.
+
+  Available context filters:
+
+    * *fw_clusters* - list all firewalls
+
+    * *engine_clusters* - all clusters
+
+    * *ips_clusters* - ips only clusters
+
+    * *layer2_clusters* - layer2 only clusters
+                    
+    * *network_elements* - all network element types
+
+    * *services* - all service types
+
+    * *services_and_applications* - all services and applications
+
+    * *tags* - element tags
+
+    * *situations* - inspection situations
+
+* :py:meth:`~smc.base.collection.Search.unused`. Search for all unused elements::
+
+	>>> list(Search.objects.unused())
+	[RouteVPN(name=myvpn), RouteVPN(name=mygre), RouteVPN(name=avpn), RouteVPN(name=avpn)]
+	...
+
+* :py:meth:`~smc.base.collection.Search.duplicates()`. Search for all duplicate elements::
+
+	>>> list(Search.objects.duplicates())
+	[Host(name=foohost), Router(name=router-1.1.1.1)]
+	...
+
+Using ``Search`` is useful if there is not a direct class representation of the element you
+are attempting to retrieve. If there is an entry point for the target element type, you can 
+return any element.
+
+First, find all available searchable objects (also known as 'entry points')::
 
   >>> from smc.elements.resources import Search
   >>> Search.object_types()
   ['elements', 'sub_ipv6_fw_policy', 'ids_alert', 'application_not_specific_tag', 'fw_alert', 'virtual_ips', 'sidewinder_tag', 'os_specific_tag', 'eia_application_usage_group_tag', 'external_bgp_peer', 'local_cluster_cvi_alias', 'ssl_vpn_service_profile', 'active_directory_server', 'eia_golden_image_tag', 'client_gateway', 'situation_tag', 'api_client', 'tls_match_situation', 'ssl_vpn_policy', 'category_group_tag', 'ip_list', 'vpn_profile', 'ipv6_access_list', 'appliance_information', 'single_layer2', 'ei_executable', 'community_access_list']
   ...
  
-Once the type of interest is found, the elements can be retrieved using the object type as the filter::
+Once the type of interest is found, the elements can be retrieved using the entry point::
 
-  >>> list(Search('vpn').objects.all())
-  [VPNPolicy(name=Amazon AWS), VPNPolicy(name=sg_vm_vpn), VPNPolicy(name=TRITON AP-WEB Cloud VPN)]
+  >>> list(Search.objects.entry_point('vpn'))
+  [PolicyVPN(name=Amazon AWS), PolicyVPN(name=sg_vm_vpn), PolicyVPN(name=TRITON AP-WEB Cloud VPN)]
 
-And subsequently filtering as well::
+And subsequently add a filter as well::
 
-  >>> list(Search('vpn').objects.filter('AWS'))
-  [VPNPolicy(name=Amazon AWS)]
-
-There are additional search filters that provide the ability to generalize your searches:
-
-* *fw_clusters* - list all firewalls
-
-* *engine_clusters* - all clusters
-
-* *ips_clusters* - ips only clusters
-
-* *layer2_clusters* - layer2 only clusters
-                    
-* *network_elements* - all network element types
-
-* *services* - all service types
-
-* *services_and_applications* - all services and applications
-
-* *tags* - element tags
-
-* *situations* - inspection situations
+  >>> list(Search.objects.entry_point('vpn').filter('AWS'))
+  [PolicyVPN(name=Amazon AWS)]
 
 ----
 
+Additional examples:
+
 Searching all services for port 80::
 
-	>>> list(Search('services').objects.filter('80'))
+	>>> list(Search.objects.entry_point('services').filter('80'))
 	[TCPService(name=tcp80443), TCPService(name=HTTP to Web SaaS), EthernetService(name=IPX over Ethernet 802.2), UDPService(name=udp_10070-10080), Protocol(name=HTTP8080), TCPService(name=tcp_10070-10080), TCPService(name=TCP_8080), TCPService(name=tcp_3478-3480), EthernetService(name=IPX over Ethernet 802.3 (Novell)), TCPService(name=HTTP), TCPService(name=SSM HTTP), TCPService(name=HTTP (SafeSearch)), IPService(name=ISO-IP), UDPService(name=udp_3478-3480), TCPService(name=HTTP (with URL Logging))]
 
 Only Network elements with '172.18.1'::
 
-	>>> list(Search('network_elements').objects.filter('172.18.1'))
+	>>> list(Search.objects.context_filter('network_elements').filter('172.18.1'))
 	[Host(name=172.18.1.135), Host(name=SMC), Network(name=Any network), FirewallCluster(name=sg_vm), Element(name=dc-smtp), Network(name=network-172.18.1.0/24), LogServer(name=LogServer 172.18.1.150), Layer3Firewall(name=testfw), Element(name=SecurID), Element(name=Windows 2003 DHCP), AddressRange(name=range-172.18.1.100-172.18.1.120), ManagementServer(name=Management Server)]
 
 Only firewall clusters::
 
-	>>> list(Search('fw_clusters').objects.all())
+	>>> list(Search.objects.context_filter('fw_clusters'))
 	[FirewallCluster(name=sg_vm), Layer3VirtualEngine(name=ve-8), Layer3Firewall(name=testfw), Layer3Firewall(name=i-04eec8f019adf818e (us-east-2a)), MasterEngine(name=master)]
 
 In addition to using more generic filters, with general searches, you can also specify multiple valid entry points by 
-specifying the string filter comma seperated.
+specifying the string filter comma separated.
 
 For example, finding all hosts and routers::
 
-	>>> list(Search('router,host').objects.all())
+	>>> list(Search.objects.entry_point('router,host'))
 	[Host(name=172.18.2.254), Router(name=router-172.18.3.129), Host(name=All Routers (Site-Local))]
 	
 Filter based on hosts and routers::
 
-	>>> list(Search('router,host').objects.filter('172.18.1'))
+	>>> list(Search.objects.entry_point('router,host').filter('172.18.1'))
 	[Host(name=172.18.1.135), Host(name=SMC), Host(name=ePolicy Orchestrator), Router(name=router-172.18.1.225), Host(name=fw-internal-primary), Router(name=router-172.18.1.209)]
 
 .. note:: If an element of class :py:class:`smc.base.model.Element` exists, it will 
@@ -307,7 +332,7 @@ Filter based on hosts and routers::
 
 For example, searching for object of type 'ids_alert' will produce a dynamic class as type Element and will have access to the base class methods::
 
-  >>> list(Search('ids_alert').objects.all())
-  [Ids_AlertElement(name=Default alert), Ids_AlertElement(name=Test alert), Ids_AlertElement(name=System alert)]
+  >>> list(Search.objects.entry_point('ids_alert'))
+  [IdsAlertDynamic(name=Default alert), IdsAlertDynamic(name=Test alert), IdsAlertDynamic(name=System alert)]
   
 Classes deriving from :py:class:`smc.base.model.Element` are found in the API reference, for example: :ref:`element-reference-label`
