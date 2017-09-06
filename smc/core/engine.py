@@ -629,9 +629,10 @@ class Engine(AddOn, Element):
         determine the status of the task.
         ::
 
-            task = engine.refresh()
-            for message in task.wait():
-                print('Percentage complete {}%'.format(message))
+            poller = engine.refresh()
+            while not poller.done():
+                poller.wait(5)
+                print('Percentage complete {}%'.format(poller.task.progress))
 
         :param int timeout: timeout between queries
         :raises TaskRunFailed: refresh failed, possibly locked policy

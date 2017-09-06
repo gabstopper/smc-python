@@ -318,4 +318,15 @@ class ApplicationSituation(Element):
 
     def __init__(self, name, **meta):
         super(ApplicationSituation, self).__init__(name, **meta)
-        pass
+    
+    
+class URLCategory(Element):
+    """
+    Represents a URL Category for policy. This class is read only. To make
+    whitelist or blacklists, use :class:`smc.elements.network.IPList`.
+    """
+    typeof = 'url_category'
+    
+    def __init__(self, name, **meta):
+        super(URLCategory, self).__init__(name, **meta)
+    

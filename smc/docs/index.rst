@@ -22,6 +22,7 @@ Contents:
    pages/vpn
    pages/administration
    pages/logging
+   pages/extensions
    pages/reference
 
 Indices and tables

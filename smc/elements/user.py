@@ -80,6 +80,18 @@ class UserMixin(object):
             resource='change_password',
             params={'password': password})
 
+    def generate_password(self):
+        """
+        Generate a random password for this user.
+        
+        :return: random password
+        :rtype: str
+        """
+        pwd = self.upd_cmd(
+            resource='generate_password')
+        if 'value' in pwd.json:
+            return pwd.json['value'][0]
+        
     def add_permission(self, permission):
         """
         Add a permission to this Admin User. A role defines permissions that
@@ -161,7 +173,7 @@ class AdminUser(UserMixin, Element):
         :param bool allow_sudo: allow sudo on engines
         :param bool superuser: is a super administrator
         :param bool enabled: is account enabled
-        :param str engine_target: engine to allow remote access to
+        :param list engine_target: engine to allow remote access to
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
         :rtype: AdminUser

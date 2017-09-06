@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?eclipse-pydev version="1.0"?><pydev_project>
-<pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">venv351</pydev_property>
-<pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 3.0</pydev_property>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">tmp-venv27</pydev_property>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 2.7</pydev_property>
 <pydev_pathproperty name="org.python.pydev.PROJECT_SOURCE_PATH">
 <path>/${PROJECT_DIR_NAME}</path>
 </pydev_pathproperty>
 <pydev_pathproperty name="org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH">
 <path>/Users/davidlepage/git/smc-python/src</path>
-<path>/Users/davidlepage/git/smc-python/src/venv351/lib/python3.5/site-packages</path>
+<path>/Users/davidlepage/git/stonesoft-nsx/venv27/lib/python2.7/site-packages</path>
+<path>/Users/davidlepage/git/smc-python-internal/smc-python/smc-monitoring</path>
 </pydev_pathproperty>
 </pydev_project>

@@ -406,6 +406,22 @@ class Element(ElementBase):
         return lookup_class(meta.get('type'))(**meta)
 
     @classmethod
+    def get(cls, name):
+        """
+        Get the element by name. Does an exact match by element type.
+        
+        :param str name: name of element
+        :raises ElementNotFound: if element does not exist
+        :return: :py:class:`smc.base.model.Element` type
+        """
+        element = cls.objects.filter(name, exact_match=True).first()
+        if not element:
+            'Cannot find specified element: {}, type: {}'
+            raise ElementNotFound('Cannot find specified element: %s, type: %s' %
+                (cls.__name__, name))
+        return element 
+        
+    @classmethod
     def get_or_create(cls, filter_key=None, **kwargs):
         """
         Convenience method to retrieve an Element or create if it does not

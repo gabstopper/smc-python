@@ -183,9 +183,9 @@ class Session(object):
             self._domain = domain
 
         self._api_version = get_api_version(url, api_version, timeout, verify)
-
+        
         base = get_api_base(url, self.api_version, verify=verify)
-
+        
         self._entry_points = get_entry_points(base, timeout, verify)
 
         s = requests.session()  # no session yet
@@ -243,8 +243,8 @@ class Session(object):
                 # to investigate
                 logger.error('SSL exception thrown during logout: %s', e)
             finally:
-                self.session.cookies.clear()
                 self._entry_points = []
+                self.session.cookies.clear()
 
     def refresh(self):
         """
@@ -281,7 +281,7 @@ def get_entry_points(base_url, timeout=10, verify=True):
         if r.status_code == 200:
             j = json.loads(r.text)
             logger.debug('Successfully retrieved API entry points from SMC')
-
+        
             return _EntryPoint(j['entry_point'])
 
         else:
@@ -303,12 +303,13 @@ def available_api_versions(base_url, timeout=10, verify=True):
     try:
         r = requests.get('%s/api' % base_url, timeout=timeout,
                          verify=verify)  # no session required
+
         if r.status_code == 200:
             j = json.loads(r.text)
             versions = []
             for version in j['version']:
                 versions.append(version['rel'])
-            versions = [float(i) for i in versions]
+            #versions = [float(i) for i in versions]
             return versions
         
         raise SMCConnectionError(
@@ -327,19 +328,15 @@ def get_api_version(base_url, api_version=None, timeout=10, verify=True):
     :rtype: float
     """
     versions = available_api_versions(base_url, timeout, verify)
-
+    
+    newest_version = max([float(i) for i in versions])
+    
     if api_version is None:  # Use latest
-        api_version = max(versions)
+        api_version = newest_version
     else:
-        try:
-            specified_version = float(api_version)
-            if specified_version in versions:
-                api_version = specified_version
-            else:
-                api_version = max(versions)
-        except ValueError:
-            api_version = max(versions)
-
+        if api_version not in versions:
+            api_version = newest_version
+    
     return api_version
 
 
