@@ -18,7 +18,7 @@
 #
 import os
 import sys
-from mock import Mock as MagicMock
+from mock.mock import Mock as MagicMock
 
 class Mock(MagicMock):
     @classmethod
