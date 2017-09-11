@@ -13,6 +13,12 @@ Available extensions:
 smc-python-monitoring
 ---------------------
 
+smc-python-monitoring API provides a monitoring interface to the SMC to perform queries for
+dynamic engine components such as blacklists, connections, routes, vpn's, users and logs.
+
+Capabilities in the API implement the functionality found in the SMC Log Viewer and engine
+level monitoring.
+
 Query
 +++++
 
