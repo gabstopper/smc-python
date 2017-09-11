@@ -18,16 +18,16 @@
 #
 import os
 import sys
-from mock.mock import Mock as MagicMock
 
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return MagicMock()
+class Mock(object):
+    def __init__(self, *args):
+        pass
 
-MOCK_MODULES = ['websocket']
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+    def __getattr__(self, name):
+        return Mock
 
+for mod_name in ('websocket',):
+    sys.modules[mod_name] = Mock()
 
 #sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../../'))
