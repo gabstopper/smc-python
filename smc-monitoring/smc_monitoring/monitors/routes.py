@@ -55,8 +55,8 @@ class RoutingQuery(Query):
         LogField.ROUTETYPE,
         LogField.ROUTEMETRIC]
     
-    def __init__(self, target):
-        super(RoutingQuery, self).__init__('ROUTING', target)
+    def __init__(self, target, **kw):
+        super(RoutingQuery, self).__init__('ROUTING', target, **kw)
 
     def fetch_as_element(self, **kw):
         """

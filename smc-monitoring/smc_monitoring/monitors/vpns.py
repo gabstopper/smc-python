@@ -53,8 +53,8 @@ class VPNSAQuery(Query):
         LogField.NUMBYTESRECEIVED,
         LogField.EXPIRATIONTIME]
         
-    def __init__(self, target):
-        super(VPNSAQuery, self).__init__('VPN_SA', target)
+    def __init__(self, target, **kw):
+        super(VPNSAQuery, self).__init__('VPN_SA', target, **kw)
     
     def fetch_as_element(self, **kw):
         """

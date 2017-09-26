@@ -51,6 +51,16 @@ extend :class:`._Header` to support custom field_ids within the query.
 from smc_monitoring.models.constants import LogField
 
 
+class InvalidFieldFormat(Exception):
+    """
+    If using a complex format type such as combined, formatters
+    are not supported. These specialized formats must be returned
+    in raw dict format as they've been customized to return the data
+    in a specific way.
+    """
+    pass
+
+
 class _Header(object):
     def __init__(self, query):
         self.query = query
@@ -59,13 +69,17 @@ class _Header(object):
         field_ids = query.format.data.get('field_ids')
         # Format specified by the query for id to name mapping
         field_format = query.format.data.get('field_format')
+         # If a combined filter is specified, field_format will be None
+        if not field_format:
+            raise InvalidFieldFormat('Field format specified is not a supported '
+                'type for formatters and must be returned as a raw dict.')
         
         if not field_ids:
             field_ids = query.field_ids
          
         # Ask for the field parameters so we can create the
         # headers based on the field_format (pretty, name, id)
-        fields = query.resolve_field_ids(field_ids)
+        fields = query.resolve_field_ids(field_ids, **query.sockopt)
         
         if not fields:
             raise ValueError(
@@ -79,7 +93,6 @@ class _Header(object):
                     self.headers.append(mapping.get(field_format))
                     break
         
-        print("Headers: %s" % self.headers)
         self.header_set = False
     
 
@@ -174,7 +187,7 @@ class TableFormat(_Header):
         return formatted_data
     
 
-class RawDictFormat(_Header):
+class RawDictFormat(object):
     """
     Return the data as a list in raw dict format. The results are not
     filtered with exception of the returned fields based on field_id
@@ -183,7 +196,7 @@ class RawDictFormat(_Header):
     method to get the same data.
     """
     def __init__(self, query):
-        super(RawDictFormat, self).__init__(query)
+        pass
     
     def formatted(self, alist):
         return alist

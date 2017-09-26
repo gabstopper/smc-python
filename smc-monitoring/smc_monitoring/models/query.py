@@ -16,11 +16,15 @@ class Query(object):
     """
     Query is the top level structure for controlling requests over the
     SMC websocket protocol.
+    Any keyword arguments are passed through from inheriting classes are
+    passed through as socket options for 
+    :class:`smc_monitoring.wsocket.SMCSocketProtocol`.
     
-    :ivar format: Format type from :class:`smc_monitoring.models.formats.TextFormat`
+    :ivar dict request: built request, eventually sent to socket
+    :ivar TextFormat format: format settings for query
     """
     def __init__(self, definition=None, target=None,
-                 format=None):  # @ReservedAssignment
+                 format=None, **sockopt):  # @ReservedAssignment
         """
         Create a query.
         
@@ -45,6 +49,8 @@ class Query(object):
         
         if definition is not None:
             self.update_query(definition=definition)
+            
+        self.sockopt = sockopt if sockopt else {} # Optional socket options
     
     def copy(self):
         return copy.deepcopy(self)
@@ -181,7 +187,7 @@ class Query(object):
         return filt
     
     @staticmethod
-    def resolve_field_ids(ids):
+    def resolve_field_ids(ids, **kw):
         """
         Retrieve the log field details based on the LogField constant IDs. 
         This provides a helper to view the fields representation when using
@@ -203,7 +209,7 @@ class Query(object):
                 'field_ids': ids},
             'query': {}
         }
-        query = Query()
+        query = Query(**kw)
         query.location = '/monitoring/log/socket'
         query.request = request
         for fields in query.execute():
@@ -211,7 +217,7 @@ class Query(object):
                 return fields['fields']
         return []
 
-    def execute(self, sock_timeout=3, **kw):
+    def execute(self):
         """
         Execute the query with optional timeout. The response to the execute
         query is the raw payload received from the websocket and will contain
@@ -225,11 +231,11 @@ class Query(object):
         :return: raw dict returned from query
         :rtype: dict(list)
         """
-        with SMCSocketProtocol(self, sock_timeout, **kw) as protocol:
+        with SMCSocketProtocol(self, **self.sockopt) as protocol:
             for result in protocol.receive():
                 yield result
     
-    def fetch_raw(self, sock_timeout=3, max_recv=1, **kw):
+    def fetch_raw(self, max_recv=1, **kw):
         """
         Fetch the records for this query. This is a single fetch that will
         return results max_recv number of iterations. A recv is defined as a
@@ -249,7 +255,7 @@ class Query(object):
         :rtype: list(dict)
         """
         iteration = 0
-        with SMCSocketProtocol(self, sock_timeout, **kw) as protocol:
+        with SMCSocketProtocol(self, **self.sockopt) as protocol:
             for result in protocol.receive():
                 if 'records' in result and result['records'].get('added'):
                     yield result['records']['added']
@@ -262,7 +268,7 @@ class Query(object):
         """
         Fetch and return in the specified format. Output format is a formatter
         class in :py:mod:`smc_monitoring.models.formatters`. This fetch type will
-        be a single shot fetch unless providing max_recv keywork with a value
+        be a single shot fetch unless providing max_recv keyword with a value
         greater than the default of 1. Keyword arguments available are kw in
         :meth:`.fetch_raw`. 
         
@@ -277,7 +283,7 @@ class Query(object):
         for result in self.fetch_raw(**kw):
             yield fmt.formatted(result)
     
-    def fetch_live(self, formatter=TableFormat, **kw):
+    def fetch_live(self, formatter=TableFormat):
         """
         Fetch a live stream query. This is the equivalent of selecting
         the "Play" option for monitoring fields within the SMC UI. Data will
@@ -288,7 +294,7 @@ class Query(object):
         :return: generator yielding results in specified format
         """
         fmt = formatter(self)
-        for results in self.execute(**kw):
+        for results in self.execute():
             if 'records' in results and results['records'].get('added'):
                 yield fmt.formatted(results['records']['added'])
     

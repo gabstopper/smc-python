@@ -61,8 +61,8 @@ class ConnectionQuery(Query):
         LogField.DPORT,
         LogField.STATE]
     
-    def __init__(self, target):
-        super(ConnectionQuery, self).__init__('CONNECTIONS', target)
+    def __init__(self, target, **kw):
+        super(ConnectionQuery, self).__init__('CONNECTIONS', target, **kw)
                 
     def fetch_as_element(self, **kw):
         """

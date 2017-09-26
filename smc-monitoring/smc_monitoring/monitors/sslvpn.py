@@ -43,8 +43,8 @@ class SSLVPNQuery(Query):
         LogField.SRC,
         LogField.USERNAME]
     
-    def __init__(self, target):
-        super(SSLVPNQuery, self).__init__('SSLVPNV2', target)
+    def __init__(self, target, **kw):
+        super(SSLVPNQuery, self).__init__('SSLVPNV2', target, **kw)
 
     def fetch_as_element(self, **kw):
         """

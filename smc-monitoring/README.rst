@@ -1,6 +1,11 @@
 Monitoring API for Security Management Center
 =============================================
 
+smc-python-monitoring is made of up two core capabilities:
+
+- Monitor, Query or view live events from the SMC
+- Pub/Sub (Subscribe) to SMC element events by supported API type
+
 The smc-python-monitoring API makes it possible to obtain real time monitoring information from the SMC with respects to:
 
 * Logs
@@ -13,7 +18,12 @@ The smc-python-monitoring API makes it possible to obtain real time monitoring i
 
 This correlates to the area of the SMC under "Monitoring".
 
-Every query can be refined by using filters that allow boolean operations to control the results.
+Every query can be refined by using filters that allow a variety of boolean operations to control the results.
+
+The smc-python-monitoring API also provides the ability to subscribe to element event changes in the SMC.
+Any element type that is exposed as an SMC API `entry point` can be used as a subscriber target. Event type
+examples that would fire events would be created, updated, or deleted (for example - although not an exhaustive
+list). 
 
 Compatibility
 =============
@@ -37,6 +47,22 @@ Install
 Usage
 =====
 
+In order to leverage monitoring or subscriber features, you must first obtain a valid smc session as 
+normal:
+
+.. code:: python
+
+	from smc import session
+	session.login()
+	...
+
+Once a valid session is obtained, the session information is re-used for the web socket connection,
+including SSL related data such as validating SSL through the client side SSL certificate before
+establishing the connection.
+
+Monitoring and Queries
+++++++++++++++++++++++
+
 Making queries is uniform across all query types.
 There are small exceptions to this rule with respects to LogQuery which provides more options on how to control
 the batched query size, custom time ranges for the query, etc. See documentation on LogQuery for more details.
@@ -55,7 +81,8 @@ called on the query instance. All queries done via smc-python-monitoring follow 
 the SMC UI. 
 
 For example, 'Monitoring' queries (i.e. Connections, Blacklist, Users, etc) do not allow time/date
-ranges on the query. However filters by fields work the same across these and Log style queries.
+ranges on the query, however filtering by fields work. The same field filtering works in the same way with Log
+style queries.
 
 Example of making a basic log query in real time. Note the default return format is Table for a cleaner output,
 assuming this is being run from a command window:
@@ -92,7 +119,7 @@ fields have values:
 	    print(log)
 
 
-For example, looking for the last 10 records for source IP 192.168.4.84 and returning only fields
+Query for the last 10 records if the source IP is 192.168.4.84 and return only fields
 timestamp, source, destination and service:
 
 .. code:: python

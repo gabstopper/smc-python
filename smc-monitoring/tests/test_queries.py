@@ -22,7 +22,7 @@ class Test(unittest.TestCase):
         # Default format is TextFormat
         self.assertIsInstance(query.format, TextFormat)
         
-        orig = {'fetch': {'backwards': False, 'quantity': 50},
+        orig = {'fetch': {'backwards': True, 'quantity': 50},
                  'format': {'field_format': 'pretty',
                             'resolving': {'senders': True},
                             'type': 'texts'},
@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
         
         # Add detailed format to a query
         query = LogQuery(format=dt)
-        d = {'fetch': {'backwards': False},
+        d = {'fetch': {'backwards': True},
              'format': {'field_format': 'pretty',
                         'resolving': {'ip_elements': True,
                                       'ip_locations': True,
@@ -85,7 +85,7 @@ class Test(unittest.TestCase):
         rf.field_ids([LogField.SRC, LogField.DST])
         
         query.update_format(rf)
-        request = {'fetch': {'backwards': False},
+        request = {'fetch': {'backwards': True},
                    'format': {
                        'field_format': 'name',
                        'field_ids': [7, 8],
@@ -108,7 +108,7 @@ class Test(unittest.TestCase):
         query = LogQuery(fetch_size=1)
         query.update_format(combined)
         
-        d = {'fetch': {'backwards': False, 'quantity': 1},
+        d = {'fetch': {'backwards': True, 'quantity': 1},
              'format': {'formats': {'dformat': {'field_format': 'pretty',
                                                 'field_ids': [7, 8],
                                                 'resolving': {'senders': True},

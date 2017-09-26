@@ -96,7 +96,7 @@ class LogQuery(Query):
     :param int fetch_size: max number of logs to fetch
     :param bool backwards: by default records are returned from newest to oldest
         (backwards=True). To return in opposite direction, set backwards=False.
-        Default: False
+        Default: True
     :param format: A format object specifying format of return data
     :type format: format type from :py:mod:`smc_monitoring.models.formats`
         (default: TextFormat)
@@ -117,8 +117,8 @@ class LogQuery(Query):
         LogField.INFOMSG]
 
     def __init__(self, fetch_type='stored', fetch_size=None,
-                 backwards=False, format=None, time_range=None):  # @ReservedAssignment
-        super(LogQuery, self).__init__(format=format)
+                 backwards=True, format=None, time_range=None, **kw):  # @ReservedAssignment
+        super(LogQuery, self).__init__(format=format, **kw)
         
         fetch = {'quantity': fetch_size} if fetch_size is not None else {}
         fetch.update(backwards=backwards)
@@ -150,7 +150,7 @@ class LogQuery(Query):
         if 'quantity' in self.request['fetch']:
             return self.request['fetch']['quantity']
         
-    def fetch_raw(self, **kw):
+    def fetch_raw(self):
         """
         Execute the query and return by batches.
         Optional keyword arguments are passed to Query.execute(). Whether
@@ -159,11 +159,11 @@ class LogQuery(Query):
         
         :return: generator of dict results
         """
-        for results in super(LogQuery, self).execute(**kw):
+        for results in super(LogQuery, self).execute():
             if 'records' in results and results['records']:
                 yield results['records']
     
-    def fetch_batch(self, formatter=TableFormat, **kw):
+    def fetch_batch(self, formatter=TableFormat):
         """
         Fetch a batch of logs and return using the specified formatter. 
         Formatter is class type defined in :py:mod:`smc_monitoring.models.formatters`.
@@ -181,10 +181,10 @@ class LogQuery(Query):
             clone.request['fetch'].update(quantity=200)
         
         fmt = formatter(clone)
-        for result in clone.fetch_raw(**kw):
+        for result in clone.fetch_raw():
             yield fmt.formatted(result)
                 
-    def fetch_live(self, formatter=TableFormat, **kw):
+    def fetch_live(self, formatter=TableFormat):
         """
         View logs in real-time. If previous filters were already set on
         this query, they will be preserved on the original instance (this
@@ -197,6 +197,6 @@ class LogQuery(Query):
         clone = self.copy()
         clone.update_query(type='current')
         fmt = formatter(clone)
-        for result in clone.fetch_raw(**kw):
+        for result in clone.fetch_raw():
             yield fmt.formatted(result)
         

@@ -31,37 +31,61 @@ if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
     
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30,
-                  domain='foo')
+    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30,
+    #              domain='foo')
+    session.login(url='https://172.18.1.151:8082',
+                  api_key='NdHp2CgzPga7lHwltcPrabew', timeout=30,
+                  verify='/Users/davidlepage/Downloads/cacert.pem', beta=True)
+    #from smc.core.engine import Engine
+    #engine = Engine('foo')
+    
+    #if session.session.verify and session.session.verify 
 
-    from smc.core.engine import Engine
-    
-    engine = Engine('foo')
-    
-    pprint(engine.data)
-    #for node in engine.nodes:
-    #    print(vars(node.status()))
-        
-    #query = ConnectionQuery('sg_vm')
-    
-    #for record in query.fetch_as_element():
-    #    print(record)
-        
-    from datetime import datetime
-    
+    #import sys
+    #sys.exit(1)
+    #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
+    #import websocket
+    websocket.enableTrace(True)
+  
+    #https://stackoverflow.com/questions/38501531/forcing-requests-library-to-use-tlsv1-1-or-tlsv1-2-in-python
     from smc_monitoring.models.query import Query
-    #query = LogQuery(fetch_size=50)
+    query = ConnectionQuery('lynn', check_hostname=False)
+    #query = BlacklistQuery('lynn')
+    #query.request = {"query":{"definition":"BLACKLIST","target":"lynn_AllowAny-serviceinstance-296"}, "fetch":{}, "format":{"type":"texts", "field_format": "id"}}
+    #query = UserQuery('lynn', check_hostname=False)
+    #query = VPNSAQuery('sg_vm')
+    query = SSLVPNQuery('lynn', check_hostname=False)
+    #query = RoutingQuery('lynn')
+    
+    #print(Query.resolve_field_ids(BlacklistQuery.field_ids))
+    #query.request = {"query":{"definition":"BLACKLIST","target":"lynn"}, "fetch":{}, "format":{"type":"texts"}}
+    
+    #myfilter = InFilter(FieldValue(LogField.SRC), [IPValue('192.168.4.82'), IPValue('172.18.1.152')])
+   
+    #query = LogQuery(check_hostname=False)
+    #query.update_filter(myfilter)
+    #query.time_range.last_five_minutes()
     #query.format.timezone('CST')
+    #for record in query.fetch_batch():
+    #for record in query.fetch_as_element(check_hostname=False):
+    #for record in query.fetch_batch(RawDictFormat):
+    #for record in query.fetch_batch(RawDictFormat):
+    #for record in query.fetch_batch(CSVFormat):
+    #for record in query.fetch_live():
+    #    print(record),
+    #print(session.url)
+    
+    from smc_monitoring.pubsub.subscribers import Notification, Event
+                    
+    notification = Notification('host')
+    
+    for published in notification.notify(as_type=Event):
+        print(published, published.action, published.element)
     
     
     # TODO:
     # If queries do not return anything, the query never times out
     # If the engine is not initialized, the query sits in select blocking. Should check for a connected engine first?
-    
-    #from smc.core.engine import Engine
-    #engine = Engine('foo')
-    #for node in engine.nodes:
-    #    pprint(vars(node.status()))
     
     #query = ConnectionQuery('sg_vm')
         

@@ -1,3 +1,5 @@
+import os
+import ssl
 import json
 import select
 import logging
@@ -11,7 +13,7 @@ import websocket
 logger = logging.getLogger(__name__)
 
 
-if logger.getEffectiveLevel() == logging.DEBUG: 
+def websocket_debug():
     websocket.enableTrace(True)
 
 
@@ -24,7 +26,20 @@ class InvalidFetch(Exception):
 class SessionNotFound(Exception):
     pass
 
-  
+
+def _get_ca_bundle():
+    """  
+    If verify=True, then requests is using the built in
+    certifi CA database. Attempt to get that path for
+    the websocket.
+    """
+    try:
+        import certifi
+        return certifi.where()
+    except ImportError:
+        pass
+    
+
 class SMCSocketProtocol(websocket.WebSocket):
     """
     SMCSocketProtocol manages the web socket connection between this
@@ -42,8 +57,54 @@ class SMCSocketProtocol(websocket.WebSocket):
         :param int max_iterations: for queries that are not 'live', set
             this to supply a max wait time. Calculation is max_iterations *
             sock_timeout.
+        :param kw: supported keyword args:
+            cert_reqs: ssl.CERT_NONE|ssl.CERT_REQUIRED|ssl.CERT_OPTIONAL
+            check_hostname: True|False
+            enable_multithread: True|False (Default: True)
+        
+        .. note:: The keyword args are not required unless you want to override
+            default settings. If SSL is used for the SMC session, the settings
+            for verifying the server with the root CA is based on whether the
+            'verify' setting has been provided with a path to the root CA file.
         """
-        super(SMCSocketProtocol, self).__init__(**kw)
+        if not session.session or not session.session.cookies:
+            raise SessionNotFound('No SMC session found. You must first '
+                'obtain an SMC session through session.login before making '
+                'a web socket connection.')
+        
+        sslopt = {}
+        if session.is_ssl:
+            # SSL verification is based on the session settings since the
+            # session must be made before calling this class. If verify=True, 
+            # try to get the CA bundle from certifi if the package exists
+            # Set check_hostname to False because python ssl doesn't appear
+            # to validate the subjectAltName properly, however requests does
+            # and would have already validated this when the session was set
+            # up. This can still be overridden by setting check_hostname=True.
+            sslopt.update(
+                cert_reqs=ssl.CERT_NONE,
+                check_hostname=False)
+    
+            certfile = session.session.verify
+            if certfile:
+                if isinstance(certfile, bool): # verify=True
+                    certfile = _get_ca_bundle()
+                    if certfile is None:
+                        certfile = ''
+                
+                sslopt.update(
+                    cert_reqs=kw.pop('cert_reqs', ssl.CERT_REQUIRED),
+                    check_hostname=kw.pop('check_hostname', False))
+                
+                if sslopt.get('cert_reqs') != ssl.CERT_NONE:
+                    os.environ['WEBSOCKET_CLIENT_CA_BUNDLE'] = certfile
+        
+        # Enable multithread locking
+        if 'enable_multithread' not in kw:
+            kw.update(enable_multithread=True)
+           
+        super(SMCSocketProtocol, self).__init__(sslopt=sslopt, **kw)
+        
         self.query = query
         self.fetch_id = None
         # Inner thread used to keep socket select alive
@@ -52,11 +113,6 @@ class SMCSocketProtocol(websocket.WebSocket):
         self.sock_timeout = sock_timeout
             
     def __enter__(self):
-        if not session.session or not session.session.cookies:
-            raise SessionNotFound('No SMC session found. You must first '
-                'obtain an SMC session through session.login before making '
-                'a web socket connection.')
-        
         self.connect(
             url=session.web_socket_url + self.query.location,
             cookie=session.session_id)
@@ -75,7 +131,7 @@ class SMCSocketProtocol(websocket.WebSocket):
         
     def on_open(self):
         """
-        Once the connection is made, kick the query off and
+        Once the connection is made, start the query off and
         start an event loop to wait for a signal to
         stop. Results are yielded within receive().
         """
@@ -83,7 +139,7 @@ class SMCSocketProtocol(websocket.WebSocket):
             logger.debug(pformat(self.query.request))
             self.send(json.dumps(self.query.request))
             while not self.event.is_set():
-                print('Waiting around on this stinkin socket')
+                #print('Waiting around on the socket')
                 self.event.wait(self.gettimeout())
             
             logger.debug('Event loop terminating.')
@@ -92,6 +148,16 @@ class SMCSocketProtocol(websocket.WebSocket):
             target=event_loop)
         self.thread.setDaemon(True)
         self.thread.start()
+    
+    def send_message(self, message):
+        """
+        Send a message down the socket. The message is expected
+        to have a `request` attribute that holds the message to
+        be serialized and sent.
+        """
+        if self.connected:
+            self.send(
+                json.dumps(message.request))
     
     def abort(self):
         """
@@ -112,6 +178,7 @@ class SMCSocketProtocol(websocket.WebSocket):
                 
                 if r:
                     message = json.loads(self.recv())
+                    
                     if 'fetch' in message:
                         self.fetch_id = message['fetch']
                     
@@ -130,7 +197,7 @@ class SMCSocketProtocol(websocket.WebSocket):
                         logger.debug('Received end message: %s' % message['end'])
                         yield message
                         break
-                    
+        
                     yield message
     
         except (Exception, KeyboardInterrupt, SystemExit, FetchAborted) as e:

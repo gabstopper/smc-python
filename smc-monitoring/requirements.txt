@@ -1,2 +1,3 @@
--e git+https://github.com/gabstopper/smc-python#egg=smc-python
+#-e git+https://github.com/gabstopper/smc-python#egg=smc-python
+file:../#egg=smc-python
 websocket-client

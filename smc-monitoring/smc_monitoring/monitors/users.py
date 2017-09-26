@@ -46,8 +46,8 @@ class UserQuery(Query):
         LogField.EXPIRATIONTIME,
         LogField.USERNAME]
     
-    def __init__(self, target):
-        super(UserQuery, self).__init__('USERS', target)
+    def __init__(self, target, **kw):
+        super(UserQuery, self).__init__('USERS', target, **kw)
 
     def fetch_as_element(self, **kw):
         """

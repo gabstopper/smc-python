@@ -7,10 +7,10 @@ omit =
 exclude_lines =
 
     # Don't complain about missing debug-only code:
+    except ImportError
     def __repr__
     def __str__
     __str__
     pass
     raise NotImplementedError
     super
-    websocket.enableTrace

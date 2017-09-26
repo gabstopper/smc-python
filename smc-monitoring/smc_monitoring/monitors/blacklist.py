@@ -70,7 +70,7 @@ class BlacklistQuery(Query):
         LogField.PROTOCOL,
         LogField.BLACKLISTENTRYDURATION]
 
-    def __init__(self, target, timezone=None):
+    def __init__(self, target, timezone=None, **kw):
         bldata = TextFormat(field_format='name')
         if timezone is not None:
             bldata.set_resolving(timezone=timezone)
@@ -80,7 +80,7 @@ class BlacklistQuery(Query):
         
         combined = CombinedFormat(bldata=bldata, blid=blid)
         
-        super(BlacklistQuery, self).__init__('BLACKLIST', target, format=combined)
+        super(BlacklistQuery, self).__init__('BLACKLIST', target, format=combined, **kw)
     
     def fetch_as_element(self, **kw):
         """
