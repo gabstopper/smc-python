@@ -49,10 +49,12 @@ class SMCAPIConnection(object):
                     if request.filename:  # File download request
                         return self.file_download(request)
 
-                    response = self.session.get(request.href,
-                                                params=request.params,
-                                                headers=request.headers,
-                                                timeout=self.timeout)
+                    response = self.session.get(
+                        request.href,
+                        params=request.params,
+                        headers=request.headers,
+                        timeout=self.timeout)
+                    
                     response.encoding = 'utf-8'
 
                     logger.debug(vars(response))
@@ -64,11 +66,13 @@ class SMCAPIConnection(object):
                 elif method == SMCAPIConnection.POST:
                     if request.files:  # File upload request
                         return self.file_upload(request)
-
-                    response = self.session.post(request.href,
-                                                 json=request.json,
-                                                 headers=request.headers,
-                                                 params=request.params)
+                    
+                    response = self.session.post(
+                        request.href,
+                        json=request.json if request.json else None,
+                        headers=request.headers,
+                        params=request.params)
+                    
                     response.encoding = 'utf-8'
 
                     logger.debug(vars(response))
@@ -84,11 +88,13 @@ class SMCAPIConnection(object):
                     
                     # Etag should be set in request object
                     request.headers.update(Etag=request.etag)
-
-                    response = self.session.put(request.href,
-                                                json=request.json,
-                                                params=request.params,
-                                                headers=request.headers)
+                    logger.debug('PUT: %s' % vars(request))
+                    
+                    response = self.session.put(
+                        request.href,
+                        json=request.json,
+                        params=request.params,
+                        headers=request.headers)
 
                     logger.debug(vars(response))
                     counters.update(update=1)
@@ -188,7 +194,7 @@ class SMCAPIConnection(object):
 
         raise SMCOperationFailure(response)
 
-
+    
 class SMCResult(object):
     """
     SMCResult will store the return data for operations performed against the

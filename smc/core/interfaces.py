@@ -1481,7 +1481,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
                 if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
                     routes.delete()
                     break
-                
+               
     def enable_aggregate_mode(self, mode, interfaces):
         """    
         Enable Aggregate (LAGG) mode on this interface. Possible LAGG
@@ -1512,7 +1512,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         """
         return self.data.get('aggregate_mode')
 
-    def add_arp_entry(self, ipaddress, macaddress, netmask=32):
+    def add_arp_entry(self, ipaddress, macaddress, arp_type='static', netmask=32):
         """
         Add an arp entry to this physical interface.
         ::
@@ -1520,18 +1520,21 @@ class PhysicalInterface(InterfaceCommon, Interface):
             interface = engine.physical_interface.get(0)
             interface.add_arp_entry(
                 ipaddress='23.23.23.23',
+                arp_type='static',
                 macaddress='02:02:02:02:04:04')
             interface.save()
 
         :param str ipaddress: ip address for entry
         :param str macaddress: macaddress for ip address
+        :param str arp_type: type of entry, 'static' or 'proxy' (default: static)
         :param str,int netmask: netmask for entry (default: 32)
         :return: None
         """
         self.data['arp_entry'].append({
             'ipaddress': ipaddress,
             'macaddress': macaddress,
-            'netmask': netmask})
+            'netmask': netmask,
+            'type': arp_type})
 
     @property
     def arp_entry(self):

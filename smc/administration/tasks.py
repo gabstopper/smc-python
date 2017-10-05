@@ -13,7 +13,7 @@ An example of using a task poller when uploading an engine policy
     while not poller.done():
         poller.wait(5)
         print("Task Progress {}%".format(poller.task.progress))
-    print(poller.message())
+    print(poller.last_message())
 
 """
 import re

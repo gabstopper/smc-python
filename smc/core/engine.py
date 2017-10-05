@@ -7,7 +7,8 @@ from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
     SMCConnectionError, CertificateError, CreateElementFailed
 from smc.core.node import Node
-from smc.core.resource import Snapshot, PendingChanges, L2FWSettings
+from smc.core.resource import Snapshot, PendingChanges, L2FWSettings,\
+    _create_l2fw_mapping
 from smc.core.interfaces import PhysicalInterface, \
     VirtualPhysicalInterface, TunnelInterface, Interface
 from smc.administration.tasks import TaskOperationPoller
@@ -173,6 +174,17 @@ class Engine(AddOn, Element):
         """
         return self.data.get('engine_version')
 
+    @property
+    def installed_policy(self):
+        """
+        Return the name of the policy installed on this engine. If
+        no policy, None will be returned.
+        
+        :rtype: str or None
+        """
+        for node in self.nodes:
+            return node.status().installed_policy
+    
     def rename(self, name):
         """
         Rename the firewall engine, nodes, and internal gateway (VPN gw)
@@ -182,7 +194,7 @@ class Engine(AddOn, Element):
         for node in self.nodes:
             node.rename(name)
         try:
-            del self.data
+            del self.data # Flush cache
         except AttributeError:
             pass
         self.update(name=name)
@@ -259,7 +271,7 @@ class Engine(AddOn, Element):
         :raises LoadPolicyFailed: cannot find the specified policy.
         :return: None
         """
-        self.data['l2fw_settings'] = L2FWSettings.create(
+        self.data['l2fw_settings'] = _create_l2fw_mapping(
             interface_policy, bypass_on_overload, connection_tracking_mode)
         self.update()
     
@@ -317,7 +329,33 @@ class Engine(AddOn, Element):
         self.del_cmd(
             EngineCommandFailed,
             resource='flush_blacklist')
-
+    
+    def blacklist_show(self):
+        """
+        .. versionadded:: 0.5.6
+            Requires pip install smc-python-monitoring
+        
+        Blacklist show requires that you install the smc-python-monitoring
+        package. To obtain blacklist entries from the engine you need to
+        use this extension to plumb the websocket to the session. If you
+        need more granular controls over the blacklist such as filtering by
+        source and destination address, use the smc-python-monitoring 
+        package directly.
+        Blacklist entries that are returned from this generator have a
+        delete() method that can be called to simplify removing entries.
+        
+        :return: generator of results
+        :rtype: :class:`smc_monitoring.monitors.blacklist.BlacklistEntry`
+        """
+        try:
+            from smc_monitoring.monitors.blacklist import BlacklistQuery
+        except ImportError:
+            pass
+        else:
+            query = BlacklistQuery(self.name)
+            for record in query.fetch_as_element():
+                yield record
+    
     def add_route(self, gateway, network):
         """
         Add a route to engine. Specify gateway and network.
@@ -846,6 +884,15 @@ class InternalEndpoint(SubElement):
 
     def enable_by_interface_id(self, interface_id, ipaddress=None):
         pass
+    
+    @property
+    def interface_id(self):
+        """
+        Interface ID for this VPN endpoint
+        
+        :return: str interface id
+        """
+        return self.physical_interface.interface_id
         
     @property
     def physical_interface(self):
@@ -854,8 +901,8 @@ class InternalEndpoint(SubElement):
         
         :rtype: PhysicalInterface
         """
-        return PhysicalInterface(href=self.data.get('physical_interface'))
-
+        return Element.from_href(self.data.get('physical_interface'))
+    
     
 class VirtualResource(SubElement):
     """

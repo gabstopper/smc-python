@@ -200,6 +200,19 @@ class CategoryTag(Element):
                 for category in self.data.get('category_parent_ref')]
 
 
+class FilterExpression(Element):
+    """
+    A filter expression defines either a system element filter or a 
+    user defined filter based on an expression. For example, a system
+    level filter is 'Match All'. For classes that allow filters as
+    input, a filter expression can be used.
+    """
+    typeof = 'filter_expression'
+    
+    def __init__(self, name, **meta):
+        super(FilterExpression, self).__init__(name, **meta)
+
+
 class Location(Element):
     """
     Locations are used by elements to identify when they are behind a NAT

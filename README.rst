@@ -74,7 +74,7 @@ Basics
 ------
 
 Before any commands are run, you must obtain a login session. Once
-commands are complete, call smc.logout() to remove the active session.
+commands are complete, call `session.logout()` to remove the active session.
 To obtain the api\_key, log in to the Stonesoft Management Center and
 create an API client with the proper privileges.
 
@@ -99,6 +99,27 @@ API:
 Once a valid session is obtained, it will be re-used for each operation
 for the duration of the sessions validity, or until the program is
 exited.
+
+Extensions
+**********
+
+Extensions are available to smc-python that provide additional functionality besides what
+is provided in the base library. Extensions are kept separate as they may require additional
+package requirements and simplify packaging.
+
+Extensions will require smc-python to function, but it is possible to install an extension
+directly and it will grab the required smc-python version automatically.
+
+Available extensions:
+
+* **smc-python-monitoring**: Monitoring for SMC connections, blacklists, users, VPNs, alerts, etc. In addition this package provides the ability to 'subscribe' to administrative event modifications.
+
+
+Example install of an smc-python extension:
+
+``pip install smc-python-monitoring``
+
+Extensions are found in the base smc-python repository as namespace packages and each is housed in it's own sub-directory of this base package.
 
 Please see the read-the-docs documentation above for a full explanation
 and technical reference on available API classes.

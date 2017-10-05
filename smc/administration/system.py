@@ -177,7 +177,7 @@ class System(SubElement):
             resource='license_install',
             files={
                 'license_file': open(license_file, 'rb')
-                })
+            })
 
     def license_details(self):
         """

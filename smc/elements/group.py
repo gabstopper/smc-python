@@ -253,4 +253,48 @@ class IPServiceGroup(GroupMixin, Element):
                 'comment': comment}
 
         return ElementCreator(cls, json)
-        
+
+
+class ICMPServiceGroup(GroupMixin, Element):
+    """
+    IP Service Group
+    Used for storing IP Services or IP Service Groups
+
+    Available attributes:
+
+    :ivar list element: list of elements by href. Call `~obtain_members` to
+        retrieved the resolved list of elements.
+    """
+    typeof = 'icmp_service_group'
+
+    def __init__(self, name, **meta):
+        super(ICMPServiceGroup, self).__init__(name, **meta)
+        pass
+
+    @classmethod
+    def create(cls, name, members=None, comment=None):
+        """
+        Create the IP Service group element
+
+        :param str name: name of service group
+        :param list element: IP services or IP service groups by href
+        :type members: list(str,Element)
+        :raises CreateElementFailed: element creation failed with reason
+        :return: instance with meta
+        :rtype: ICMPServiceGroup
+        """
+        elements = [] if members is None else element_resolver(members)
+        json = {'name': name,
+                'element': elements,
+                'comment': comment}
+
+        return ElementCreator(cls, json)
+
+
+class URLCategoryGroup(Element):
+    typeof = 'url_category_group'
+
+    def __init__(self, name, **meta):
+        super(URLCategoryGroup, self).__init__(name, **meta)
+        pass
+

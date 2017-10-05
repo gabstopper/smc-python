@@ -91,6 +91,7 @@ class InterfacePolicy(InterfaceRule, Policy):
             raise LoadPolicyFailed(
                 'Cannot find specified layer2 firewall template: {}'
                 .format(template))
+        
         json = {
             'name': name,
             'template': fw_template}

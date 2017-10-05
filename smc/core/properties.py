@@ -43,8 +43,36 @@ from smc.api.exceptions import UnsupportedEngineFeature
 from smc.elements.profiles import DNSRelayProfile, SandboxService
 from smc.routing.bgp import BGPProfile
 from smc.base.util import element_resolver
+from smc.compat import min_smc_version
 
 
+def antivirus_options(**kw):
+    """
+    Antivirus options for more granular controls. Default setting is to update
+    daily at midnight.
+    
+    :param str antivirus_update: how often to check for updates. Valid options
+        are: 'never','1hour', 'startup', 'daily', 'weekly'.
+    :param int antivirus_update_time: only used if 'daily' or 'weekly' is specified.
+        Time is given as a long value value in a 24-hour format. For example, 
+    :param str antivirus_update_day: only used if 'weekly' is specified. Which day
+        or week to perform update. Valid options: 'mo','tu','we','th','fr','sa','su'.
+    """
+    antivirus = {
+        'antivirus_enabled': True,
+        'antivirus_update': 'daily',
+        'antivirus_update_day': 'su',
+        'antivirus_update_time': 21600000,
+        'virus_log_level': 'stored',
+        'virus_mirror': 'update.nai.com/Products/CommonUpdater'}
+    
+    for key, value in kw.items():
+        antivirus[key] = value
+    
+    return antivirus
+    
+    
+            
 class AddOn:
     """
     Engine features that enable specific functionality and can be
@@ -208,20 +236,25 @@ class AddOn:
             'is a virtual engine, AV is enabled on the master engine.')
 
     @autocommit(now=False)
-    def enable_antivirus(self, log_level='stored', **kw):
+    def enable_antivirus(self, **kw):
         """
         Enable Antivirus on this engine. Enabling anti-virus requires
-        DNS server settings to resolve the AV update servers.
+        DNS server settings to resolve the AV update servers. Keyword arguments
+        can be provided to further customize settings for updates.
 
         :param str log_level: none,transient,stored,essential,alert
+        :param kw: see :func:`~antivirus_options` for documented optional keyword
+            settings.
         :raises UnsupportedEngineFeature: unsupported engine type
         :raises UpdateElementFailed: failure message from SMC
         :return: None
         """
         if not self.is_antivirus_enabled:
             av = self.data['antivirus']
-            av.update(antivirus_enabled=True,
-                      virus_log_level=log_level)
+            options = antivirus_options(**kw)
+            print(options)
+            av.update(**options)
+    
     
     @autocommit(now=False)
     def disable_antivirus(self, **kw):
@@ -457,18 +490,19 @@ class AddOn:
             'directly on the virtual engine.')
 
     @autocommit(now=False)
-    def enable_sandbox(self, license_key, license_token,
+    def enable_sandbox(self, license_key, license_token, sandbox_type='cloud_sandbox',
                        service=None, **kw):
         """
-        Enable cloud sandbox on this engine. Cloud sandbox provides the ability to
+        Enable sandbox on this engine. Sandbox provides the ability to
         extract file type content and interrogate for behavioral purposes to
         discover malicious embedded content. Provide a valid license key and
         license token obtained from your engine licensing.
-
+        
         .. note:: Cloud sandbox is a feature that requires an engine license
 
         :param str license_key: license key for specific engine
         :param str license_token: license token for specific engine
+        :param str sandbox_type: 'local_sandbox' or 'cloud_sandbox'
         :param str,SandboxService service: a sandbox service element from SMC. The service
             defines which location the engine is in and which data centers to use.
             The default is to use the 'Automatic' profile if undefined.
@@ -479,12 +513,22 @@ class AddOn:
                 service = SandboxService('Automatic').href
             else:
                 service = element_resolver(service)
-
-            sandbox = dict(cloud_sandbox_license_key=license_key,
-                           cloud_sandbox_license_token=license_token,
-                           sandbox_service=service)
-            self.data.update(cloud_sandbox_settings=sandbox)
-            self.data.update(sandbox_type='cloud_sandbox')
+            
+            if min_smc_version(6.3):
+                sandbox = dict(sandbox_license_key=license_key,
+                               sandbox_license_token=license_token,
+                               sandbox_service=service)
+                self.data.update(sandbox_settings=sandbox,
+                                 sandbox_type=sandbox_type)
+            else:
+                sandbox = dict(cloud_sandbox_license_key=license_key,
+                               cloud_sandbox_license_token=license_token,
+                               sandbox_service=service)
+                self.data.update(cloud_sandbox_settings=sandbox,
+                                 sandbox_type=sandbox_type)
+                
+            #self.data.update(cloud_sandbox_settings=sandbox)
+            #self.data.update(sandbox_type='cloud_sandbox')
 
     @autocommit(now=False)
     def disable_sandbox(self, **kw):
@@ -496,7 +540,8 @@ class AddOn:
         """
         if self.is_sandbox_enabled:
             self.data['sandbox_type'] = 'none'
-            self.data.pop('cloud_sandbox_settings')
+            self.data.pop('cloud_sandbox_settings', None)
+            self.data.pop('sandbox_settings', None)
 
     @property
     def is_url_filtering_enabled(self):

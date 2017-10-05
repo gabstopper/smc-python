@@ -219,6 +219,14 @@ ICMPIPv6Service
    :members:
    :show-inheritance:
 
+URLCategory
+***********
+
+.. autoclass:: URLCategory
+   :members:
+   :show-inheritance:
+
+
 Groups
 ++++++
 
@@ -260,6 +268,20 @@ IPServiceGroup
    :members:
    :show-inheritance:
 
+ICMPServiceGroup
+****************
+
+.. autoclass:: ICMPServiceGroup
+	:members:
+	:show-inheritance:
+
+URLCategoryGroup
+****************
+
+.. autoclass:: URLCategoryGroup
+   :members:
+   :show-inheritance:
+  
 Servers
 +++++++
 
@@ -298,6 +320,13 @@ CategoryTag
 .. autoclass:: CategoryTag
 	:members:
 	:show-inheritance:
+
+FilterExpression
+****************
+
+.. autoclass:: FilterExpression
+   :members:
+   :show-inheritance:
 
 LogicalInterface
 ****************

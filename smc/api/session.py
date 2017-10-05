@@ -5,6 +5,8 @@ import json
 import logging
 import collections
 import requests
+
+
 import smc.api.web
 from smc.api.exceptions import SMCConnectionError, UnsupportedEntryPoint,\
     ConfigLoadError
@@ -47,6 +49,26 @@ class _EntryPoint(object):
 
 EntryPoint = collections.namedtuple('EntryPoint', 'href rel')
 
+'''
+#from requests.adapters import HTTPAdapter
+#from requests.packages.urllib3.poolmanager import PoolManager
+class SSLAdapter(HTTPAdapter):
+    """
+    An HTTPS Transport Adapter that uses an arbitrary SSL version.
+    Version should be a valid protocol from python ssl library.
+    """
+    def __init__(self, ssl_version=None, **kwargs):
+        self.ssl_version = ssl_version
+
+        super(SSLAdapter, self).__init__(**kwargs)
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            ssl_version=self.ssl_version)
+'''     
 
 class Session(object):
 
@@ -101,9 +123,14 @@ class Session(object):
     
     @property
     def web_socket_url(self):
-        return 'ws://{}/{}'.format(
-            self.url.split('://')[-1], self.api_version)
+        socket_proto = 'wss' if self.is_ssl else 'ws'    
+        return '{}://{}/{}'.format(
+            socket_proto, self.url.split('://')[-1], self.api_version)
     
+    @property
+    def is_ssl(self):
+        return self.url.startswith('https') if self.session else False
+        
     @property
     def api_key(self):
         """ SMC Client API key """
@@ -138,6 +165,8 @@ class Session(object):
         :param api_version (optional): specify api version
         :param int timeout: (optional): specify a timeout for initial connect; (default 10)
         :param str|boolean verify: verify SSL connections using cert (default: verify=True)
+            You can pass verify the path to a CA_BUNDLE file or directory with certificates
+            of trusted CAs
         :param str alt_filepath: If using .smcrc, alternate file+path
         :param str domain: domain to log in to. If domains are not configured, this
             field will be ignored and api client logged in to 'Shared Domain'.
@@ -149,7 +178,7 @@ class Session(object):
         If you want to use the SSL certificate generated and used by the SMC API server
         for validation, set verify='path_to_my_dot_pem'. It is also recommended that your
         certificate has subjectAltName defined per RFC 2818
-
+        
         If SSL warnings are thrown in debug output, see:
         https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
 
@@ -189,20 +218,25 @@ class Session(object):
         self._entry_points = get_entry_points(base, timeout, verify)
 
         s = requests.session()  # no session yet
-
+        
+        #if urlparse(self._url).scheme.lower() == 'https':
+        #    # Mount an SSL adapter to the session
+        #    ssl_version = kwargs.get('ssl_protocol', ssl.PROTOCOL_SSLv23)
+        #    s.mount('https://', SSLAdapter(ssl_version))
+        
         json={'authenticationkey': self.api_key,
               'domain': domain}
 
         if kwargs:
             json.update(**kwargs)
             self._extra_args.update(**kwargs)
-
+        
         r = s.post(
             self.entry_points.get('login'),
             json=json,
             headers={'content-type': 'application/json'},
             verify=verify)
-
+        
         logger.info('Using SMC API version: %s', self._api_version)
 
         if r.status_code == 200:
@@ -269,6 +303,23 @@ class Session(object):
             return
         raise SMCConnectionError('Session expired and attempted refresh failed.')
 
+    def _get_log_schema(self):
+        """
+        Get the log schema for this SMC version.
+        
+        :return: dict
+        """
+        if self.session and self.session_id:
+            schema = '{}/{}/monitoring/log/schemas'.format(self.url, self.api_version)
+            
+            response = self.session.get(
+                url=schema,
+                headers={'cookie': self.session_id,
+                         'content-type': 'application/json'})
+
+            if response.status_code in (200, 201):
+                return response.json()
+
 
 def get_entry_points(base_url, timeout=10, verify=True):
     """
@@ -317,7 +368,7 @@ def available_api_versions(base_url, timeout=10, verify=True):
             'Status code received %s. Reason: %s' % (r.status_code, r.reason))
 
     except requests.exceptions.RequestException as e:
-            raise SMCConnectionError(e)
+        raise SMCConnectionError(e)
 
 
 def get_api_version(base_url, api_version=None, timeout=10, verify=True):

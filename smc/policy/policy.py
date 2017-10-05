@@ -24,6 +24,7 @@ from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
     ResourceNotFound
 from smc.administration.tasks import TaskOperationPoller
 from smc.base.model import Element, lookup_class
+from collections import namedtuple
 
 
 class Policy(Element):
@@ -62,7 +63,8 @@ class Policy(Element):
             TaskRunFailed,
             resource='upload',
             params={'filter': engine})
-
+            #json={"resource":[engine.href]})
+    
         return TaskOperationPoller(
             task=task,
             timeout=timeout,
@@ -163,6 +165,30 @@ class Policy(Element):
         """
         return Element.from_href(self.data.get('inspection_policy'))
 
+    def rule_counters(self, engine, duration_type='one_week',
+            duration=0, start_time=0):
+        """
+        .. versionadded:: 0.5.6
+            Obtain rule counters for this policy. Requires SMC >= 6.2
+        
+        Rule counters can be obtained for a given policy and duration for
+        those counters can be provided in duration_type. A custom start
+        range can also be provided.
+        
+        :param Engine engine: the target engine to obtain rule counters from
+        :param str duration_type: duration for obtaining rule counters. Valid
+            options are: one_day, one_week, one_month, six_months, one_year,
+            custom, since_last_upload
+        :param int duration: custom duration in seconds (Default: 0)
+        :param int start_time: start time in milliseconds (Default: 0)
+        :raises: ActionCommandFailed
+        :return: list of rule counter objects
+        :rtype: RuleCounter
+        """
+        json = {'target_ref': engine.href, 'duration_type': duration_type}
+        return [RuleCounter(**rule)
+                for rule in self.send_cmd(resource='rule_counter', json=json)]
+
 
 class InspectionPolicy(Policy):
     """
@@ -181,3 +207,23 @@ class InspectionPolicy(Policy):
     def export(self): pass  # Not valid for inspection policy
 
     def upload(self): pass  # Not valid for inspection policy
+    
+
+class RuleCounter(namedtuple(
+        'RuleCounter', 'hits rule_ref total_hits')):
+    """
+    Rule counter representing hits for a specific rule.
+    
+    :param int hits: hits for this given rule
+    :param rule_ref: rule reference to obtain the rule
+    :param total_hits: total number of hits over the duration
+    """
+    __slots__ = ()
+    
+    def __new__(cls, rule_ref, hits=0, total_hits=0):  # @ReservedAssignment
+        return super(RuleCounter, cls).__new__(cls, hits, rule_ref, total_hits)
+    
+    @property
+    def rule(self):
+        return Element.from_href(self.rule_ref)
+

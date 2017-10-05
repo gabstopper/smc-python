@@ -125,7 +125,6 @@ An attribute value can also be a callable and will be evaluated during update::
 	{'_cache': <smc.base.model.Cache object at 0x103113f10>,
 	 '_meta': Meta(name=u'kali', href=u'http://172.18.1.150:8082/6.2/elements/host/978', type=u'host'),
 	 '_name': 'kali',
-	 '_resource': ElementResource(id=4383329240),
 	 'address': <__main__.Address instance at 0x105444b48>}
 	>>> host.update()
 	'http://172.18.1.150:8082/6.2/elements/host/978'
