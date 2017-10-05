@@ -95,7 +95,7 @@ class Notification(object):
         
     def notify(self, as_type=None):
         for result in self.run_forever():
-            print("Result: %s" % result)
+            #print("Result: %s" % result)
             if 'success' in result:
                 self.subscription_map.update(
                     context=result.get('context'),

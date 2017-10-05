@@ -22,6 +22,7 @@ from smc_monitoring.wsocket import SMCSocketProtocol, SessionNotFound, websocket
 import smc_monitoring
 from smc_monitoring.models.calendar import datetime_from_ms
 from smc.core.engines import Layer3Firewall
+from smc.core.engine import Engine
 
 if __name__ == '__main__':
     import logging
@@ -31,11 +32,13 @@ if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
     
-    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30,
-    #              domain='foo')
-    session.login(url='https://172.18.1.151:8082',
-                  api_key='NdHp2CgzPga7lHwltcPrabew', timeout=30,
-                  verify='/Users/davidlepage/Downloads/cacert.pem', beta=True)
+    #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
+    #              beta=True)
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30,
+                  )
+    #session.login(url='https://172.18.1.151:8082',
+    #              api_key='NdHp2CgzPga7lHwltcPrabew', timeout=30,
+    #              verify='/Users/davidlepage/Downloads/cacert.pem', beta=True)
     #from smc.core.engine import Engine
     #engine = Engine('foo')
     
@@ -49,12 +52,12 @@ if __name__ == '__main__':
   
     #https://stackoverflow.com/questions/38501531/forcing-requests-library-to-use-tlsv1-1-or-tlsv1-2-in-python
     from smc_monitoring.models.query import Query
-    query = ConnectionQuery('lynn', check_hostname=False)
-    #query = BlacklistQuery('lynn')
-    #query.request = {"query":{"definition":"BLACKLIST","target":"lynn_AllowAny-serviceinstance-296"}, "fetch":{}, "format":{"type":"texts", "field_format": "id"}}
+    #query = ConnectionQuery('lynn', check_hostname=False)
+    #query = BlacklistQuery('sg_vm')
+    #query.request = {"query":{"definition":"BLACKLIST","target":"sg_vm"}, "fetch":{}, "format":{"type":"texts", "field_format": "name"}}
     #query = UserQuery('lynn', check_hostname=False)
     #query = VPNSAQuery('sg_vm')
-    query = SSLVPNQuery('lynn', check_hostname=False)
+    #query = SSLVPNQuery('lynn', check_hostname=False)
     #query = RoutingQuery('lynn')
     
     #print(Query.resolve_field_ids(BlacklistQuery.field_ids))
@@ -62,18 +65,21 @@ if __name__ == '__main__':
     
     #myfilter = InFilter(FieldValue(LogField.SRC), [IPValue('192.168.4.82'), IPValue('172.18.1.152')])
    
-    #query = LogQuery(check_hostname=False)
+    #query = LogQuery(fetch_size=50)
+    #for fields in Query.resolve_field_ids(LogQuery.field_ids):
+    #    print(fields)
     #query.update_filter(myfilter)
     #query.time_range.last_five_minutes()
     #query.format.timezone('CST')
     #for record in query.fetch_batch():
     #for record in query.fetch_as_element(check_hostname=False):
-    #for record in query.fetch_batch(RawDictFormat):
+    #for record in query.fetch_batch():
     #for record in query.fetch_batch(RawDictFormat):
     #for record in query.fetch_batch(CSVFormat):
     #for record in query.fetch_live():
     #    print(record),
     #print(session.url)
+    
     
     from smc_monitoring.pubsub.subscribers import Notification, Event
                     
@@ -99,12 +105,29 @@ if __name__ == '__main__':
     #for record in query.fetch_batch():
     #    print(record)
     
-    #query = ActiveAlertQuery('sg_vm') #<---- Doesnt work??
+    query = ActiveAlertQuery('sg_vm') #<---- Doesnt work??
+    query.request = {"query": {
+                        "definition":"ACTIVE_ALERTS",
+                        "target":"Shared Domain",
+                        "filter": {
+                            "type": "in",
+                            "left": {
+                                "type": "field",
+                                "id": LogField.NODEID},
+                            "right":[
+                                {"type": "element",
+                                 "href": Engine('sg_vm').href}]
+                            }
+                        }, 
+                     "fetch":{},
+                     "format":{"type":"texts"}}
+    
     #query.request = {'fetch': {},
     #                 'format': {'field_format': 'name',
     #                            'type': 'detailed'},
     #                 'query': {'definition': 'ACTIVE_ALERTS', 'target': 'sg_vm'}}
-    
+    #for record in query.fetch_batch(RawDictFormat):
+    #    print(record)
     
    
     session.logout()

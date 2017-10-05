@@ -1,3 +1,5 @@
+|PyPI version|
+
 Monitoring API for Security Management Center
 =============================================
 
@@ -35,7 +37,7 @@ This package has been tested with Python 2.7, 3.4 and 3.5.
 Requirements
 ============
 
-smc-python >= v0.5.6
+smc-python >= v0.5.5
 
 websocket-client
 
@@ -178,4 +180,47 @@ Obtain all SSL VPN connections for a given engine, output in table format:
 	query = SSLVPNQuery('sg_vm')
 	for record in query.fetch_batch(TableFormat):
 	    print(record)
-	   
+	    
+Subscribing to Events
++++++++++++++++++++++
+
+Using smc-python-monitoring you can also subscribe to events published by the SMC API
+when changes are made. As long as the entry point exists for the element type, you can
+set up a "channel" to receive real-time updates when the element type is modified.
+
+To listen for events you must first obtain an SMC session as usual.
+
+Then obtain an instance of `Notification`, specifying the events of interest.
+
+Subscribe to a single element event (SMC api entry point):
+
+.. code:: python
+
+	notification = Notification('network’)
+
+Subscribe to multiple element events on a single channel (subscription_id):
+
+.. code:: python
+
+	notification = Notification(‘network,host,iprange’)
+
+Subscribe to multiple element events, each with it’s own channel (subscription_id):
+
+.. code:: python
+
+	notification = Notification('network')
+	notification.subscribe('host')
+	notification.subscribe('layer2_policy')
+
+Return the events as instance of “Event” (optional). Otherwise raw json returned.
+
+.. code:: python
+
+	for event in notification.notify(as_type=Event):
+   		print(event)
+
+	Event(subscription_id=151,action=delete,element=https://xxxx/elements/host/1087)
+	Event(subscription_id=152,action=delete,element=https://xxxx/elements/layer2_policy/27)
+	
+.. |PyPI version| image:: https://badge.fury.io/py/smc-python-monitoring.svg
+   :target: https://badge.fury.io/py/smc-python-monitoring
