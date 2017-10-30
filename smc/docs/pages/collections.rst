@@ -99,8 +99,8 @@ should match a valid attribute for the element type, and value to match::
 	>>> list(Router.objects.filter(address='10.10.10.1'))
 	[Router(name=Router-10.10.10.1)]
 	
-.. note:: When using filter keyword attributes, exact_match is implicit. In addition, the attribute should
-	be of type ``str``.
+.. note:: Two additional keyword arguments can be passed to filter, `exact_match=True` and/or
+	`case_sensitive=False`. 
 
 * :py:meth:`~smc.base.collection.ElementCollection.limit`. Limit the number of results to return.
   ::
@@ -138,6 +138,9 @@ Basic rules on searching
 * Setting ``exact_match=True`` on the filter query will only match on an element's name or comment field and is a case
   sensitive match. The SMC is case sensitive, so unless you need an element by exact case, this field is not required.
   By default, ``exact_match=False``.
+  
+* In v0.5.6, ``case_sensitive=False`` can be set on the filter query to change the behavior of case sensitive matches.
+  If not set, case_sensitive=True.
 
 * Using a keyword argument with 'filter' will provide element introspection against the attributes to perform an exact match.
   In general, using a kwarg is most effective when searching for network elements. Since the default search is a 'contains' match,

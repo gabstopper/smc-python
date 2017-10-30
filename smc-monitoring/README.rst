@@ -1,7 +1,7 @@
-|PyPI version|
+|Documentation Status| |PyPI version|
 
-Monitoring API for Security Management Center
-=============================================
+Monitoring API for Stonesoft Security Management Center
+=======================================================
 
 smc-python-monitoring is made of up two core capabilities:
 
@@ -37,7 +37,7 @@ This package has been tested with Python 2.7, 3.4 and 3.5.
 Requirements
 ============
 
-smc-python >= v0.5.5
+smc-python >= v0.5.6
 
 websocket-client
 
@@ -180,6 +180,7 @@ Obtain all SSL VPN connections for a given engine, output in table format:
 	query = SSLVPNQuery('sg_vm')
 	for record in query.fetch_batch(TableFormat):
 	    print(record)
+
 	    
 Subscribing to Events
 +++++++++++++++++++++
@@ -221,6 +222,8 @@ Return the events as instance of “Event” (optional). Otherwise raw json retu
 
 	Event(subscription_id=151,action=delete,element=https://xxxx/elements/host/1087)
 	Event(subscription_id=152,action=delete,element=https://xxxx/elements/layer2_policy/27)
-	
+
+.. |Documentation Status| image:: https://readthedocs.org/projects/smc-python/badge/?version=latest
+   :target: http://smc-python.readthedocs.io/en/latest/?badge=latest
 .. |PyPI version| image:: https://badge.fury.io/py/smc-python-monitoring.svg
    :target: https://badge.fury.io/py/smc-python-monitoring

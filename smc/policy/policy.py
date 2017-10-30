@@ -165,6 +165,18 @@ class Policy(Element):
         """
         return Element.from_href(self.data.get('inspection_policy'))
 
+    @property
+    def file_filtering_policy(self):
+        """
+        Each policy is required to have a reference to a File Filtering
+        Policy. To use you will need a rule in the policy that has an
+        action with file filtering turned on.
+        
+        :return :class:`smc.policy.file_filtering.FileFilteringPolicy`
+        """
+        if 'file_filtering_policy' in self.data: # Workaround for SMC 6.3
+            return Element.from_href(self.data['file_filtering_policy'])
+    
     def rule_counters(self, engine, duration_type='one_week',
             duration=0, start_time=0):
         """

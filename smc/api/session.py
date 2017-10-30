@@ -85,6 +85,8 @@ class Session(object):
         self._timeout = 10
         self._domain = 'Shared Domain'
         self._extra_args = {}
+        # Added to support domain switching
+        self._sessions = {}
 
     @property
     def entry_points(self):
@@ -201,32 +203,22 @@ class Session(object):
             verify = cfg.get('verify')
             timeout = cfg.get('timeout')
             domain = cfg.get('domain')
-
-        self._url = url
-        self._api_key = api_key
-
+    
         if timeout:
             self._timeout = timeout
-
-        if domain:
-            self._domain = domain
 
         self._api_version = get_api_version(url, api_version, timeout, verify)
         
         base = get_api_base(url, self.api_version, verify=verify)
-        
         self._entry_points = get_entry_points(base, timeout, verify)
 
         s = requests.session()  # no session yet
-        
-        #if urlparse(self._url).scheme.lower() == 'https':
-        #    # Mount an SSL adapter to the session
-        #    ssl_version = kwargs.get('ssl_protocol', ssl.PROTOCOL_SSLv23)
-        #    s.mount('https://', SSLAdapter(ssl_version))
-        
-        json={'authenticationkey': self.api_key,
-              'domain': domain}
 
+        json = {
+            'authenticationkey': api_key,
+            'domain': domain
+        }
+        
         if kwargs:
             json.update(**kwargs)
             self._extra_args.update(**kwargs)
@@ -237,15 +229,24 @@ class Session(object):
             headers={'content-type': 'application/json'},
             verify=verify)
         
-        logger.info('Using SMC API version: %s', self._api_version)
-
+        logger.info('Using SMC API version: %s', self.api_version)
+        
         if r.status_code == 200:
             self._session = s  # session creation was successful
             self._session.verify = verify  # make verify setting persistent
+            self._url = url
+            self._api_key = api_key
+        
+            if domain:
+                self._domain = domain
+        
+            self._sessions[self.domain] = self.session
+            if self.connection is None:
+                self._connection = smc.api.web.SMCAPIConnection(self)
+            
             logger.debug(
-                'Login succeeded and session retrieved: %s', self.session_id)
-
-            self._connection = smc.api.web.SMCAPIConnection(self)
+                'Login succeeded and session retrieved: %s, domain: %s',
+                    self.session_id, self.domain)
         else:
             raise SMCConnectionError(
                 'Login failed, HTTP status code: %s and reason: %s' % (
@@ -262,23 +263,22 @@ class Session(object):
 
     def logout(self):
         """ Logout session from SMC """
-        if self.session:
-            try:
-                r = self.session.put(self.entry_points.get('logout'))
-                if r.status_code == 204:
-                    logger.info('Logged out successfully')
-                    logger.debug('Call counters: %s' % smc.api.web.counters)
-                else:
-                    logger.error('Logout status was unexpected. Received response '
-                                 'was status code: %s', (r.status_code))
-            except requests.exceptions.SSLError as e:
-                # When SSL is enabled and verification is disabled, logout may throw an
-                # SSL VERIFY FAILED error from requests module. Not sure why, will have
-                # to investigate
-                logger.error('SSL exception thrown during logout: %s', e)
-            finally:
-                self._entry_points = []
-                self.session.cookies.clear()
+        if self._sessions:
+            for domain, session in self._sessions.items():
+                try:
+                    r = session.put(self.entry_points.get('logout'))
+                    if r.status_code == 204:
+                        logger.info('Logged out of domain: %s successfully', domain)
+                        logger.debug('Call counters: %s' % smc.api.web.counters)
+                    else:
+                        logger.error('Logout status was unexpected. Received response '
+                                     'was status code: %s', (r.status_code))
+
+                except requests.exceptions.SSLError as e:
+                    logger.error('SSL exception thrown during logout: %s', e)
+
+            self._entry_points = []
+            self._session = None
 
     def refresh(self):
         """
@@ -292,17 +292,50 @@ class Session(object):
             logger.info(
                 'Session timed out, will try obtaining a new session using '
                 'previously saved credential information.')
-            self.login(
-                url=self.url,
-                api_key=self.api_key,
-                api_version=self.api_version,
-                timeout=self.timeout,
-                verify=False,
-                domain=self.domain,
-                **self._extra_args)
+            self.login(**self._get_login_params())
             return
-        raise SMCConnectionError('Session expired and attempted refresh failed.')
-
+        raise SMCConnectionError('Session expired and attempted refresh failed.')        
+    
+    def switch_domain(self, domain):
+        """
+        Switch from one domain to another. You can call session.login() with a domain
+        key value to log directly into the domain of choice or alternatively switch
+        from domain to domain. The user must have permissions to the domain or
+        unauthorized will be returned. 
+        ::
+        
+            session.login() # Log in to 'Shared Domain'
+            ...
+            session.switch_domain('MyDomain')
+        
+        :raises SMCConnectionError: Error logging in to specified domain.
+            This typically means the domain either doesn't exist or the
+            user does not have privileges to that domain.
+        """
+        if self.domain != domain:
+            # Do we already have a session
+            if domain not in self._sessions:
+                logger.info('Creating session for domain: %s', domain)
+                credentials = self._get_login_params()
+                credentials.update(domain=domain)
+                self.login(**credentials)
+            else:
+                logger.info('Switching to existing domain session: %s', domain)
+                self._session = self._sessions.get(domain)
+                self._domain = domain
+    
+    def _get_login_params(self):
+        credentials = {
+            'url': self.url,
+            'api_key': self.api_key,
+            'api_version': self.api_version,
+            'timeout': self.timeout,
+            'verify': self._session.verify,
+            'domain': self.domain,
+        }
+        credentials.update(**self._extra_args)
+        return credentials
+    
     def _get_log_schema(self):
         """
         Get the log schema for this SMC version.

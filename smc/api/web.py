@@ -31,11 +31,18 @@ class SMCAPIConnection(object):
 
     def __init__(self, session):
         self._session = session
-        self.timeout = self._session.timeout
 
+    @property
+    def timeout(self):
+        return self._session.timeout
+    
     @property
     def session(self):
         return self._session.session
+
+    @property
+    def session_domain(self):
+        return self._session.domain
 
     def send_request(self, method, request):
         """
@@ -135,7 +142,7 @@ class SMCAPIConnection(object):
                     "API service is running and host is correct: %s, "
                     "exiting." % e)
             else:
-                return SMCResult(response)
+                return SMCResult(response, domain=self.session_domain)
         else:
             raise SMCConnectionError(
                 "No session found. Please login to continue")
@@ -166,7 +173,7 @@ class SMCAPIConnection(object):
             except IOError as e:
                 raise IOError('Error attempting to save to file: {}'.format(e))
 
-            result = SMCResult(response)
+            result = SMCResult(response, domain=self.session_domain)
             result.content = path
             return result
         else:
@@ -190,7 +197,7 @@ class SMCAPIConnection(object):
             logger.debug(
                 'Success sending file in elapsed time: {}'
                 .format(response.elapsed))
-            return SMCResult(response)
+            return SMCResult(response, domain=self.session_domain)
 
         raise SMCOperationFailure(response)
 
@@ -212,12 +219,13 @@ class SMCResult(object):
     :ivar dict json: element full json
     """
 
-    def __init__(self, respobj=None, msg=None):
+    def __init__(self, respobj=None, msg=None, domain=None):
         self.etag = None
         self.href = None
         self.content = None
         self.msg = msg  # Only set in case of error
         self.code = None
+        self.domain = domain
         self.json = self._unpack_response(respobj)  # list or dict
 
     def _unpack_response(self, response):

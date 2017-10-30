@@ -306,7 +306,7 @@ class ElementBase(UnicodeMixin, SMCCommand):
         instance_attr = {k: v() if callable(v) else v
                          for k, v in vars(self).items()
                          if not k.startswith('_')}
-
+        
         if instance_attr:
             json.update(**instance_attr)
 
@@ -393,7 +393,7 @@ class Element(ElementBase):
 
         :return: :py:class:`smc.base.model.Element` type
         """
-        return ElementFactory(href)
+        return ElementFactory(href) if href else None
 
     @classmethod
     def from_meta(cls, **meta):
@@ -425,12 +425,12 @@ class Element(ElementBase):
     def get_or_create(cls, filter_key=None, **kwargs):
         """
         Convenience method to retrieve an Element or create if it does not
-        exist. This is useful for network elements where you may know the
-        value and type but not name of if it already exists. If filter_key
-        is provided, this should define an attribute and value to use for an
-        exact match on the element. Valid attributes are ones required on the
-        elements ``create`` method or can be viewed by the elements class
-        docs. If no filter_key is provided, the name field will be used to
+        exist. Any keyword arguments passed except the optional filter_key
+        will be used in a create() call. If filter_key is provided, this
+        should define an attribute and value to use for an exact match on
+        the element. Valid attributes are ones required on the elements
+        ``create`` method or can be viewed by the elements class docs.
+        If no filter_key is provided, the name field will be used to
         find the element.
         ::
 
@@ -459,8 +459,7 @@ class Element(ElementBase):
             element = cls.create(**kwargs)
         else:
             try:
-                element = cls(
-                    kwargs.get('name')); element.href
+                element = cls.get(kwargs.get('name'))
             except ElementNotFound:
                 element = cls.create(**kwargs)
 
@@ -547,7 +546,7 @@ class Element(ElementBase):
         Category Tags are used to characterize an element by a type
         identifier. They can then be searched and returned as a group
         of elements. If the category tag specified does not exist, it
-        will be created.
+        will be created. This change will take effect immediately.
 
         :param list tags: list of category tag names to add to this
             element
@@ -597,12 +596,13 @@ class Element(ElementBase):
             print("File downloaded to: %s" % extask.filename)
 
         :param str filename: filename to store exported element
-        :raises ActionCommandFailed: invalid permissions, invalid directory..
+        :raises TaskRunFailed: invalid permissions, invalid directory..
         :return: DownloadTask
         """
-        from smc.administration.tasks import DownloadTask
+        from smc.administration.tasks import DownloadTask,TaskRunFailed
         try:
             task = self.send_cmd(
+                TaskRunFailed,
                 resource='export',
                 filename=filename)
 

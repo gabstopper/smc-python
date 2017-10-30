@@ -16,7 +16,7 @@ For example, to load an engine and run node level commands::
 import base64
 from collections import namedtuple
 from smc.base.util import save_to_file
-from smc.base.model import SubElement
+from smc.base.model import SubElement, SimpleElement
 from smc.api.exceptions import LicenseError, NodeCommandFailed, \
     ResourceNotFound
 
@@ -35,7 +35,7 @@ class Node(SubElement):
     """
     def __init__(self, **meta):
         super(Node, self).__init__(**meta)
-
+    
     @property
     def type(self):
         """
@@ -53,6 +53,19 @@ class Node(SubElement):
         ID of this node
         """
         return self.data.get('nodeid')
+
+    @classmethod
+    def _load(cls, list_of_nodes):
+        nodes = []
+        for node in list_of_nodes:
+            for typeof, data in node.items():
+                cache = SimpleElement(**data)
+                node = Node(name=cache.get('name'),
+                            href=cache.get_link('self'),
+                            type=typeof)
+                node.data = cache
+                nodes.append(node)
+        return nodes
 
     @classmethod
     def _create(cls, name, node_type, nodeid=1,
@@ -200,6 +213,22 @@ class Node(SubElement):
     
         return ApplianceStatus(result)
 
+    def appliance_info(self):
+        """
+        .. versionadded:: 0.5.7
+            Requires SMC version >= 6.3
+        
+        Retrieve appliance info for this engine.
+        
+        :return: :py:class:`~ApplianceInfo`
+        :raises NodeCommandFailed: Appliance info not supported on
+            this node
+        """
+        if 'appliance_info' in self.data:
+            return ApplianceInfo(self.data['appliance_info'])
+        raise NodeCommandFailed(
+            'Appliance information is not available on this engine')
+        
     def status(self):
         """
         Basic status for individual node. Specific information such as node
@@ -311,9 +340,9 @@ class Node(SubElement):
             ...   node.diagnostic()
             ... 
             [Diagnostic('name=SNMP Monitoring,enabled=False'),
-            Diagnostic('name=State synchronisation,enabled=False')
+            Diagnostic('name=State synchronisation,enabled=False')]
             ...
-            ...]
+            ...
 
         Add filter_enabled=True argument to see only enabled settings
 
@@ -381,10 +410,13 @@ class Node(SubElement):
 
     def power_off(self):
         """
-        Power off engine.
-        
         .. versionadded:: 0.5.6
             Requires engine version >=6.3
+        
+        Power off engine.
+         
+        :raises NodeCommandFailed: online not available
+        :return: None
         """
         try:
             self.upd_cmd(
@@ -396,10 +428,13 @@ class Node(SubElement):
     
     def reset_to_factory(self):
         """
-        Reset the engine to factory defaults.
-        
         .. versionadded:: 0.5.6
             Requires engine version >=6.3
+        
+        Reset the engine to factory defaults.
+        
+        :raises NodeCommandFailed: online not available
+        :return: None
         """
         try:
             self.upd_cmd(
@@ -499,6 +534,30 @@ class Node(SubElement):
         """
         return self.read_cmd(resource='certificate_info')
 
+
+class ApplianceInfo(object):
+    """
+    Appliance specific information about the given engine node.
+    Appliance info is specific to the engine itself and will provide additional
+    details about the hardware model, applied license features, if the engine
+    has made initial contact and when initial policy upload was made.
+    """
+    def __init__(self, info=None):
+        self.cloud_id = None
+        self.cloud_type = None
+        self.first_upload_time = None #: When policy was first uploaded
+        self.hardware_version = None #: Hardware version of appliance
+        self.initial_contact_time = None #: When first contact with SMC was made, in milliseconds
+        self.intial_license_remaining_days = None #: License expiry in days
+        self.product_name = None #: Appliance model
+        self.proof_of_serial = None #: Proof of serial uniquely identifying this engine
+        self.software_features = None #: Features of applied license
+        self.software_version = None #: Software version
+        
+        if info:
+            for name, value in info.items():
+                setattr(self, name, value)
+                
 
 class NodeStatus(object):
     """

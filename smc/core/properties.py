@@ -1,25 +1,23 @@
 """
 AddOnMixin provide helper functions to enable, disable or configure
 features of an Engine after it has already been created. When a setting
-is modified, the engine instance is updated, however not submitted to the
-SMC until calling .update(). Alternatively, you can provide the kwarg 
-'autocommit=True' to force the update immediately.
-
-Once these settings have been modified, it is still required to update
-the policy on the engine or install a policy for the first time.
+is modified, only the engine cache instance is updated. 
 
 For functions with the ``**kw`` parameter, you can optionally provide 
 ``autocommit=True`` which will save the change to the SMC at the end of
 the function call. Otherwise the change is 'queued' in the elements cache
-until self.update() is called.
+until `update()` is called.
+
+Once these settings have been modified, it is still required to refresh
+the policy on the engine.
 
 To refresh policy::
 
     engine = Engine('vm')
     engine.add_dns_servers(['3.3.3.3', '4.4.4.4'])
     engine.enable_gti_file_reputation()
-    engine.enable_antivirus(log_level='stored', autocommit=True)
-    #engine.update()    <-- without 'autocommit=True', call .update() to save
+    engine.enable_antivirus(log_level='stored', autocommit=True) # <-- Save all queued changes now
+    #engine.update()  <-- alternative to setting autocommit; just call update after making changes
     for status in engine.refresh().wait():
         print(status)
 
@@ -37,13 +35,13 @@ Installing new policy::
 
 """
 from smc.base.model import Element
-from smc.base.decorators import autocommit
+from smc.base.decorators import autocommit, deprecated
 from smc.routing.ospf import OSPFProfile
 from smc.api.exceptions import UnsupportedEngineFeature
 from smc.elements.profiles import DNSRelayProfile, SandboxService
-from smc.routing.bgp import BGPProfile
 from smc.base.util import element_resolver
 from smc.compat import min_smc_version
+from smc.core.route import PolicyRoute
 
 
 def antivirus_options(**kw):
@@ -54,9 +52,11 @@ def antivirus_options(**kw):
     :param str antivirus_update: how often to check for updates. Valid options
         are: 'never','1hour', 'startup', 'daily', 'weekly'.
     :param int antivirus_update_time: only used if 'daily' or 'weekly' is specified.
-        Time is given as a long value value in a 24-hour format. For example, 
+        Time is given as a long value value in a 24-hour format. (Default: 21600000,
+        which is midnight) 
     :param str antivirus_update_day: only used if 'weekly' is specified. Which day
         or week to perform update. Valid options: 'mo','tu','we','th','fr','sa','su'.
+    :param str log_level: none,transient,stored,essential,alert
     """
     antivirus = {
         'antivirus_enabled': True,
@@ -142,7 +142,7 @@ class AddOn:
         """
         Status of Sidewinder Proxy on this engine
 
-        :raises UnsupportedEngineFeature: feature requires >= v6.1
+        :raises UnsupportedEngineFeature: requires engine >= v6.1
         :rtype: bool
         """
         if 'sidewinder_proxy_enabled' in self.data:
@@ -242,7 +242,6 @@ class AddOn:
         DNS server settings to resolve the AV update servers. Keyword arguments
         can be provided to further customize settings for updates.
 
-        :param str log_level: none,transient,stored,essential,alert
         :param kw: see :func:`~antivirus_options` for documented optional keyword
             settings.
         :raises UnsupportedEngineFeature: unsupported engine type
@@ -252,7 +251,6 @@ class AddOn:
         if not self.is_antivirus_enabled:
             av = self.data['antivirus']
             options = antivirus_options(**kw)
-            print(options)
             av.update(**options)
     
     
@@ -268,24 +266,20 @@ class AddOn:
         if self.is_antivirus_enabled:
             av = self.data['antivirus']
             av.update(antivirus_enabled=False)
-
+    
     @property
+    @deprecated('engine.bgp')
     def is_bgp_enabled(self):
         """
         Is BGP enabled on this engine. BGP is only supported on layer 3
         engines (virtual included).
 
-        :raises UnsupportedEngineFeature: unsupported engine type
         :rtype: bool
         """
-        if 'dynamic_routing' in self.data:
-            routing = self.data['dynamic_routing']
-            ospf = routing.get('bgp')
-            return ospf.get('enabled', False)
-        raise UnsupportedEngineFeature(
-            'Dynamic routing is only supported on layer 3 engine types')
+        return self.bgp.is_enabled
 
     @autocommit(now=False)
+    @deprecated('engine.bgp')
     def enable_bgp(self, autonomous_system, announced_networks,
                    router_id=None, bgp_profile=None, **kw):
         """
@@ -310,26 +304,11 @@ class AddOn:
         :raises UnsupportedEngineFeature: unsupported engine type or version
         :return: None
         """
-        if not self.is_bgp_enabled:
-            autonomous_system = element_resolver(autonomous_system)
-
-            if not bgp_profile:
-                bgp_profile = BGPProfile('Default BGP Profile').href
-            else:
-                bgp_profile = element_resolver(bgp_profile)
-
-            announced = [{'announced_ne_ref': network}
-                         for network in element_resolver(announced_networks)]
-
-            routing = self.data['dynamic_routing']
-            routing['bgp'] = {
-                'enabled': True,
-                'bgp_as_ref': autonomous_system,
-                'bgp_profile_ref': bgp_profile,
-                'announced_ne_setting': announced,
-                'router_id': router_id}
+        self.bgp.enable(autonomous_system, announced_networks,
+               router_id=None, bgp_profile=bgp_profile)
 
     @autocommit(now=False)
+    @deprecated('engine.bgp')
     def disable_bgp(self, **kw):
         """
         Disable BGP on this engine.
@@ -337,13 +316,10 @@ class AddOn:
         :raises UnsupportedEngineFeature: BGP not supported on this engine type
         :return: None
         """
-        if self.is_bgp_enabled:
-            routing = self.data['dynamic_routing']
-            routing['bgp'] = {
-                'enabled': False,
-                'announced_ne_setting': []}
+        self.bgp.disable()
 
     @property
+    @deprecated('engine.ospf')
     def is_ospf_enabled(self):
         """
         Is OSPF enabled on this engine
@@ -351,14 +327,10 @@ class AddOn:
         :raises UnsupportedEngineFeature: unsupported engine type
         :rtype: bool
         """
-        if 'dynamic_routing' in self.data:
-            routing = self.data['dynamic_routing']
-            ospf = routing.get('ospfv2')
-            return ospf.get('enabled', False)
-        raise UnsupportedEngineFeature(
-            'Dynamic routing is only supported on layer 3 engine types')
+        return self.ospf.is_enabled
 
     @autocommit(now=False)
+    @deprecated('engine.ospf')
     def enable_ospf(self, ospf_profile=None, router_id=None, **kw):
         """
         Enable OSPF on this engine. For master engines, enable
@@ -374,35 +346,21 @@ class AddOn:
         :param str,OSPFProfile ospf_profile: OSPFProfile element or str
             href; if None, use default profile
         :param str router_id: single IP address router ID
-        :raises UpdateElementFailed: failure message from SMC
         :raises ElementNotFound: ospf profile not found
-        :raises UnsupportedEngineFeature: unsupported engine type or version
         :return: None
         """
-        if not self.is_ospf_enabled:
-            if not ospf_profile:
-                ospf_profile = OSPFProfile('Default OSPFv2 Profile').href
-            else:
-                ospf_profile = element_resolver(ospf_profile)
-
-            routing = self.data['dynamic_routing']
-            routing['ospfv2'] = {
-                'enabled': True,
-                'ospfv2_profile_ref': ospf_profile,
-                'router_id': router_id}
+        self.ospf.enable(ospf_profile=ospf_profile, router_id=router_id)
 
     @autocommit(now=False)
+    @deprecated('engine.ospf')
     def disable_ospf(self, **kw):
         """
         Disable OSPF on this engine.
 
         :raises UpdateElementFailed: failure message from SMC
-        :raises UnsupportedEngineFeature: unsupported engine type or version
         :return: None
         """
-        if self.is_ospf_enabled:
-            routing = self.data['dynamic_routing']
-            routing['ospfv2'] = {'enabled': False}
+        self.ospf.disable()
 
     @autocommit(now=False)
     def add_dns_servers(self, dns_servers, **kw):
@@ -661,4 +619,72 @@ class AddOn:
         site_elements = site_elements if site_elements else []
         return self.internal_gateway.vpn_site.create(
             name, site_elements)
+    
+    @autocommit(now=False)
+    def add_tls_credential(self, tls_credentials, **kw):
+        """
+        .. versionadded:: 0.5.7
+            Add TLS credential. Requires SMC 6.3.
         
+        Add a TLS credential from an engine. Multiple TLS credentials can be
+        added.
+        
+        :param tls_credentials: list of TLS credentials to add
+        :type: list(str,TLSCredential)
+        :raises UpdateElementFailed: failed to update
+        """
+        self.data.update(
+            server_credential=element_resolver(tls_credentials))
+    
+    @autocommit(now=False)
+    def remove_tls_credential(self, tls_credentials, **kw):
+        """
+        .. versionadded:: 0.5.7
+            Remove TLS credential. Requires SMC 6.3.
+        
+        Remove a TLS credential from an engine. Multiple TLS credentials can
+        be removed.
+        
+        :param tls_credentials: list of TLS credentials to add
+        :type: list(str,TLSCredential)
+        :raises UpdateElementFailed: failed to update
+        """
+        credentials = element_resolver(tls_credentials)
+        updated = [cred for cred in credentials
+                   if cred not in self.server_credential]
+        self.data.update(server_credential=updated)
+    
+    @autocommit(now=False)    
+    def add_policy_route(self, source, destination, gateway_ip, comment=None, **kw):
+        """
+        .. versionadded:: 0.5.7
+            Add ipv4 or ipv6 policy routes to engine, requires SMC 6.3
+        
+        Policy routing entries are applied before the regular routes defined
+        in the Routing tree (overriding those configurations if matches are found).
+        The first matching policy routing entry is applied to a connection and any
+        further entries are ignored.
+
+        Policy routing entries are not automatically added to Antispoofing rules,
+        so you might need to update the antispoofing information as well.
+        
+        Each added entry is placed at the bottom of the existing set of rules if
+        any exist.
+        
+        :param str source: source address with /netmask, i.e. 1.1.1.1/32
+        :param str destination: destination address with netmask: i.e. 2.2.2.0/24
+        :param str gateway_ip: gateway address: i.e. 1.1.1.254
+        :param str comment: optional comment
+        :raises UpdateElementFailed: failed to update
+        """
+        self.policy_route.append(
+            {'source': source,
+             'destination': destination,
+             'gateway_ip': gateway_ip,
+             'comment': comment})
+    
+    @property
+    def policy_routes(self):
+        for route in self.policy_route:
+            yield PolicyRoute(**route)
+

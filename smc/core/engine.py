@@ -1,4 +1,3 @@
-import smc.actions.search as search
 from smc.compat import min_smc_version
 from smc.elements.helpers import domain_helper
 from smc.base.model import Element, ResourceNotFound,\
@@ -15,6 +14,8 @@ from smc.administration.tasks import TaskOperationPoller
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
 from smc.vpn.elements import VPNSite
+from smc.routing.bgp import BGP
+from smc.routing.ospf import OSPF, OSPFProfile
 from smc.core.route import Antispoofing, Routing, Routes
 from smc.core.contact_address import ContactResource
 from smc.core.properties import AddOn
@@ -148,7 +149,7 @@ class Engine(AddOn, Element):
 
         if enable_ospf:
             if not ospf_profile:  # get default profile
-                ospf_profile = search.get_ospf_default_profile()
+                ospf_profile = OSPFProfile('Default OSPFv2 Profile').href
             ospf = {'dynamic_routing': {
                 'ospfv2': {
                     'enabled': True,
@@ -201,6 +202,36 @@ class Engine(AddOn, Element):
         self.internal_gateway.rename(name)
 
     @property
+    def ospf(self):
+        """
+        Obtain an instance of the OSPF configuration for this engine.
+        Dynamic routing is only supported on layer 3 engines and clusters.
+        
+        :raises UnsupportedEngineFeature: For engines that do not support
+            dynamic routing capabilities
+        :rtype: OSPF
+        """
+        if 'dynamic_routing' in self.data:
+            return OSPF(self)
+        raise UnsupportedEngineFeature(
+            'Dynamic routing is only supported on layer 3 engine types')
+        
+    @property
+    def bgp(self):
+        """
+        Obtain an instance of the BGP configuration for this engine.
+        Dynamic routing is only supported on layer 3 engines and clusters.
+        
+        :raises UnsupportedEngineFeature: For engines that do not support
+            dynamic routing capabilities
+        :rtype: BGP
+        """
+        if 'dynamic_routing' in self.data:
+            return BGP(self)
+        raise UnsupportedEngineFeature( 
+            'Dynamic routing is only supported on layer 3 engine types')
+    
+    @property
     def nodes(self):
         """
         Return a list of child nodes of this engine. This can be
@@ -209,8 +240,7 @@ class Engine(AddOn, Element):
         :return: nodes for this engine
         :rtype: list(Node)
         """
-        return list(sub_collection(
-            self.data.get_link('nodes'), Node))
+        return Node._load(self.data.get('nodes'))
 
     @property
     def permissions(self):
@@ -330,7 +360,7 @@ class Engine(AddOn, Element):
             EngineCommandFailed,
             resource='flush_blacklist')
     
-    def blacklist_show(self):
+    def blacklist_show(self, **kw):
         """
         .. versionadded:: 0.5.6
             Requires pip install smc-python-monitoring
@@ -344,6 +374,12 @@ class Engine(AddOn, Element):
         Blacklist entries that are returned from this generator have a
         delete() method that can be called to simplify removing entries.
         
+        :param kw: keyword arguments passed to blacklist query. Common setting
+            is to pass max_recv=20, which specifies how many "receive" batches
+            will be retrieved from the SMC for the query. At most, 200 results
+            can be returned in a single query. If max_recv=5, then 1000 results
+            can be returned if they exist. If less than 1000 events are available,
+            the call will be blocking until 5 receives has been reached.
         :return: generator of results
         :rtype: :class:`smc_monitoring.monitors.blacklist.BlacklistEntry`
         """
@@ -353,7 +389,7 @@ class Engine(AddOn, Element):
             pass
         else:
             query = BlacklistQuery(self.name)
-            for record in query.fetch_as_element():
+            for record in query.fetch_as_element(**kw):
                 yield record
     
     def add_route(self, gateway, network):

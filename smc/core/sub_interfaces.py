@@ -250,6 +250,11 @@ class CaptureInterface(object):
     def data(self):
         return {self.typeof: self.__dict__}
 
+    @property
+    def vlan_id(self):
+        if '.' in self.nicid:
+            return self.nicid.split('.')[-1]
+    
     def __getattr__(self, attr):
         return None
 

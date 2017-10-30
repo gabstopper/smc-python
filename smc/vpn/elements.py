@@ -187,11 +187,14 @@ class ExternalEndpoint(SubElement):
         super(ExternalEndpoint, self).__init__(**meta)
         pass
 
-    def create(self, name, address, enabled=True, balancing_mode='active',
-               ipsec_vpn=True, nat_t=False, dynamic=False):
+    def create(self, name, address=None, enabled=True, balancing_mode='active',
+               ipsec_vpn=True, nat_t=False, force_nat_t=False, dynamic=False,
+               ike_phase1_id_type=None, ike_phase1_id_value=None):
         """
         Create an test_external endpoint. Define common settings for that
-        specify the address, enabled, nat_t, name, etc.
+        specify the address, enabled, nat_t, name, etc. You can also omit
+        the IP address if the endpoint is dynamic. In that case, you must
+        also specify the ike_phase1 settings.
 
         :param str name: name of test_external endpoint
         :param str address: address of remote host
@@ -199,7 +202,12 @@ class ExternalEndpoint(SubElement):
         :param str balancing_mode: active
         :param bool ipsec_vpn: True|False (default: True)
         :param bool nat_t: True|False (default: False)
+        :param bool force_nat_t: True|False (default: False)
         :param bool dynamic: is a dynamic VPN (default: False)
+        :param int ike_phase1_id_type: If using a dynamic endpoint, you must
+            set this value. Valid options: 0=DNS name, 1=Email, 2=DN, 3=IP Address
+        :param str ike_phase1_id_value: value of ike_phase1_id. Required if
+            ike_phase1_id_type and dynamic set.
         :raises CreateElementFailed: create element with reason
         :return: newly created element
         :rtype: ExternalEndpoint
@@ -210,8 +218,15 @@ class ExternalEndpoint(SubElement):
                 'dynamic': dynamic,
                 'enabled': enabled,
                 'nat_t': nat_t,
+                'force_nat_t': force_nat_t,
                 'ipsec_vpn': ipsec_vpn}
-
+        
+        if dynamic:
+            json.pop('address')
+            json.update(
+                ike_phase1_id_type=ike_phase1_id_type,
+                ike_phase1_id_value=ike_phase1_id_value)
+            
         location = self._request(
             CreateElementFailed,
             href=self.href,
@@ -313,6 +328,13 @@ class VPNSite(SubElement):
             name=name,
             href=location,
             type='vpn_site')
+    
+    @property
+    def name(self):
+        name = super(VPNSite, self).name
+        if not name:
+            return self.data.get('name')
+        return name
     
     @property
     def site_element(self):

@@ -368,16 +368,3 @@ def element_references_as_smcresult(element_href):
     return fetch_json_by_post(href=href,
                               json={'value': element_href})
 
-
-def get_ospf_default_profile():
-    """ Convenience method to return the href of the ospf default
-    profile
-
-    :return: href of ospf default profile
-    """
-    profiles = all_elements_by_type('ospfv2_profile')
-    if profiles:
-        for ospf in profiles:
-            profile = element_by_href_as_json(ospf.get('href'))
-            if profile.get('system') is True:
-                return ospf.get('href')

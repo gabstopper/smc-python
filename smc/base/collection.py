@@ -242,8 +242,10 @@ class ElementCollection(object):
         :param str filter: any parameter to attempt to match on.
             For example, if this is a service, you could match on service name
             'http' or ports of interest, '80'.
-        :param bool exact_match: Whether match needs to be exact or not. An
-            exact match is a case sensitive match.
+        :param bool exact_match: Can be passed as a keyword arg. Specifies whether
+            the match needs to be exact or not (default: False)
+        :param bool case_sensitive: Can be passed as a keyword arg. Specifies
+            whether the match is case sensitive or not. (default: True) 
         :param kw: keyword args can specify an attribute=value to use as an
             exact match against the elements attribute.
         :return: :class:`.ElementCollection`
@@ -253,7 +255,8 @@ class ElementCollection(object):
             _filter = filter[0]
             
         exact_match = kw.pop('exact_match', False)
-    
+        case_sensitive = kw.pop('case_sensitive', True)
+        
         if kw:
             _, value = next(iter(kw.items()))
             _filter = value
@@ -265,7 +268,8 @@ class ElementCollection(object):
         return self._clone(
             filter=_filter,
             iexact=iexact,
-            exact_match=exact_match)
+            exact_match=exact_match,
+            case_sensitive=case_sensitive)
     
     def batch(self, num):
         """
@@ -410,6 +414,8 @@ class CollectionManager(object):
             _filter = filter[0]
             
         exact_match = kw.pop('exact_match', False)
+        case_sensitive = kw.pop('case_sensitive', True)
+        
         if kw:
             _, value = next(iter(kw.items()))
             _filter = value
@@ -421,7 +427,8 @@ class CollectionManager(object):
         return self.iterator(
             filter=_filter,
             iexact=iexact,
-            exact_match=exact_match)
+            exact_match=exact_match,
+            case_sensitive=case_sensitive)
 
     filter.__doc__ = ElementCollection.filter.__doc__
 

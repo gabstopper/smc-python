@@ -3,6 +3,7 @@ Configuration Loader
 """
 import os
 import io
+import json
 from smc.api.exceptions import ConfigLoadError
 
 try:
@@ -23,7 +24,8 @@ def load_from_environ():
         SMC_CLIENT_CERT=path/to/cert
         SMC_TIMEOUT = 30 (seconds)
         SMC_API_VERSION = 6.1 (optional - uses latest by default)
-        SMC_DOMAIN = name of domain, Shared is default 
+        SMC_DOMAIN = name of domain, Shared is default
+        SMC_EXTRA_ARGS = dict format of extra args needed
     
     SMC_CLIENT CERT is only checked IF the SMC_URL is an HTTPS url.
     """
@@ -37,7 +39,7 @@ def load_from_environ():
     smc_timeout = os.environ.get('SMC_TIMEOUT', None)
     api_version = os.environ.get('SMC_API_VERSION', None)
     domain = os.environ.get('SMC_DOMAIN', None)
-    
+   
     if not smc_apikey or not smc_address:
         raise ConfigLoadError(
             'If loading from environment variables, you must provide values '
@@ -158,7 +160,7 @@ def load_from_file(alt_filepath=None):
     except configparser.NoOptionError as e:
         raise ConfigLoadError('Failed loading credentials from configuration '
                               'file: {}; {}'.format(path, e))
-    except configparser.NoSectionError as e:
+    except (configparser.NoSectionError, configparser.MissingSectionHeaderError) as e:
         raise ConfigLoadError('Failed loading credential file from: {}, check the '
                               'path and verify contents are correct.'.format(path, e))
     except IOError as e:

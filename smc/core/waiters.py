@@ -115,6 +115,9 @@ class NodeWaiter(threading.Thread):
     def result(self, timeout=None):
         """
         Get current status result after waiting timeout
+        Result does a join on the thread to get a status update. It
+        is possible the first couple of statuses are None if an
+        update has not yet been joined.
         """
         self.wait(timeout)
         return self._status

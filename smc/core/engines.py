@@ -383,6 +383,7 @@ class FirewallCluster(Engine):
     @classmethod
     def create(cls, name, cluster_virtual, cluster_mask,
                macaddress, cluster_nic, nodes,
+               cluster_mode='balancing',
                log_server_ref=None,
                domain_server_address=None,
                zone_ref=None, default_nat=False,
@@ -396,7 +397,8 @@ class FirewallCluster(Engine):
         :param cluster_mask: ip netmask of cluster CVI
         :param macaddress: macaddress for packet dispatch clustering
         :param cluster_nic: nic id to use for primary interface
-        :param list nodes: address/network_value/nodeid combination for cluster nodes  
+        :param list nodes: address/network_value/nodeid combination for cluster nodes
+        :param str cluster_mode: 'balancing' or 'standby' mode (default: balancing)
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param str zone_ref: (optional) zone name for management interface (created if not found)
@@ -431,6 +433,7 @@ class FirewallCluster(Engine):
             nodes=len(nodes), enable_gti=enable_gti,
             enable_antivirus=enable_antivirus,
             default_nat=default_nat)
+        engine.update(cluster_mode=cluster_mode)
 
         try:
             return ElementCreator(cls, json=engine)

@@ -382,7 +382,7 @@ AddOns
 .. automodule:: smc.core.properties
 
 .. autoclass:: AddOn
-	:members:
+	:members: antivirus_options
 
 Appliance Status
 ++++++++++++++++
@@ -954,6 +954,14 @@ GatewayTreeNode
 	:members:
 	:show-inheritance:
 
+GatewayTunnel
++++++++++++++
+
+.. autoclass:: smc.vpn.policy.GatewayTunnel
+	:members:
+	:show-inheritance:
+
+
 Searching
 ---------
 
@@ -1006,7 +1014,7 @@ Session
 
 .. automodule:: smc.api.session
 .. autoclass:: Session
-   :members: login, logout, api_version, url, api_key, session, session_id
+   :members: 
 
 Advanced Usage
 --------------

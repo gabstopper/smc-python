@@ -54,6 +54,11 @@ if __name__ == '__main__':
     from smc_monitoring.models.query import Query
     #query = ConnectionQuery('lynn', check_hostname=False)
     #query = BlacklistQuery('sg_vm')
+    
+    engine = Engine('sg_vm')
+    for bl in engine.blacklist_show(max_recv=5):
+        print(bl)
+                
     #query.request = {"query":{"definition":"BLACKLIST","target":"sg_vm"}, "fetch":{}, "format":{"type":"texts", "field_format": "name"}}
     #query = UserQuery('lynn', check_hostname=False)
     #query = VPNSAQuery('sg_vm')
@@ -73,20 +78,21 @@ if __name__ == '__main__':
     #query.format.timezone('CST')
     #for record in query.fetch_batch():
     #for record in query.fetch_as_element(check_hostname=False):
-    #for record in query.fetch_batch():
+    #for record in query.fetch_as_element():
     #for record in query.fetch_batch(RawDictFormat):
     #for record in query.fetch_batch(CSVFormat):
     #for record in query.fetch_live():
-    #    print(record),
+    #   print(record),
+        #record.delete()
     #print(session.url)
     
     
     from smc_monitoring.pubsub.subscribers import Notification, Event
                     
-    notification = Notification('host')
+    #notification = Notification('host')
     
-    for published in notification.notify(as_type=Event):
-        print(published, published.action, published.element)
+    #for published in notification.notify(as_type=Event):
+    #    print(published, published.action, published.element)
     
     
     # TODO:

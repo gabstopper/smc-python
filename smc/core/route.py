@@ -597,3 +597,25 @@ class Antispoofing(SubElement):
 
     def __repr__(self):
         return str(self)
+
+    
+class PolicyRoute(namedtuple(
+        'PolicyRoute', 'source destination gateway_ip comment')):
+    """
+    Policy Route for an engine.
+    
+    :param str source: source address with /netmask, i.e. 1.1.1.1/32
+    :param str destination: destination address with netmask: i.e. 2.2.2.0/24
+    :param str gateway: gateway address: i.e. 1.1.1.254
+    :param str comment: optional comment
+    """
+    __slots__ = ()
+    
+    def __new__(cls, source, destination, gateway_ip, comment=None):  # @ReservedAssignment
+        return super(PolicyRoute, cls).__new__(
+            cls, source, destination, gateway_ip, comment)
+    
+    #@property
+    #def delete(self):
+    #    return Element.from_href(self.rule_ref)
+    

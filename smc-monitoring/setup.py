@@ -22,7 +22,7 @@ with open('HISTORY.rst', encoding='utf-8') as f:
 setup(
     name='smc-python-monitoring',
     version=version,
-    description='SMC Monitoring for python',
+    description='Stonesoft Management Cetner Monitoring',
     long_description=readme + '\n\n' + history,
     license='Apache License',
     author='David LePage',
@@ -38,8 +38,6 @@ setup(
         "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3",
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         "License :: OSI Approved :: Apache Software License"
         ],
     zip_safe=False,

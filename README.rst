@@ -39,20 +39,24 @@ Python 3.4, 3.5
 
 Requests >= 2.12.0
 
-Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2, 6.2.1
+Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2, 6.2.1, 6.3.0
 
 Getting Started
 ---------------
 
 Installing package
 
-Use pip to get latest version:
+Use pip to get latest released version:
 
 ``pip install smc-python``
 
 Specific version:
 
-``pip install 'smc-python>=0.5.5'``
+``pip install smc-python>=0.5.5``
+
+If you are installing directly from git or tarball, you will be installing
+the latest dev branch. The dev branch does undergo unittest prior to push,
+however it is likely coverage will not be as complete as a released version.
 
 From git:
 
@@ -112,7 +116,7 @@ directly and it will grab the required smc-python version automatically.
 
 Available extensions:
 
-* **smc-python-monitoring**: Monitoring for SMC connections, blacklists, users, VPNs, alerts, etc. In addition this package provides the ability to 'subscribe' to administrative event modifications.
+* `smc-python-monitoring <https://badge.fury.io/py/smc-python-monitoring>`__: Monitoring for SMC connections, blacklists, users, VPNs, alerts, etc. In addition this package provides the ability to 'subscribe' to administrative event modifications.
 
 
 Example install of an smc-python extension:

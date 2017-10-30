@@ -41,3 +41,22 @@ Release History
 - Raise SMCConnectionError when non-HTTP 200 error code presented from SMC when retrieving entry points
 - Sending empty payload on POST request with parameters might cause validation error. Do not submit empty
   dict with POST requests.
+  
+0.5.7
+-----
+
+**Improvements**
+
+- Add ``case_sensitive`` key word to filtered queries. This requires SMC 6.3+. Set this as a kwarg when making
+  the query: Host.objects.filter('myhost', case_sensitive=False). Default: case_sensitive=True.
+- Optimize retrieval of nodes by serializing engine node data versus making a call to the engine links. This eliminates
+  the query to get the node links and a query for each node that needs to be operated on, or node payload required.
+- Add `smc.core.node.ApplianceInfo` and link on node to retrieve appliance related info::
+	appliance = node.appliance_info()
+	...
+- GatewayTunnel implemented on PolicyVPN for setting preshared key, enabling/disabling specific tunnel endpoints
+- BGP node added to engine. Add full create/modify/delete capability by reference: engine.bgp.is_enabled, etc. Added to
+  provide modular configuration to BGP.
+- OSPF node added to engine. Add full create/modify/delete capability by reference: engine.ospf.is_enabled, etc.
+ 
+

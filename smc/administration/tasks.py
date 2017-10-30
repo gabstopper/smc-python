@@ -302,7 +302,7 @@ class TaskOperationPoller(object):
 
 class DownloadTask(TaskOperationPoller):
     """
-    A download task handles tasks that have files assocaited, for example
+    A download task handles tasks that have files associated, for example
     exporting an element to a specified file.
     """
     def __init__(self, filename, task, **kw):
@@ -314,12 +314,14 @@ class DownloadTask(TaskOperationPoller):
 
     def download(self, timeout):
         self.wait(timeout)
+        if not self.task.in_progress and not self.task.success:
+            raise TaskRunFailed(self.task.last_message)
         try:
-            location = self.task._request(
-                ActionCommandFailed,
+            result = self.task._request(
+                TaskRunFailed,
                 href=self.task.result_url,
                 filename=self.filename).read()
-            self.filename = location.content
+            self.filename = result.content
     
         except IOError as io:
             raise TaskRunFailed(

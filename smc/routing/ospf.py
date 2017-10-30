@@ -12,7 +12,7 @@ For adding OSPF configurations, several steps are required:
 
 Enable OSPF on an existing engine using the default OSPF system profile::
 
-    engine.enable_ospf()
+    engine.ospf.enable()
     
 Create an OSPFArea using the default OSPF Interface Setting profile::
 
@@ -25,7 +25,7 @@ Add OSPF area to an interface routing configuration (add to nicid '0')::
                 
 Disable OSPF on an engine::
     
-    engine.disable_ospf()
+    engine.ospf.disable()
 
 Finding profiles or elements can also be done through collections::
 
@@ -49,6 +49,120 @@ Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF.
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
 
+
+class OSPF(object):
+    """
+    OSPF represents the OSPF configuration on a given engine. An
+    instance is returned from an engine reference::
+    
+        engine = Engine('myengine')
+        engine.ospf.is_enabled
+        engine.ospf.profile
+        ...
+    
+    When making changes to the OSPF configuration, any methods
+    called that change the configuration also require that
+    engine.update() is called once changes are complete. This way
+    you can make multiple changes without refreshing the engine cache.
+    
+    For example, adding advertised networks to the configuration::
+    
+        engine.ospf.reset_profile(BGPProfile('newprofile'))
+        engine.ospf.router_id('1.1.1.1')
+        engine.update()
+    """
+    def __init__(self, engine):
+        self._engine = engine
+        self.data = self._engine.data['dynamic_routing']['ospfv2']
+    
+    @property
+    def is_enabled(self):
+        """
+        Is OSPF enabled on this engine.
+        
+        :rtype: bool
+        """
+        return self.data.get('enabled')
+
+    def enable(self, ospf_profile=None, router_id=None):
+        """
+        Enable OSPF on this engine. For master engines, enable
+        OSPF on the virtual firewall.
+
+        Once enabled on the engine, add an OSPF area to an interface::
+
+            engine.ospf.enable()
+            interface = engine.routing.get(0)
+            interface.add_ospf_area(OSPFArea('myarea'))
+
+        :param str,OSPFProfile ospf_profile: OSPFProfile element or str
+            href; if None, use default profile
+        :param str router_id: single IP address router ID
+        :raises ElementNotFound: OSPF profile not found
+        :return: None
+        """
+        if not ospf_profile:
+            ospf_profile = OSPFProfile('Default OSPFv2 Profile').href
+        else:
+            ospf_profile = element_resolver(ospf_profile)
+
+        self.data.update(
+            enabled=True,
+            ospfv2_profile_ref=ospf_profile,
+            router_id=router_id)
+    
+    def disable(self):
+        """
+        Disable OSPF on this engine.
+
+        :return: None
+        """
+        self.data.update(
+            enabled=False)
+        
+    @property
+    def router_id(self):
+        """
+        Get the router ID for this OSPF configuration. If None, then
+        the ID will use the interface IP.
+        
+        :return: str or None
+        """
+        return self.data.get('router_id')
+    
+    def reset_router_id(self, router_id):
+        """
+        Specified router ID for this BGP configuration. You
+        can optionally reset the router ID if you provide a
+        value to newid.
+        
+        :param str router_id: router id to use. Typically the
+            IP address. If not set, interface IP will be used.
+        """
+        self.data['router_id'] = router_id
+
+    @property
+    def profile(self):
+        """
+        The OSPF Profile assigned to this configuration.
+        
+        :rtype: OSPFProfile
+        """
+        return OSPFProfile.from_href(self.data.get('ospfv2_profile_ref'))
+    
+    def reset_profile(self, profile):
+        """
+        Reset the OSPFProfile used for this configuration.
+        
+        :param str, OSPFProfile profile: profile to use
+        :raises ElementNotFound: OSPFProfile specified is invalid
+        :return: None
+        
+        .. note:: If str is provided for the profile, the str value
+            should be the href for the element.
+        """
+        self.data.update(ospfv2_profile_ref=element_resolver(profile))
+    
 
 class OSPFArea(Element):
     """

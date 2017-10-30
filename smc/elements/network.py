@@ -168,7 +168,12 @@ class Router(Element):
 class Network(Element):
     """
     Class representing a Network object used in access rules
-    Network format should be CIDR based.
+    Network format should be CIDR based. It is recommended that when
+    creating the network element, you use a naming convention that
+    includes the network cidr in the name, such as 'network-1.1.1.0/24'.
+    This will simplify searches later and workaround the restriction
+    that searches with '/' and '-' only match on the name field and
+    not an actual attribute value.
 
     Create an ipv4 network element::
 
@@ -213,7 +218,21 @@ class Network(Element):
 
         return ElementCreator(cls, json)
 
-
+    '''
+    @classmethod
+    def get_or_create(cls, filter_key=None, **kwargs):
+        """
+        Get or create a network element. SMC searches reserve the /
+        when searching within an element therefore unless the network
+        name contains a /, you may not get the results you expect. This
+        will create the filter so it is not required to provide the
+        filter_key in the search.
+        """
+        if not filter_key:
+            return super(Network, cls).get_or_create(
+                filter_key={'ipv4_network': kwargs.get('ipv4_network')})
+    '''
+    
 class DomainName(Element):
     """
     Represents a domain name used as FQDN in policy

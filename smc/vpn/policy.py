@@ -2,7 +2,7 @@ from smc.base.model import Element, ElementCreator, SubElement
 from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 from smc.base.collection import sub_collection
-from smc.vpn.elements import VPNProfile
+from smc.vpn.elements import VPNProfile, VPNSite
 
 
 class PolicyVPN(Element):
@@ -118,6 +118,28 @@ class PolicyVPN(Element):
             self.data.get_link('mobile_gateway_node'),
             type('MobileGatewayNode', (GatewayNode,), {}))
 
+    @property
+    def tunnels(self):
+        """
+        Return all tunnels for this VPN. A tunnel is defined as two end
+        points within the VPN topology. Endpoints are automatically
+        configureed based on whether they are a central gateway or 
+        satellite gateway. This provides access to enabling/disabling
+        and setting the preshared key for the linked endpoints.
+        List all tunnel mappings for this policy vpn::
+        
+            for tunnel in policy.tunnels:    
+                tunnela = tunnel.tunnel_side_a
+                tunnelb = tunnel.tunnel_side_b
+                print(tunnela.gateway)
+                print(tunnelb.gateway)
+    
+        :return: collection of :class:`GatewayNode`
+        :rtype: SubElementCollection
+        """
+        return sub_collection(
+            self.data.get_link('gateway_tunnel'), GatewayTunnel)
+
     def open(self):
         """
         Open the policy for editing
@@ -161,12 +183,6 @@ class PolicyVPN(Element):
         """
         return self.read_cmd(
             resource='validate').get('value')
-
-    def gateway_tunnel(self):
-        """
-        """
-        return self.read_cmd(
-            resource='gateway_tunnel')
 
     def add_central_gateway(self, gateway):
         """ 
@@ -251,13 +267,24 @@ class GatewayNode(SubElement):
     def __init__(self, **meta):
         super(GatewayNode, self).__init__(**meta)
         pass
-
+    
+    @property
+    def gateway(self):
+        """
+        The VPN gateway for this node. This is either an internal gateway
+        or an external gateway
+        
+        :return: the VPN gateway
+        :rtype: Element
+        """ 
+        return Element.from_href(self.data['gateway'])
+        
     @property
     def name(self):
         """
         Get the name from the gateway_profile reference
         """
-        return Element.from_href(self.data['gateway']).name
+        return self.gateway.name
     
     @property
     def enabled_sites(self):
@@ -321,7 +348,7 @@ class GatewayTreeNode(SubElement):
         :return VPNSite element
         :rtype: VPNSite
         """
-        return Element.from_href(self.data.get('vpn_site'))
+        return VPNSite(href=self.data.get('vpn_site'))
     
     def __str__(self):
         return '{0}(name={1})'.format(
@@ -329,4 +356,86 @@ class GatewayTreeNode(SubElement):
 
     def __repr__(self):
         return str(self)
-            
+    
+
+class GatewayTunnel(SubElement):
+    """
+    A gateway tunnel represents the point to point connection
+    between two IPSEC endpoints in a PolicyVPN configuration. 
+    The tunnel arrangement is based on whether the nodes are placed
+    as a central gateway or a satellite gateway. This provides access
+    to see the point to point connections, whether the link is enabled,
+    and setting the presharred key.
+    
+    .. note:: Setting the preshared key is only required if using an
+        ExternalGateway element as one side of the VPN. Preshared keys
+        are generated automatically but read only, therefore if two
+        gateways are internally managed by SMC, the key is generated and
+        shared between the gateways automatically. However for external
+        gateways, you must set a new key to provide the same value to
+        the remote gateway.
+    """
+    def __init__(self, **meta):
+        super(GatewayTunnel, self).__init__(**meta)
+        pass
+
+    def enable_disable(self):
+        """
+        Enable or disable the tunnel link between endpoints.
+        
+        :raises UpdateElementFailed: failed with reason
+        :return: None
+        """
+        if self.enabled:
+            self.update(enabled=False)
+        else:
+            self.update(enabled=True)
+    
+    @property
+    def enabled(self):
+        """          
+        Whether the VPN link between endpoints is enabled
+        
+        :rtype: bool
+        """
+        return self.data.get('enabled', False)
+    
+    def preshared_key(self, key):
+        """
+        Set a new preshared key for the IPSEC endpoints.
+        
+        :param str key: shared secret key to use
+        :raises UpdateElementFailed: fail with reason
+        :return: None
+        """
+        self.update(preshared_key=key)
+    
+    @property
+    def tunnel_side_a(self):
+        """
+        Return the gateway node for tunnel side A. This will
+        be an instance of GatewayNode.
+        
+        :rtype: GatewayNode
+        """
+        return type('TunnelSideA', (GatewayNode,), {
+            'href': self.data.get('gateway_node_1')})()
+    
+    @property
+    def tunnel_side_b(self):
+        """
+        Return the gateway node for tunnel side B. This will
+        be an instance of GatewayNode.
+        
+        :rtype: GatewayNode
+        """
+        return type('TunnelSideB', (GatewayNode,), {
+            'href': self.data.get('gateway_node_2')})()
+    
+    def __str__(self):
+        return '{0}(tunnel_side_a={1},tunnel_side_b={2})'.format(
+            self.__class__.__name__, self.tunnel_side_a.name, self.tunnel_side_b.name)
+
+    def __repr__(self):
+        return str(self)
+        

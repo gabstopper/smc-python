@@ -178,7 +178,7 @@ class InterfaceCommon(object):
         
         def inner(data):
             if data.get('interfaces'):
-                # It's an interface definition
+            # It's an interface definition
                 for intf in data['interfaces']:
                     for if_type, values in intf.items():
                         results.append(
