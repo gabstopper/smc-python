@@ -29,6 +29,7 @@ Element class relationship (abbreviated)::
                                    |
                                 data = SimpleElement()
                                 meta = Meta(href,name,type)
+                                update()
                                 delete()
                                 modify_attribute()
                                  .....
@@ -49,8 +50,9 @@ Element class relationship (abbreviated)::
 Classes that do not require state on retrieved json or provide basic
 container functionality may inherit from object.
 """
-from collections import namedtuple
+from collections import namedtuple, MutableMapping
 import smc.base.collection
+from smc.compat import string_types
 from smc.base.decorators import cached_property, classproperty, exception
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
@@ -128,6 +130,38 @@ def ElementFactory(href):
         return e
 
 
+class SubDict(MutableMapping):
+    """
+    Generic dict structure that can be used to objectify
+    complex json. This dict will return None if an attribute
+    is not found.
+    """
+    def __init__(self, data=None, **kwargs):
+        self.data = data if data else {}
+        self.update(self.data, **kwargs)
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __delitem__(self, key):
+        del self.data[key]
+
+    def __iter__(self):
+        return ((key, value) for key, value in self.data.items())
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getattr__(self, key):
+        return self.get(key)
+    
+    def __repr__(self):
+        return str(dict(self.items()))
+
+    
 class SimpleElement(dict):
     """
     Basic container for retrieved element. Can be inserted
@@ -235,7 +269,13 @@ class ElementBase(UnicodeMixin, SMCCommand):
     @property
     def etag(self):
         return self.data.etag(self.href)
-
+    
+    def _del_cache(self):
+        try:
+            del self.data
+        except AttributeError:
+            pass
+    
     def __getattr__(self, key):
         if key not in ['typeof']:
             try:
@@ -252,11 +292,12 @@ class ElementBase(UnicodeMixin, SMCCommand):
         :raises DeleteElementFailed: possible dependencies, record locked, etc
         :return: None
         """
-        self.del_cmd(
-            DeleteElementFailed,
+        request = SMCRequest(
             href=self.href,
-            headers={'if-match': self.etag})
-        
+            headers={'if-match': self.etag}) 
+        request.exception = DeleteElementFailed
+        request.delete()
+
     def update(self, *exception, **kwargs):
         """
         Update the existing element and clear the instance cache.
@@ -406,26 +447,30 @@ class Element(ElementBase):
         return lookup_class(meta.get('type'))(**meta)
 
     @classmethod
-    def get(cls, name):
+    def get(cls, name, raise_exc=True):
         """
         Get the element by name. Does an exact match by element type.
         
         :param str name: name of element
+        :param bool raise_exc: optionally disable exception. 
         :raises ElementNotFound: if element does not exist
         :return: :py:class:`smc.base.model.Element` type
         """
-        element = cls.objects.filter(name, exact_match=True).first()
-        if not element:
+        element = cls.objects.filter(name, exact_match=True).first() if name \
+            is not None else None
+        if not element and raise_exc:
             'Cannot find specified element: {}, type: {}'
             raise ElementNotFound('Cannot find specified element: %s, type: %s' %
-                (cls.__name__, name))
+                (name, cls.__name__))
         return element 
         
     @classmethod
     def get_or_create(cls, filter_key=None, **kwargs):
         """
         Convenience method to retrieve an Element or create if it does not
-        exist. Any keyword arguments passed except the optional filter_key
+        exist. If an element does not have a `create` classmethod, then it
+        is considered read-only and the request will be redirected to :meth:`~get`.
+        Any keyword arguments passed except the optional filter_key
         will be used in a create() call. If filter_key is provided, this
         should define an attribute and value to use for an exact match on
         the element. Valid attributes are ones required on the elements
@@ -449,9 +494,16 @@ class Element(ElementBase):
         :param kwargs: keyword arguments mapping to the elements ``create``
             method.
         :raises CreateElementFailed: could not create element with reason
+        :raises ElementNotFound: if read-only element does not exist
         :return: element instance by type
         :rtype: Element
         """
+        if not hasattr(cls, 'create'):
+            return cls.get(kwargs.get('name'))
+        elif 'name' not in kwargs:
+            raise ElementNotFound('Name field is a required parameter '
+                'for all create type operations on an element')
+
         if filter_key:
             elements = cls.objects.filter(**filter_key)
             if elements.exists():
@@ -462,17 +514,22 @@ class Element(ElementBase):
                 element = cls.get(kwargs.get('name'))
             except ElementNotFound:
                 element = cls.create(**kwargs)
-
+        
         return element
 
     @classmethod
     def update_or_create(cls, filter_key=None, **kwargs):
         """
         Update or create the element. If the element exists, update
-        it using the kwargs provided, otherwise create new. Provide a
-        ``filter_key`` dict key/value if you want to match the element
-        by a specific attribute and value. If no filter_key is provided,
-        the name field will be used to find the element.
+        it using the kwargs provided if the provided kwargs are new. Note
+        that when checking kwargs against attributes, only string values are
+        compared. Lists and dicts are automatically merged.
+        If an element does not have a `create` classmethod, then it
+        is considered read-only and the request will be redirected to
+        :meth:`~get`. Provide a ``filter_key`` dict key/value if you want to
+        match the element by a specific attribute and value. If no
+        filter_key is provided, the name field will be used to find the
+        element.
         ::
 
             >>> host = Host('kali')
@@ -488,9 +545,16 @@ class Element(ElementBase):
         :param kwargs: keyword arguments mapping to the elements ``create``
             method.
         :raises CreateElementFailed: could not create element with reason
+        :raises ElementNotFound: if read-only element does not exist
         :return: element instance by type
         :rtype: Element
         """
+        if not hasattr(cls, 'create'):
+            return cls.get(kwargs.get('name'))
+        elif 'name' not in kwargs:
+            raise ElementNotFound('Name field is a required parameter '
+                'for all create type operations on an element')
+        
         element = None
         if filter_key:
             elements = cls.objects.filter(**filter_key)
@@ -498,17 +562,26 @@ class Element(ElementBase):
                 element = elements.first()
         else:
             try:
-                element = cls(
-                    kwargs.get('name')); element.href
+                element = cls.get(kwargs.get('name'))
             except ElementNotFound:
                 element = None
 
-        params = {k: v() if callable(v) else v
-                  for k, v in kwargs.items()}
-
-        if element:
-            element.update(**params)
+        if element: 
+            params = {}
+            for key, value in kwargs.items():
+                value = value() if callable(value) else value
+                val = getattr(element, key, None)
+                if isinstance(val, (string_types, int)):
+                    if val != value:
+                        params[key] = value
+                else:
+                    params[key] = value
+            
+            if params:
+                element.update(**params)
         else:
+            params = {k: v() if callable(v) else v
+                      for k, v in kwargs.items()}
             element = cls.create(**params)
 
         return element

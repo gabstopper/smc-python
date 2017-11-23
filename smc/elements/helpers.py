@@ -28,19 +28,33 @@ def zone_helper(zone):
     Zone finder by name. If zone doesn't exist, create it and
     return the href
 
-    :param str zone: name of zone
+    :param str zone: name of zone (if href, will be returned as is)
     :return str href: href of zone
     """
+    if zone is None:
+        return None
+    elif isinstance(zone, Zone):
+        return zone.href
+    elif zone.startswith('http'):
+        return zone
     return Zone.get_or_create(name=zone).href
-
+    
 
 def logical_intf_helper(interface):
     """
-    Logical Interface finder by name. Create if it doesn't exist
+    Logical Interface finder by name. Create if it doesn't exist.
+    This is useful when adding logical interfaces to for inline
+    or capture interfaces.
 
     :param interface: logical interface name
     :return str href: href of logical interface
     """
+    if interface is None:
+        return LogicalInterface.get_or_create(name='default_eth').href
+    elif isinstance(interface, LogicalInterface):
+        return interface.href
+    elif interface.startswith('http'):
+        return interface
     return LogicalInterface.get_or_create(name=interface).href
 
 

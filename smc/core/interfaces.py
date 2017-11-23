@@ -34,7 +34,7 @@ from smc.core.sub_interfaces import (
     get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface)
 from smc.base.util import bytes_to_unicode
 from smc.base.decorators import deprecated
-from smc.elements.other import LogicalInterface
+from smc.elements.helpers import zone_helper, logical_intf_helper
 
 
 def dispatch(instance, builder, interface=None):
@@ -59,10 +59,7 @@ def dispatch(instance, builder, interface=None):
             json=builder.data
         ).create()
     # Clear cache, next call for attributes will refresh it
-    try:
-        del instance._engine.data
-    except AttributeError:
-        pass
+    instance._engine._del_cache()
 
 
 class InterfaceCommon(object):
@@ -486,10 +483,7 @@ class Interface(SubElement):
         :return: None
         """
         self.update()
-        try:
-            del self._engine.data
-        except AttributeError:
-            pass
+        self._engine._del_cache()
 
     def delete(self):
         """
@@ -506,7 +500,8 @@ class Interface(SubElement):
             if routes.name == self.name or \
                     routes.name.startswith('VLAN {}.'.format(self.interface_id)):
                 routes.delete()
-
+        self._engine._del_cache()
+        
     def all(self):
         """
         Return all interfaces for this engine. This is a common entry
@@ -560,14 +555,14 @@ class TunnelInterface(InterfaceCommon, Interface):
         :param str,int tunnel_id: the tunnel id for the interface, used as nicid also
         :param str address: ip address of interface
         :param str network_value: network cidr for interface; format: 1.1.1.0/24
-        :param str zone_ref: zone reference for interface
+        :param str zone_ref: zone reference for interface can be name, href or Zone
         :raises EngineCommandFailed: failure during creation
         :return: None
         """
         builder, interface = InterfaceBuilder.getBuilder(self, tunnel_id)
         builder.add_sni_only(address, network_value)
         if zone_ref:
-            builder.zone_ref = zone_ref
+            builder.zone = zone_ref
 
         dispatch(self, builder, interface)
 
@@ -600,19 +595,19 @@ class TunnelInterface(InterfaceCommon, Interface):
                 tunnel_id=3000,
                 cluster_virtual='31.31.31.31',
                 cluster_mask='31.31.31.0/24',
-                zone_ref=zone_helper('myzone'))
+                zone_ref='myzone')
 
         :param str,int tunnel_id: tunnel identifier (akin to interface_id)
         :param str cluster_virtual: CVI ipaddress (optional)
         :param str cluster_mask: CVI network; required if ``cluster_virtual`` set
         :param list nodes: nodes for clustered engine with address,network_value,nodeid
-        :param str zone_ref: zone reference (optional)
+        :param str zone_ref: zone reference, can be name, href or Zone
         """
         builder, interface = InterfaceBuilder.getBuilder(self, tunnel_id)
         if cluster_virtual and cluster_mask:
             builder.add_cvi_only(cluster_virtual, cluster_mask)
         if zone_ref:
-            builder.zone_ref = zone_ref
+            builder.zone = zone_ref
         if nodes:
             for node in nodes:
                 builder.add_ndi_only(**node)
@@ -638,10 +633,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
     physical interface::
 
         engine = Engine('myfw')
-        engine.physical_interface.add_single_node_interface(.....)
+        engine.physical_interface.add_layer3_interface(.....)
         engine.physical_interface.add(5) #single unconfigured physical interface
-        engine.physical_interface.add_node_interface(....)
-        engine.physical_interface.add_inline_interface('5-6', ....)
+        engine.physical_interface.add_inline_ips_interface('5-6', ....)
         ....
 
     When making changes, the etag used should be the top level engine etag.
@@ -653,7 +647,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         pass
 
     def add(self, interface_id, virtual_mapping=None,
-            virtual_resource_name=None):
+            virtual_resource_name=None, zone_ref=None):
         """
         Add single physical interface with interface_id. Use other methods
         to fully add an interface configuration based on engine type.
@@ -669,6 +663,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         """
         builder = InterfaceBuilder()
         builder.interface_id = interface_id
+        builder.zone = zone_ref
         builder.virtual_mapping = virtual_mapping
         builder.virtual_resource_name = virtual_resource_name
 
@@ -686,7 +681,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str,int interface_id: interface identifier
         :param str address: ip address
         :param str network_value: network/cidr (12.12.12.0/24)
-        :param str zone_ref: zone reference
+        :param str zone_ref: zone reference, can be name, href or Zone
         :param bool is_mgmt: enable as management interface
         :param kw: key word arguments are valid SingleNodeInterface
             sub-interface settings passed in during create time. For example,
@@ -720,7 +715,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str,int interface_id: interface identifier
         :param str address: ip address
         :param str network_value: network/cidr (12.12.12.0/24)
-        :param str zone_ref: zone reference
+        :param str zone_ref: zone reference, can be name, href or Zone
         :param bool is_mgmt: enable management
         :param kw: key word arguments are valid NodeInterface sub-interface
             settings passed in during create time. For example, 'backup_mgt=True'
@@ -750,7 +745,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str,int interface_id: interface identifier
         :param str address: ip address
         :param str network_value: network/cidr (12.12.12.0/24)
-        :param str zone_ref: zone reference
+        :param str zone_ref: zone reference, can be name, href or Zone
         :param bool is_mgmt: enable management
         :param kw: keyword arguments are passed to the sub-interface during
             create time. If the engine is a single FW, the sub-interface type
@@ -767,7 +762,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         """
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         if zone_ref:
-            builder.zone_ref = zone_ref
+            builder.zone = zone_ref
         if self._engine.type in ('single_fw',):
             builder.add_sni_only(address, network_value, is_mgmt, **kw)
         else:
@@ -786,8 +781,9 @@ class PhysicalInterface(InterfaceCommon, Interface):
             version >= 6.3 and SMC >= 6.3.
         
         :param str,int interface_id: interface identifier
-        :param str logical_interface_ref: logical interface reference
-        :param str zone_ref: zone reference
+        :param str logical_interface_ref: logical interface name, href or LogicalInterface.
+            If None, 'default_eth' logical interface will be used.
+        :param str zone_ref: zone reference, can be name, href or Zone
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
@@ -797,7 +793,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder.interface_id = interface_id
         builder.add_capture(logical_interface_ref)
         if zone_ref:
-            builder.zone_ref = zone_ref
+            builder.zone = zone_ref
 
         dispatch(self, builder)
 
@@ -815,12 +811,14 @@ class PhysicalInterface(InterfaceCommon, Interface):
         on a Layer 2 Firewall or IPS Engine.
         
         :param str interface_id: interface id; '1-2', '3-4', etc
-        :param str logical_interface_ref: logical interface reference. If None,
-            'default_eth' logical interface will be used.
+        :param str logical_interface_ref: logical interface name or str reference.
+            If None, 'default_eth' logical interface will be used.
         :param int vlan_id: optional VLAN id for first inline interface
         :param int vlan_id2: optional VLAN id for second inline interface
-        :param zone_ref_intf1: zone for inline interface 1
-        :param zone_ref_intf2: zone for inline interface 2
+        :param zone_ref_intf1: zone for inline interface 1, can be name,
+            str href or Zone
+        :param zone_ref_intf2: zone for inline interface 2, can be name,
+            str href or Zone
         :param str failure_mode: 'normal' or 'bypass'. Note: if specifying
             bypass, the inline interfaces must be using fail-open physical
             interfaces for bypass to work.
@@ -830,7 +828,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
         builder.interface_id = interface_id.split('-')[0]
         if not vlan_id:
-            builder.zone_ref = zone_ref_intf1
+            builder.zone = zone_ref_intf1
         
         builder.add_l2_inline(
             interface_id, logical_interface_ref, 
@@ -856,12 +854,14 @@ class PhysicalInterface(InterfaceCommon, Interface):
         inline interfaces.
         
         :param str interface_id: interface id; '1-2', '3-4', etc
-        :param str logical_interface_ref: logical interface reference. If
-            None, 'default_eth' will be used.
+        :param str logical_interface_ref: logical interface name, href or LogicalInterface.
+            If None, 'default_eth' logical interface will be used.
         :param str vlan_id: optional VLAN id for first interface pair
         :param str vlan_id2: optional VLAN id for second interface pair
-        :param zone_ref_intf1: zone for first interface in pair
-        :param zone_ref_intf2: zone for second interface in pair
+        :param zone_ref_intf1: zone for first interface in pair, can be name,
+            str href or Zone
+        :param zone_ref_intf2: zone for second interface in pair, can be name,
+            str href or Zone
         :raises EngineCommandFailed: failure creating interface
         :return: None
         
@@ -902,14 +902,16 @@ class PhysicalInterface(InterfaceCommon, Interface):
         step.
         
         :param str interface_id: interface id; '1-2', '3-4', etc
-        :param str logical_interface_ref: logical interface reference.
-            If None, 'default_eth' will be used.
+        :param str logical_interface_ref: logical interface name, href or LogicalInterface.
+            If None, 'default_eth' logical interface will be used.
         :param str vlan_id: optional VLAN id for first interface pair
         :param str vlan_id2: optional VLAN id for second interface pair
         :param str failure_mode: 'normal' or 'bypass' (default: normal).
             Bypass mode requires fail open interfaces.
-        :param zone_ref_intf1: zone for first interface in pair
-        :param zone_ref_intf2: zone for second interface in pair
+        :param zone_ref_intf1: zone for first interface in pair, can be name,
+            str href or Zone
+        :param zone_ref_intf2: zone for second interface in pair, can be name,
+            str href or Zone
         :raises EngineCommandFailed: failure creating interface
         :return: None
         
@@ -936,7 +938,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param int interface_id: interface id
         :param int dynamic_index: index number for dhcp interface
         :param bool primary_mgt: whether to make this primary mgt
-        :param str zone_ref: zone reference for interface
+        :param str zone_ref: zone reference, can be name, href or Zone
         :param int nodeid: node identifier
         :raises EngineCommandFailed: failure creating interface
         :return: None
@@ -946,7 +948,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder = InterfaceBuilder()
         builder.interface_id = interface_id
         builder.add_dhcp(dynamic_index, is_mgmt)
-        builder.zone_ref = zone_ref
+        builder.zone = zone_ref
 
         dispatch(self, builder)
 
@@ -991,7 +993,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             cluster_mask provided
         :param list nodes: list of dictionary items identifying cluster nodes
         :param str cvi_mode: packetdispatch is recommended setting
-        :param str zone_ref: if present, set on top level physical interface
+        :param str zone_ref: zone reference, can be name, href or Zone
         :param bool is_mgmt: enable management
         :param kw: key word arguments are valid NodeInterface sub-interface
             settings passed in during create time. For example, 'backup_mgt=True'
@@ -1012,8 +1014,8 @@ class PhysicalInterface(InterfaceCommon, Interface):
         for node in nodes:
             node.update(is_mgmt=is_mgmt, **kw)
             builder.add_ndi_only(**node)
-
-        builder.zone_ref = zone_ref
+        
+        builder.zone = zone_ref
     
         dispatch(self, builder, interface)
 
@@ -1030,7 +1032,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str macaddress: mac address to use on interface
         :param list nodes: interface node list
         :param bool is_mgmt: is this a management interface
-        :param zone_ref: zone to use, if any
+        :param zone_ref: zone to use, by name, str href or Zone
         :raises EngineCommandFailed: failure creating interface
         :return: None
         """
@@ -1042,7 +1044,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             node.update(is_mgmt=is_mgmt)
             builder.add_ndi_only(**node)
 
-        builder.zone_ref = zone_ref
+        builder.zone = zone_ref
 
         dispatch(self, builder)
     
@@ -1063,6 +1065,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str address: optional IP address to assign to VLAN
         :param str network_value: network cidr if address is specified. In
             format: 10.10.10.0/24.
+        :param str zone_ref: zone to use, by name, href, or Zone
         :param int virtual_mapping: virtual engine mapping id
                See :class:`smc.core.engine.VirtualResource.vfw_id`
         :param str virtual_resource_name: name of virtual resource
@@ -1074,7 +1077,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         if address is None:
             builder.add_vlan_only(
                 vlan_id, virtual_mapping, 
-                virtual_resource_name, zone_ref=None)
+                virtual_resource_name, zone_ref=zone_ref)
         else:
             if self._engine.type in ('single_fw',):
                 builder.add_ndi_to_vlan(
@@ -1180,7 +1183,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :param str macaddress: (optional) if used will provide the mapping from node interfaces
             to participate in load balancing.
         :param str cvi_mode: cvi mode for cluster interface (default: packetdispatch)
-        :param zone_ref: optional zone reference for physical interface level
+        :param zone_ref: zone to assign, can be name, str href or Zone
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
@@ -1189,7 +1192,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
             to add additional VLANs and interface addresses.
         """
         builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        builder.zone_ref = zone_ref
+        builder.zone = zone_ref
         if cluster_virtual and cluster_mask:   # Add CVI
             builder.add_cvi_to_vlan(cluster_virtual, cluster_mask, vlan_id)
             if macaddress:
@@ -1702,7 +1705,7 @@ class PhysicalVlanInterface(PhysicalInterface):
                 'virtual_mapping': virtual_mapping,
                 'virtual_resource_name': virtual_resource_name,
                 'interfaces': [],
-                'zone_ref': zone_ref}
+                'zone_ref': zone_helper(zone_ref)}
         # Address sent as kwarg?
         interface = kwargs.pop('interface', None)
         if interface:  # Should be sub-interface type
@@ -1953,6 +1956,14 @@ class InterfaceBuilder(object):
                 setattr(self, 'vlanInterfaces', [])
                 setattr(self, 'zone_ref', None)
 
+    @property
+    def zone(self):
+        pass
+    
+    @zone.setter
+    def zone(self, value):
+        setattr(self, 'zone_ref', zone_helper(value))
+    
     def add_vlan_only(self, vlan_id, virtual_mapping=None,
                       virtual_resource_name=None, zone_ref=None):
         """
@@ -2027,7 +2038,7 @@ class InterfaceBuilder(object):
         """
         capture = CaptureInterface.create(
             self.interface_id,
-            logical_interface_ref)
+            logical_intf_helper(logical_interface_ref))
 
         self.interfaces.append(capture.data)
 
@@ -2040,7 +2051,7 @@ class InterfaceBuilder(object):
         """
         inline = InlineInterface.create(
             interface_id,
-            logical_interface_ref=logical_interface_ref,
+            logical_interface_ref=logical_intf_helper(logical_interface_ref),
             failure_mode=failure_mode,
             zone_ref=zone_ref)  # Zone ref directly on the inline interface
 
@@ -2063,8 +2074,7 @@ class InterfaceBuilder(object):
             If this should be an inline interface for an l3 firewall, this value
             will be InlineIPSInterface or InlineL2FWInterface.
         """
-        if logical_interface_ref is None:
-            logical_interface_ref = LogicalInterface('default_eth').href
+        logical_interface_ref = logical_intf_helper(logical_interface_ref)
         
         if not self.interfaces:
             # Create base parent inline
@@ -2073,7 +2083,7 @@ class InterfaceBuilder(object):
                 logical_interface_ref=logical_interface_ref)
             
             if not vlan_id:
-                setattr(inline, 'zone_ref', zone_ref_intf2)
+                setattr(inline, 'zone_ref', zone_helper(zone_ref_intf2))
             
             if if_type is not InlineL2FWInterface:
                 setattr(inline, 'failure_mode', kw.get('failure_mode', 'normal'))
@@ -2091,7 +2101,7 @@ class InterfaceBuilder(object):
             inline_intf = if_type.create(
                 interface_id,
                 logical_interface_ref,
-                zone_ref=zone_ref_intf2)
+                zone_ref=zone_helper(zone_ref_intf2))
             
             if if_type is not InlineL2FWInterface:
                 # Get failure mode setting from parent interface

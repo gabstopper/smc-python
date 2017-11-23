@@ -387,7 +387,7 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
         Create a layer 3 firewall rule
 
         :param str name: name of rule
-        :param list[str, Element] sources: source/s for rule
+        :param sources: source/s for rule
         :type sources: list[str, Element]
         :param destinations: destination/s for rule
         :type destinations: list[str, Element]

@@ -4,6 +4,7 @@ Group (generic), etc. All group types inherit from GroupMixin which
 allow for modifications of existing groups and their members.
 """
 from smc.base.model import Element, ElementCreator
+from smc.api.exceptions import ElementNotFound
 from smc.base.util import element_resolver
 
 
@@ -12,7 +13,33 @@ class GroupMixin(object):
     Methods associated with handling modification of Group 
     objects for existing elements
     """
-
+    
+    @classmethod
+    def update_or_create(cls, append_lists=True, **kwargs):
+        """
+        Update or create group entries. If the group exists, the members
+        will be updated. Set append_lists=True to add new members to
+        the list, or False to reset the list to the provided members.
+        
+        :param bool append_lists: add to existing members, if any
+        :paran dict kwargs: keyword arguments to satisfy the `create`
+            constructor if the group needs to be created.
+        :raises CreateElementFailed: could not create element with reason 
+        :return: element instance by type 
+        :rtype: Element
+        """
+        element = None
+        try: 
+            element = cls.get(kwargs.get('name'))
+            element.update_members(
+                kwargs.get('members', []),
+                append_lists=append_lists)
+        except ElementNotFound: 
+            element = cls.create(
+                kwargs.get('name'),
+                members = kwargs.get('members', []))
+        return element
+    
     def update_members(self, members, append_lists=False):
         """
         Update group members with member list. Set append=True
@@ -23,9 +50,17 @@ class GroupMixin(object):
         :param bool append: whether to append
         :return: None
         """
-        self.update(
-            element=element_resolver(members),
-            append_lists=append_lists)
+        if members:
+            if append_lists:
+                element = [element for element in members
+                           if element_resolver(element) not in self.members]
+            else:
+                element = element_resolver(members)
+            
+            if element:
+                self.update(
+                    element=element_resolver(members),
+                    append_lists=append_lists)
 
     def obtain_members(self):
         """
@@ -35,7 +70,7 @@ class GroupMixin(object):
         :rtype: list(Element)
         """
         return [Element.from_href(member)
-                for member in self.data.get('element')]
+                for member in self.data.get('element', [])]
 
     def empty_members(self):
         """
@@ -44,6 +79,17 @@ class GroupMixin(object):
         :return: None
         """
         self.update(element=[])
+
+    @property
+    def members(self):
+        """
+        Return members in raw href format. If you want to obtain a
+        resolved list of elements as instance of Element, call
+        `~obtain_members`.
+        
+        :rtype: list
+        """
+        return self.data.get('element', [])
 
 
 class Group(GroupMixin, Element):

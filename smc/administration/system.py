@@ -276,3 +276,11 @@ class System(SubElement):
 
     def unlicensed_components(self):
         raise NotImplementedError
+    
+    @property
+    def mgt_integration_configuration(self):
+        """
+        Retrieve the management API configuration for 3rd party integration
+        devices.
+        """
+        return self.read_cmd(resource='mgt_integration_configuration')

@@ -64,7 +64,7 @@ class SMCAPIConnection(object):
                     
                     response.encoding = 'utf-8'
 
-                    logger.debug(vars(response))
+                    logger.debug('GET %s: %s', request.href, vars(response))
                     counters.update(read=1)
 
                     if response.status_code not in (200, 204, 304):
@@ -82,7 +82,7 @@ class SMCAPIConnection(object):
                     
                     response.encoding = 'utf-8'
 
-                    logger.debug(vars(response))
+                    logger.debug('POST %s: %s', request.href, vars(response))
                     counters.update(create=1)
 
                     if response.status_code not in (200, 201, 202):
@@ -95,7 +95,7 @@ class SMCAPIConnection(object):
                     
                     # Etag should be set in request object
                     request.headers.update(Etag=request.etag)
-                    logger.debug('PUT: %s' % vars(request))
+                    logger.debug('PUT: %s', vars(request))
                     
                     response = self.session.put(
                         request.href,
@@ -110,8 +110,9 @@ class SMCAPIConnection(object):
                         raise SMCOperationFailure(response)
 
                 elif method == SMCAPIConnection.DELETE:
-                    response = self.session.delete(request.href,
-                                                   headers=request.headers)
+                    response = self.session.delete(
+                        request.href,
+                        headers=request.headers)
 
                     counters.update(delete=1)
 
@@ -125,6 +126,7 @@ class SMCAPIConnection(object):
 
                     response.encoding = 'utf-8'
 
+                    logger.debug('DELETE %s: %s', request.href, vars(response))
                     if response.status_code not in (200, 204):
                         raise SMCOperationFailure(response)
 
@@ -138,9 +140,9 @@ class SMCAPIConnection(object):
                 raise error
             except requests.exceptions.RequestException as e:
                 raise SMCConnectionError(
-                    "Connection problem to SMC, ensure the "
-                    "API service is running and host is correct: %s, "
-                    "exiting." % e)
+                    'Connection problem to SMC, ensure the '
+                    'API service is running and host is correct: %s, '
+                    'exiting.' % e)
             else:
                 return SMCResult(response, domain=self.session_domain)
         else:
@@ -151,7 +153,7 @@ class SMCAPIConnection(object):
         """
         Called when GET request specifies a filename to retrieve.
         """
-        logger.debug(vars(request))
+        logger.debug('Download: %s', vars(request))
         response = self.session.get(
             request.href,
             params=request.params,
@@ -159,12 +161,11 @@ class SMCAPIConnection(object):
             stream=True)
 
         if response.status_code == 200:
-            logger.debug("Streaming to file... Content length: {}"
-                         .format(len(response.content)))
+            logger.debug('Streaming to file... Content length: %s', len(response.content))
             try:
                 path = os.path.abspath(request.filename)
-                logger.debug("Operation: {}, saving to file: {}"
-                             .format(request.href, path))
+                logger.debug('Operation: %s, saving to file: %s', request.href, path)
+    
                 with open(path, "wb") as handle:
                     for chunk in response.iter_content(chunk_size=1024):
                         if chunk:
@@ -185,7 +186,7 @@ class SMCAPIConnection(object):
         files attribute set which will be an open handle to the
         file that will be binary transfer.
         """
-        logger.debug(vars(request))
+        logger.debug('Upload: %s', vars(request))
         command = getattr(self.session, request._method.lower())
         
         response = command(
@@ -193,10 +194,9 @@ class SMCAPIConnection(object):
             params=request.params,
             files=request.files)
 
-        if response.status_code in (202, 204):
+        if response.status_code in (201, 202, 204):
             logger.debug(
-                'Success sending file in elapsed time: {}'
-                .format(response.elapsed))
+                'Success sending file in elapsed time: %s', response.elapsed)
             return SMCResult(response, domain=self.session_domain)
 
         raise SMCOperationFailure(response)

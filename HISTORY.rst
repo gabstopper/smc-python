@@ -58,5 +58,31 @@ Release History
 - BGP node added to engine. Add full create/modify/delete capability by reference: engine.bgp.is_enabled, etc. Added to
   provide modular configuration to BGP.
 - OSPF node added to engine. Add full create/modify/delete capability by reference: engine.ospf.is_enabled, etc.
+- merging lists on element update will now filter out duplicate entries before potentially updating. The SMC API protects
+  against this but validation moved into element update function saving potential exception on PUT
+- get_or_create and update_or_create return classmethod get for elements that are considered read-only; i.e. do not have
+  a `create` classmethod.
+- update_or_create will now check the provided key/value pairs before updating the specified element. This is to make
+  the modification more idempotent. If the retrieved element exists and has the same value (based on current ETag), then
+  do not modify.
+- Optimization of resolved alias retrieval from the engine. Instead of retrieving all aliases and resolving the alias
+  reference, first retrieve the entire list of aliases (1 query) and then correlate to resolved alias references. This
+  amounts to reducing the number of queries to retrieve a single engines aliases from ~60 to 3.
+- set_stream_logger and set_file_logger attached to smc.api.session.Session() as convenience functions.
+- Optimize logging at request level, more clear output
+- Simplify interface creating where zone or logical interface is needed. Now zone/logical interfaces can be provided
+  as either name (if they don't exist, they will be created), as href, or as Zone/LogicalInterface instances.
+- New engine level resources: antivirus, file_reputation, sidewinder_proxy, sandbox and url_filtering. Previous definitions
+  nested in smc.core.properties.AddOns set to deprecated and will be removed in the near future.
+- Added support for adding DNS Server entries to engines based on elements (previously only IP addresses were supported).
+
+
+  
  
+ 
+ 
+ **Bugfixes**
+ 
+ - If a search is provided in format: Host.objects.filter(address='1.1.1.1').first(), and the search returns meta, but the
+   filtered results do not return a match, the method tries to pop from an empty list. Return None instead.
 

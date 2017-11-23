@@ -2,6 +2,33 @@
 API Reference
 #############
 
+Session
+-------
+
+.. automodule:: smc.api.session
+.. autoclass:: Session
+   :members: 
+
+	
+Element (Base)
+--------------
+
+.. automodule:: smc.base.model
+	:exclude-members: from_meta, from_href
+
+.. autoclass:: ElementBase
+	:members:
+
+.. autoclass:: Element
+	:members:
+	:show-inheritance:
+	:exclude-members: from_meta, from_href
+
+	.. automethod:: objects(self)
+
+.. _element-reference-label:
+
+
 Administration
 --------------
 
@@ -38,6 +65,12 @@ System
 .. automodule:: smc.administration.system
 	:members:
 
+License
++++++++
+
+.. automodule:: smc.administration.license
+	:members:
+
 Tasks
 +++++
 
@@ -64,25 +97,6 @@ Dynamic Update
 .. autoclass:: UpdatePackage
 	:members:
 	:show-inheritance:
-
-	
-Element (Base)
---------------
-
-.. automodule:: smc.base.model
-	:exclude-members: from_meta, from_href
-
-.. autoclass:: ElementBase
-	:members:
-
-.. autoclass:: Element
-	:members:
-	:show-inheritance:
-	:exclude-members: from_meta, from_href
-
-	.. automethod:: objects(self)
-
-.. _element-reference-label:
 
 Elements
 --------
@@ -300,6 +314,12 @@ LogServer
 .. autoclass:: LogServer
 	:members: add_contact_address, remove_contact_address, contact_addresses
 	:show-inheritance:
+	
+HttpProxy
+*********
+
+.. autoclass:: HttpProxy
+	:members:
 
 Other
 +++++
@@ -381,8 +401,35 @@ AddOns
 
 .. automodule:: smc.core.properties
 
-.. autoclass:: AddOn
-	:members: antivirus_options
+AntiVirus
+*********
+
+.. autoclass:: smc.core.properties.AntiVirus
+	:members:
+	
+FileReputation
+**************
+
+.. autoclass:: smc.core.properties.FileReputation
+	:members:
+
+SidewinderProxy
+***************
+
+.. autoclass:: smc.core.properties.SidewinderProxy
+	:members:
+
+UrlFiltering
+************
+
+.. autoclass:: smc.core.properties.UrlFiltering
+	:members:
+
+Sandbox
+*******
+
+.. autoclass:: smc.core.properties.Sandbox
+	:members:
 
 Appliance Status
 ++++++++++++++++
@@ -440,10 +487,10 @@ PrefixList
 General
 +++++++
 
-L2FWSettings
-************
+Layer2Settings
+**************
 
-.. autoclass:: smc.core.resource.L2FWSettings
+.. autoclass:: smc.core.properties.Layer2Settings
 	:members:
 	
 InternalEndpoint
@@ -597,13 +644,6 @@ VirtualResource
 	:members:
 	:show-inheritance:
 
-Waiters
-+++++++
-
-.. automodule:: smc.core.waiters
-	:members:
-	:show-inheritance:
-
 Engine Types
 ------------
 
@@ -650,15 +690,6 @@ MasterEngineCluster
 
 .. autoclass:: MasterEngineCluster
 	:members:
-
-Exceptions
-----------
-Exceptions thrown throughout smc-python. Be sure to check functions or class methods
-that have raises documentation. All exception classes subclass SMCException
-
-.. automodule:: smc.api.exceptions
-   :members:
-   :show-inheritance:
 
 Policy
 ------
@@ -1009,13 +1040,6 @@ Below are some common examples of retrieving data from the SMC:
 .. automodule:: smc.actions.search
    :members:
 
-Session
--------
-
-.. automodule:: smc.api.session
-.. autoclass:: Session
-   :members: 
-
 Advanced Usage
 --------------
 
@@ -1045,4 +1069,21 @@ Example of using SMCRequest to fetch an element by href, returning an SMCResult:
 
 	>>> vars(SMCRequest(href='http://1.1.1.1:8082/6.2/elements/host/978').read())
 	{'code': 200, 'content': None, 'json': {u'comment': u'this is a searchable comment', u'read_only': False, u'ipv6_address': u'2001:db8:85a3::8a2e:370:7334', u'name': u'kali', u'third_party_monitoring': {u'netflow': False, u'snmp_trap': False}, u'system': False, u'link': [{u'href': u'http://1.1.1.1:8082/6.2/elements/host/978', u'type': u'host', u'rel': u'self'}, {u'href': u'http://1.1.1.1:8082/6.2/elements/host/978/export', u'rel': u'export'}, {u'href': u'http://1.1.1.1:8082/6.2/elements/host/978/search_category_tags_from_element', u'rel': u'search_category_tags_from_element'}], u'key': 978, u'address': u'1.1.11.1', u'secondary': [u'7.7.7.7']}, 'href': None, 'etag': '"OTc4MzExMzkxNDk2MzI1MTMyMDI4"', 'msg': None}
-	
+
+
+Waiters
+-------
+
+.. automodule:: smc.core.waiters
+	:members:
+	:show-inheritance:
+
+Exceptions
+----------
+Exceptions thrown throughout smc-python. Be sure to check functions or class methods
+that have raises documentation. All exception classes subclass SMCException
+
+.. automodule:: smc.api.exceptions
+   :members:
+   :show-inheritance:
+   	

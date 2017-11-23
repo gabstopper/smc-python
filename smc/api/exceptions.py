@@ -103,6 +103,18 @@ class CertificateError(SMCException):
     pass
 
 
+class CertificateImportError(CertificateError):
+    """
+    Failure to import a certificate or private key
+    """
+    pass
+
+class CertificateExportError(CertificateError):
+    """
+    Failure to export a certificate
+    """
+    pass
+
 class CreateEngineFailed(SMCException):
     """
     Thrown when a POST operation returns with a failed response.

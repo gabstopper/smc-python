@@ -17,4 +17,5 @@ exclude_lines =
     except ImportError
     if compat.PY3
     if recursive and is_pkg
+    string_types
     super

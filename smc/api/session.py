@@ -71,20 +71,29 @@ class SSLAdapter(HTTPAdapter):
 '''     
 
 class Session(object):
-
+    """
+    Session represents the clients session to the SMC. As session is obtained
+    by calling login(). If sessions need to be long lived as might be the case
+    when running under a web platform, a session is automatically refreshed
+    when it expires. Best practice is to call logout() after to clear the
+    session from the SMC.
+    """
     AUTOCOMMIT = False
     _MODS_LOADED = False
-
+    
+    #: The default format string to use when configuring the logger
+    LOG_FORMAT = '%(asctime)s - %(name)s - [%(levelname)s] - %(message)s'
+    
     def __init__(self):
         self._entry_points = []
         self._api_version = None
         self._session = None
         self._connection = None
         self._url = None
-        self._api_key = None
         self._timeout = 10
         self._domain = 'Shared Domain'
         self._extra_args = {}
+        self.credential = Credential()
         # Added to support domain switching
         self._sessions = {}
 
@@ -112,7 +121,8 @@ class Session(object):
         into a connection if necessary using
         {'Cookie': session.session_id}
         """
-        return 'JSESSIONID=%s' % self.session.cookies.get('JSESSIONID')
+        return 'JSESSIONID=%s' % self.session.cookies.get('JSESSIONID')\
+            if self.session else None
 
     @property
     def connection(self):
@@ -132,11 +142,6 @@ class Session(object):
     @property
     def is_ssl(self):
         return self.url.startswith('https') if self.session else False
-        
-    @property
-    def api_key(self):
-        """ SMC Client API key """
-        return self._api_key
 
     @property
     def timeout(self):
@@ -148,9 +153,9 @@ class Session(object):
         """ Logged in domain """
         return self._domain
 
-    def login(self, url=None, api_key=None, api_version=None,
-              timeout=None, verify=True, alt_filepath=None,
-              domain=None, **kwargs):
+    def login(self, url=None, api_key=None, login=None, pwd=None,
+              api_version=None, timeout=None, verify=True,
+              alt_filepath=None, domain=None, **kwargs):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
@@ -164,6 +169,8 @@ class Session(object):
 
         :param str url: ip of SMC management server
         :param str api_key: API key created for api client in SMC
+        :param str login: Administrator user in SMC that has privilege to SMC API.
+        :param str pwd: Password for user login.
         :param api_version (optional): specify api version
         :param int timeout: (optional): specify a timeout for initial connect; (default 10)
         :param str|boolean verify: verify SSL connections using cert (default: verify=True)
@@ -186,8 +193,12 @@ class Session(object):
 
         Logout should be called to remove the session immediately from the
         SMC server.
+        
+        .. note:: As of SMC 6.4 it is possible to give a standard Administrative user access
+            to the SMC API. It is still possible to use an API Client by providing the api_key
+            in the login call.
         """
-        if not url or not api_key:
+        if not url or (not api_key and not (login and pwd)):
             # First try load from file
             try:
                 cfg = load_from_file(alt_filepath) if alt_filepath\
@@ -215,19 +226,27 @@ class Session(object):
         s = requests.session()  # no session yet
 
         json = {
-            'authenticationkey': api_key,
             'domain': domain
         }
+    
+        if api_key:
+            json.update(authenticationkey=api_key)
         
         if kwargs:
             json.update(**kwargs)
             self._extra_args.update(**kwargs)
         
-        r = s.post(
-            self.entry_points.get('login'),
+        params = dict(login=login, pwd=pwd) if login and pwd else None
+        
+        req = dict(
+            url=self.entry_points.get('login') if api_key else \
+                '{}/{}/lms_login'.format(url, self._api_version),
             json=json,
+            params=params,
             headers={'content-type': 'application/json'},
             verify=verify)
+        
+        r = s.post(**req)
         
         logger.info('Using SMC API version: %s', self.api_version)
         
@@ -235,7 +254,7 @@ class Session(object):
             self._session = s  # session creation was successful
             self._session.verify = verify  # make verify setting persistent
             self._url = url
-            self._api_key = api_key
+            self.credential.set_credentials(api_key, login, pwd)
         
             if domain:
                 self._domain = domain
@@ -287,7 +306,7 @@ class Session(object):
         :raises SMCConnectionError
         """
         # Did we already have a session that just timed out
-        if self.session and self.api_key and self.url:
+        if self.session and self.credential.has_credentials and self.url:
             # Try relogging in to refresh, otherwise fail
             logger.info(
                 'Session timed out, will try obtaining a new session using '
@@ -323,16 +342,68 @@ class Session(object):
                 logger.info('Switching to existing domain session: %s', domain)
                 self._session = self._sessions.get(domain)
                 self._domain = domain
+
+    def set_file_logger(self, path, log_level=logging.DEBUG, format_string=None, logger_name='smc'):
+        """
+        Convenience function to quickly configure any level of logging
+        to a file.
+    
+        :param int log_level: A log level as specified in the `logging` module
+        :param str format_string: Optional format string as specified in the 
+            `logging` module
+        :param str path: Path to the log file.  The file will be created
+            if it doesn't already exist.
+        """
+        if format_string is None: 
+            format_string = self.LOG_FORMAT
+        
+        log = logging.getLogger(logger_name)
+        log.setLevel(log_level)
+
+        # create file handler and set level
+        ch = logging.FileHandler(path)
+        ch.setLevel(log_level)
+        # create formatter
+        formatter = logging.Formatter(format_string)
+        # add formatter to ch
+        ch.setFormatter(formatter)
+        # add ch to logger
+        log.addHandler(ch)
+        
+    def set_stream_logger(self, log_level=logging.DEBUG, format_string=None, logger_name='smc'): 
+        """ 
+        Stream logger convenience function to log to console
+        
+        :param int log_level: A log level as specified in the `logging` module
+        :param str format_string: Optional format string as specified in the 
+            `logging` module
+        """ 
+        if format_string is None: 
+            format_string = self.LOG_FORMAT
+     
+        logger = logging.getLogger(logger_name) 
+        logger.setLevel(log_level)
+        
+        # create console handler and set level
+        ch = logging.StreamHandler() 
+        ch.setLevel(log_level)
+        # create formatter
+        formatter = logging.Formatter(format_string)
+        # add formatter to ch
+        ch.setFormatter(formatter) 
+        logger.addHandler(ch) 
     
     def _get_login_params(self):
-        credentials = {
-            'url': self.url,
-            'api_key': self.api_key,
-            'api_version': self.api_version,
-            'timeout': self.timeout,
-            'verify': self._session.verify,
-            'domain': self.domain,
-        }
+        """
+        Spec for login parameters
+        """
+        credentials = dict(
+            url=self.url,
+            api_version=self.api_version,
+            timeout=self.timeout,
+            verify=self._session.verify,
+            domain=self.domain)
+        credentials.update(self.credential.get_credentials())
         credentials.update(**self._extra_args)
         return credentials
     
@@ -352,8 +423,53 @@ class Session(object):
 
             if response.status_code in (200, 201):
                 return response.json()
+                
 
+class Credential(object):
+    """
+    Default credential object storing the api_key or 
+    login / pwd for LMS connections.
+    """
+    def __init__(self):
+        self._api_key = None
+        self._login = None
+        self._pwd = None
+    
+    @property
+    def has_credentials(self):
+        """
+        Does this session have valid credentials
+        
+        :rtype: bool
+        """
+        if self._api_key is not None:
+            return True
+        elif self._login is not None and self._pwd is not None:
+            return True
+        return False
+    
+    def set_credentials(self, api_key=None, login=None, pwd=None):
+        self._api_key = api_key
+        self._login = login
+        self._pwd = pwd
+    
+    def get_credentials(self):
+        """
+        Return credentials as a dict
+        
+        :rtype: dict
+        """
+        if self.has_credentials:
+            if self._api_key:
+                return dict(
+                    api_key=self._api_key)
+            else:
+                return dict(
+                    login=self._login,
+                    pwd=self._pwd)
+        return {}
 
+                                
 def get_entry_points(base_url, timeout=10, verify=True):
     """
     Return the entry points in iterable class
@@ -365,7 +481,7 @@ def get_entry_points(base_url, timeout=10, verify=True):
         if r.status_code == 200:
             j = json.loads(r.text)
             logger.debug('Successfully retrieved API entry points from SMC')
-        
+            
             return _EntryPoint(j['entry_point'])
 
         else:

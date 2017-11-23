@@ -53,7 +53,7 @@ smc = {'HostConfig': {
         '8916/tcp': [{'HostPort': '8916'}],
         '8917/tcp': [{'HostPort': '8917'}],
         '8918/tcp': [{'HostPort': '8918'}]}, },
-       'Image': 'dwlepage70/smc:v6.3.0',
+       'Image': 'dlepage70/smc:v6.3.0_relicensed',
        'Labels': {},
        'Mounts': [],
        'NetworkingConfig': {
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     #    pprint(get_container_stats(image.get('Id')))
 
     for container in get_containers():
-        if container.get('Image').startswith('dwlepage70/smc'):
+        if container.get('Image').startswith('dlepage70/smc'):
             container_id = container.get('Id')
             print("Kill container: %s" % container_id)
             if container.get('State').lower() == 'running':

@@ -58,7 +58,7 @@ if __name__ == '__main__':
     engine = Engine('sg_vm')
     for bl in engine.blacklist_show(max_recv=5):
         print(bl)
-                
+           
     #query.request = {"query":{"definition":"BLACKLIST","target":"sg_vm"}, "fetch":{}, "format":{"type":"texts", "field_format": "name"}}
     #query = UserQuery('lynn', check_hostname=False)
     #query = VPNSAQuery('sg_vm')

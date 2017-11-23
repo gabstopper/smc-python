@@ -211,7 +211,7 @@ class Action(object):
         Policy referenced by this policy. Traffic is inspected as the Protocol that
         is attached to the Service element in this rule.
 
-        :param bool value: True, False
+        :param bool value: True, False, None (inherit from continue rule)
         :rtype: bool
         """
         return self.data.get('deep_inspection')
@@ -227,7 +227,7 @@ class Action(object):
         Selecting this option should also activates the Deep Inspection option.
         You can further adjust virus scanning in the Inspection Policy. 
 
-        :param bool value: True, False
+        :param bool value: True, False, None (inherit from continue rule)
         :rtype: bool
         """
         return self.data.get('file_filtering')
@@ -241,7 +241,7 @@ class Action(object):
         """
         Enable or disable DOS protection mode
 
-        :param bool value: True, False
+        :param bool value: True, False, None (inherit from continue rule)
         :rtype: bool
         """
         return self.data.get('dos_protection')
@@ -337,6 +337,7 @@ class ConnectionTracking(object):
             rule.action.connection_tracking_options.mss_enforced = True
             rule.action.connection_tracking_options.state = 'normal'
             rule.action.connection_tracking_options.mss_enforced_min_max = (1400, 1450)
+            rule.action.connection_tracking_options.sync_connections = True
             rule.save()
     """
     def __init__(self, data=None):
@@ -412,9 +413,28 @@ class ConnectionTracking(object):
 
     @timeout.setter
     def timeout(self, value):
+        """
+        Set the idle timeout for connections in seconds
+        
+        :param int value: idle connection timeout
+        """
         self.data['timeout'] = value
 
-
+    @property
+    def sync_connections(self):
+        """
+        Are sync connections enabled for this engine. If 
+        None, then this is set to inherit from a continue
+        rule.
+        
+        :return True, False, None (inherit from continue rule)
+        """
+        return self.data.get('sync_connections')
+    
+    @sync_connections.setter
+    def sync_connections(self, value):
+        self.data['sync_connections'] = value
+        
 class LogOptions(object):
     """
     Log Options represent the settings related to per rule logging.
@@ -502,7 +522,7 @@ class LogOptions(object):
         Any/Any/Any/Continue rule in position 1 if global logging is 
         required. This can be used to override any global logging setting.
 
-        :param str value: none\|stored\|transient\|essential\|alert
+        :param str value: none\|stored\|transient\|essential\|alert\|undefined
         :return: str
         """
         return self.data.get('log_level')
@@ -580,14 +600,14 @@ class LogOptions(object):
         Otherwise, only the IP address associated with the User at the time
         the log was created is stored.
 
-        :param str value: false\|true\|enforced
+        :param str value: off\|default\|enforced
         :return: str
         """
         return self.data.get('user_logging')
 
     @user_logging.setter
     def user_logging(self, value):
-        if value in ['true', 'false', 'enforced']:
+        if value in ['off', 'default', 'enforced']:
             self.data['user_logging'] = value
 
 

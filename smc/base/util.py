@@ -117,9 +117,10 @@ def merge_dicts(dict1, dict2, append_lists=False):
         # append the new values onto the original list
         elif isinstance(dict2[key], list) and append_lists:
             # The value in dict1 must be a list in order to append new
-            # values onto it.
+            # values onto it. Don't add duplicates.
             if key in dict1 and isinstance(dict1[key], list):
-                dict1[key].extend(dict2[key])
+                dict1[key].extend(
+                    [k for k in dict2[key] if k not in dict1[key]])
             else:
                 dict1[key] = dict2[key]
         else:

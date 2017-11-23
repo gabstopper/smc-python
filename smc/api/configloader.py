@@ -3,7 +3,6 @@ Configuration Loader
 """
 import os
 import io
-import json
 from smc.api.exceptions import ConfigLoadError
 
 try:

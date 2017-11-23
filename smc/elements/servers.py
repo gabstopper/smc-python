@@ -1,7 +1,7 @@
 """
 Module that represents server based configurations
 """
-from smc.base.model import SubElement
+from smc.base.model import SubElement, ElementCreator
 from smc.elements.helpers import location_helper
 from smc.base.model import Element
 
@@ -165,3 +165,43 @@ class LogServer(ServerCommon, Element):
     def __init__(self, name, **meta):
         super(LogServer, self).__init__(name, **meta)
         pass
+
+    
+class HttpProxy(Element):
+    """
+    An HTTP Proxy based element. Used in various areas of the configuration
+    such as engine properties to define proxies for File Reputation, etc.
+    
+    """
+    typeof = 'http_proxy'
+    
+    def __init__(self, name, **meta):
+        super(HttpProxy, self).__init__(name, **meta)
+        pass
+    
+    @classmethod
+    def create(cls, name, address, proxy_port=8080, username=None,
+               password=None, secondary=None):
+        """
+        Create a new HTTP Proxy service. Proxy must define at least
+        one primary address but can optionally also define a list
+        of secondary addresses.
+        
+        :param str name: Name of the proxy element
+        :param str address: Primary address for proxy
+        :param int proxy_port: proxy port (default: 8080)
+        :param str username: optional username for authentication (default: None)
+        :param str password: password for username if defined (default: None)
+        :param list secondary: secondary list of proxy server addresses
+        :raises CreateElementFailed: Failed to create the proxy element
+        :rtype: HttpProxy
+        """
+        json = {
+            'name': name,
+            'address': address,
+            'http_proxy_port': proxy_port,
+            'http_proxy_username': username if username else '',
+            'http_proxy_password': password if password else '',
+            'secondary': secondary if secondary else []}
+        
+        return ElementCreator(cls, json)

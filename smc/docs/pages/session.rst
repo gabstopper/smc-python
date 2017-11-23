@@ -155,14 +155,24 @@ unless `logout` has been called.
 Logging helper
 ++++++++++++++
 		  
-To enable logging from smc-python, a convenience method is provided to show stream logging:
+To enable logging from smc-python, convenience methods are provided on the session. These are
+typically called before session login:
 
 .. code-block:: python
 
-   from smc import set_stream_logger
-   set_stream_logger(level=logging.DEBUG, format_string=None)
+   session.set_file_logger(log_level=10, path='/Users/foo/smc-test.log')
+   session.login()
+   ...
    
-Another option is to add the following lines to your script:
+Or use a stream logger and also optionally enable urllib3 messages:
+
+.. code-block:: python
+
+   session.set_stream_logger(log_level=logging.DEBUG)
+   session.set_stream_logger(log_level=logging.DEBUG, logger_name='urllib3')
+   
+
+Another logging option is to add the following lines to your script:
 
 .. code-block:: python
 

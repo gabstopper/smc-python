@@ -151,27 +151,33 @@ class IPService(ProtocolAgentMixin, Element):
                 'comment': comment}
 
         return ElementCreator(cls, json)
-
+    
+    @property
+    def protocol_number(self):
+        """
+        Protocol number for this IP Service
+        
+        :rtype: int
+        """
+        return int(self.data.get('protocol_number'))
+    
 
 class EthernetService(Element):
     """ 
     Represents an ethernet based service in SMC
-    Ethernet service only supports adding eth2 frame type. 
-    Ethertype field should be the ethernet2 ethertype hex code 
-    converted into decimal format. 
+    Ethernet service only supports adding Ethernet II frame type. 
+    
+    The value1 field should be the ethernet2 ethertype hex code
+    which will be converted to decimal format.
 
-    Create an ethernet rule for DEC DNS which has an ethernet type
-    hex code of 803C, and a decimal conversion value of 32828:
+    Create an ethernet rule representing the presence of an IEEE
+    802.1Q tag:
 
-        >>> EthernetService.create(name='myService', ethertype='32828')
-        EthernetService(name=myService)
+        >>> EthernetService.create(name='8021q frame', value1='0x8100')
+        EthernetService(name=8021q frame)
 
     .. note:: Ethernet Services are only available as of SMC version 6.1.2
 
-    Available attributes:
-    
-    :ivar str frame_type: ethernet frame; 'eth2','llc','snap'
-    :ivar str ethertype: hex string code for protocol
     """
     typeof = 'ethernet_service'
 
@@ -180,13 +186,13 @@ class EthernetService(Element):
         pass
 
     @classmethod
-    def create(cls, name, frame_type='eth2', ethertype=None, comment=None):
+    def create(cls, name, frame_type='eth2', value1=None, comment=None):
         """
         Create an ethernet service
 
         :param str name: name of service
-        :param str frame_type: ethernet frame type, eth2\|llc\|snap
-        :param str ethertype: hex string code for protocol
+        :param str frame_type: ethernet frame type, eth2
+        :param str value1: hex code representing ethertype field
         :param str comment: optional comment
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
@@ -194,10 +200,20 @@ class EthernetService(Element):
         """
         json = {'frame_type': frame_type,
                 'name': name,
-                'value1': ethertype,
+                'value1': int(value1, 16),
                 'comment': comment}
 
         return ElementCreator(cls, json)
+    
+    @property
+    def value1(self):
+        if 'value1' in self.data:
+            return hex(int(self.data.get('value1')))
+    
+    @value1.setter
+    def value1(self, value):
+        if 'value1' in self.data:
+            self.data['value1'] = int(value, 16)
 
 
 class Protocol(Element):

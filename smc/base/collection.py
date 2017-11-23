@@ -147,8 +147,8 @@ class ElementCollection(object):
         >>> list(query2)
         [Router(name=Router-10.10.10.1)]
 
-    .. note:: ``first``, ``last`` and ``exists`` do not perform filtering when using
-        ``filter_key``. Results on filter(kwargs) are only done by retrieving the list of
+    .. note:: ``exists`` does not perform filtering when using ``filter_key``.
+        Results on filter(kwargs) are only done by retrieving the list of
         results or iterating.
     """
     def __init__(self, **params):
@@ -312,7 +312,12 @@ class ElementCollection(object):
         """
         if self._list:
             self._params.update(limit=1)
-            return list(self)[0]
+            if 'filter' not in self._params:
+                return list(self)[0]
+            else: # Filter may not return results
+                result = list(self)
+                if result:
+                    return result[0]
     
     def last(self):
         """
@@ -329,7 +334,13 @@ class ElementCollection(object):
         :return: element or None
         """
         if self._list:
-            return list(self)[-1]
+            self._params.update(limit=1)
+            if 'filter' not in self._params:
+                return list(self)[-1]
+            else: # Filter may not return results
+                result = list(self)
+                if result:
+                    return result[-1]
 
     def exists(self):
         """
@@ -412,7 +423,7 @@ class CollectionManager(object):
         iexact = None
         if filter:
             _filter = filter[0]
-            
+          
         exact_match = kw.pop('exact_match', False)
         case_sensitive = kw.pop('case_sensitive', True)
         
@@ -420,7 +431,7 @@ class CollectionManager(object):
             _, value = next(iter(kw.items()))
             _filter = value
             iexact = kw
-
+        
         if not exact_match:
             _filter = _strip_metachars(_filter)
         

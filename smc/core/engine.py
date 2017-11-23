@@ -6,8 +6,7 @@ from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
     SMCConnectionError, CertificateError, CreateElementFailed
 from smc.core.node import Node
-from smc.core.resource import Snapshot, PendingChanges, L2FWSettings,\
-    _create_l2fw_mapping
+from smc.core.resource import Snapshot, PendingChanges
 from smc.core.interfaces import PhysicalInterface, \
     VirtualPhysicalInterface, TunnelInterface, Interface
 from smc.administration.tasks import TaskOperationPoller
@@ -18,10 +17,12 @@ from smc.routing.bgp import BGP
 from smc.routing.ospf import OSPF, OSPFProfile
 from smc.core.route import Antispoofing, Routing, Routes
 from smc.core.contact_address import ContactResource
-from smc.core.properties import AddOn
+from smc.core.properties import AddOn, AntiVirus, Layer2Settings, FileReputation,\
+    SidewinderProxy, UrlFiltering, Sandbox
 from smc.elements.servers import LogServer
 from smc.base.collection import create_collection, sub_collection
 from smc.base.util import element_resolver
+from smc.administration.access_rights import AccessControlList
 
 
 class Engine(AddOn, Element):
@@ -109,8 +110,12 @@ class Engine(AddOn, Element):
         domain_server_list = []
         if domain_server_address:
             for num, server in enumerate(domain_server_address):
-                domain_server_list.append({
-                    'rank': num, 'value': server})
+                if hasattr(server, 'href'):
+                    domain_server = {'rank': num, 'ne_ref' : server.href}
+                else:
+                    domain_server = {'rank': num, 'value': server}
+                
+                domain_server_list.append(domain_server)
 
         # Set log server reference, if not explicitly provided
         if not log_server_ref and node_type is not 'virtual_fw_node':
@@ -158,7 +163,7 @@ class Engine(AddOn, Element):
             base_cfg.update(ospf)
 
         return base_cfg
-
+    
     @property
     def type(self):
         if not self._meta:
@@ -194,13 +199,94 @@ class Engine(AddOn, Element):
         """
         for node in self.nodes:
             node.rename(name)
-        try:
-            del self.data # Flush cache
-        except AttributeError:
-            pass
+        # Flush cache to force refresh
+        self._del_cache()
         self.update(name=name)
         self.internal_gateway.rename(name)
 
+    @property
+    def antivirus(self):
+        """
+        AntiVirus engine settings. Note that for virtual engines
+        the AV settings are configured on the Master Engine.
+        Get current status::
+        
+            engine.antivirus.status
+        
+        :raises UnsupportedEngineFeature: Invalid engine type for AV
+        :rtype: AntiVirus
+        """
+        if not self.type.startswith('virtual'):
+            return AntiVirus(self)
+        raise UnsupportedEngineFeature(
+            'Antivirus is not supported directly on this engine type. If this '
+            'is a virtual engine, AV is configured on the master engine.')
+    
+    @property
+    def file_reputation(self):
+        """
+        File reputation status on engine. Note that for virtual engines
+        the AV settings are configured on the Master Engine.
+        Get current status::
+        
+            engine.file_reputation.status
+            
+        :raises UnsupportedEngineFeature: Invalid engine type for file rep
+        :rtype: FileReputation
+        """
+        if not self.type.startswith('virtual'):
+            return FileReputation(self)
+        raise UnsupportedEngineFeature(
+            'GTI should be enabled on the Master Engine not directly on the '
+            'virtual engine.')
+    
+    @property
+    def sidewinder_proxy(self):
+        """
+        Configure Sidewinder Proxy settings on this engine. Sidewinder
+        proxy is supported on layer 3 engines and require SMC and engine
+        version >= 6.1.
+        Get current status::
+        
+            engine.sidewinder_proxy.status
+            
+        :rtype: SidewinderProxy
+        """
+        if 'sidewinder_proxy_enabled' in self.data:
+            return SidewinderProxy(self)
+        raise UnsupportedEngineFeature(
+            'Sidewinder Proxy requires a layer 3 engine and version >= v6.1.')
+    
+    @property
+    def url_filtering(self):
+        """
+        Configure URL Filtering settings on the engine.
+        Get current status::
+        
+            engine.url_filtering.status
+        
+        :rtype: UrlFiltering
+        """
+        if not self.type.startswith('virtual'):
+            return UrlFiltering(self)
+        raise UnsupportedEngineFeature(
+            'Enabling URL Filtering should be done on the Master Engine, not '
+            'directly on the virtual engine.')
+    
+    @property
+    def sandbox(self):
+        """
+        Configure sandbox settings on the engine.
+        Get current status::
+        
+            engine.sandbox.status
+        """    
+        if not self.type.startswith('virtual'):
+            return Sandbox(self)
+        raise UnsupportedEngineFeature(
+            'Enabling sandbox should be done on the Master Engine, not '
+            'directly on the virtual engine.')
+        
     @property
     def ospf(self):
         """
@@ -232,6 +318,19 @@ class Engine(AddOn, Element):
             'Dynamic routing is only supported on layer 3 engine types')
     
     @property
+    def l2fw_settings(self):
+        """
+        Layer 2 Firewall Settings make it possible for a layer 3 firewall
+        to run specified interfaces in layer 2 mode. This requires that
+        a layer 2 interface policy is assigned to the engine and that
+        inline_l2fw interfaces are created. 
+        
+        :rtype: Layer2Settings
+        """
+        if 'l2fw_settings' in self.data:
+            return Layer2Settings(self)
+    
+    @property
     def nodes(self):
         """
         Return a list of child nodes of this engine. This can be
@@ -254,10 +353,16 @@ class Engine(AddOn, Element):
         :return: access control list permissions
         :rtype: list(AccessControlList)
         """
-        try:        
+        try:
+            acl_list = list(AccessControlList.objects.all())
+            def acl_map(elem_href):
+                for elem in acl_list:
+                    if elem.href == elem_href:
+                        return elem
+            
             acls = self.read_cmd(resource='permissions')
-            return [Element.from_href(acl)
-                    for acl in acls['granted_access_control_list']]
+            for acl in acls['granted_access_control_list']:
+                yield(acl_map(acl))
 
         except ResourceNotFound:
             raise UnsupportedEngineFeature(
@@ -280,40 +385,6 @@ class Engine(AddOn, Element):
         raise UnsupportedEngineFeature(
             'Pending changes is an unsupported feature on this engine: {}'
             .format(self.type))
-
-    def add_l2fw_settings(self, interface_policy, bypass_on_overload=False,
-                          connection_tracking_mode='normal'):
-        """
-        .. versionadded:: 0.5.6
-            Requires engine and SMC version >=6.3
-        
-        Add Layer 2 Interface Policy settings to this engine. If using layer 2
-        interfaces, a policy is required to specify how traffic is handled.
-        
-        :param InterfacePolicy interface_policy: interface policy for
-            configured layer 2 interfaces. To unset a policy, use None.
-        :param boolean bypass_on_overload: whether to allow traffic through
-            if the FW is overloaded. Only valid on inline IPS and capture
-            interfaces (default: False)
-        :param str connection_tracking_mode: How to handle connection states.
-            Valid options: 'normal', 'strict', 'loose'. See documentation for
-            more information on each.
-        :raises LoadPolicyFailed: cannot find the specified policy.
-        :return: None
-        """
-        self.data['l2fw_settings'] = _create_l2fw_mapping(
-            interface_policy, bypass_on_overload, connection_tracking_mode)
-        self.update()
-    
-    @property
-    def l2fw_settings(self):
-        """
-        Layer 2 interface settings for this engine.
-        
-        :return: :class:`smc.core.resource.L2FWSettings`
-        """
-        if 'l2fw_settings' in self.data:
-            return L2FWSettings(**self.data['l2fw_settings'])
     
     def alias_resolving(self):
         """
@@ -321,13 +392,20 @@ class Engine(AddOn, Element):
         Aliases can be used in rules to simplify multiple object creation
         ::
 
-            print(list(engine.alias_resolving()))
+            fw = Engine('myfirewall')
+            for alias in fw.alias_resolving():
+                print(alias, alias.resolved_value)
+            ...
+            (Alias(name=$$ Interface ID 0.ip), [u'10.10.0.1'])
+            (Alias(name=$$ Interface ID 0.net), [u'10.10.0.0/24'])
+            (Alias(name=$$ Interface ID 1.ip), [u'10.10.10.1'])
 
         :return: generator of aliases
         :rtype: Alias
         """
+        alias_list = list(Alias.objects.all())
         for alias in self.read_cmd(resource='alias_resolving'):
-            yield Alias.load(alias)
+            yield Alias.from_engine(alias, alias_list)
 
     def blacklist(self, src, dst, duration=3600, **kw):
         """
@@ -793,16 +871,18 @@ class Engine(AddOn, Element):
 
 class InternalGateway(SubElement):
     """
-    InternalGateway represents the engine side VPN configuration
-    This defines settings such as setting VPN sites on protected
-    networks and engine level certificates.
+    InternalGateway represents the engine side VPN configuration.
+    An internal gateway is synonymous with an interface where VPN
+    can be anbled.
+    This will also define settings such as setting VPN sites on
+    protected networks and engine level certificates.
 
     Since each engine has only one internal gateway, this resource
     is loaded immediately when called through engine.internal_gateway
 
     List endpoints where VPN can be enabled::
 
-        >>> list(engine.internal_gateway.internal_endpoint.all())
+        >>> list(engine.vpn_endpoint)
         [InternalEndpoint(name=10.0.0.254), InternalEndpoint(name=172.18.1.254)]
 
     """

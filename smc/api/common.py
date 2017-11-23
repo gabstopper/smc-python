@@ -56,7 +56,6 @@ class _RequestHandler(object):
         finally:
             if err:
                 raise err
-            logger.debug(result)
             return result
 
 

@@ -3,6 +3,7 @@ from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 from smc.base.collection import sub_collection
 from smc.vpn.elements import VPNProfile, VPNSite
+from smc.base.decorators import cached_property
 
 
 class PolicyVPN(Element):
@@ -72,7 +73,7 @@ class PolicyVPN(Element):
         else:
             self.data['nat'] = True
 
-    @property
+    @cached_property
     def vpn_profile(self):
         """
         Specified VPN Profile used by this VPN Policy
@@ -92,7 +93,7 @@ class PolicyVPN(Element):
         return sub_collection(
             self.data.get_link('central_gateway_node'),
             type('CentralGatewayNode', (GatewayNode,), {}))
-
+        
     @property
     def satellite_gateway_node(self):
         """
@@ -268,7 +269,7 @@ class GatewayNode(SubElement):
         super(GatewayNode, self).__init__(**meta)
         pass
     
-    @property
+    @cached_property
     def gateway(self):
         """
         The VPN gateway for this node. This is either an internal gateway
@@ -309,6 +310,7 @@ class GatewayNode(SubElement):
         """
         return sub_collection(
             self.data.get_link('disabled_vpn_site'), GatewayTreeNode)
+
 
 class GatewayTreeNode(SubElement):
     """

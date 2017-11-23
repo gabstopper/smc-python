@@ -90,7 +90,6 @@ Connections
 .. automodule:: smc_monitoring.monitors.connections
 	:members:
 	:show-inheritance:
-	:inherited-members:
 
 Logs
 ****

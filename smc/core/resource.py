@@ -51,54 +51,6 @@ class Snapshot(SubElement):
             raise EngineCommandFailed("Snapshot download failed: {}"
                                       .format(e))
 
-
-def _create_l2fw_mapping(interface_policy=None, bypass_overload_traffic=False,
-                        tracking_mode='normal'):
-    """
-    Create the l2fw settings for the engine. This is called from the engines
-    add_l2fw_settings.
-    
-    :param interface_policy: InterfacePolicy instance
-    :param boolean bypass_overload_traffic
-    :param str tracking_mode: normal, bypass
-    """
-    try:
-        policy = interface_policy.href if interface_policy else None
-    except ElementNotFound:
-        raise LoadPolicyFailed(
-            'Interface Policy: %r specified was not found.' %
-                interface_policy)
-    return {
-        'l2_interface_policy_ref': policy,
-        'bypass_overload_traffic': bypass_overload_traffic,
-        'tracking_mode': tracking_mode}
-
-        
-class L2FWSettings(object):
-    """
-    Layer 2 Settings specify how the engine will handle policy for any
-    layer 2 interfaces defined.
-    
-    :ivar interface_policy: InterfacePolicy for this engine
-    :ivar bypass_overload_traffic: boolnea value representing whether to
-        allow traffic through during overload. Only valid on IPS or Capture
-        L2 interface.
-    :ivar tracking_mode: connection tracking mode. Valid options: 'normal',
-        'strict', 'loose'.
-    """
-    def __init__(self, l2_interface_policy_ref=None,
-                 bypass_overload_traffic=False,
-                 tracking_mode='normal'):
-        
-        self.l2_interface_policy_ref = l2_interface_policy_ref
-        self.bypass_overload_traffic = bypass_overload_traffic
-        self.tracking_mode = tracking_mode
-            
-    @property
-    def interface_policy(self):
-        if self.l2_interface_policy_ref:
-            return InterfacePolicy.from_href(self.l2_interface_policy_ref)
-
         
 class PendingChanges(object):
     """

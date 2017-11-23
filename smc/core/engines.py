@@ -2,7 +2,6 @@ from smc.core.interfaces import extract_sub_interface, InterfaceBuilder
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
 from smc.base.model import ElementCreator
-from smc.elements.helpers import logical_intf_helper
 from smc.core.sub_interfaces import LoopbackInterface
 
 
@@ -43,7 +42,8 @@ class Layer3Firewall(Engine):
         :param str log_server_ref: (optional) href to log_server instance for fw
         :param int mgmt_interface: (optional) interface for management from SMC to fw
         :param list domain_server_address: (optional) DNS server addresses
-        :param str zone_ref: (optional) zone name for management interface (created if not found)
+        :param str zone_ref: zone name, str href or Zone for management interface
+            (created if not found)
         :param bool reverse_connection: should the NGFW be the mgmt initiator (used when behind NAT)
         :param bool default_nat: (optional) Whether to enable default NAT for outbound
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
@@ -62,12 +62,109 @@ class Layer3Firewall(Engine):
             mgmt_network,
             is_mgmt=True,
             reverse_connection=reverse_connection)
-        builder.zone_ref = zone_ref
+        builder.zone = zone_ref
 
         engine = super(Layer3Firewall, cls)._create(
             name=name,
             node_type='firewall_node',
             physical_interfaces=[{'physical_interface': builder.data}],
+            domain_server_address=domain_server_address,
+            log_server_ref=log_server_ref,
+            nodes=1, enable_gti=enable_gti,
+            enable_antivirus=enable_antivirus,
+            sidewinder_proxy_enabled=sidewinder_proxy_enabled,
+            default_nat=default_nat,
+            location_ref=location_ref,
+            enable_ospf=enable_ospf,
+            ospf_profile=ospf_profile)
+
+        try:
+            return ElementCreator(cls, json=engine)
+        
+        except CreateElementFailed as e:
+            raise CreateEngineFailed(e)
+    
+    @classmethod
+    def create_with_many(cls, name, interfaces, mgmt_interface=0,
+                         log_server_ref=None,
+                         default_nat=False,
+                         domain_server_address=None,
+                         enable_antivirus=False, enable_gti=False,
+                         location_ref=None, enable_ospf=False,
+                         sidewinder_proxy_enabled=False,
+                         ospf_profile=None):
+        """
+        Create a firewall with multiple interfaces. Provide the interfaces as a list
+        of interfaces. Interfaces can be one of any valid interface for a layer 3
+        firewall. Unless the interface type is specified, physical_interface is assumed.
+        
+        Valid interface types:
+            - physical_interface (default if not specified)
+            - tunnel_interface
+    
+        Example interfaces format::
+        
+            {'interface_id': 1},
+            {'interface_id': 2, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'zone_ref': 'myzone'},
+            {'interface_id': 1000, 'address': '10.10.10.1', 'network_value': '10.10.10.0/24', 'type': 'tunnel_interface'}
+        
+        Create a single layer 3 firewall with management interface and DNS
+
+        :param str name: name of firewall engine
+        :param int mgmt_interface: management interface id (default: 0)
+        :param list interfaces: list of interface definitions
+        :param str log_server_ref: (optional) href to log_server instance for fw
+        :param list domain_server_address: (optional) DNS server addresses
+        :param str zone_ref: zone name, str href or Zone for management interface
+            (created if not found)
+        :param bool default_nat: (optional) Whether to enable default NAT for outbound
+        :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
+        :param bool enable_gti: (optional) Enable GTI
+        :param bool sidewinder_proxy_enabled: Enable Sidewinder proxy functionality
+        :param str location_ref: location href for engine if needed to contact SMC behind NAT
+        :param bool enable_ospf: whether to turn OSPF on within engine
+        :param str ospf_profile: optional OSPF profile to use on engine, by ref
+        :raises ValueError: Failed to provide required parameters  
+        :raises CreateEngineFailed: Failure to create with reason
+        :return: :py:class:`smc.core.engine.Engine`    
+        """
+        interface_list = []                
+        for interface in interfaces:
+            if 'interface_id' not in interface:
+                raise ValueError('Interface_id is a required field when defining interfaces.')
+            if interface.get('type', None) == 'tunnel_interface':
+                if 'address' not in interface or 'network_value' not in interface:
+                    raise ValueError('Tunnel interfaces require an address and network_value')
+                
+                builder = InterfaceBuilder(None)
+                builder.interface_id = interface['interface_id']
+                builder.zone = interface.get('zone_ref', None)
+                builder.add_sni_only(
+                    address=interface['address'],
+                    network_value=interface['network_value'])
+    
+                interface_list.append({'tunnel_interface': builder.data})
+            else:
+                if 'address' in interface and 'network_value' in interface:
+                    builder = InterfaceBuilder()
+                    builder.interface_id = interface['interface_id']
+                    builder.zone = interface.get('zone_ref', None)
+                    builder.add_sni_only(
+                        address=interface['address'],
+                        network_value=interface['network_value'],
+                        is_mgmt=True if interface['interface_id'] == mgmt_interface else False,
+                        reverse_connection=interface.get('reverse_connection', False))
+                else:
+                    builder = InterfaceBuilder() 
+                    builder.interface_id = interface['interface_id']
+                    builder.zone = interface.get('zone_ref', None)
+            
+                interface_list.append({'physical_interface': builder.data})
+        
+        engine = super(Layer3Firewall, cls)._create(
+            name=name,
+            node_type='firewall_node',
+            physical_interfaces=interface_list,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=1, enable_gti=enable_gti,
@@ -90,6 +187,7 @@ class Layer3Firewall(Engine):
                        primary_mgt=True,
                        reverse_connection=True,
                        automatic_default_route=True,
+                       domain_server_address=None,
                        loopback_ndi='127.0.0.1',
                        loopback_ndi_network='127.0.0.1/32',
                        location_ref=None,
@@ -100,13 +198,13 @@ class Layer3Firewall(Engine):
                        sidewinder_proxy_enabled=False,
                        default_nat=False):
         """
-        Create a single layer 3 firewall with only a DHCP interface. Useful
+        Create a single layer 3 firewall with only a single DHCP interface. Useful
         when creating virtualized FW's such as in Microsoft Azure.
         """
         builder = InterfaceBuilder()
         builder.interface_id = interface_id
         builder.add_dhcp(dynamic_index, is_mgmt=primary_mgt)
-        builder.zone_ref = zone_ref
+        builder.zone = zone_ref
         
         loopback = LoopbackInterface.create(
             address=loopback_ndi, 
@@ -120,6 +218,7 @@ class Layer3Firewall(Engine):
             node_type='firewall_node',
             loopback_ndi=[loopback],
             physical_interfaces=[{'physical_interface': builder.data}],
+            domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=1, enable_gti=enable_gti,
             enable_antivirus=enable_antivirus,
@@ -165,10 +264,12 @@ class Layer2Firewall(Engine):
         :param str mgmt_network: management network in cidr format
         :param int mgmt_interface: (optional) interface for management from SMC to fw
         :param str inline_interface: interfaces to use for first inline pair
-        :param str logical_interface: (optional) logical_interface reference
+        :param str logical_interface: name, str href or LogicalInterface (created if it
+            doesn't exist)
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
-        :param str zone_ref: (optional) zone name for management interface (created if not found)
+        :param str zone_ref: zone name, str href or Zone for management interface
+            (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
         :param bool enable_gti: (optional) Enable GTI
         :raises CreateEngineFailed: Failure to create with reason
@@ -179,13 +280,11 @@ class Layer2Firewall(Engine):
         mgmt = InterfaceBuilder()
         mgmt.interface_id = mgmt_interface
         mgmt.add_ndi_only(mgmt_ip, mgmt_network, is_mgmt=True)
-        mgmt.zone_ref = zone_ref
-
-        intf_href = logical_intf_helper(logical_interface)
+        mgmt.zone = zone_ref
 
         inline = InterfaceBuilder()
         inline.interface_id = inline_interface.split('-')[0]
-        inline.add_inline(inline_interface, logical_interface_ref=intf_href)
+        inline.add_inline(inline_interface, logical_interface_ref=logical_interface)
 
         interfaces.append({'physical_interface': mgmt.data})
         interfaces.append({'physical_interface': inline.data})
@@ -232,10 +331,12 @@ class IPS(Engine):
         :param str mgmt_network: management network in cidr format
         :param int mgmt_interface: (optional) interface for management from SMC to fw
         :param str inline_interface: interfaces to use for first inline pair
-        :param str logical_interface: (optional) logical_interface reference
+        :param str logical_interface: name, str href or LogicalInterface (created if it
+            doesn't exist)
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
-        :param str zone_ref: (optional) zone name for management interface (created if not found)
+        :param str zone_ref: zone name, str href or Zone for management interface
+            (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
         :param bool enable_gti: (optional) Enable GTI
         :raises CreateEngineFailed: Failure to create with reason
@@ -246,13 +347,11 @@ class IPS(Engine):
         mgmt = InterfaceBuilder()
         mgmt.interface_id = mgmt_interface
         mgmt.add_ndi_only(mgmt_ip, mgmt_network, is_mgmt=True)
-        mgmt.zone_ref = zone_ref
-
-        intf_href = logical_intf_helper(logical_interface)
+        mgmt.zone = zone_ref
 
         inline = InterfaceBuilder()
         inline.interface_id = inline_interface.split('-')[0]
-        inline.add_inline(inline_interface, logical_interface_ref=intf_href)
+        inline.add_inline(inline_interface, logical_interface_ref=logical_interface)
 
         interfaces.append({'physical_interface': mgmt.data})
         interfaces.append({'physical_interface': inline.data})
@@ -401,7 +500,8 @@ class FirewallCluster(Engine):
         :param str cluster_mode: 'balancing' or 'standby' mode (default: balancing)
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
-        :param str zone_ref: (optional) zone name for management interface (created if not found)
+        :param str zone_ref: zone name, str href or Zone for management interface
+            (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
         :param bool enable_gti: (optional) Enable GTI
         :raises CreateEngineFailed: Failure to create with reason
@@ -418,7 +518,7 @@ class FirewallCluster(Engine):
         builder.interface_id = cluster_nic
         builder.macaddress = macaddress
         builder.cvi_mode = 'packetdispatch'
-        builder.zone_ref = zone_ref
+        builder.zone = zone_ref
         builder.add_cvi_only(cluster_virtual, cluster_mask, is_mgmt=True)
         for node in nodes:
             node.update(is_mgmt=True)

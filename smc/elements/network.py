@@ -1,10 +1,9 @@
 """
 Module representing network elements used within the SMC
 """
-from smc.base.model import Element, ElementCreator, SimpleElement
+from smc.base.model import Element, ElementCreator
 from smc.api.exceptions import MissingRequiredInput, CreateElementFailed,\
-    ElementNotFound
-from smc.api.common import fetch_json_by_href
+    ElementNotFound, FetchElementFailed
 
 
 class Host(Element):
@@ -14,14 +13,14 @@ class Host(Element):
     Create a host element with ipv4::
 
         Host.create(name='myhost', address='1.1.1.1',
-                    secondary_ip=['1.1.1.2'],
+                    secondary=['1.1.1.2'],
                     comment='some comment for my host')
 
     Create a host element with ipv6 and secondary ipv4 address::
 
         Host.create(name='mixedhost',
                     ipv6_address='2001:cdba::3257:9652',
-                    secondary_ip=['1.1.1.1'])
+                    secondary=['1.1.1.1'])
     
     Available attributes:
     
@@ -75,6 +74,7 @@ class Host(Element):
             secondary=address,
             append_lists=append_lists)
 
+
 class AddressRange(Element):
     """
     Class representing a IpRange object used in access rules
@@ -122,14 +122,14 @@ class Router(Element):
 
     Create a router element with ipv6 address::
 
-        Host.create(name='mixedhost',
-                    ipv6_address='2001:cdba::3257:9652')
+        Router.create(name='mixedhost',
+                      ipv6_address='2001:cdba::3257:9652')
     
     Available attributes:
     
     :ivar str address: IPv4 address for this router
     :ivar str ipv6_address: IPv6 address for this router
-    :ivar list secondary_ip: list of additional IP's for this router
+    :ivar list secondary: list of additional IP's for this router
     """
     typeof = 'router'
 
@@ -138,14 +138,14 @@ class Router(Element):
         
     @classmethod
     def create(cls, name, address=None, ipv6_address=None,
-               secondary_ip=None, comment=None):
+               secondary=None, comment=None):
         """
         Create the router element
 
         :param str name: Name of element
         :param str address: ip address of host object (optional if ipv6)
         :param str ipv6_address: ipv6 address (optional if ipv4)
-        :param str secondary_ip: secondary ip address (optional)
+        :param list secondary: secondary ip address (optional)
         :param str comment: comment (optional)
         :raises CreateElementFailed: element creation failed with reason
         :return: instance with meta
@@ -155,7 +155,7 @@ class Router(Element):
         """
         address = address if address else None
         ipv6_address = ipv6_address if ipv6_address else None
-        secondary = [] if secondary_ip is None else secondary_ip
+        secondary = [] if secondary is None else secondary
         json = {'name': name,
                 'address': address,
                 'ipv6_address': ipv6_address,
@@ -218,20 +218,6 @@ class Network(Element):
 
         return ElementCreator(cls, json)
 
-    '''
-    @classmethod
-    def get_or_create(cls, filter_key=None, **kwargs):
-        """
-        Get or create a network element. SMC searches reserve the /
-        when searching within an element therefore unless the network
-        name contains a /, you may not get the results you expect. This
-        will create the filter so it is not required to provide the
-        filter_key in the search.
-        """
-        if not filter_key:
-            return super(Network, cls).get_or_create(
-                filter_key={'ipv4_network': kwargs.get('ipv4_network')})
-    '''
     
 class DomainName(Element):
     """
@@ -414,6 +400,11 @@ class IPList(Element):
         [IPList(name=mylist)]
         iplist[0].upload(filename='/path/to/iplist.zip')
 
+    Upload an IPList using json format::
+    
+        >>> iplist = IPList('mylist')
+        >>> iplist.upload(json={'ip': ['4.4.4.4']}, as_type='json')
+    
     """
     typeof = 'ip_list'
 
@@ -443,10 +434,13 @@ class IPList(Element):
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
 
-            self.read_cmd(
+            result = self._request(
+                FetchElementFailed,
                 resource='ip_address_list',
                 filename=filename,
-                headers=headers)
+                headers=headers).read()
+        
+            return result.json if as_type == 'json' else result.content
 
     def upload(self, filename=None, json=None, as_type='zip'):
         """
@@ -482,6 +476,51 @@ class IPList(Element):
             params=params)
 
     @classmethod
+    def update_or_create(cls, append_lists=True, **kwargs):
+        """
+        Update or create an IPList.
+        
+        :param bool append_lists: append to existing IP List
+        :param dict kwargs: provide at minimum the name attribute
+            and optionally match the create constructor values
+        :raises FetchElementFailed: Reason for retrieval failure
+        """
+        element = None
+        try: 
+            element = cls.get(kwargs.get('name')) 
+            if append_lists:
+                iplist = element.iplist
+                diff = [i for i in kwargs.get('iplist', []) if i not in iplist]
+                if diff:
+                    iplist.extend(diff)
+                else:
+                    iplist = []
+            else:
+                iplist = kwargs.get('iplist', [])
+            
+            if iplist:
+                element.upload(json={'ip': iplist}, as_type='json')
+    
+        except ElementNotFound:
+            element = cls.create( 
+                kwargs.get('name'), 
+                iplist = kwargs.get('iplist', []))
+
+        return element
+                
+    @property
+    def iplist(self):
+        """
+        Return a list representation of this IPList. This is not
+        a recommended function if the list is extremely large.
+        In that case use the download function in zip format.
+        
+        :raises FetchElementFailed: Reason for retrieval failure
+        :rtype: list
+        """
+        return self.download(as_type='json').get('ip', [])
+    
+    @classmethod
     def create(cls, name, iplist=None, comment=None):
         """
         Create an IP List. It is also possible to add entries by supplying
@@ -495,8 +534,7 @@ class IPList(Element):
         :return: instance with meta
         :rtype: IPList
         """
-        json = {'name': name,
-                'comment': comment}
+        json = {'name': name, 'comment': comment}
         result = ElementCreator(cls, json)
         if result and iplist is not None:
             element = IPList(name)
@@ -559,6 +597,7 @@ class IPCountryGroup(Element):
     """
     typeof = 'ip_country_group'
 
+
 class Alias(Element):
     """
     Aliases are adaptive objects that represent a single
@@ -570,28 +609,44 @@ class Alias(Element):
     or loading directly if you know the alias name:
     ::
 
-        >>> list(Search.objects.entry_point('alias'))
+        >>> list(Alias.objects.all())
         [Alias(name=$$ Interface ID 46.net), Alias(name=$$ Interface ID 45.net), etc]
 
         >>> from smc.elements.network import Alias
         >>> alias = Alias('$$ Interface ID 0.ip')
         >>> print(alias)
         Alias(name=$$ Interface ID 0.ip)
+        
+    Resolve this to a specific engine::
+    
+        >>> alias = Alias('$$ Interface ID 0.ip')
+        >>> alias.resolve('myfirewall')
+        [u'10.10.0.1']  
     """
     typeof = 'alias'
 
     def __init__(self, name, **meta):
         super(Alias, self).__init__(name, **meta)
-        self.resolved_value = []
+        self.resolved_value = [] #: resolved value for alias
 
     @classmethod
-    def load(cls, data):
-        href = data.get('alias_ref')
-        result = fetch_json_by_href(href)
-        alias = Alias(result.json.get('name'), href=href)
-        alias.data = SimpleElement(etag=result.etag, **result.json)
-        alias.resolved_value = data.get('resolved_value')
-        return alias
+    def from_engine(cls, data, alias_list):
+        """
+        Return an alias for the engine. The data is dict provided
+        when calling engine.alias_resolving(). The alias list is
+        the list of aliases pre-fetched from Alias.objects.all().
+        This will return an Alias element by taking the alias_ref
+        and finding the name in the alias list.
+        
+        :rtype: Alias
+        """
+        for alias in alias_list:
+            href = data.get('alias_ref')
+            if alias.href == href:
+                _alias = Alias(alias.name, href=href)
+                _alias.resolved_value = data.get('resolved_value')
+                _alias.typeof = alias._meta.type
+                return _alias
 
     def resolve(self, engine):
         """
