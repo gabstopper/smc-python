@@ -192,7 +192,7 @@ class PolicyVPN(Element):
         :param gateway: href for internal gateway or test_external gateway.
                If this is another SMC managed gateway, you can retrieve the 
                href after loading the engine. 
-               See :py:class:`smc.core.engines.Engine.internal_gateway`
+               See :py:class:`smc.core.engines.Engine.vpn`
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
@@ -212,7 +212,7 @@ class PolicyVPN(Element):
         :param gateway: href for internal gateway or test_external gateway.
                If this is another SMC managed gateway, you can retrieve the 
                href after loading the engine. 
-               See :py:class:`smc.core.engines.Engine.internal_gateway` 
+               See :py:class:`smc.core.engines.Engine.vpn` 
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """

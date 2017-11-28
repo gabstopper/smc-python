@@ -32,43 +32,68 @@ Element (Base)
 Administration
 --------------
 
-Administrators
-++++++++++++++
+Access Rights
++++++++++++++
 
-.. automodule:: smc.elements.user
-	:members:
-	:show-inheritance:
+Access Rights provide the ability to create administrative accounts and assign or create
+specific access control lists and roles to these accounts.
 
 AccessControlList
-+++++++++++++++++
+*****************
 
 .. autoclass:: smc.administration.access_rights.AccessControlList
 	:members:
 	:show-inheritance:
 
+Administrators
+**************
+
+.. automodule:: smc.elements.user
+	:members:
+	:show-inheritance:
+
 Permission
-++++++++++
+**********
 
 .. autoclass:: smc.administration.access_rights.Permission
 	:members:
 
 Roles
-+++++
+*****
 
 .. automodule:: smc.administration.role
 	:members:
 	:show-inheritance:
+	
+
+AdminDomain
++++++++++++
+
+.. autoclass:: smc.administration.system.AdminDomain
+	:members:
+	:show-inheritance:
+
+Certificates
+++++++++++++
+
+
+TLSServerCredential
+*******************
+
+.. automodule:: smc.administration.certificates
+	:members: TLSServerCredential
+	:show-inheritance:
+	
+License
++++++++
+
+.. automodule:: smc.administration.license
+	:members:
 
 System
 ++++++
 
 .. automodule:: smc.administration.system
-	:members:
-
-License
-+++++++
-
-.. automodule:: smc.administration.license
 	:members:
 
 Tasks
@@ -108,31 +133,17 @@ Network
 
 .. automodule:: smc.elements.network
 
-Host
-****
+Alias
+*****
 
-.. autoclass:: Host
-   :members:
-   :show-inheritance:
-
-Network
-*******
-
-.. autoclass:: Network
-   :members:
-   :show-inheritance:
+.. autoclass:: Alias
+	:members:
+	:show-inheritance:
 
 AddressRange
 ************
 
 .. autoclass:: AddressRange
-   :members:
-   :show-inheritance:
-
-Router
-******
-
-.. autoclass:: Router
    :members:
    :show-inheritance:
 
@@ -143,10 +154,38 @@ DomainName
    :members:
    :show-inheritance:
 
+Expression
+**********
+
+.. autoclass:: Expression
+	:members:
+	:show-inheritance:
+
+Host
+****
+
+.. autoclass:: Host
+   :members:
+   :show-inheritance:
+
 IPList
 ******
 
 .. autoclass:: IPList
+   :members:
+   :show-inheritance:
+
+Network
+*******
+
+.. autoclass:: Network
+   :members:
+   :show-inheritance:
+
+Router
+******
+
+.. autoclass:: Router
    :members:
    :show-inheritance:
 
@@ -157,13 +196,6 @@ URLListApplication
 	:members:
 	:show-inheritance:
 
-Expression
-**********
-
-.. autoclass:: Expression
-	:members:
-	:show-inheritance:
-
 Zone
 ****
 
@@ -171,51 +203,16 @@ Zone
    :members:
    :show-inheritance:
 
-Alias
-*****
-
-.. autoclass:: Alias
-	:members:
-	:show-inheritance:
-
 Services
 ++++++++
 
 .. automodule:: smc.elements.service
 	:members: ProtocolAgentMixin
 
-TCPService
-**********
-
-.. autoclass:: TCPService
-   :members:
-   :show-inheritance:
-
-UDPService
-**********
-
-.. autoclass:: UDPService
-   :members:
-   :show-inheritance:
-
-IPService
-*********
-
-.. autoclass:: IPService
-   :members:
-   :show-inheritance:
-
 EthernetService
 ***************
 
 .. autoclass:: EthernetService
-   :members:
-   :show-inheritance:
-
-Protocol
-********
-
-.. autoclass:: Protocol
    :members:
    :show-inheritance:
 
@@ -233,6 +230,34 @@ ICMPIPv6Service
    :members:
    :show-inheritance:
 
+IPService
+*********
+
+.. autoclass:: IPService
+   :members:
+   :show-inheritance:
+
+Protocol
+********
+
+.. autoclass:: Protocol
+   :members:
+   :show-inheritance:
+
+TCPService
+**********
+
+.. autoclass:: TCPService
+   :members:
+   :show-inheritance:
+
+UDPService
+**********
+
+.. autoclass:: UDPService
+   :members:
+   :show-inheritance:
+
 URLCategory
 ***********
 
@@ -246,6 +271,20 @@ Groups
 
 .. automodule:: smc.elements.group
 	:members: GroupMixin
+
+ICMPServiceGroup
+****************
+
+.. autoclass:: ICMPServiceGroup
+	:members:
+	:show-inheritance:
+
+IPServiceGroup
+**************
+
+.. autoclass:: IPServiceGroup
+   :members:
+   :show-inheritance:
 
 Group
 *****
@@ -275,20 +314,6 @@ UDPServiceGroup
    :members:
    :show-inheritance:
 
-IPServiceGroup
-**************
-
-.. autoclass:: IPServiceGroup
-   :members:
-   :show-inheritance:
-
-ICMPServiceGroup
-****************
-
-.. autoclass:: ICMPServiceGroup
-	:members:
-	:show-inheritance:
-
 URLCategoryGroup
 ****************
 
@@ -302,11 +327,17 @@ Servers
 .. automodule:: smc.elements.servers
 	:members: ContactAddress
 
-ManagementServer
-****************
+DNSServer
+*********
 
-.. autoclass:: ManagementServer
-	:members: add_contact_address, remove_contact_address, contact_addresses
+.. autoclass:: DNSServer
+	:members:
+
+HttpProxy
+*********
+
+.. autoclass:: HttpProxy
+	:members:
 
 LogServer
 *********
@@ -314,12 +345,12 @@ LogServer
 .. autoclass:: LogServer
 	:members: add_contact_address, remove_contact_address, contact_addresses
 	:show-inheritance:
-	
-HttpProxy
-*********
 
-.. autoclass:: HttpProxy
-	:members:
+ManagementServer
+****************
+
+.. autoclass:: ManagementServer
+	:members: add_contact_address, remove_contact_address, contact_addresses
 
 Other
 +++++
@@ -348,6 +379,13 @@ FilterExpression
    :members:
    :show-inheritance:
 
+Location
+********
+
+.. autoclass:: Location
+   :members:
+   :show-inheritance:
+ 
 LogicalInterface
 ****************
 
@@ -355,24 +393,10 @@ LogicalInterface
    :members:
    :show-inheritance:
 
-AdminDomain
-***********
-
-.. autoclass:: AdminDomain
-	:members:
-	:show-inheritance:
-
 MacAddress
 **********
 
 .. autoclass:: MacAddress
-   :members:
-   :show-inheritance:
-
-Location
-********
-
-.. autoclass:: Location
    :members:
    :show-inheritance:
 
@@ -431,6 +455,12 @@ Sandbox
 .. autoclass:: smc.core.properties.Sandbox
 	:members:
 
+TLSInspection
+*************
+
+.. autoclass:: smc.core.properties.TLSInspection
+	:members:
+
 Appliance Status
 ++++++++++++++++
 
@@ -454,6 +484,22 @@ ContactAddress
 
 .. automodule:: smc.core.contact_address
 	:members: ContactAddress, InterfaceContactAddress
+
+DefaultNAT
+++++++++++
+
+.. autoclass:: smc.core.properties.DefaultNAT
+	:members:
+
+DNSAddress
+++++++++++
+
+.. autoclass:: smc.core.properties.DNSAddress
+	:members:
+
+.. autoclass:: smc.core.properties.DNSEntry
+	:members:
+
 
 Dynamic Routing
 +++++++++++++++
@@ -492,16 +538,85 @@ Layer2Settings
 
 .. autoclass:: smc.core.properties.Layer2Settings
 	:members:
+
+VPN
++++
+
+Provisioning a firewall for VPN consists of the following steps:
+
+* Enable VPN an interface (`InternalEndpoint`)
+* Optionally add VPN sites with protected networks
+
+.. note:: By default Stonesoft FW's provide a capability that allows the protected 
+  VPN networks to be identified based on the routing table.
+
+It is still possible to override this setting and add your own custom VPN sites as needed.
+
+Once the firewall has VPN enabled, you must also assign the FW to a specified Policy VPN as a central or satellite gateway.
+
+The entry point for enabling the VPN on an engine is under the engine resource :class:`smc.core.engine.Engine.vpn`.
+
+Enabling IPSEC on an interface is done by accessing the engine resource and finding the correct `InternalEndpoint` for which to enable the VPN. Internal Endpoints are not exactly interface maps, instead they identify all addresses on a given firewall capable for running VPN. It is possible for a single interface to have more than one internal endpoint if the interface has multiple IP addresses assigned.
+
+.. code:: python
+
+  >>> from smc.core.engine import Engine
+  >>> engine = Engine('myfirewall')
+  >>> for ie in engine.vpn.internal_endpoint:
+  ...   ie
+  ... 
+  InternalEndpoint(name=6.6.6.6)
+  InternalEndpoint(name=10.10.0.1)
+  InternalEndpoint(name=11.11.11.11)
+  InternalEndpoint(name=4.4.4.4)
+  InternalEndpoint(name=10.10.10.1) 
+
+Notice that internal endpoints are referenced by their IP address and not their interface. The interface is available as an attribute on the endpoint to make it easier to find the correct interface:
+
+.. code:: python
+
+  >>> for ie in engine.vpn.internal_endpoint:
+  ...   print(ie, ie.interface_id)
+  ... 
+  (InternalEndpoint(name=6.6.6.6), u'6')
+  (InternalEndpoint(name=10.10.0.1), u'0')
+  (InternalEndpoint(name=11.11.11.11), u'11')
+  (InternalEndpoint(name=4.4.4.4), u'2.200')
+  (InternalEndpoint(name=10.10.10.1), u'1')
+
+If I want to enable VPN on interface 0, you can obtain the right endpoint and enable:
+
+.. code:: 
+
+  >>> for ie in engine.vpn.internal_endpoint:
+  ...   if ie.interface_id == '0':
+  ...     ie.ipsec_vpn = True
+
+.. note:: Once you've enabled the interface for VPN, you must also call engine.update() to commit the change.
+
+The second step (optional) is to add VPN sites to the firewall. VPN Sites define a group of protected networks that can be applied to the VPN.
+
+For example, add a new VPN site called wireless with a new network element that we'll create beforehand.
+
+.. code:: python
+
+  >>> net = Network.get_or_create(name='wireless', ipv4_network='192.168.5.0/24') 
+  >>> engine.vpn.add_site(name='wireless', site_elements=[net]) 
+  VPNSite(name=wireless) 
+  >>> list(engine.vpn.sites) 
+  [VPNSite(name=dingo - Primary Site), VPNSite(name=wireless)] 
+
+Once the engine is enabled for VPN, see :class:`smc.vpn.policy.PolicyVPN` for information on how to create a PolicyVPN and add engines.
 	
 InternalEndpoint
-++++++++++++++++
+****************
 
 .. autoclass:: smc.core.engine.InternalEndpoint
    :members:
    :show-inheritance:
 
 InternalGateway
-+++++++++++++++
+***************
 
 .. autoclass:: smc.core.engine.InternalGateway
    :members:
@@ -610,10 +725,19 @@ Routing
 	:members:
 	:show-inheritance:
 
-Routes
-******
+Route Table
+***********
 
 .. autoclass:: Routes
+	:members:
+
+Policy Routing
+**************
+
+.. autoclass:: PolicyRoute
+	:members:
+	
+.. autoclass:: PolicyRouteEntry
 	:members:
 
 Antispoofing
@@ -910,10 +1034,13 @@ DynamicSourceNAT
 	:members:
 	:show-inheritance:
 
-VPN
----
-Represents classes responsible for configuring VPN settings such as VPN external
-gateways, VPN sites, VPN Certificate and VPN Policy
+VPN Configuration
+-----------------
+Represents classes responsible for configuring VPN settings such as PolicyVPN,
+RouteVPN and all associated configurations.
+
+.. note:: See API reference documentation on the Engine for instructions on how to enable the
+  engine for VPN.
 
 PolicyVPN
 +++++++++

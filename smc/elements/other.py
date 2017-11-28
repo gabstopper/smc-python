@@ -292,46 +292,6 @@ class LogicalInterface(Element):
         return ElementCreator(cls, json)
 
 
-class AdminDomain(Element):
-    """
-    Administrative domain element. Domains are used to provide object
-    based segmentation within SMC. If domains are in use, you can
-    log in directly to a domain to modify contents within that domain.
-        
-    Find all available domains::
-    
-        >>> list(AdminDomain.objects.all())
-        [AdminDomain(name=Shared Domain)]
-  
-    .. note:: Admin Domains require and SMC license.
-    """
-    typeof = 'admin_domain'
-    
-    def __init__(self, name, **meta):
-        super(AdminDomain, self).__init__(name, **meta)
-        
-    @classmethod
-    def create(cls, name, comment=None):
-        """
-        Create a new Admin Domain element for SMC objects.
-        
-        Example::
-    
-            >>> AdminDomain.create(name='mydomain', comment='mycomment')
-            >>> AdminDomain(name=mydomain) 
-        
-        :param str name: name of domain
-        :param str comment: optional comment
-        :raises CreateElementFailed: failed creating element with reason
-        :return: instance with meta
-        :rtype: AdminDomain
-        """
-        json = {'name': name,
-                'comment': comment}
-        
-        return ElementCreator(cls, json)
-
-
 class MacAddress(Element):
     """
     Mac Address network element that can be used in L2 and IPS

@@ -72,15 +72,12 @@ Release History
 - Optimize logging at request level, more clear output
 - Simplify interface creating where zone or logical interface is needed. Now zone/logical interfaces can be provided
   as either name (if they don't exist, they will be created), as href, or as Zone/LogicalInterface instances.
-- New engine level resources: antivirus, file_reputation, sidewinder_proxy, sandbox and url_filtering. Previous definitions
-  nested in smc.core.properties.AddOns set to deprecated and will be removed in the near future.
+- New engine level resources: antivirus, file_reputation, sidewinder_proxy, sandbox and url_filtering, policy_routing,
+  dns and default nat added as engine resources. Previous functions nested in smc.core.properties.AddOns set to deprecated
+  and will be removed in the near future.
 - Added support for adding DNS Server entries to engines based on elements (previously only IP addresses were supported).
 
 
-  
- 
- 
- 
  **Bugfixes**
  
  - If a search is provided in format: Host.objects.filter(address='1.1.1.1').first(), and the search returns meta, but the

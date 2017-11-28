@@ -505,10 +505,13 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
             rule_values.update(options=nat.data)
 
         if static_dst_nat:
-            destination = Destination(rule_values['destinations'])
-            if destination.is_any or destination.is_none:
+            destinations = rule_values['destinations']
+            if 'any' in destinations or 'none' in destinations:
                 raise InvalidRuleValue('Destination field cannot be none or any for '
                                        'destination NAT.')
+            destination = Destination()
+            destination.add_many(destinations.get('dst'))
+            
             nat = StaticDestNAT(options.data)
             nat.translated_value = static_dst_nat
             nat.original_value = destination.all_as_href()[0]
@@ -521,14 +524,15 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
 
         rule_values.update(used_on=used_on)
         
-        location = self._request(
+        result = self.send_cmd(
             CreateRuleFailed,
+            raw_result=True,
             href=self.href,
-            json=rule_values).create().href
-        
+            json=rule_values)
+
         return IPv4NATRule(
             name=name,
-            href=location,
+            href=result.href,
             type=self.typeof)
 
 

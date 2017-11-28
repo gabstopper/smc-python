@@ -5,7 +5,7 @@ Rule module is a base class for all access control and NAT rules.
 
     Policy (base)
           |
-    Layer3FirewallPolicy -----> fw_ipv4_access_rules
+    FirewallPolicy ------------> fw_ipv4_access_rules
                                         |
                                         |
                               IPv4Rule / IPv4NATRule (smc.policy.rule.Rule)
@@ -78,6 +78,7 @@ from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
 from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
     Service, AuthenticationOptions, TimeRange
 from smc.base.util import element_resolver
+from smc.base.decorators import cacheable_resource
 
 
 class Rule(object):
@@ -102,23 +103,23 @@ class Rule(object):
     def add_before(self):
         pass
 
-    @property
+    @cacheable_resource
     def action(self):
         """
         Action for this rule. 
 
-        :return: :py:class:`smc.policy.rule_elements.Action`
+        :rtype: Action
         """
-        return Action(self.data.get('action'))
+        return Action(self)
 
-    @property
+    @cacheable_resource
     def authentication_options(self):
         """
         Read only authentication options field
 
-        :return: :py:class:`smc.policy.rule_elements.AuthenticationOptions`
+        :rtype: AuthenticationOptions
         """
-        return AuthenticationOptions(self.data.get('authentication_options'))
+        return AuthenticationOptions(self)
 
     @property
     def comment(self):
@@ -140,7 +141,7 @@ class Rule(object):
         Whether the rule is enabled or disabled
 
         :param bool value: True, False
-        :rtype: boolean
+        :rtype: bool
         """
         return self.data.get('is_disabled')
 
@@ -156,31 +157,49 @@ class Rule(object):
         """
         self.data['is_disabled'] = False
 
-    @property
+    @cacheable_resource
+    def sources(self):
+        """
+        Sources assigned to this rule
+
+        :rtype: Source
+        """
+        return Source(self)
+    
+    @cacheable_resource
     def destinations(self):
         """
         Destinations for this rule
 
-        :return: :py:class:`smc.policy.rule_elements.Destination`
+        :rtype: Destination
         """
-        return Destination(self.data.get('destinations'))
+        return Destination(self)
+    
+    @cacheable_resource
+    def services(self):
+        """
+        Services assigned to this rule
 
-    @property
+        :rtype: Service
+        """
+        return Service(self)
+    
+    @cacheable_resource
     def options(self):
         """
         Rule based options for logging. Enabling and
         disabled specific log settings.
 
-        :return: :py:class:`smc.policy.rule_elements.LogOptions`
+        :rtype: LogOptions
         """
-        return LogOptions(self.data.get('options'))
+        return LogOptions(self)
 
     @property
     def parent_policy(self):
         """
         Read-only name of the parent policy
 
-        :return: :py:class:`smc.base.model.Element` of type policy
+        :return: :class:`smc.base.model.Element` of type policy
         """
         return Element.from_href(self.data.get('parent_policy'))
 
@@ -194,24 +213,10 @@ class Rule(object):
         :return: None
         """
         self.update(PolicyCommandFailed)
-
-    @property
-    def services(self):
-        """
-        Services assigned to this rule
-
-        :return: :py:class:`smc.policy.rule_elements.Service`
-        """
-        return Service(self.data.get('services'))
-
-    @property
-    def sources(self):
-        """
-        Sources assigned to this rule
-
-        :return: :py:class:`smc.policy.rule_elements.Source`
-        """
-        return Source(self.data.get('sources'))
+        try:
+            del self._cache
+        except AttributeError:
+            pass
 
     @property
     def tag(self):
@@ -234,6 +239,7 @@ class Rule(object):
     #    time_range = self.data.get('time_range')
     #    if time_range:
     #        return TimeRange(self.data.get('time_range'))
+
 
 class RulePosition(object):
     """
@@ -293,9 +299,10 @@ class RuleCommon(object):
             service.set_none()
     
         e = {}
-        e.update(source())
-        e.update(destination())
-        e.update(service())
+        #e.update(source())
+        e.update(sources=source.data)
+        e.update(destinations=destination.data)
+        e.update(services=service.data)
         return e
     
     def update_logical_if(self, logical_interfaces):
@@ -382,7 +389,7 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
                is_disabled=False, vpn_policy=None, add_pos=None,
-               after=None, before=None, sub_policy=None, **kwargs):
+               after=None, before=None, sub_policy=None, **kw):
         """ 
         Create a layer 3 firewall rule
 
@@ -446,15 +453,15 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
                 raise MissingRequiredInput('Cannot find sub policy specified: {} '
                                            .format(sub_policy))
         
-        rule_values.update(rule_action())
+        rule_values.update(action=rule_action.data)
 
         if log_options is None:
             log_options = LogOptions()
 
         auth_options = AuthenticationOptions()
 
-        rule_values.update(log_options())
-        rule_values.update(auth_options())
+        rule_values.update(options=log_options.data)
+        rule_values.update(authentication_options=auth_options.data)
         rule_values.update(is_disabled=is_disabled)
 
         params = None
@@ -465,14 +472,15 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
         else:
             params = self.add_before_after(before, after)
     
-        location = self._request(
+        result = self.send_cmd(
             CreateRuleFailed,
+            raw_result=True,
             href=href,
             params=params,
-            json=rule_values).create().href
+            json=rule_values)
         
         return IPv4Rule(name=name,
-                        href=location,
+                        href=result.href,
                         type=self.typeof)
 
 
@@ -538,10 +546,9 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
 
         if not rule_action.action in self._actions:
             raise CreateRuleFailed('Action specified is not valid for this '
-                                   'rule type; action: {}'
-                                   .format(rule_action.action))
+                'rule type; action: {}'.format(rule_action.action))
 
-        rule_values.update(rule_action())
+        rule_values.update(action=rule_action.data)
 
         rule_values.update(self.update_logical_if(logical_interfaces))
 
@@ -553,15 +560,16 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
         else:
             params = self.add_before_after(before, after)
  
-        location = self._request(
+        result = self.send_cmd(
             CreateRuleFailed,
+            raw_result=True,
             href=href,
             params=params,
-            json=rule_values).create().href
+            json=rule_values)
         
         return IPv4Layer2Rule(
             name=name,
-            href=location,
+            href=result.href,
             type=self.typeof)
 
 
@@ -632,7 +640,7 @@ class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
                                    'rule type; action: {}'
                                    .format(rule_action.action))
 
-        rule_values.update(rule_action())
+        rule_values.update(action=rule_action.data)
 
         rule_values.update(self.update_logical_if(logical_interfaces))
 
@@ -644,15 +652,16 @@ class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
         else:
             params = self.add_before_after(before, after)
 
-        location = self._request(
+        result = self.send_cmd(
             CreateRuleFailed,
+            raw_result=True,
             href=href,
             params=params,
-            json=rule_values).create().href
+            json=rule_values)
         
         return EthernetRule(
             name=name,
-            href=location,
+            href=result.href,
             type=self.typeof)
 
 

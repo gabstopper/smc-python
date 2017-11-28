@@ -214,6 +214,7 @@ class Session(object):
             verify = cfg.get('verify')
             timeout = cfg.get('timeout')
             domain = cfg.get('domain')
+            kwargs=cfg.get('kwargs')
     
         if timeout:
             self._timeout = timeout

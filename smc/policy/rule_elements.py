@@ -1,6 +1,7 @@
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, SubDict
 from smc.api.exceptions import ElementNotFound
 from smc.base.util import element_resolver
+from smc.base.decorators import cacheable_resource
 
 
 class RuleElement(object):
@@ -11,14 +12,14 @@ class RuleElement(object):
 
         :rtype: bool
         """
-        return 'any' in self.data
+        return 'any' in self
 
     def set_any(self):
         """
         Set field to any
         """
-        self.data.clear()
-        self.data.update({'any': True})
+        self.clear()
+        self.update({'any': True})
 
     @property
     def is_none(self):
@@ -27,14 +28,14 @@ class RuleElement(object):
 
         :rtype: bool
         """
-        return 'none' in self.data
+        return 'none' in self
 
     def set_none(self):
         """
         Set field to none
         """
-        self.data.clear()
-        self.data.update({'none': True})
+        self.clear()
+        self.update({'none': True})
 
     def add(self, data):
         """
@@ -60,11 +61,11 @@ class RuleElement(object):
         :type data: Element or str
         """
         if self.is_none or self.is_any:
-            self.data.clear()
+            self.clear()
             self.data[self.typeof] = []
 
         try:
-            self.data[self.typeof].append(element_resolver(data))
+            self.get(self.typeof).append(element_resolver(data))
         except ElementNotFound:
             pass
 
@@ -92,7 +93,7 @@ class RuleElement(object):
         """
         assert isinstance(data, list), "Incorrect format. Expecting list."
         if self.is_none or self.is_any:
-            self.data.clear()
+            self.clear()
             self.data[self.typeof] = []
 
         data = element_resolver(data, do_raise=False)
@@ -107,7 +108,7 @@ class RuleElement(object):
         :rtype: list
         """
         if not self.is_any and not self.is_none:
-            return [element for element in self.data[self.typeof]]
+            return [element for element in self.get(self.typeof)]
 
     def all(self):
         """
@@ -125,207 +126,217 @@ class RuleElement(object):
         """
         if not self.is_any and not self.is_none:
             return [Element.from_href(href)
-                    for href in self.data[self.typeof]]
+                    for href in self.get(self.typeof)]
         return []
 
 
-class Destination(RuleElement):
+class Destination(RuleElement, SubDict):
+    """
+    Destination fields for a rule.
+    """
     typeof = 'dst'
 
-    def __init__(self, data=None):
-        self.data = {'none': True} if data is None else data
-
-    def __call__(self):
-        return {'destinations': self.data}
-
-
-class Source(RuleElement):
+    def __init__(self, rule=None):
+        if rule is None:
+            dests = dict(none=True)
+        else:
+            dests = rule.data.get('destinations')
+        super(Destination, self).__init__(data=dests)
+    
+    
+class Source(RuleElement, SubDict):
+    """
+    Source fields for a rule
+    """
     typeof = 'src'
+        
+    def __init__(self, rule=None):
+        if rule is None:
+            sources = dict(none=True)
+        else:
+            sources = rule.data.get('sources')
+        super(Source, self).__init__(data=sources)
+            
 
-    def __init__(self, data=None):
-        self.data = {'none': True} if data is None else data
-
-    def __call__(self):
-        return {'sources': self.data}
-
-
-class Service(RuleElement):
+class Service(RuleElement, SubDict):
+    """
+    Service fields for a rule
+    """
     typeof = 'service'
 
-    def __init__(self, data=None):
-        self.data = {'none': True} if data is None else data
-
-    def __call__(self):
-        return {'services': self.data}
-
-
-class Action(object):
-    """
-    This represents the action associated with the rule.
-    """
-    def __init__(self, data=None):
-        if data is None:
-            conn = ConnectionTracking()
-            self.data = {'action': 'allow'}
-            self.data.update(conn())
-            self.data.update(scan_detection='undefined')
+    def __init__(self, rule=None):
+        if rule is None:
+            services = dict(none=True)
         else:
-            self.data = data
+            services = rule.data.get('services')
+        super(Service, self).__init__(data=services)    
 
-    def __call__(self):
-        return {'action': self.data}
-
-    @property
-    def action(self):
-        """
-        Action set for this rule
-
-        :param str value: allow\|discard\|continue\|refuse\|jump\|apply_vpn
-                          \|enforce_vpn\|forward_vpn\|blacklist\|terminate
-        :rtype: str
-        """
-        return self.data.get('action')
-
-    @action.setter
-    def action(self, value):
-        self.data['action'] = value
-
-    @property
-    def connection_tracking_options(self):
-        """
-        Enables connection tracking.
-        The firewall allows or discards packets according to the selected Connection
-        Tracking mode. Reply packets are allowed as part of the allowed connection
-        without an explicit Access rule. Protocols that use a dynamic port assignment
-        must be allowed using a Service with the appropriate Protocol Agent for that
-        protocol (in Access rules and NAT rules).
-
-        :return: :py:class:`smc.policy.rule_elements.ConnectionTracking`
-        """
-        return ConnectionTracking(self.data.get('connection_tracking_options'))
-
-    @property
-    def deep_inspection(self):
-        """
-        Selects traffic that matches this rule for checking against the Inspection
-        Policy referenced by this policy. Traffic is inspected as the Protocol that
-        is attached to the Service element in this rule.
-
-        :param bool value: True, False, None (inherit from continue rule)
-        :rtype: bool
-        """
-        return self.data.get('deep_inspection')
-
-    @deep_inspection.setter
-    def deep_inspection(self, value):
-        self.data['deep_inspection'] = value
-
-    @property
-    def file_filtering(self):
-        """
-        (IPv4 Only) Inspects matching traffic against the File Filtering policy.
-        Selecting this option should also activates the Deep Inspection option.
-        You can further adjust virus scanning in the Inspection Policy. 
-
-        :param bool value: True, False, None (inherit from continue rule)
-        :rtype: bool
-        """
-        return self.data.get('file_filtering')
-
-    @file_filtering.setter
-    def file_filtering(self, value):
-        self.data['file_filtering'] = value
-
-    @property
-    def dos_protection(self):
-        """
-        Enable or disable DOS protection mode
-
-        :param bool value: True, False, None (inherit from continue rule)
-        :rtype: bool
-        """
-        return self.data.get('dos_protection')
-
-    @dos_protection.setter
-    def dos_protection(self, value):
-        self.data['dos_protection'] = value
-
-    @property
-    def scan_detection(self):
-        """
-        Enable or disable Scan Detection for traffic that matches the
-        rule. This overrides the option set in the Engine properties.
-
-        Enable scan detection on this rule::
-
-            for rule in policy.fw_ipv4_access_rules.all():
-                rule.action.scan_detection = 'on'
-
-        :param str value: on\|off\|undefined
-        :return: scan detection setting (on,off,undefined)
-        :rtype: str
-        """
-        return self.data.get('scan_detection')
-
-    @scan_detection.setter
-    def scan_detection(self, value):
-        if value in ['on', 'off', 'undefined']:
-            self.data['scan_detection'] = value
-
-    @property
-    def sub_policy(self):
-        """
-        Sub policy is used when ``action=jump``.
         
-        :rtype: FirewallSubPolicy
-        """
-        if 'sub_policy' in self.data:
-            return Element.from_href(self.data['sub_policy'])
-
-    @sub_policy.setter
-    def sub_policy(self, value):
-        self.data['sub_policy'] = element_resolver(value)
-    
+class Action(SubDict): 
+    """ 
+    This represents the action associated with the rule. 
+    """ 
+    def __init__(self, rule=None):
+        if rule is None:
+            action = dict(action='allow')
+            conn_tracking = ConnectionTracking()
+            action.update(connection_tracking_options=conn_tracking.data)
+            action.update(scan_detection='undefined') 
+        else: 
+            action = rule.data.get('action', {})
+        super(Action, self).__init__(data=action)
+ 
+    @property 
+    def action(self): 
+        """ 
+        Action set for this rule 
+ 
+        :param str value: allow\|discard\|continue\|refuse\|jump\|apply_vpn 
+                          \|enforce_vpn\|forward_vpn\|blacklist\|terminate 
+        :rtype: str 
+        """ 
+        return self.get('action') 
+ 
+    @action.setter 
+    def action(self, value): 
+        self.update(action=value) 
+ 
     @property
-    def user_response(self):
+    def connection_tracking_options(self): 
+        """ 
+        Enables connection tracking. 
+        The firewall allows or discards packets according to the selected Connection 
+        Tracking mode. Reply packets are allowed as part of the allowed connection 
+        without an explicit Access rule. Protocols that use a dynamic port assignment 
+        must be allowed using a Service with the appropriate Protocol Agent for that 
+        protocol (in Access rules and NAT rules). 
+ 
+        :rtype: ConnectionTracking
         """
-        Read-only user response setting
-        """
-        return self.data.get('user_response')
+        return ConnectionTracking(self) 
+ 
+    @property 
+    def deep_inspection(self): 
+        """ 
+        Selects traffic that matches this rule for checking against the Inspection 
+        Policy referenced by this policy. Traffic is inspected as the Protocol that 
+        is attached to the Service element in this rule. 
+ 
+        :param bool value: True, False, None (inherit from continue rule) 
+        :rtype: bool 
+        """ 
+        return self.get('deep_inspection') 
+ 
+    @deep_inspection.setter 
+    def deep_inspection(self, value): 
+        self.update(deep_inspection=value) 
+ 
+    @property 
+    def file_filtering(self): 
+        """ 
+        (IPv4 Only) Inspects matching traffic against the File Filtering policy. 
+        Selecting this option should also activates the Deep Inspection option. 
+        You can further adjust virus scanning in the Inspection Policy.  
+ 
+        :param bool value: True, False, None (inherit from continue rule) 
+        :rtype: bool 
+        """ 
+        return self.get('file_filtering') 
+ 
+    @file_filtering.setter 
+    def file_filtering(self, value): 
+        self.update(file_filtering=value) 
+ 
+    @property 
+    def dos_protection(self): 
+        """ 
+        Enable or disable DOS protection mode 
+ 
+        :param bool value: True, False, None (inherit from continue rule) 
+        :rtype: bool 
+        """ 
+        return self.get('dos_protection') 
+ 
+    @dos_protection.setter 
+    def dos_protection(self, value): 
+        self.update(dos_protection=value) 
+ 
+    @property 
+    def scan_detection(self): 
+        """ 
+        Enable or disable Scan Detection for traffic that matches the 
+        rule. This overrides the option set in the Engine properties. 
+ 
+        Enable scan detection on this rule:: 
+ 
+            for rule in policy.fw_ipv4_access_rules.all(): 
+                rule.action.scan_detection = 'on' 
+ 
+        :param str value: on\|off\|undefined 
+        :return: scan detection setting (on,off,undefined) 
+        :rtype: str 
+        """ 
+        return self.get('scan_detection') 
+ 
+    @scan_detection.setter 
+    def scan_detection(self, value): 
+        if value in ('on', 'off', 'undefined'): 
+            self.update(scan_detection=value) 
+ 
+    @property 
+    def sub_policy(self): 
+        """ 
+        Sub policy is used when ``action=jump``. 
+         
+        :rtype: FirewallSubPolicy 
+        """ 
+        if 'sub_policy' in self: 
+            return Element.from_href(self.get('sub_policy')) 
+ 
+    @sub_policy.setter 
+    def sub_policy(self, value): 
+        self.update(sub_policy=element_resolver(value))
+ 
+    @property 
+    def user_response(self): 
+        """ 
+        Read-only user response setting 
+        """ 
+        return self.get('user_response') 
+ 
+    @property 
+    def vpn(self): 
+        """ 
+        Return vpn reference. Only used if 'enforce_vpn', 'apply_vpn', 
+        or 'forward_vpn' is the action type. 
+ 
+        :rtype: PolicyVPN 
+        """ 
+        if 'vpn' in self: 
+            return self.get('vpn') 
+ 
+    @vpn.setter 
+    def vpn(self, value): 
+        self.update(vpn=value) 
+ 
+    @property 
+    def mobile_vpn(self): 
+        """ 
+        Mobile VPN only applies to engines that support VPN and that 
+        have the action of 'enforce_vpn', 'apply_vpn' or 'forward_vpn' 
+        set. This will enable mobile VPN traffic on this VPN rule. 
+ 
+        :return: mobile vpn enabled 
+        :rtype: boolean 
+        """ 
+        return self.get('mobile_vpn') 
+ 
+    @mobile_vpn.setter 
+    def mobile_vpn(self, value): 
+        self.update(mobile_vpn=value)
+            
 
-    @property
-    def vpn(self):
-        """
-        Return vpn reference. Only used if 'enforce_vpn', 'apply_vpn',
-        or 'forward_vpn' is the action type.
-
-        :rtype: PolicyVPN
-        """
-        if 'vpn' in self.data:
-            return self.data.get('vpn')
-
-    @vpn.setter
-    def vpn(self, value):
-        self.data['vpn'] = value
-
-    @property
-    def mobile_vpn(self):
-        """
-        Mobile VPN only applies to engines that support VPN and that
-        have the action of 'enforce_vpn', 'apply_vpn' or 'forward_vpn'
-        set. This will enable mobile VPN traffic on this VPN rule.
-
-        :return: mobile vpn enabled
-        :rtype: boolean
-        """
-        return self.data.get('mobile_vpn')
-
-    @mobile_vpn.setter
-    def mobile_vpn(self, value):
-        self.data['mobile_vpn'] = value
-
-
-class ConnectionTracking(object):
+class ConnectionTracking(SubDict):
     """
     Connection tracking settings can be configured on a per rule basis to
     control settings such as enforced MSS and how to handle connection states.
@@ -340,14 +351,16 @@ class ConnectionTracking(object):
             rule.action.connection_tracking_options.sync_connections = True
             rule.save()
     """
-    def __init__(self, data=None):
-        self.data = {'mss_enforced': False,
-                     'mss_enforced_max': 0,
-                     'mss_enforced_min': 0,
-                     'timeout': -1} if data is None else data
-
-    def __call__(self):
-        return {'connection_tracking_options': self.data}
+    def __init__(self, rule=None):
+        if rule is None:
+            ct = dict(
+                mss_enforced=False,
+                mss_enforced_max=0,
+                mss_enforced_min=0,
+                timeout=-1)
+        else:
+            ct = rule.data.get('connection_tracking_options', {})
+        super(ConnectionTracking, self).__init__(data=ct)
 
     @property
     def mss_enforced(self):
@@ -357,11 +370,11 @@ class ConnectionTracking(object):
         :param bool value: True, False
         :return: bool
         """
-        return self.data.get('mss_enforced')
+        return self.get('mss_enforced')
 
     @mss_enforced.setter
     def mss_enforced(self, value):
-        self.data['mss_enforced'] = value
+        self.update(mss_enforced=value)
 
     @property
     def mss_enforced_min_max(self):
@@ -374,15 +387,15 @@ class ConnectionTracking(object):
         :return: (min, max) values
         :rtype: tuple
         """
-        return (self.data.get('mss_enforced_min'),
-                self.data.get('mss_enforced_max'))
+        return (self.get('mss_enforced_min'),
+                self.get('mss_enforced_max'))
 
     @mss_enforced_min_max.setter
     def mss_enforced_min_max(self, value):
         if isinstance(value, tuple):
             minimum, maximum = value
-            self.data['mss_enforced_min'] = minimum
-            self.data['mss_enforced_max'] = maximum
+            self.update(mss_enforced_min=minimum)
+            self.update(mss_enforced_max=maximum)
 
     @property
     def state(self):
@@ -393,11 +406,11 @@ class ConnectionTracking(object):
         :param str value: no,loose,normal,strict
         :return: str
         """
-        return self.data.get('state')
+        return self.get('state')
 
     @state.setter
     def state(self, value):
-        self.data['state'] = value
+        self.update(state=value)
 
     @property
     def timeout(self):
@@ -409,7 +422,7 @@ class ConnectionTracking(object):
         :param int value: time in seconds
         :return: int
         """
-        return self.data.get('timeout')
+        return self.get('timeout')
 
     @timeout.setter
     def timeout(self, value):
@@ -418,7 +431,7 @@ class ConnectionTracking(object):
         
         :param int value: idle connection timeout
         """
-        self.data['timeout'] = value
+        self.update(timeout=value)
 
     @property
     def sync_connections(self):
@@ -429,13 +442,14 @@ class ConnectionTracking(object):
         
         :return True, False, None (inherit from continue rule)
         """
-        return self.data.get('sync_connections')
+        return self.get('sync_connections')
     
     @sync_connections.setter
     def sync_connections(self, value):
-        self.data['sync_connections'] = value
-        
-class LogOptions(object):
+        self.update(sync_connections=value)
+
+
+class LogOptions(SubDict):
     """
     Log Options represent the settings related to per rule logging.
 
@@ -451,18 +465,20 @@ class LogOptions(object):
                 rule.options.user_logging = 'enforced'
                 rule.save()
     """
-    def __init__(self, data=None):
-        self.data = {'log_accounting_info_mode': False,
-                     'log_closing_mode': True,
-                     'log_level': 'undefined',
-                     'log_payload_additionnal': False,
-                     'log_payload_excerpt': False,
-                     'log_payload_record': False,
-                     'log_severity': -1} if data is None else data
-
-    def __call__(self):
-        return {'options': self.data}
-
+    def __init__(self, rule=None):
+        if rule is None:
+            logopts = dict(
+                log_accounting_info_mode=False,
+                log_closing_mode=True,
+                log_level='undefined',
+                log_payload_additionnal=False,
+                log_payload_excerpt=False,
+                log_payload_record=False,
+                log_severity=-1)
+        else:
+            logopts = rule.data.get('options', {})
+        super(LogOptions, self).__init__(data=logopts)
+        
     @property
     def application_logging(self):
         """
@@ -472,12 +488,12 @@ class LogOptions(object):
         :param str value: off\|default\|enforced
         :return: str
         """
-        return self.data.get('application_logging')
+        return self.get('application_logging')
 
     @application_logging.setter
     def application_logging(self, value):
-        if value in ['off', 'default', 'enforced']:
-            self.data['application_logging'] = value
+        if value in ('off', 'default', 'enforced'):
+            self.update(application_logging=value)
 
     @property
     def log_accounting_info_mode(self):
@@ -492,12 +508,12 @@ class LogOptions(object):
         :param bool value: log accounting information (bits/bytes transferred)
         :return: bool 
         """
-        return self.data.get('log_accounting_info_mode')
+        return self.get('log_accounting_info_mode')
 
     @log_accounting_info_mode.setter
     def log_accounting_info_mode(self, value):
-        self.data['log_accounting_info_mode'] = value
-
+        self.update(log_accounting_info_mode=value)
+        
     @property
     def log_closing_mode(self):
         """
@@ -509,11 +525,11 @@ class LogOptions(object):
         :param bool value: enable/disable accounting data
         :return: bool
         """
-        return self.data.get('log_closing_mode')
+        return self.get('log_closing_mode')
 
     @log_closing_mode.setter
     def log_closing_mode(self, value):
-        self.data['log_closing_mode'] = value
+        self.update(log_closing_mode=value)
 
     @property
     def log_level(self):
@@ -525,12 +541,12 @@ class LogOptions(object):
         :param str value: none\|stored\|transient\|essential\|alert\|undefined
         :return: str
         """
-        return self.data.get('log_level')
+        return self.get('log_level')
 
     @log_level.setter
     def log_level(self, value):
-        if value in ['none', 'stored', 'transient', 'essential', 'alert']:
-            self.data['log_level'] = value
+        if value in ('none', 'stored', 'transient', 'essential', 'alert'):
+            self.update(log_level=value)
         if not self.log_accounting_info_mode:
             self.log_accounting_info_mode = True
 
@@ -544,11 +560,11 @@ class LogOptions(object):
         :param bool value: True, False
         :return: bool
         """
-        return self.data.get('log_payload_additionnal')
+        return self.get('log_payload_additionnal')
 
     @log_payload_additional.setter
     def log_payload_additional(self, value):
-        self.data['log_payload_additionnal'] = value
+        self.update(log_payload_additionnal=value)
 
     @property
     def log_payload_excerpt(self):
@@ -560,11 +576,11 @@ class LogOptions(object):
         :param bool value: collect excerpt or not
         :return: bool
         """
-        return self.data.get('log_payload_excerpt')
+        return self.get('log_payload_excerpt')
 
     @log_payload_excerpt.setter
     def log_payload_excerpt(self, value):
-        self.data['log_payload_excerpt'] = value
+        self.update(log_payload_excerpt=value)
 
     @property
     def log_payload_record(self):
@@ -575,11 +591,11 @@ class LogOptions(object):
         :param bool value: True, False
         :return: bool
         """
-        return self.data.get('log_payload_record')
+        return self.get('log_payload_record')
 
     @log_payload_record.setter
     def log_payload_record(self, value):
-        self.data['log_payload_record'] = value
+        self.update(log_payload_record=value)
 
     @property
     def log_severity(self):
@@ -588,7 +604,7 @@ class LogOptions(object):
 
         :return: str
         """
-        return self.data.get('log_severity')
+        return self.get('log_severity')
 
     @property
     def user_logging(self):
@@ -603,29 +619,31 @@ class LogOptions(object):
         :param str value: off\|default\|enforced
         :return: str
         """
-        return self.data.get('user_logging')
+        return self.get('user_logging')
 
     @user_logging.setter
     def user_logging(self, value):
-        if value in ['off', 'default', 'enforced']:
-            self.data['user_logging'] = value
+        if value in ('off', 'default', 'enforced'):
+            self.update(user_logging=value)
 
 
-class AuthenticationOptions(object):
+class AuthenticationOptions(SubDict):
     """
     Authentication options are set on a per rule basis and dictate
     whether a user requires identification to match.
     """
 
-    def __init__(self, data=None):
-        self.data = {'methods': [],
-                     'require_auth': False,
-                     'timeout': 3600,
-                     'users': []} if data is None else data
-
-    def __call__(self):
-        return {'authentication_options': self.data}
-
+    def __init__(self, rule=None):
+        if rule is None:
+            auth = dict(
+                methods=[],
+                require_auth=False,
+                timeout=3600,
+                users=[])
+        else: 
+            auth = rule.data.get('authentication_options', {})
+        super(AuthenticationOptions, self).__init__(data=auth)
+    
     @property
     def methods(self):
         """
@@ -633,7 +651,7 @@ class AuthenticationOptions(object):
 
         :return: list value: auth methods enabled
         """
-        return self.data.get('methods')
+        return self.get('methods')
 
     @property
     def require_auth(self):
@@ -642,7 +660,7 @@ class AuthenticationOptions(object):
 
         :return: boolean
         """
-        return self.data.get('require_auth')
+        return self.get('require_auth')
 
     @property
     def timeout(self):
@@ -651,7 +669,7 @@ class AuthenticationOptions(object):
 
         :return: int
         """
-        return self.data.get('timeout')
+        return self.get('timeout')
 
     @property
     def users(self):
@@ -660,7 +678,7 @@ class AuthenticationOptions(object):
 
         :return: list
         """
-        return self.data.get('users')
+        return self.get('users')
 
 
 class TimeRange(object):

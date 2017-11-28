@@ -3,6 +3,7 @@ Configuration Loader
 """
 import os
 import io
+import json
 from smc.api.exceptions import ConfigLoadError
 
 try:
@@ -24,7 +25,7 @@ def load_from_environ():
         SMC_TIMEOUT = 30 (seconds)
         SMC_API_VERSION = 6.1 (optional - uses latest by default)
         SMC_DOMAIN = name of domain, Shared is default
-        SMC_EXTRA_ARGS = dict format of extra args needed
+        SMC_EXTRA_ARGS = string in dict format of extra args needed
     
     SMC_CLIENT CERT is only checked IF the SMC_URL is an HTTPS url.
     """
@@ -38,14 +39,22 @@ def load_from_environ():
     smc_timeout = os.environ.get('SMC_TIMEOUT', None)
     api_version = os.environ.get('SMC_API_VERSION', None)
     domain = os.environ.get('SMC_DOMAIN', None)
-   
+    smc_extra_args = os.environ.get('SMC_EXTRA_ARGS', '')
+    
     if not smc_apikey or not smc_address:
         raise ConfigLoadError(
             'If loading from environment variables, you must provide values '
             'SMC_ADDRESS and SMC_API_KEY.')
-        
+    
     config_dict = {}
-        
+    
+    if smc_extra_args:
+        try:
+            args_as_dict = json.loads(smc_extra_args)
+            config_dict.update(args_as_dict)
+        except ValueError:
+            pass
+   
     config_dict.update(smc_apikey=smc_apikey)
     config_dict.update(timeout=smc_timeout)
     config_dict.update(api_version=api_version)
@@ -180,12 +189,12 @@ def transform_login(config):
     :return: dict dict of settings that can be sent into session.login
     """
     verify = True
-    if config.get('smc_ssl'):
+    if config.pop('smc_ssl', None):
         scheme = 'https'
 
-        if config.get('verify_ssl'):
+        if config.pop('verify_ssl', None):
             # Get cert path to verify
-            verify = config.get('ssl_cert_file')
+            verify = config.pop('ssl_cert_file', None)
             if not verify:  # Setting omitted
                 verify = False
         else:
@@ -196,17 +205,17 @@ def transform_login(config):
     transformed = {}
     url = '{}://{}:{}'.format(
         scheme,
-        config.get('smc_address'),
-        config.get('smc_port'))
+        config.pop('smc_address', None),
+        config.pop('smc_port', None))
 
-    timeout = config.get('timeout')
+    timeout = config.pop('timeout', None)
     if timeout:
         try:
             timeout = int(timeout)
         except ValueError:
             timeout = None
 
-    api_version = config.get('api_version')
+    api_version = config.pop('api_version', None)
     if api_version:
         try:
             api_version = float(api_version)
@@ -215,9 +224,10 @@ def transform_login(config):
     
     transformed.update(
         url=url,
-        api_key=config.get('smc_apikey'),
+        api_key=config.pop('smc_apikey', None),
         api_version=api_version,
         verify=verify,
         timeout=timeout,
-        domain=config.get('domain'))
+        domain=config.pop('domain', None),
+        kwargs=config) # Any remaining args
     return transformed

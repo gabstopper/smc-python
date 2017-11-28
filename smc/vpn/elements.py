@@ -14,7 +14,7 @@ class GatewaySettings(Element):
     of an engine::
 
         engine = Engine('myfw')
-        engine.gateway_setting_profile
+        engine.vpn.gateway_settings
     """
     typeof = 'gateway_settings'
 
@@ -227,14 +227,15 @@ class ExternalEndpoint(SubElement):
                 ike_phase1_id_type=ike_phase1_id_type,
                 ike_phase1_id_value=ike_phase1_id_value)
             
-        location = self._request(
+        result = self.send_cmd(
             CreateElementFailed,
+            raw_result=True,
             href=self.href,
-            json=json).create().href
+            json=json)
         
         return ExternalEndpoint(
             name=name,
-            href=location,
+            href=result.href,
             type='external_endpoint')
 
     @property
@@ -292,7 +293,7 @@ class VPNSite(SubElement):
 
         engine = Engine('myengine')
         network = Network('network-192.168.5.0/25') #get resource
-        engine.internal_gateway.vpn_site.create('newsite', [network.href])
+        engine.vpn.sites.create('newsite', [network.href])
 
     This class is a property of :py:class:`smc.core.engine.InternalGateway`
     or :py:class:`smc.vpn.elements.ExternalGateway` and should not be accessed
@@ -305,7 +306,7 @@ class VPNSite(SubElement):
 
     def create(self, name, site_element):
         """
-        Create a VPN site for an internal or test_external gateway
+        Create a VPN site for an internal or external gateway
 
         :param str name: name of site
         :param list site_element: list of protected networks/hosts
@@ -319,14 +320,15 @@ class VPNSite(SubElement):
             'name': name,
             'site_element': site_element}
         
-        location = self._request(
+        result = self.send_cmd(
             CreateElementFailed,
+            raw_result=True,
             href=self.href,
-            json=json).create().href
+            json=json)
             
         return VPNSite(
             name=name,
-            href=location,
+            href=result.href,
             type='vpn_site')
     
     @property
@@ -364,7 +366,8 @@ class VPNSite(SubElement):
     @property
     def gateway(self):
         return Element.from_href(self.data.get('gateway'))
-        
+
+       
 class VPNProfile(Element):
     """
     Represents a VPNProfile configuration used by the PolicyVPN
@@ -405,7 +408,7 @@ class VPNCertificate(object):
 
         cert = VPNCertificate(organization='myorg', common_name='amazon-fw')
         engine = Engine('myengine')
-        engine.internal_gateway.generate_certificate(cert)      
+        engine.vpn.generate_certificate(cert)      
     """
 
     def __init__(self, organization, common_name, public_key_algorithm="dsa",

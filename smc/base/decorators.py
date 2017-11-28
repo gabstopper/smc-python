@@ -39,6 +39,20 @@ class classproperty(object):
         return self.fget(owner_cls)
 
 
+def cacheable_resource(func):
+    @functools.wraps(func)
+    def get(self):
+        try:
+            return self._cache[func]
+        except AttributeError:
+            self._cache = {}
+        except KeyError:
+            pass
+        ret = self._cache[func] = func(self)
+        return ret
+    return property(get)
+
+
 class cached_property(object):
     """
     Use for caching a property value on the instance. If the

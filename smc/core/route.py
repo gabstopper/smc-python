@@ -598,9 +598,59 @@ class Antispoofing(SubElement):
     def __repr__(self):
         return str(self)
 
+
+class PolicyRoute(object):
+    """
+    .. versionadded:: 0.5.7
+            Add ipv4 or ipv6 policy routes to engine, requires SMC 6.3
     
-class PolicyRoute(namedtuple(
-        'PolicyRoute', 'source destination gateway_ip comment')):
+    Policy routing entries are applied before the regular routes defined
+    in the Routing tree (overriding those configurations if matches are found).
+    The first matching policy routing entry is applied to a connection and any
+    further entries are ignored.
+
+    Policy routing entries are not automatically added to Antispoofing rules,
+    so you might need to update the antispoofing as well. This class is 
+    iterable and will yield `.PolicyRouteEntry` namedtuples.
+    Example of adding a policy route::
+    
+        >>> list(engine.policy_routing)
+        [PolicyRouteEntry(source=u'172.18.1.150/32', destination=u'8.8.8.8/32', gateway_ip=u'10.0.0.1', comment=u'foo')]
+        >>> engine.policy_routing.create(source='172.18.1.254/32', destination='192.168.4.0/24', gateway_ip='10.0.0.1')
+        >>> engine.update()
+        'http://172.18.1.151:8082/6.4/elements/single_fw/948'
+        >>> list(engine.policy_routing)
+        [PolicyRouteEntry(source=u'172.18.1.150/32', destination=u'8.8.8.8/32', gateway_ip=u'10.0.0.1', comment=u'foo'),
+         PolicyRouteEntry(source=u'172.18.1.254/32', destination=u'192.168.4.0/24', gateway_ip=u'10.0.0.1', comment=None)]
+        
+    .. note:: You must call engine.update() to commit any changes.    
+    """
+    def __init__(self, engine):
+        self.engine = engine
+    
+    def create(self, source, destination, gateway_ip, comment=None):
+        """
+        Each added entry is placed at the bottom of the existing set of rules if
+        any exist.
+        
+        :param str source: source address with /netmask, i.e. 1.1.1.1/32
+        :param str destination: destination address with netmask: i.e. 2.2.2.0/24
+        :param str gateway_ip: gateway address: i.e. 1.1.1.254
+        :param str comment: optional comment
+        """
+        self.engine.policy_route.append(
+            {'source': source,
+             'destination': destination,
+             'gateway_ip': gateway_ip,
+             'comment': comment})
+    
+    def __iter__(self):
+        for pr in self.engine.policy_route:
+            yield PolicyRouteEntry(**pr)
+                
+    
+class PolicyRouteEntry(namedtuple(
+        'PolicyRouteEntry', 'source destination gateway_ip comment')):
     """
     Policy Route for an engine.
     
@@ -612,7 +662,7 @@ class PolicyRoute(namedtuple(
     __slots__ = ()
     
     def __new__(cls, source, destination, gateway_ip, comment=None):  # @ReservedAssignment
-        return super(PolicyRoute, cls).__new__(
+        return super(PolicyRouteEntry, cls).__new__(
             cls, source, destination, gateway_ip, comment)
     
     #@property

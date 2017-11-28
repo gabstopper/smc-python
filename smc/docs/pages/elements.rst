@@ -122,8 +122,7 @@ An attribute value can also be a callable and will be evaluated during update::
 	>>> host.address = Address()
 	...
 	>>> pprint(vars(host))
-	{'_cache': <smc.base.model.Cache object at 0x103113f10>,
-	 '_meta': Meta(name=u'kali', href=u'http://172.18.1.150:8082/6.2/elements/host/978', type=u'host'),
+	{'_meta': Meta(name=u'kali', href=u'http://172.18.1.150:8082/6.2/elements/host/978', type=u'host'),
 	 '_name': 'kali',
 	 'address': <__main__.Address instance at 0x105444b48>}
 	>>> host.update()
@@ -209,8 +208,8 @@ Attributes supported by elements are documented in the API Reference: :ref:`elem
 Delete
 ------
 
-Deleting elements is done by using the base class delete method. It is not required to inflate the 
-instance as only meta will be retrieved to perform the delete operation.
+Deleting elements is done by using the base class delete method. If the element has already been fetched,
+the ETag of the original fetch is stored with the element cache and will be provided during the delete.
 
 Deleting a host::
 

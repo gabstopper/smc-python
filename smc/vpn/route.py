@@ -30,7 +30,7 @@ party remote GW::
     # Create the local Tunnel Endpoint using the engine internal gateway
     # and previously created tunnel interface
     tunnel_if = engine.tunnel_interface.get(1000)
-    local_gateway = TunnelEndpoint.create_ipsec_endpoint(engine.internal_gateway, tunnel_if)
+    local_gateway = TunnelEndpoint.create_ipsec_endpoint(engine.vpn.internal_gateway, tunnel_if)
     
     # Create the remote side network elements
     Network.create(name='remotenet', ipv4_network='172.18.10.0/24')

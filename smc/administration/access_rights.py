@@ -5,7 +5,7 @@ access permissions to either Engines, Policies or Domains.
 
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
-from smc.elements.other import AdminDomain
+from smc.administration.system import AdminDomain
 
 
 class AccessControlList(Element):

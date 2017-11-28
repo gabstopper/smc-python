@@ -176,10 +176,11 @@ class Node(SubElement):
         :rtype: str
         """
         try:
-            result = self._request(
+            result = self.send_cmd(
                 NodeCommandFailed,
+                raw_result=True,
                 resource='initial_contact',
-                params={'enable_ssh': enable_ssh}).create()
+                params={'enable_ssh': enable_ssh})
             
             if result.content:
                 if as_base64:
@@ -462,11 +463,12 @@ class Node(SubElement):
             'include_core_files': include_core_files,
             'include_slapcat_output': include_slapcat_output}
         
-        result = self._request(
+        result = self.read_cmd(
             NodeCommandFailed,
+            raw_result=True,
             resource='sginfo',
             filename=filename,
-            params=params).read()
+            params=params)
         
         return result.content
 

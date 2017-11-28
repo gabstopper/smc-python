@@ -150,7 +150,7 @@ class SubDict(MutableMapping):
         del self.data[key]
 
     def __iter__(self):
-        return ((key, value) for key, value in self.data.items())
+        return iter(self.data)
 
     def __len__(self):
         return len(self.data)
@@ -248,7 +248,20 @@ class ElementBase(UnicodeMixin, SMCCommand):
     instance cache as well as methods to retrieve aspects
     of an element.
     Meta is passed in to Element and SubElement types to provide
-    links to resources. Meta format: {'href','type','name'}.
+    links to resources. When a top level query is made to the SMC
+    API, meta is returned for the element (unless a direct link query
+    is made). The meta format include 'href','type','name'.
+    For example::
+    
+        "href":"http://1.1.1.1:8082/6.4/elements/host/707","name":"foobar","type":"host"
+    
+    Methods of the element classes are designed to expose any links or
+    attributes of the specific element to simplify manipulation. If a method,
+    etc is accessed that requires the elements data, the element is fetched
+    and the elements cache (stored in `data` attribute) is inflated. The ETag
+    is also retained in the element and is used when updating or deleting the
+    element to ensure we are operating on the latest version.
+    
     Meta can be passed to constructor through as key value pairs
     kwargs, href=.... (only partial meta), or meta={.....} (as dict)
 
@@ -277,7 +290,7 @@ class ElementBase(UnicodeMixin, SMCCommand):
             pass
     
     def __getattr__(self, key):
-        if key not in ['typeof']:
+        if key not in ('typeof',):
             try:
                 return self.data[key]
             except KeyError:
@@ -361,7 +374,7 @@ class ElementBase(UnicodeMixin, SMCCommand):
 
         # Remove attributes from instance if previously set
         if instance_attr:
-            for attr in instance_attr.keys():
+            for attr in instance_attr:
                 delattr(self, attr)
 
         request = SMCRequest(**params) 
@@ -369,8 +382,9 @@ class ElementBase(UnicodeMixin, SMCCommand):
         result = request.update()
         
         if name: # Reset instance name
+            self._meta = Meta(name=name, href=self.href, type=self._meta.type)
             self._name = name
-
+            
         return result.href
 
     def modify_attribute(self, **kwargs):

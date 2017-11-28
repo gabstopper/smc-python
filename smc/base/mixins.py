@@ -18,6 +18,8 @@ class SMCCommand(object):
     a custom exception class as the first arg otherwise a default will be chosen based
     on the operation type.
     
+    :param str resource: name of resource as found in elements links cache
+    :param str raw_result: provide raw_result to return as SMCResult versus json
     :raises ResourceNotFound: only raised in the case where a 'resource' kwarg
         link is provided where that link does not exist.
     """
@@ -27,7 +29,10 @@ class SMCCommand(object):
         if exception:
             exc = exception[0]
         
+        raw_result = kwargs.pop('raw_result', None)
         request = self._request(exc, **kwargs)
+        if raw_result:
+            return request.read()
         return request.read().json
 
     def send_cmd(self, *exception, **kwargs):
@@ -35,7 +40,10 @@ class SMCCommand(object):
         if exception:
             exc = exception[0]
         
+        raw_result = kwargs.pop('raw_result', None)
         request = self._request(exc, **kwargs)
+        if raw_result:
+            return request.create()
         return request.create().json
     
     def del_cmd(self, *exception, **kwargs):

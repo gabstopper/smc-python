@@ -181,7 +181,7 @@ class HttpProxy(Element):
     
     @classmethod
     def create(cls, name, address, proxy_port=8080, username=None,
-               password=None, secondary=None):
+               password=None, secondary=None, comment=None):
         """
         Create a new HTTP Proxy service. Proxy must define at least
         one primary address but can optionally also define a list
@@ -192,6 +192,7 @@ class HttpProxy(Element):
         :param int proxy_port: proxy port (default: 8080)
         :param str username: optional username for authentication (default: None)
         :param str password: password for username if defined (default: None)
+        :param str comment: optional comment
         :param list secondary: secondary list of proxy server addresses
         :raises CreateElementFailed: Failed to create the proxy element
         :rtype: HttpProxy
@@ -199,9 +200,59 @@ class HttpProxy(Element):
         json = {
             'name': name,
             'address': address,
+            'comment': comment,
             'http_proxy_port': proxy_port,
             'http_proxy_username': username if username else '',
             'http_proxy_password': password if password else '',
+            'secondary': secondary if secondary else []}
+        
+        return ElementCreator(cls, json)
+
+    
+class DNSServer(Element):
+    """
+    There are some cases in which you must define an External DNS Server
+    element.
+
+    * For dynamic DNS (DDNS) updates with a Multi-Link configuration.
+    * If you want to use a DNS server for resolving malware signature mirrors.
+    * If you want to use a DNS server for resolving domain names and URL filtering
+      categorization services on Firewalls, IPS engines, and Layer 2 Firewalls.
+        
+    You can also optionally use External DNS Server elements to specify the DNS servers
+    to which the firewall forwards DNS requests when you configure DNS relay.
+    
+    :ivar int time_to_live: how long a DNS entry can be cached
+    :ivar int update_interval: how often DNS entries can be updated
+    """
+    typeof = 'dns_server'
+
+    def __init__(self, name, **meta): 
+        super(DNSServer, self).__init__(name, **meta) 
+    
+    @classmethod
+    def create(cls, name, address, time_to_live=20, update_interval=10,
+               secondary=None, comment=None):
+        """
+        Create a DNS Server element.
+        
+        :param str name: Name of DNS Server
+        :param str address: IP address for DNS Server element
+        :param int time_to_live: Defines how long a DNS entry can be cached
+            before querying the DNS server again (default: 20)
+        :param int update_interval: Defines how often the DNS entries can be
+            updated to the DNS server if the link status changes constantly
+            (default: 10)
+        :param list secondary: a secondary set of IP address for this element
+        :raises CreateElementFailed: Failed to create with reason
+        :rtype: DNSServer
+        """
+        json = {
+            'name': name,
+            'address': address,
+            'comment': comment,
+            'time_to_live': time_to_live,
+            'update_interval': update_interval,
             'secondary': secondary if secondary else []}
         
         return ElementCreator(cls, json)

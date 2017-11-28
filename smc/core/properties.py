@@ -1,47 +1,18 @@
 """
-AddOnMixin provide helper functions to enable, disable or configure
-features of an Engine after it has already been created. When a setting
-is modified, only the engine cache instance is updated. 
-
-For functions with the ``**kw`` parameter, you can optionally provide 
-``autocommit=True`` which will save the change to the SMC at the end of
-the function call. Otherwise the change is 'queued' in the elements cache
-until `update()` is called.
-
-Once these settings have been modified, it is still required to refresh
-the policy on the engine.
-
-To refresh policy::
-
-    engine = Engine('vm')
-    engine.add_dns_servers(['3.3.3.3', '4.4.4.4'])
-    engine.enable_gti_file_reputation()
-    engine.enable_antivirus(log_level='stored', autocommit=True) # <-- Save all queued changes now
-    #engine.update()  <-- alternative to setting autocommit; just call update after making changes
-    for status in engine.refresh().wait():
-        print(status)
-
-Installing new policy::
-
-    engine = Engine('vm')
-    engine.add_dns_servers(['3.3.3.3', '4.4.4.4'])
-    engine.update()
-    for status in engine.upload(policy='vm-fw').wait():
-        print(status)
-
-.. note::
-    Many of these settings can also be set on the ``create`` method when
-    creating the engine.
-
+Miscellaneous functionality to control aspects of an engine such
+as features specified under engine AddOns, default nat, and DNS
+addressing.
 """
+from collections import namedtuple
 from smc.base.model import Element, SubDict
 from smc.base.decorators import autocommit, deprecated
 from smc.api.exceptions import UnsupportedEngineFeature, LoadPolicyFailed
 from smc.policy.interface import InterfacePolicy
+from smc.elements.network import Host
+from smc.elements.servers import DNSServer
 from smc.elements.profiles import DNSRelayProfile, SandboxService
 from smc.base.util import element_resolver
 from smc.compat import min_smc_version
-from smc.core.route import PolicyRoute
 
 
 def get_proxy(http_proxy):
@@ -64,8 +35,8 @@ class Layer2Settings(SubDict):
         
         engine.l2fw_settings.set_policy(InterfacePolicy('mylayer2'))
     
-    :ivar bypass_overload_traffic: whether to bypass traffic on overload
-    :ivar tracking_mode: connection tracking mode
+    :ivar bool bypass_overload_traffic: whether to bypass traffic on overload
+    :ivar str tracking_mode: connection tracking mode
     
     .. note:: You must call engine.update() to commit any changes.
     
@@ -147,15 +118,15 @@ class AntiVirus(SubDict):
         engine.antivirus.http_proxy('10.0.0.1', proxy_port=8080, user='foo', password='password')
         engine.update()
     
-    :ivar antivirus_enabled: is antivirus enabled
-    :ivar antivirus_http_proxy: http proxy settings
-    :ivar antivirus_http_proxy_enabled: is http proxy enabled
-    :ivar antivirus_proxy_port: http proxy port
-    :ivar antivirus_proxy_user: http proxy user
-    :ivar antivirus_update: how often to update
-    :ivar antivirus_update_day: if update set to weekly, which day to update
-    :ivar antivirus_update_time: time to update av signatures
-    :ivar virus_log_level: antivirus logging level
+    :ivar bool antivirus_enabled: is antivirus enabled
+    :ivar str antivirus_http_proxy: http proxy settings
+    :ivar bool antivirus_http_proxy_enabled: is http proxy enabled
+    :ivar int antivirus_proxy_port: http proxy port
+    :ivar str antivirus_proxy_user: http proxy user
+    :ivar str antivirus_update: how often to update
+    :ivar str antivirus_update_day: if update set to weekly, which day to update
+    :ivar int antivirus_update_time: time to update av signatures
+    :ivar str virus_log_level: antivirus logging level
 
     .. note:: You must call engine.update() to commit any changes.
     """
@@ -250,7 +221,7 @@ class FileReputation(SubDict):
         engine.file_reputation.enable_gti(http_proxy=[HttpProxy('myproxy')])
         engine.update()
     
-    :ivar file_reputation_context: file reputation context, either
+    :ivar str file_reputation_context: file reputation context, either
         gti_cloud_only or disabled
     
     .. note:: You must call engine.update() to commit any changes.
@@ -501,9 +472,226 @@ class Sandbox(SubDict):
             self.__class__.__name__, self.status)
 
 
-class DNSServer(object):
-    def __init__(self):
-        pass
+class TLSInspection(object):
+    """
+    TLS Inspection settings control settings for doing inbound
+    TLS decryption and outbound client TLS decryption. This
+    provides an interface to manage TLSServerCredentials and
+    TLSClientCredentials assigned to the engine.
+    
+    .. note:: You must call engine.update() to commit any changes.
+    """
+    def __init__(self, engine):
+        self.engine = engine
+        
+    @property
+    def server_credentials(self):
+        """
+        Return a list of assigned (if any) TLSServerCredentials
+        assigned to this engine.
+        
+        :return: TLSServerCredential
+        :rtype: list
+        """
+        return [Element.from_href(credential)
+                for credential in self.engine.server_credential]
+    
+    def add_tls_credential(self, credentials):
+        """        
+        Add a list of TLSServerCredential to this engine.
+        TLSServerCredentials can be in element form or can also
+        be the href for the element.
+        
+        :param credentials: list of pre-created TLSServerCredentials
+        :type credentials: list(str,TLSServerCredential)
+        :return: None
+        """
+        for cred in credentials:
+            href = element_resolver(cred)
+            if href not in self.engine.server_credential:
+                self.engine.server_credential.append(href)
+    
+    def remove_tls_credential(self, credentials):
+        """    
+        Remove a list of TLSServerCredentials on this engine.
+        
+        :param credentials: list of credentials to remove from the
+            engine
+        :type credentials: list(str,TLSServerCredential)
+        :return: None
+        """
+        for cred in credentials:
+            href = element_resolver(cred)
+            if href in self.engine.server_credential:
+                self.engine.server_credential.remove(href)
+      
+    @property
+    def client_protection_ca(self):
+        return self.engine.tls_client_protection
+
+
+class DefaultNAT(object):
+    """
+    Default NAT on the engine is used to automatically create NAT
+    configurations based on internal routing. This simplifies the
+    need to create specific NAT rules, primarily for outbound traffic.
+    
+    .. note:: You must call engine.update() to commit any changes.
+    """
+    def __init__(self, engine):
+        self.engine = engine
+    
+    @property
+    def status(self):
+        """
+        Status of default nat on the engine. 
+        
+        :rtype: bool
+        """
+        return self.engine.data.get('default_nat')
+    
+    def enable(self):
+        """
+        Enable default NAT on this engine
+        """
+        self.engine.data['default_nat'] = True
+    
+    def disable(self):
+        """
+        Disable default NAT on this engine
+        """
+        self.engine.data['default_nat'] = False
+    
+    def __repr__(self):
+        return '{0}(enabled={1})'.format(
+            self.__class__.__name__, self.status)
+
+    
+class DNSAddress(object):
+    """
+    DNS Address represents a DNS address entry assigned to the engine.
+    DNS entries can be added as raw IP addresses, or as elements of type
+    :class:`smc.elements.network.Host` or :class:`smc.elements.servers.DNSServer`
+    (or combination of both). This is an iterable class yielding namedtuples of
+    type :class:`.DNSEntry`.
+    Normal access is done through an engine reference::
+    
+        >>> list(engine.dns)
+        [DNSEntry(rank=0,value=8.8.8.8,ne_ref=None),
+         DNSEntry(rank=1,value=None,ne_ref=DNSServer(name=mydnsserver))]
+         
+        >>> engine.dns.add(['8.8.8.8', '9.9.9.9'])
+        >>> engine.dns.remove(['8.8.8.8', DNSEntry('mydnsserver')])
+    
+    .. note:: You must call engine.update() to commit any changes.
+    """
+    def __init__(self, engine):
+        self.engine = engine
+
+    def __iter__(self):
+        for server in self.engine.domain_server_address:
+            yield DNSEntry(**server)
+    
+    def add(self, dns_server):
+        """
+        Add a DNS entry to the engine. A DNS entry can be either
+        a raw IP Address, or an element of type :class:`smc.elements.network.Host`
+        or :class:`smc.elements.servers.DNSServer`.
+        
+        :param list dns_server: list of IP addresses, Host and/or DNSServer elements.
+        :return: None
+        
+        .. note:: If the DNS entry added already exists, it will not be
+            added. It's not a valid configuration to enter the same DNS IP
+            multiple times. This is also true if the element is assigned the
+            same address as a raw IP address already defined.
+        """
+        rank = self._max_rank
+        uniq = self._unique_addr
+        dns = self.engine.domain_server_address
+        for server in dns_server:
+            if hasattr(server, 'href'):
+                if isinstance(server, (Host, DNSServer)):
+                    if server.address not in uniq:
+                        rank += 1
+                        dns.append({'rank': rank, 'ne_ref': server.href})
+                        uniq.append(server.address)
+                else: # alias?
+                    dns.append({'rank': rank, 'ne_ref': server.href})
+            else: # ip address
+                if server not in uniq:
+                    rank += 1
+                    dns.append({'rank': rank, 'value': server})
+                    uniq.append(server)
+    
+    def remove(self, dns_server):
+        """
+        Remove a DNS entry from the engine. Note that when removing, you
+        can provide either an element or a raw IP address. Generally it's
+        best to first iterate the existing DNS entries to identify which
+        one/s should be removed.
+        
+        :param list dns_server: list of DNS server entries to remove
+        :return: None
+        """
+        dns = list(iter(self))
+        for server in dns_server:
+            if hasattr(server, 'href'):
+                dns = [rec for rec in dns if rec.ne_ref != server.href]
+            else:
+                dns = [rec for rec in dns if rec.value != server]
+                
+        self.engine.domain_server_address = self._rank(dns)
+    
+    def _rank(self, tup_lst):
+        # Re-rank after removing to maintain sequential order
+        for i, entry in enumerate(tup_lst):
+            if entry.ne_ref:
+                tup_lst[i] = {'rank': i, 'ne_ref': entry.ne_ref}
+            else:
+                tup_lst[i] = {'rank': i, 'value': entry.value}
+        return tup_lst
+    
+    @property
+    def _unique_addr(self):
+        # All unique IP addresses
+        addr = []
+        for entry in iter(self):
+            if entry.value:
+                addr.append(entry.value)
+            elif entry.ne_ref:
+                elem = entry.element
+                if isinstance(elem, (Host, DNSServer)):
+                    addr.append(elem.address)
+        return addr
+    
+    @property
+    def _max_rank(self):
+        if self.engine.domain_server_address:
+            return max([entry.rank for entry in iter(self)])
+        return -1
+
+
+class DNSEntry(namedtuple('DNSEntry', 'value rank ne_ref')):
+    """ 
+    DNSEntry represents a single DNS entry within an engine
+    DNSAddress list.
+    
+    :ivar Element element: If the DNS entry is an element type, this property
+        will returned a resolved version of the ne_ref field.
+    """
+    __slots__ = () 
+
+    def __new__(cls, rank, value=None, ne_ref=None):  # @ReservedAssignment 
+        return super(DNSEntry, cls).__new__(cls, value, rank, ne_ref)
+    
+    @property 
+    def element(self): 
+        return Element.from_href(self.ne_ref)
+    
+    def __repr__(self): 
+        return 'DNSEntry(rank={0},value={1},ne_ref={2})'\
+            .format(self.rank, self.value, self.element)
 
                             
 def antivirus_options(**kw):
@@ -834,6 +1022,7 @@ class AddOn:
         self.ospf.disable()
 
     @autocommit(now=False)
+    @deprecated('engine.dns')
     def add_dns_servers(self, dns_servers, **kw):
         """
         Add DNS servers to this engine.
@@ -850,6 +1039,7 @@ class AddOn:
             self.data['domain_server_address'].append(dns)
 
     @property
+    @deprecated('engine.dns')
     def dns_servers(self):
         """
         DNS Servers for this engine (if any). DNS Servers are
@@ -868,6 +1058,7 @@ class AddOn:
         return servers
 
     @property
+    @deprecated('engine.default_nat')
     def is_default_nat_enabled(self):
         """
         Default NAT provides NAT service by associating directly
@@ -885,6 +1076,7 @@ class AddOn:
             'This engine type does not support default NAT.')
 
     @autocommit(now=False)
+    @deprecated('engine.default_nat')
     def enable_default_nat(self, **kw):
         """
         Enable default NAT at the engine level for engines that
@@ -898,6 +1090,7 @@ class AddOn:
             self.data.update(default_nat=True)
 
     @autocommit(now=False)
+    @deprecated('engine.default_nat')
     def disable_default_nat(self, **kw):
         """
         Disable default NAT on this engine if supported.
@@ -1025,152 +1218,3 @@ class AddOn:
         """
         if self.is_url_filtering_enabled:
             self.data.update(ts_settings={'ts_enabled': False})
-
-    @property
-    def location(self):
-        """
-        The location for this engine (may be Default).
-
-        :return: :class:`smc.elements.other.Location` or None
-        """
-        return Element.from_href(self.data.get('location_ref'))
-
-    @autocommit(now=False)
-    def set_location(self, location, **kw):
-        """
-        Set the location for this engine.
-        ::
-
-            Location.create(name='mylocation')
-            engine.set_location(Location('mylocation'))
-
-        :param str,Element location: provide Location element or href of
-            location to set. If setting back to default, use None.
-        :raises ElementNotFound: if location provided is not found
-        :raises UpdateElementFailed: failure to update element
-        :return: None
-        """
-        location = element_resolver(location)
-        self.data['location_ref'] = location
-
-    @property
-    def log_server(self):
-        """
-        Log server for this engine.
-
-        :return: :class:`smc.elements.servers.LogServer`
-        """
-        return Element.from_href(self.data.get('log_server_ref'))
-
-    @property
-    def gateway_setting_profile(self):
-        """
-        A gateway settings profile defines VPN specific settings related
-        to timers such as negotiation retries (min, max) and mobike
-        settings. Gateway settings are only present on layer 3 FW
-        types.
-
-        :return: :class:`smc.vpn.elements.GatewaySettings`
-
-        .. note::
-            This can return None on layer 3 firewalls if VPN is not
-            enabled.
-        """
-        gw_settings = self.data.get('gateway_settings_ref')
-        if gw_settings:
-            return Element.from_href(gw_settings)
-
-    def add_vpn_site(self, name, site_elements):
-        """
-        Add a new VPN Site element to this engine.
-        Provide site elements to add. Site elements are the networks, hosts,
-        etc resources that specify the protected VPN networks for this
-        engine. Once the site is created, it can be modified through an
-        engine reference::
-        
-            for x in engine.internal_gateway.vpn_site.all():
-                .....
-        
-        :param str name: name for VPN site
-        :param list site_elements: network elements for VPN site
-        :type site_elements: list(str,Element)
-        :raises ElementNotFound: if site element is not found
-        :raises UpdateElementFailed: failed to add vpn site
-        :return: href of new element
-        :rtype: str
-        
-        .. note:: As this is a create operation, this function does not require
-            an additional call to save the operation.
-        """
-        site_elements = site_elements if site_elements else []
-        return self.internal_gateway.vpn_site.create(
-            name, site_elements)
-    
-    @autocommit(now=False)
-    def add_tls_credential(self, tls_credentials, **kw):
-        """
-        .. versionadded:: 0.5.7
-            Add TLS credential. Requires SMC 6.3.
-        
-        Add a TLS credential from an engine. Multiple TLS credentials can be
-        added.
-        
-        :param tls_credentials: list of TLS credentials to add
-        :type: list(str,TLSCredential)
-        :raises UpdateElementFailed: failed to update
-        """
-        self.data.update(
-            server_credential=element_resolver(tls_credentials))
-    
-    @autocommit(now=False)
-    def remove_tls_credential(self, tls_credentials, **kw):
-        """
-        .. versionadded:: 0.5.7
-            Remove TLS credential. Requires SMC 6.3.
-        
-        Remove a TLS credential from an engine. Multiple TLS credentials can
-        be removed.
-        
-        :param tls_credentials: list of TLS credentials to add
-        :type: list(str,TLSCredential)
-        :raises UpdateElementFailed: failed to update
-        """
-        credentials = element_resolver(tls_credentials)
-        updated = [cred for cred in credentials
-                   if cred not in self.server_credential]
-        self.data.update(server_credential=updated)
-    
-    @autocommit(now=False)    
-    def add_policy_route(self, source, destination, gateway_ip, comment=None, **kw):
-        """
-        .. versionadded:: 0.5.7
-            Add ipv4 or ipv6 policy routes to engine, requires SMC 6.3
-        
-        Policy routing entries are applied before the regular routes defined
-        in the Routing tree (overriding those configurations if matches are found).
-        The first matching policy routing entry is applied to a connection and any
-        further entries are ignored.
-
-        Policy routing entries are not automatically added to Antispoofing rules,
-        so you might need to update the antispoofing information as well.
-        
-        Each added entry is placed at the bottom of the existing set of rules if
-        any exist.
-        
-        :param str source: source address with /netmask, i.e. 1.1.1.1/32
-        :param str destination: destination address with netmask: i.e. 2.2.2.0/24
-        :param str gateway_ip: gateway address: i.e. 1.1.1.254
-        :param str comment: optional comment
-        :raises UpdateElementFailed: failed to update
-        """
-        self.policy_route.append(
-            {'source': source,
-             'destination': destination,
-             'gateway_ip': gateway_ip,
-             'comment': comment})
-    
-    @property
-    def policy_routes(self):
-        for route in self.policy_route:
-            yield PolicyRoute(**route)
-

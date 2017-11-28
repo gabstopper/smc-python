@@ -63,4 +63,4 @@ ExternalGateway as the 'Satellite Gateway'::
 	      made. You also must call :func:`smc.vpn.policy.PolicyVPN.save` and 
 	      :func:`smc.vpn.policy.PolicyVPN.close`
 	  
-See :py:mod:`smc.examples.vpn_to_external` for a full example 
+See API Reference documentation for more details.

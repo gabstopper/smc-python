@@ -433,12 +433,13 @@ class IPList(Element):
                 headers = {'accept': 'text/plain'}
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
-
-            result = self._request(
+        
+            result = self.read_cmd(
                 FetchElementFailed,
+                raw_result=True,
                 resource='ip_address_list',
                 filename=filename,
-                headers=headers).read()
+                headers=headers)
         
             return result.json if as_type == 'json' else result.content
 
