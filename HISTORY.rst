@@ -76,6 +76,9 @@ Release History
   dns and default nat added as engine resources. Previous functions nested in smc.core.properties.AddOns set to deprecated
   and will be removed in the near future.
 - Added support for adding DNS Server entries to engines based on elements (previously only IP addresses were supported).
+- TLS Server Credentials supported for inbound SSL decryption, add to engine from engine.tls_inspection resource.
+- Add create_hook to ElementCreator to intercept json before submitting to SMC server. See :class:`smc.base.decorators.create_hook`
+  for more info.
 
 
  **Bugfixes**

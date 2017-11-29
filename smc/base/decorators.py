@@ -69,6 +69,32 @@ class cached_property(object):
         return value
 
 
+def create_hook(function):
+    """
+    Provide a pre-filter to the create function that provides the ability
+    to modify the element json before submitting to the SMC. To register
+    a create hook, set on the class or top level Element class to enable
+    this on any descendent of Element::
+    
+        Element._create_hook = classmethod(myhook)
+    
+    The hook should be a callable and take two arguments, cls, json and 
+    return the json after modification. For example::
+    
+        def myhook(cls, json):
+            print("Called with class: %s" % cls)
+            if 'address' in json:
+                json['address'] = '2.2.2.2'
+            return json
+    """
+    @functools.wraps(function)
+    def run(cls, json):
+        if hasattr(cls, '_create_hook'):
+            json = cls._create_hook(json)
+        return function(cls, json)
+    return run
+
+
 def autocommit(now=False):
     """
     A method decorated with autocommit provides a mechanism to delay (or not)

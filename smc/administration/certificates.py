@@ -26,7 +26,7 @@ It is also possible to create self signed certificates using the SMC CA as well:
     TLSServerCredential(name=server.test.local)
 
 If you would rather use the SMC to generate the CSR and have the request signed by an
-external CA you can call :class:`TLSServerCredential.create_csr` and export the request::
+external CA you can call :meth:`TLSServerCredential.create_csr` and export the request::
 
     >>> tls = TLSServerCredential.create_csr(name='public.test.local', common_name='CN=public.test.local')
     >>> tls.certificate_export()

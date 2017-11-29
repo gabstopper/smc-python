@@ -135,7 +135,7 @@ def load_from_file(alt_filepath=None):
         'api_version': None,
         'smc_ssl': 'false',
         'verify_ssl': 'false',
-        'smc_cert_file': None,
+        'ssl_cert_file': None,
         'timeout': None,
         'domain': None},
         allow_no_value=True)
@@ -201,6 +201,9 @@ def transform_login(config):
             verify = False
     else:
         scheme = 'http'
+        config.pop('verify_ssl', None)
+        config.pop('ssl_cert_file', None)
+        verify = False
 
     transformed = {}
     url = '{}://{}:{}'.format(

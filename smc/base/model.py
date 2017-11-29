@@ -53,7 +53,8 @@ container functionality may inherit from object.
 from collections import namedtuple, MutableMapping
 import smc.base.collection
 from smc.compat import string_types
-from smc.base.decorators import cached_property, classproperty, exception
+from smc.base.decorators import cached_property, classproperty, exception,\
+    create_hook
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
@@ -91,6 +92,7 @@ def LoadElement(href, only_etag=False):
         etag=result.etag, **result.json)
 
 
+@create_hook
 def ElementCreator(cls, json):
     """
     Helper method for create classmethods. Returns the href if

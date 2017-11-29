@@ -21,7 +21,7 @@ class PackageMixin(object):
         :param int timeout: timeout between queries
         :raises ActionCommandFailed: task kick off failed
         :raises TaskRunFailed: failure during task status
-        :return: Task or TaskOperationPoller
+        :rtype: TaskOperationPoller
         """
         try:
             task = self.send_cmd(resource='download')
@@ -45,7 +45,7 @@ class PackageMixin(object):
         :param int timeout: timeout between queries
         :raises ActionCommandFailed: failure during activation (downloading, etc)
         :raises TaskRunFailed: failure during task run
-        :return: generator Task generator with updates
+        :rtype: TaskOperationPoller
         """
         try:
             task = self.send_cmd(

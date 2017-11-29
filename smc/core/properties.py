@@ -540,7 +540,7 @@ class DefaultNAT(object):
     """
     def __init__(self, engine):
         self.engine = engine
-    
+        
     @property
     def status(self):
         """
@@ -548,14 +548,14 @@ class DefaultNAT(object):
         
         :rtype: bool
         """
-        return self.engine.data.get('default_nat')
-    
+        return self.engine.data['default_nat']
+        
     def enable(self):
         """
         Enable default NAT on this engine
         """
         self.engine.data['default_nat'] = True
-    
+        
     def disable(self):
         """
         Disable default NAT on this engine
@@ -693,7 +693,7 @@ class DNSEntry(namedtuple('DNSEntry', 'value rank ne_ref')):
         return 'DNSEntry(rank={0},value={1},ne_ref={2})'\
             .format(self.rank, self.value, self.element)
 
-                            
+                                
 def antivirus_options(**kw):
     """
     Antivirus options for more granular controls. Default setting is to update
