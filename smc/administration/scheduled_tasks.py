@@ -21,7 +21,7 @@ same API syntax.
 
 Finding existing tasks for a specific task type::
     
-    for tasks in RefreshPolicyTask.objects.all():
+    for task in RefreshPolicyTask.objects.all():
         print(task, task.task_schedule)
 
 Review an existing task and it's task schedule::
@@ -291,8 +291,8 @@ class ScheduledTaskMixin(object):
             Valid options: 'each_quarter' (15 min), 'each_half' (30 minutes), or
             'hourly', 'one_time' (default: 'one_time')
         :param int day_mask: If the task day_period=weekly, then specify the day
-            or days for repeating. Day masks are: mon=1, tue=2, wed=4, tue=8,
-            wed=16, thu=32, etc. To repeat for instance every Monday, Wednesday
+            or days for repeating. Day masks are: sun=1, mon=2, tue=4, wed=8,
+            thu=16, fri=32, sat=64. To repeat for instance every Monday, Wednesday
             and Friday, the value must be 2 + 8 + 32 = 42
         :param str final_action: what type of action to perform after the
             scheduled task runs. Options are: 'ALERT_FAILURE', 'ALERT', or

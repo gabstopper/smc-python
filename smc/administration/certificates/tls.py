@@ -65,7 +65,7 @@ the relevant engines::
 """
 from smc.base.model import Element, ElementCreator
 from smc.administration.certificates.tls_common import ImportExportCertificate, \
-    ImportPrivateKey, ImportExportIntermediate
+    ImportPrivateKey, ImportExportIntermediate, load_cert_chain
     
     
 class TLSCertificateAuthority(ImportExportCertificate, Element):
@@ -118,8 +118,9 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
     engine performing decryption and create the requisite policy rule that uses
     SSL decryption.
     
-    :ivar str certificate_state: State of the certificate. Available states are 'request' and
-        'certificate'. If the state is 'request', this represents a CSR and needs to be signed.
+    :ivar str certificate_state: State of the certificate. Available states are
+        'request' and 'certificate'. If the state is 'request', this represents a
+        CSR and needs to be signed.
     
     """
     typeof = 'tls_server_credentials'
@@ -193,7 +194,7 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
     @classmethod
     def import_signed(cls, name, certificate, private_key, intermediate=None):
         """
-        Import a signed certificate and private key file to SMC, and optiionally
+        Import a signed certificate and private key file to SMC, and optionally
         an intermediate certificate.
         The certificate and the associated private key must be compatible
         with OpenSSL and be in PEM format. If importing as a string, be 
@@ -204,14 +205,15 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         
             >>> tls = TLSServerCredential.import_signed(
                     name='server2.test.local',
-                    certificate_file='mydir/server.crt',
-                    private_key_file='mydir/server.key')
+                    certificate='mydir/server.crt',
+                    private_key='mydir/server.key')
             >>> tls
             TLSServerCredential(name=server2.test.local)   
         
         :param str name: name of TLSServerCredential
         :param str certificate: fully qualified to the certificate file or string
         :param str private_key: fully qualified to the private key file or string
+        :param str intermediate: fully qualified to the intermediate file or string
         :raises CertificateImportError: failure during import
         :raises IOError: failure to find certificate files specified
         :rtype: TLSServerCredential
@@ -227,16 +229,46 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         return tls
     
     @classmethod
-    def import_from_chain(cls, certificate_chain):
+    def import_from_chain(cls, certificate_file, private_key=None):
         """
-        Import the server certificate and server key from a certificate
-        chain file. The expected format of the chain file follows RFC 4346.
+        Import the server certificate, intermediate and optionally private
+        key from a certificate chain file. The expected format of the chain
+        file follows RFC 4346.
         In short, the server certificate should come first, followed by
-        any ceritfying intermediate certificates, optionally followed by
+        any intermediate certificates, optionally followed by
         the root trusted authority. The private key can be anywhere in this
         order. See https://tools.ietf.org/html/rfc4346#section-7.4.2.
+        
+        .. note:: There is no validation done on the certificates, therefore
+            the order is assumed to be true. In addition, the root certificate
+            will not be imported and should be separately imported as a trusted
+            root CA using :class:`~TLSCertificateAuthority.create`
+        
+        If the certificate chain file has only two entries, it is assumed to
+        be the server certificate and root certificate (no intermediates). In
+        which case only the certificate is imported. If the chain file has
+        3 or more entries (all certificates), it will import the first as the
+        server certificate, 2nd as the intermediate and ignore the root cert.
+        
+        You can optionally provide a seperate location for a private key file
+        if this is not within the chain file contents.
+        
+        .. warning:: A private key is required to create a valid TLS Server
+            Credential.
+        
+        :raises IOError: error occurred reading or finding specified file
+        :raises ValueError: Format issues with chain file or empty
         """
-        pass
+        contents = load_cert_chain(certificate_file)
+        
+        #if not any(c for c in contents if 'PRIVATE_KEY' in c[0]) and not private_key:
+        #    raise ValueError('Private key was not found in chain file and '
+        #        'was not provided. The private key is required to create a '
+        #        'TLS Server Credential.')
+        
+        if len(contents) <= 2: # Contents will always be > 0
+            print("Server cert: %s", contents[0])
+        
     
     def self_sign(self):
         """

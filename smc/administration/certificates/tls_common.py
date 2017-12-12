@@ -24,6 +24,31 @@ def pem_as_string(cert):
     return False
 
 
+def load_cert_chain(chain_file):
+    """ 
+    Load the certificates from the chain file.
+    
+    :raises IOError: Failure to read specified file
+    :raises ValueError: Format issues with chain file or missing entries
+    :return list of cert type matches
+    """
+    with open(chain_file, 'rb') as f:
+        cert_chain = f.read()
+    
+    if not cert_chain:
+        raise ValueError('Certificate chain file is empty!')
+
+    cert_type_matches = []
+    for match in _PEM_RE.finditer(cert_chain):
+        cert_type_matches.append((match.group(1), match.group(0)))
+    
+    if not cert_type_matches:
+        raise ValueError('No certificate types were found. Valid types '
+            'are: {}'.format(CERT_TYPES))
+
+    return cert_type_matches
+    
+
 class ImportExportCertificate(object):
     """
     Mixin to provide certificate import and export methods to relevant

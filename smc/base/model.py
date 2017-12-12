@@ -493,7 +493,6 @@ class Element(ElementBase):
         element = cls.objects.filter(name, exact_match=True).first() if name \
             is not None else None
         if not element and raise_exc:
-            'Cannot find specified element: {}, type: {}'
             raise ElementNotFound('Cannot find specified element: %s, type: %s' %
                 (name, cls.__name__))
         return element 

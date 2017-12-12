@@ -192,10 +192,10 @@ def transform_login(config):
     if config.pop('smc_ssl', None):
         scheme = 'https'
 
-        if config.pop('verify_ssl', None):
+        verify = config.pop('ssl_cert_file', None)
+        if config.pop('verify_ssl', None):    
             # Get cert path to verify
-            verify = config.pop('ssl_cert_file', None)
-            if not verify:  # Setting omitted
+            if not verify:  # Setting omitted or already False
                 verify = False
         else:
             verify = False
