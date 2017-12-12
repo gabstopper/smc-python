@@ -131,46 +131,49 @@ def ElementFactory(href):
             etag=element.etag, **element.json)
         return e
 
-
-class SubDict(MutableMapping):
-    """
-    Generic dict structure that can be used to objectify
-    complex json. This dict will return None if an attribute
-    is not found.
-    """
+    
+class SubDict(MutableMapping): 
+    """ 
+    Generic dict structure that can be used to objectify 
+    complex json. This dict will return None if an attribute 
+    is not found. It also supports dotted attribute access
+    to flatten out the top level dict keys.
+    """ 
     def __init__(self, data=None, **kwargs):
         self.data = data if data else {}
         self.update(self.data, **kwargs)
 
     def __setitem__(self, key, value):
         self.data[key] = value
-
     def __getitem__(self, key):
         return self.data[key]
-
     def __delitem__(self, key):
         del self.data[key]
-
     def __iter__(self):
         return iter(self.data)
-
     def __len__(self):
         return len(self.data)
-    
     def __getattr__(self, key):
         return self.get(key)
     
-    def __repr__(self):
-        return str(dict(self.items()))
+    #def __getstate__(self):
+    #    return (self.data, dict(self))
 
-    
+    #def __setstate__(self, state):
+    #    self.data, data = state
+    #    self.update(data)
+
+    #def __reduce__(self):
+    #    return (SubDict, (), self.__getstate__())
+
+
 class SimpleElement(dict):
     """
     Basic container for retrieved element. Can be inserted
     where a cached copy is needed. Also provides methods to
     retrieve element links and json by link name
     """
-    def __init__(self,*arg,**kw):
+    def __init__(self, *arg, **kw):
         self._etag = kw.pop('etag', None)
         super(SimpleElement, self).__init__(*arg, **kw)
 
@@ -291,6 +294,15 @@ class ElementBase(UnicodeMixin, SMCCommand):
         except AttributeError:
             pass
     
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if '_cache' in state:
+            del state['_cache']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+    
     def __getattr__(self, key):
         if key not in ('typeof',):
             try:
@@ -322,13 +334,19 @@ class ElementBase(UnicodeMixin, SMCCommand):
         If attributes are set via kwargs and instance attributes are also
         set, instance attributes are updated first, then kwargs. Typically
         you will want to use either instance attributes OR kwargs, not both.
-
+        
+        Calling update() with no args will assume the element has already
+        been modified directly and the data cache will be used to update.
+        You can also override the following attributes: href, etag and
+        json. If json is sent, it is expected to the be a complete payload
+        to satisfy the update.
+        
         For kwargs, if attribute values are a list, you can pass
         'append_lists=True' to add to an existing list, otherwise overwrite
         (default: overwrite)
 
-        If using attributes, the attribute value can be a callable and it
-        will be evaluated and merged.
+        If using instance attributes, the attribute value can be a callable
+        and it will be evaluated and merged.
 
         .. seealso:: To see different ways to utilize this method for updating,
             see: :ref:`update-elements-label`.
@@ -355,10 +373,10 @@ class ElementBase(UnicodeMixin, SMCCommand):
             params.update(etag=kwargs.pop('etag'))
 
         name = kwargs.get('name', None)
-
-        json = self.data    # Get element data
+        
+        json = kwargs.pop('json') if 'json' in kwargs else self.data
         del self.data       # Delete the cache before processing attributes
-
+        
         instance_attr = {k: v() if callable(v) else v
                          for k, v in vars(self).items()
                          if not k.startswith('_')}
@@ -373,12 +391,12 @@ class ElementBase(UnicodeMixin, SMCCommand):
             merge_dicts(json, kwargs, append_lists)
 
         params.update(json=json)
-
+        
         # Remove attributes from instance if previously set
         if instance_attr:
             for attr in instance_attr:
                 delattr(self, attr)
-
+        
         request = SMCRequest(**params) 
         request.exception = exception
         result = request.update()
@@ -386,7 +404,7 @@ class ElementBase(UnicodeMixin, SMCCommand):
         if name: # Reset instance name
             self._meta = Meta(name=name, href=self.href, type=self._meta.type)
             self._name = name
-            
+        
         return result.href
 
     def modify_attribute(self, **kwargs):
@@ -717,6 +735,24 @@ class Element(ElementBase):
                     href=href,
                     json={'value': self.href})]
 
+    @property
+    def history(self):
+        """
+        .. versionadded:: 0.5.7
+            Requires SMC version >= 6.3.2
+        
+        Obtain the history of this element. This will not chronicle every
+        modification made over time, but instead a current snapshot with
+        historical information such as when the element was created, by
+        whom, when it was last modified and it's current state.
+        
+        :raises ResourceNotFound: If not running SMC version >= 6.3.2
+        :rtype: History
+        """
+        from smc.core.resource import History
+        return History(**self.read_cmd(resource='history'))
+        
+        
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
 

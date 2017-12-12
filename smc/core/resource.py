@@ -1,8 +1,7 @@
 from collections import namedtuple
-from smc.api.exceptions import EngineCommandFailed, ElementNotFound,\
-    LoadPolicyFailed
+from smc.api.exceptions import EngineCommandFailed
 from smc.base.model import SubElement, Element
-from smc.policy.interface import InterfacePolicy
+from smc.base.util import datetime_from_ms
 
 
 class Snapshot(SubElement):
@@ -11,7 +10,7 @@ class Snapshot(SubElement):
     snapshots at the engine level and view details of each::
 
         for snapshot in engine.snapshots:
-            print snapshot.describe()
+            print(snapshot)
 
     Snapshots can be generated manually, but also will be generated
     automatically when a policy is pushed::
@@ -133,3 +132,58 @@ class ChangeRecord(namedtuple(
     def resolve_element(self):
         return Element.from_href(self.element)
 
+
+class History(namedtuple(
+        'History', 'creation_time creator is_locked is_obsolete is_trashed '
+            'last_modification_time modifier')):
+    """
+    History description of this element. This will provide basic information
+    about the element such as when it was created, last modified along with
+    the accounts making the modifications.
+    
+    :ivar bool is_locked: is this record currently locked
+    :ivar bool is_osbsolete: is this record obsoleted
+    :ivar bool is_trashed: is the record in the trash bin
+    """
+    __slots__ = ()
+    
+    @property
+    def created_by(self):
+        """
+        The account that created this element. Returned as 
+        an Element.
+        
+        :rtype: Element
+        """
+        return Element.from_href(self.creator)
+    
+    @property
+    def modified_by(self):
+        """
+        The account that last modified this element.
+        
+        :rtype: Element
+        """
+        return Element.from_href(self.modifier)
+    
+    @property
+    def when_created(self):
+        """
+        When the element was created as a datetime object
+        
+        :rtype: datetime
+        """
+        return datetime_from_ms(self.creation_time)
+    
+    @property
+    def last_modified(self):
+        """
+        When the element was last modified as a datetime object
+        
+        :rtype: datetime
+        """
+        return datetime_from_ms(self.last_modification_time)
+    
+    def __repr__(self):
+        return 'History(is_locked={}, is_obsolete={}, is_trashed={})'.format(
+            self.is_locked, self.is_obsolete, self.is_trashed)

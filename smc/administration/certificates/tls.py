@@ -1,27 +1,34 @@
 """
-Module to provide certificate services for various features such as
-client server protection (outbound) and TLS server protection (inbound).
+TLS module provides interactions related to importing TLS Server Credentials
+for inbound SSL decryption, as well as client protection certificates used
+for outbound decryption.
 
-To properly decrypt inbound connections to web servers, you must provide
-the Stonesoft FW with a valid certificate and private key. Within SMC these
-certificate types are known as TLS Server Credentials.
+To properly decrypt inbound TLS connections, you must provide the Stonesoft FW
+with a valid certificate and private key. Within SMC these certificate types are
+known as TLS Server Credentials.
 
 Once you have imported these certificates, you must then assign them to the
-relevant engines that will perform the decryption services.
+relevant engines that will perform the decryption services. Lastly you will
+need a rule that enables HTTPS with decryption.
 
 Example of importing a pre-existing certificate and private key pair::
 
-    >> from smc.administration.certificates import TLSServerCredential
+    >> from smc.administration.certificates.tls import TLSServerCredential
     >>> tls = TLSServerCredential.import_signed(
                   name='server.test.local',
-                  certificate_file='/pathto/server.crt',
-                  private_key_file='/pathto/server.key')
+                  certificate='/pathto/server.crt',
+                  private_key='/pathto/server.key',
+                  intermediate=None)  # <-- You can also include intermediate certificates
     >>> tls
     TLSServerCredential(name=server.test.local)
 
-It is also possible to create self signed certificates using the SMC CA as well::
+.. note:: Certificates can also be imported in string format and must start with the
+    -----BEGIN CERTIFICATE----- common syntax.
 
-    >>> tls = TLSServerCredential.self_signed(name='server.test.local', common_name='CN=server.test.local')
+It is also possible to create self signed certificates using the SMC CA::
+
+    >>> tls = TLSServerCredential.create_self_signed(
+        name='server.test.local', common_name='CN=server.test.local')
     >>> tls
     TLSServerCredential(name=server.test.local)
 
@@ -39,7 +46,8 @@ external CA you can call :meth:`TLSServerCredential.create_csr` and export the r
     
 Optionally export the request to a local file::
 
-    >>> tls = TLSServerCredential.create_csr(name='public2.test.local', common_name='CN=public2.test.local')
+    >>> tls = TLSServerCredential.create_csr(
+        name='public2.test.local', common_name='CN=public2.test.local')
     >>> tls.certificate_export(filename='public2.test.local.csr')
 
 Once you have the TLS Server Credentials within SMC, you can then assign them to
@@ -51,14 +59,53 @@ the relevant engines::
     >>> engine.tls_inspection.add_tls_credential([TLSServerCredential('public.test.local'), TLSServerCredential('server.test.local')])
     >>> engine.tls_inspection.server_credentials
     [TLSServerCredential(name=public.test.local), TLSServerCredential(name=server.test.local)]
- 
+
+.. note:: It is possible to import and export certificates from the SMC, but it is not
+    possible to export private keys.
 """
 from smc.base.model import Element, ElementCreator
-from smc.api.exceptions import CertificateImportError, CertificateExportError
-from smc.base.util import save_to_file
+from smc.administration.certificates.tls_common import ImportExportCertificate, \
+    ImportPrivateKey, ImportExportIntermediate
+    
+    
+class TLSCertificateAuthority(ImportExportCertificate, Element):
+    """
+    TLS Certificate authorities. When using TLS Server Credentials for
+    decryption, import the root CA for the any TLS Server certificates
+    the leverage the root CA.
+    
+    :ivar str certificate: base64 encoded certificate for this CA
+    :ivar bool crl_checking_enabled: whether CRL checking is turned on
+    :ivar bool internal_ca: is this an internal CA (default: false)
+    :ivar bool oscp_checking_enabled: is OSCP validation enabled
+    """
+    typeof = 'tls_certificate_authority'
+    
+    def __init__(self, name, **meta):
+        super(TLSCertificateAuthority, self).__init__(name, **meta)
+    
+    @classmethod
+    def create(cls, name, certificate):
+        """
+        Create a TLS CA. The certificate can be either a file with
+        the Root CA, or a string starting with -----BEGIN CERTIFICATE, etc.
+        When creating a TLS CA, you must also import the CA certificate. Once
+        the CA is created, it is possible to import a different certificate to
+        map to the CA if necessary.
+        
+        :param str name: name of root CA
+        :param str,file certificate: The root CA contents
+        :raises CreateElementFailed: failed to create the root CA
+        :rtype: TLSCertificateAuthority
+        """
+        json = {'name': name,
+                'certificate': certificate}
+        
+        return ElementCreator(cls, json)
+    
 
-
-class TLSServerCredential(Element):
+class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
+                          ImportExportCertificate, Element):
     """ 
     If you want to inspect TLS traffic for which an internal server is the
     destination, you must create a TLS Credentials element to store the
@@ -70,6 +117,10 @@ class TLSServerCredential(Element):
     After a TLSServerCredential has been created, you must apply this to the
     engine performing decryption and create the requisite policy rule that uses
     SSL decryption.
+    
+    :ivar str certificate_state: State of the certificate. Available states are 'request' and
+        'certificate'. If the state is 'request', this represents a CSR and needs to be signed.
+    
     """
     typeof = 'tls_server_credentials'
     
@@ -77,11 +128,11 @@ class TLSServerCredential(Element):
         super(TLSServerCredential, self).__init__(name, **meta)
     
     @classmethod
-    def self_signed(cls, name, common_name, public_key_algorithm='rsa',
+    def create_self_signed(cls, name, common_name, public_key_algorithm='rsa',
             signature_algorithm='rsa_sha_512', key_length=4096):
         """
         Create a self signed certificate. This is a convenience method that
-        first calls :meth:`~create_csr`, then call :meth:`~self_sign` on the
+        first calls :meth:`~create_csr`, then calls :meth:`~self_sign` on the
         returned TLSServerCredential object.
         
         :param str name: name of TLS Server Credential
@@ -127,7 +178,6 @@ class TLSServerCredential(Element):
             type. For example, RSA keys can be 1024, 2048, 3072, 4096. See SMC
             documentation for more details.
         :raises CreateElementFailed: failed to create CSR
-        :return: this csr request
         :rtype: TLSServerCredential
         """
         json = {
@@ -141,11 +191,14 @@ class TLSServerCredential(Element):
         return ElementCreator(cls, json)
     
     @classmethod
-    def import_signed(cls, name, certificate_file, private_key_file):
+    def import_signed(cls, name, certificate, private_key, intermediate=None):
         """
-        Import a signed certificate and private key file to SMC.
+        Import a signed certificate and private key file to SMC, and optiionally
+        an intermediate certificate.
         The certificate and the associated private key must be compatible
-        with OpenSSL and be in PEM format.
+        with OpenSSL and be in PEM format. If importing as a string, be 
+        sure the string has carriage returns after each line and the final
+        -----END CERTIFICATE----- line.
         
         Import a certificate and private key::
         
@@ -157,8 +210,8 @@ class TLSServerCredential(Element):
             TLSServerCredential(name=server2.test.local)   
         
         :param str name: name of TLSServerCredential
-        :param str certificate_file: fully qualified to the certificate file
-        :param str private_key_file: fully qualified to the private key file
+        :param str certificate: fully qualified to the certificate file or string
+        :param str private_key: fully qualified to the private key file or string
         :raises CertificateImportError: failure during import
         :raises IOError: failure to find certificate files specified
         :rtype: TLSServerCredential
@@ -167,20 +220,23 @@ class TLSServerCredential(Element):
                 'certificate_state': 'certificate'}
         
         tls = ElementCreator(cls, json)
-        tls.certificate_import(certificate_file)
-        tls.private_key_import(private_key_file)
+        tls.import_certificate(certificate)
+        tls.import_private_key(private_key)
+        if intermediate is not None:
+            tls.import_intermediate_certificate(intermediate)
         return tls
     
-    @property
-    def certificate_state(self):
+    @classmethod
+    def import_from_chain(cls, certificate_chain):
         """
-        State of the certificate. Available states are 'request' and
-        'certificate'. If the state is 'request', this represents a
-        CSR and needs to be signed.
-        
-        :rtype: str
+        Import the server certificate and server key from a certificate
+        chain file. The expected format of the chain file follows RFC 4346.
+        In short, the server certificate should come first, followed by
+        any ceritfying intermediate certificates, optionally followed by
+        the root trusted authority. The private key can be anywhere in this
+        order. See https://tools.ietf.org/html/rfc4346#section-7.4.2.
         """
-        return self.data.get('certificate_state')
+        pass
     
     def self_sign(self):
         """
@@ -190,73 +246,9 @@ class TLSServerCredential(Element):
         """
         return self.send_cmd(
             resource='self_sign')
-    
-    def certificate_export(self, filename=None):
-        """
-        Export the certificate. Returned certificate will be
-        stringified format.
-        
-        :rtype: str or None
-        """
-        result = self.read_cmd(
-            CertificateExportError,
-            raw_result=True,
-            resource='certificate_export')
-        
-        if filename is not None:
-            save_to_file(filename, result.content)
-            return
-
-        return result.content
-
-    def certificate_import(self, certificate):
-        """
-        Import a certificate for this TLS Server Credential. This is
-        a helper method. If the intent is to import a cert and private
-        key, use the classmethod :meth:`~import_signed` as an alternative.
-        
-        :param str certificate_file: fully qualified path to certificate file
-        :raises CertificateImportError: failure to import cert with reason
-        :raises IOError: file not found, permissions, etc.
-        :return: None
-        """
-        self.send_cmd(
-            CertificateImportError,
-            resource='certificate_import',
-            headers = {'content-type': 'multipart/form-data'}, 
-            files={ 
-                'signed_certificate': open(certificate, 'rb') 
-            })
-    
-    def private_key_import(self, private_key):
-        """
-        Import a private key for this TLS Server Credential. This is
-        a helper method. If the intent is to import a cert and private
-        key, use the classmethod :meth:`~import_signed` as an alternative.
-        
-        :param str private_key: fully qualified path to private key file
-        :raises CertificateImportError: failure to import cert with reason
-        :raises IOError: file not found, permissions, etc.
-        :return: None
-        """
-        self.send_cmd(
-            CertificateImportError,
-            resource='private_key_import',
-            headers = {'content-type': 'multipart/form-data'}, 
-            files={ 
-                'private_key': open(private_key, 'rb') 
-            }) 
-    
-    def intermediate_certificate_export(self):
-        #GET
-        pass
-    
-    def intermediate_certificate_import(self, certificate):
-        #POST
-        pass
 
 
-class ClientProtectionCA(Element):
+class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
     """
     Client Protection Certificate Authority elements are used to inspect TLS
     traffic between an internal client and an external server.
@@ -266,6 +258,11 @@ class ClientProtectionCA(Element):
     a secure connection with the internal client. The Client Protection Certificate
     Authority element contains the credentials the engine uses to sign the substitute
     certificate it generates.
+    
+    :ivar str certificate: base64 encoded certificate for this CA
+    :ivar bool crl_checking_enabled: whether CRL checking is turned on
+    :ivar bool internal_ca: is this an internal CA (default: false)
+    :ivar bool oscp_checking_enabled: is OSCP validation enabled
     
     .. note :: If the engine does not use a signing certificate that is already
         trusted by users web browsers when it signs the substitute certificates it
@@ -311,47 +308,13 @@ class ClientProtectionCA(Element):
     @classmethod
     def create(cls, name):
         """
-        Create a client protection CA.
+        Create a client protection CA. Once the client protection CA is
+        created, to activate you must then call import_certificate and
+        import_private_key. Or optionally use the convenience classmethod
+        :meth:`~import_signed`.
         """
-        json = {
-            'name': name}
+        json = {'name': name}
         
         return ElementCreator(cls, json)
 
-    def certificate_import(self, certificate):
-        """
-        Import a certificate for this TLS Server Credential. This is
-        a helper method. If the intent is to import a cert and private
-        key, use the classmethod :meth:`~import_signed` as an alternative.
-        
-        :param str certificate_file: fully qualified path to certificate file
-        :raises CertificateImportError: failure to import cert with reason
-        :raises IOError: file not found, permissions, etc.
-        :return: None
-        """
-        self.send_cmd(
-            CertificateImportError,
-            resource='certificate_import',
-            headers = {'content-type': 'multipart/form-data'}, 
-            files={ 
-                'certificate': open(certificate, 'rb') 
-            })
     
-    def private_key_import(self, private_key):
-        """
-        Import a private key for this TLS Server Credential. This is
-        a helper method. If the intent is to import a cert and private
-        key, use the classmethod :meth:`~import_signed` as an alternative.
-        
-        :param str private_key: fully qualified path to private key file
-        :raises CertificateImportError: failure to import cert with reason
-        :raises IOError: file not found, permissions, etc.
-        :return: None
-        """
-        self.send_cmd(
-            CertificateImportError,
-            resource='private_key_import',
-            headers = {'content-type': 'multipart/form-data'}, 
-            files={ 
-                'private_key': open(private_key, 'rb') 
-            }) 

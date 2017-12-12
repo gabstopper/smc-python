@@ -50,7 +50,9 @@ class System(SubElement):
     @property
     def smc_time(self):
         """
-        Return the SMC time in ms
+        Return the SMC time as datetime object in UTC
+        
+        :rtype datetime
         """
         return millis_to_utc(
             int(self.read_cmd(

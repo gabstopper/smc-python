@@ -221,7 +221,7 @@ def transform_login(config):
     api_version = config.pop('api_version', None)
     if api_version:
         try:
-            api_version = float(api_version)
+            float(api_version)
         except ValueError:
             api_version = None
     

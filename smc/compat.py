@@ -11,6 +11,10 @@ if PY3:
 else:
     string_types = basestring,
     
+if PY3:
+    unicode = str
+else:
+    unicode = unicode
 
 def min_smc_version(version):
     """

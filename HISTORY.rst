@@ -79,6 +79,16 @@ Release History
 - TLS Server Credentials supported for inbound SSL decryption, add to engine from engine.tls_inspection resource.
 - Add create_hook to ElementCreator to intercept json before submitting to SMC server. See :class:`smc.base.decorators.create_hook`
   for more info.
+- Added engine.interface_options node for settings related to setting primary mgt, backup mgt, primary hearbeat, and backup heartbeat
+  rather than having them nested on the PhysicalInterface. These can be called directly from the engine which removes ambiguity in how
+  these settings are modified. Previous versions they could be called directly (i.e. engine.physical_interface.set_primary_mgt() however
+  required unnecessary plumbing. This more closely models the SMC UI configuration.
+- All engine interface nodes now return InterfaceCollection as an iterable. Also included is a get(interface_id) method to 
+  directly retrieve an interface of that type. Any 'add' methods are proxied from the collection manager to an instance.
+- remove_vlan on interface no longer requires the interface reference, however now requires the interface context to run. Before:
+  engine.physical_interface.remove_vlan(interface_id=100, vlan_id=1), now you need to load the interface, then delete the
+  vlan: interface = engine.interface.get(100); interface.remove_vlan(1)
+  
 
 
  **Bugfixes**

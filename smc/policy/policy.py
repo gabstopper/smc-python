@@ -186,12 +186,13 @@ class Policy(Element):
         Rule counters can be obtained for a given policy and duration for
         those counters can be provided in duration_type. A custom start
         range can also be provided.
-        
+
         :param Engine engine: the target engine to obtain rule counters from
         :param str duration_type: duration for obtaining rule counters. Valid
             options are: one_day, one_week, one_month, six_months, one_year,
             custom, since_last_upload
-        :param int duration: custom duration in seconds (Default: 0)
+        :param int duration: if custom set for duration type, specify the
+            duration in seconds (Default: 0)
         :param int start_time: start time in milliseconds (Default: 0)
         :raises: ActionCommandFailed
         :return: list of rule counter objects

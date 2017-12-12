@@ -101,7 +101,7 @@ class Layer2Settings(SubDict):
         return '{0}(policy={1})'.format(
             self.__class__.__name__, self.policy)
         
-    
+
 class AntiVirus(SubDict):
     """
     Antivirus settings for the engine. In order to use AV,
@@ -677,6 +677,10 @@ class DNSEntry(namedtuple('DNSEntry', 'value rank ne_ref')):
     DNSEntry represents a single DNS entry within an engine
     DNSAddress list.
     
+    :ivar str value: IP address value of this entry (None if type Element is used)
+    :ivar int rank: order rank for the entry
+    :ivar str ne_ref: network element href of entry. Use element property to resolve
+        to type Element.
     :ivar Element element: If the DNS entry is an element type, this property
         will returned a resolved version of the ne_ref field.
     """

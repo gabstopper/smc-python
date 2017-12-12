@@ -2,7 +2,7 @@ from smc.core.interfaces import extract_sub_interface, InterfaceBuilder
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
 from smc.base.model import ElementCreator
-from smc.core.sub_interfaces import LoopbackInterface
+from smc.core.sub_interfaces import LoopbackNodeInterface
 
 
 class Layer3Firewall(Engine):
@@ -206,7 +206,7 @@ class Layer3Firewall(Engine):
         builder.add_dhcp(dynamic_index, is_mgmt=primary_mgt)
         builder.zone = zone_ref
         
-        loopback = LoopbackInterface.create(
+        loopback = LoopbackNodeInterface.create(
             address=loopback_ndi, 
             network_value=loopback_ndi_network, 
             nodeid=1, 
@@ -439,7 +439,7 @@ class Layer3VirtualEngine(Engine):
                 intf = extract_sub_interface(builder.data)
                 intf.outgoing = True
                 intf.auth_request = True
-
+                
             # new_interfaces.append(physical())
             new_interfaces.append({'virtual_physical_interface': builder.data})
 
@@ -456,7 +456,7 @@ class Layer3VirtualEngine(Engine):
             engine.update(virtual_resource=virt_resource_href)
             # Master Engine provides this service
             engine.pop('log_server_ref', None)
-
+            
         try:
             return ElementCreator(cls, json=engine)
     

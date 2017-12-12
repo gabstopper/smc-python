@@ -1,17 +1,48 @@
 """
 Utility functions used in different areas of smc-python
 """
+import time
 import datetime
 import smc.compat as compat
 import smc.api.exceptions
+
+
+def datetime_to_ms(dt):
+    """
+    Convert an unaware datetime object to milliseconds. This will
+    be a UTC time. The SMC stores all times in UTC and will do the
+    time conversions based on the local timezone.
+    Example of converting a datetime to milliseconds::
     
+        utc_time = datetime.strptime("2018-06-04T00:00:00", "%Y-%m-%dT%H:%M:%S")
+        datetime_to_ms(utc_time)
+    
+    :param dt datetime: pass in python datetime object.
+    :return: value representing the datetime in milliseconds
+    :rtype: int
+    """
+    return int(time.mktime(dt.timetuple()) * 1000)
+    
+
+def datetime_from_ms(ms):
+    """
+    Convenience to return datetime from milliseconds. Return in
+    UTC time.
+    
+    :param int ms: milliseconds to convert into datetime object
+    :return: datetime from ms
+    :rtype: datetime
+    """
+    return datetime.datetime.fromtimestamp(ms/1000.0)
+
 
 def millis_to_utc(millis):
     """
-    Given milliseconds, convert to datetime object in UTC
+    Given milliseconds, convert to datetime object in UTC. This will
+    also use the systems local timezone when displaying.
     
     :param int millis: milliseconds
-    :return datetime in UTC
+    :return datetime using local system time conversion
     :rtype: datetime
     """
     return datetime.datetime(1970, 1, 1) + datetime.timedelta(milliseconds=millis) 

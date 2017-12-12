@@ -21,6 +21,7 @@ systemctl start docker
 """
 import sys
 import json
+import time
 import requests
 
 
@@ -53,7 +54,7 @@ smc = {'HostConfig': {
         '8916/tcp': [{'HostPort': '8916'}],
         '8917/tcp': [{'HostPort': '8917'}],
         '8918/tcp': [{'HostPort': '8918'}]}, },
-       'Image': 'dlepage70/smc:v6.3.0_relicensed',
+       'Image': 'dwlepage70/smc:v6.3.2',
        'Labels': {},
        'Mounts': [],
        'NetworkingConfig': {
@@ -268,7 +269,7 @@ if __name__ == '__main__':
     #    pprint(get_container_stats(image.get('Id')))
 
     for container in get_containers():
-        if container.get('Image').startswith('dlepage70/smc'):
+        if container.get('Image').startswith('dwlepage70/smc'):
             container_id = container.get('Id')
             print("Kill container: %s" % container_id)
             if container.get('State').lower() == 'running':
@@ -278,14 +279,21 @@ if __name__ == '__main__':
     container_id = create_container('smc_container')
     print("Created container id: %s" % container_id)
 
-    start_container(container_id)
-
+    for i in range(3):
+        try:
+            start_container(container_id)
+        except DockerFailure as e:
+            if e.message.get('message').startswith('invalid header field value "oci runtime error: container_linux.go'):
+                print("Invalid header error, retry: %s" % i)
+                time.sleep(2)
+        else:
+            break
+        
     exec_id = exec_create(container_id)
     start = exec_start(exec_id)
 
     # Loop over running exec process waiting for return
     print("Executed startup, monitoring status..")
-    import time
     while True:
         response = exec_inspect(exec_id)
         if response.get('Running'):

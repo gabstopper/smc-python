@@ -26,12 +26,12 @@ to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
 from smc.base.model import prepared_request, SubElement, lookup_class,\
     SimpleElement
-from smc.api.exceptions import EngineCommandFailed, FetchElementFailed,\
-    UpdateElementFailed
+from smc.api.exceptions import EngineCommandFailed, UpdateElementFailed
 from smc.core.sub_interfaces import (
     NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
     InlineInterface, CaptureInterface, _add_vlan_to_inline,
-    get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface)
+    get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface,
+    LoopbackInterface, LoopbackNodeInterface, LoopbackClusterVirtualInterface)
 from smc.base.util import bytes_to_unicode
 from smc.base.decorators import deprecated
 from smc.elements.helpers import zone_helper, logical_intf_helper
@@ -45,12 +45,11 @@ def dispatch(instance, builder, interface=None):
     re-retrieving.
     """
     if interface: # Modify
-        prepared_request(
+        interface.update(
             EngineCommandFailed,
             href=interface.href,
-            json=builder.data,
-            etag=interface.etag
-        ).update()
+            etag=interface.etag,
+            json=builder.data)
     else:
         # Create
         prepared_request(
@@ -62,11 +61,253 @@ def dispatch(instance, builder, interface=None):
     instance._engine._del_cache()
 
 
-class InterfaceCommon(object):
+class InterfaceOptions(object):
     """
-    Interface settings common to Tunnel and Physical Interface
-    types.
+    Interface Options allow you to define settings related to the roles of
+    the firewall interfaces:
+    
+    * Which IP addresses are used as the primary and backup Control IP address
+    * Which interfaces are used as the primary and backup heartbeat interface
+    * The default IP address for outgoing traffic
+
+    You can optionally change which interface is used for each of these purposes,
+    and define a backup Control IP address and backup Heartbeat Interface.
+    
+    .. note:: Setting an interface option will commit the change immediately.
     """
+    def __init__(self, engine):
+        self._engine = engine
+    
+    @property
+    def primary_mgt(self):
+        """
+        Obtain the interface specified as the primary management interface.
+        This will always return a value as you must have at least one
+        physical interface specified for management.
+        
+        :rtype: PhysicalInterface
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        for itf in interface:
+            if isinstance(itf, PhysicalInterface):
+                if itf.is_primary_mgt:
+                    return itf
+
+    @property
+    def backup_mgt(self):
+        """
+        """
+        pass
+
+    @property
+    def primary_heartbeat(self):
+        """
+        """
+        pass
+    
+    @property
+    def backup_heartbeat(self):
+        """
+        """
+        pass
+    
+    @property
+    def outgoing(self):
+        """
+        Obtain the interface specified as the "Default IP address for
+        outgoing traffic". This will always return a value. Can be either
+        a PhysicalInterface or LoopbackInterface.
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        for itf in interface:
+            if isinstance(itf, PhysicalInterface):
+                if itf.is_outgoing:
+                    return itf
+
+    def set_primary_heartbeat(self, interface_id):
+        """
+        Set this interface as the primary heartbeat for this engine. 
+        This will 'unset' the current primary heartbeat and move to
+        specified interface_id.
+        Clusters and Master NGFW Engines only.
+        
+        :param str,int interface_id: interface specified for primary mgmt
+        :raises UpdateElementFailed: failed modifying interfaces
+        :return: None
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        interface.set_unset(interface_id, 'primary_heartbeat')
+        
+        dispatch(self, interface, self._engine)
+    
+    def set_backup_heartbeat(self, interface_id):
+        """
+        Set this interface as the backup heartbeat interface.
+        Clusters and Master NGFW Engines only.
+        
+        :param str,int interface_id: interface as backup
+        :raises UpdateElementFailed: failure to update interface
+        :return: None
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        interface.set_unset(interface_id, 'backup_heartbeat')
+        
+        dispatch(self, interface, self._engine)
+            
+    def set_primary_mgt(self, interface_id, auth_request=None,
+                        address=None):
+        """
+        Specifies the Primary Control IP address for Management Server
+        contact. For single FW and cluster FW's, this will enable 'Outgoing',
+        'Auth Request' and the 'Primary Control' interface. For clusters, the
+        primary heartbeat will NOT follow this change and should be set
+        separately using :meth:`.set_primary_heartbeat`.
+        For virtual FW engines, only auth_request and outgoing will be set.
+        For master engines, only primary control and outgoing will be set.
+        
+        Primary management can be set on an interface with single IP's,
+        multiple IP's or VLANs.
+        ::
+        
+            engine.interface_options.set_primary_mgt(1)
+        
+        Set primary management on a VLAN interface::
+        
+            engine.interface_options.set_primary_mgt('1.100')
+            
+        Set primary management and different interface for auth_request::
+        
+            engine.interface_options.set_primary_mgt(
+                interface_id='1.100', auth_request=0)
+            
+        Set on specific IP address of interface VLAN with multiple addresses::
+        
+             engine.interface_options.set_primary_mgt(
+                 interface_id='3.100', address='50.50.50.1')
+        
+        :param str,int interface_id: interface id to make management
+        :param str address: if the interface for management has more than
+            one ip address, this specifies which IP to bind to.
+        :param str,int auth_request: if setting primary mgt on a cluster
+            interface with no CVI, you must pick another interface to set
+            the auth_request field to (default: None)
+        :raises UpdateElementFailed: updating management fails
+        :return: None
+        
+        .. note:: Setting primary management on a cluster interface with no
+            CVI requires you to set the interface for auth_request.
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        
+        intfattr = ['primary_mgt', 'outgoing']
+        if self._engine.type in ['virtual_fw']:
+            intfattr.remove('primary_mgt')
+            
+        for attribute in intfattr:
+            interface.set_unset(interface_id, attribute, address)
+        
+        if auth_request is not None:
+            interface.set_auth_request(auth_request)
+        else:
+            interface.set_auth_request(interface_id, address)
+        
+        dispatch(self, interface, self._engine)
+        
+    def set_backup_mgt(self, interface_id):
+        """
+        Set this interface as a backup management interface.
+        
+        Backup management interfaces cannot be placed on an interface with
+        only a CVI (requires node interface/s). To 'unset' the specified
+        interface address, set interface id to None
+        ::
+        
+            engine.interface_options.set_backup_mgt(2)
+            
+        Set backup on interface 1, VLAN 201::
+    
+            engine.interface_options.set_backup_mgt('1.201')
+        
+        Remove management backup from engine::
+        
+            engine.interface_options.set_backup_mgt(None)
+     
+        :param str,int interface_id: interface identifier to make the backup
+            management server.
+        :raises UpdateElementFailed: failure to make modification
+        :return: None
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        interface.set_unset(interface_id, 'backup_mgt')
+        
+        dispatch(self, interface, self._engine)
+    
+    def set_outgoing(self, interface_id):
+        """
+        Specifies the IP address that the engine uses to initiate connections
+        (such as for system communications and ping) through an interface
+        that has no Node Dedicated IP Address. In clusters, you must select
+        an interface that has an IP address defined for all nodes.
+        Setting primary_mgt also sets the default outgoing address to the same
+        interface.
+        
+        :param str,int interface_id: interface to set outgoing
+        :raises UpdateElementFailed: failure to make modification
+        :return: None
+        """
+        interface = InterfaceModifier.byEngine(self._engine)
+        interface.set_unset(interface_id, 'outgoing')
+        
+        dispatch(self, interface, self._engine)
+            
+
+class Interface(SubElement):
+    """
+    Interface settings common to all interface types.
+    """
+    def __init__(self, **meta):
+        self._engine = meta.pop('engine', None)  # Engine reference
+        super(Interface, self).__init__(**meta)
+    
+    def delete(self):
+        """
+        Override delete in parent class, this will also delete
+        the routing configuration referencing this interface.
+        ::
+
+            engine = Engine('vm')
+            interface = engine.interface.get(2)
+            interface.delete()
+        """
+        super(Interface, self).delete()
+        for routes in self._engine.routing:
+            if routes.name == self.name or \
+                    routes.name.startswith('VLAN {}.'.format(self.interface_id)):
+                routes.delete()
+        self._engine._del_cache()
+    
+    #def update(self, *args, **kw):
+    #    super(Interface, self).update(*args, **kw)
+    #    self._engine._del_cache()
+    
+    def save(self):
+        """
+        Save this interface information back to SMC. When saving
+        the interface, call save on the topmost level of the interface.
+
+        Example of changing the IP address of an interface::
+
+            >>> engine = Engine('sg_vm')
+            >>> interface = engine.physical_interface.get(1)
+            >>> interface.zone_ref = zone_helper('mynewzone')
+            >>> interface.save()
+
+        :raises UpdateElementFailed: failure to save changes
+        :return: None
+        """
+        self.update()
+        self._engine._del_cache()
+    
     @property
     def addresses(self):
         """
@@ -76,7 +317,8 @@ class InterfaceCommon(object):
         :rtype: list
         """
         return [(i.address, i.network_value, i.nicid)
-                for i in self.sub_interfaces()]
+                for i in self.sub_interfaces()
+                if getattr(i, 'address')]
 
     @property
     def contact_addresses(self):
@@ -143,7 +385,7 @@ class InterfaceCommon(object):
         :rtype: list
         """
         if self.has_vlan:
-            return [PhysicalVlanInterface(vlan)
+            return [PhysicalVlanInterface(self, vlan)
                     for vlan in self.data['vlanInterfaces']]
         return []
 
@@ -166,14 +408,14 @@ class InterfaceCommon(object):
                         x.address = '1.1.1.5'    #Change the IP address
                 intf.save() #Save to top level interface
 
-        :return: :py:mod:`smc.core.sub_interfaces` by type
+        :return: Interface
         :rtype: list
         """
         results = []
 
         data = self.data
         
-        def inner(data):
+        def inner(data, parent=None):
             if data.get('interfaces'):
             # It's an interface definition
                 for intf in data['interfaces']:
@@ -182,11 +424,12 @@ class InterfaceCommon(object):
                             get_sub_interface(if_type)(values))
             elif data.get('vlanInterfaces'):
                 for vlan in data.get('vlanInterfaces'):
-                    inner(vlan)
+                    inner(vlan, parent=data)
             else:
                 if self.typeof != TunnelInterface.typeof:
                     if '.' in data.get('interface_id'):
-                        results.append(PhysicalVlanInterface(data))
+                        # VLAN with no address assigned
+                        results.append(PhysicalVlanInterface(parent, data))
         inner(data)
         return results
 
@@ -196,8 +439,9 @@ class InterfaceCommon(object):
         sub interface/s.
         """
         for interface in self.sub_interfaces():
-            if getattr(interface, name):
-                return True
+            if not isinstance(interface, PhysicalVlanInterface):
+                if getattr(interface, name):
+                    return True
         return False
 
     def change_single_ipaddress(self, address, network_value,
@@ -241,7 +485,7 @@ class InterfaceCommon(object):
         
         if do_save:
             self.save()
-
+            
             if not ipaddress.ip_address(bytes_to_unicode(address)) in \
                 ipaddress.ip_network(mask):
 
@@ -415,123 +659,7 @@ class InterfaceCommon(object):
             self.data['zone_ref'] = value
 
 
-class Interface(SubElement):
-    """
-    Top level representation of all base interface types. Base interface types
-    are: Physical, VirtualPhysical and Tunnel Interface. All other interface
-    types are considered sub-interfaces and will be used depending on the type
-    of engine. For example, an Inline Interface is a Physical Interface, but can
-    only be used on Layer 2 Firewall or IPS Engines.
-
-    Note that when modifying existing interface information changes can only be
-    made to a single interface at once. Some changes like switching management
-    interfaces is currently not supported.
-    """
-
-    def __init__(self, **meta):
-        self._engine = meta.pop('engine', None)  # Engine reference
-        if 'parent' in meta:
-            self._parent = meta.pop('parent')
-            meta.update(href=self._parent)
-        super(Interface, self).__init__(**meta)
-
-    def get(self, interface_id):
-        """
-        Get the interface by id, if known. The interface is retrieved from
-        the top level Physical or Tunnel Interface. If the interface is an
-        inline interface, you can get only one of the two inline pairs and
-        the same interface will be returned.
-        
-        If interface type is unknown, use engine.interface for retrieving::
-
-            >>> engine = Engine('sg_vm')
-            >>> intf = engine.interface.get(0)
-            >>> print(intf, intf.addresses)
-            (PhysicalInterface(name=Interface 0), [('172.18.1.254', '172.18.1.0/24', '0')])
-        
-        Get an interface by index and VLAN (interface 1, VLAN 100)::
-        
-            >>> engine = Engine('sg_vm')
-            >>> intf = engine.interface.get('1.100')
-            
-        Get an inline interface (note: if your inline pair is interface 2 and 3
-        you can also get either one of those individual interface id's and the
-        inline pair will be returned)::
-        
-            >>> intf = engine.interface.get('2-3')
-
-        :param str,int interface_id: interface ID to retrieve
-        :raises EngineCommandFailed: interface not found
-        :return: interface object by type (Physical, Tunnel, PhysicalVlanInterface)
-        """
-        interface = InterfaceModifier.byEngine(self._engine)
-        return interface.get(interface_id)
-
-    def save(self):
-        """
-        Save this interface information back to SMC. When saving
-        the interface, call save on the topmost level of the interface.
-
-        Example of changing the IP address of an interface::
-
-            >>> engine = Engine('sg_vm')
-            >>> interface = engine.physical_interface.get(1)
-            >>> interface.zone_ref = zone_helper('mynewzone')
-            >>> interface.save()
-
-        :raises UpdateElementFailed: failure to save changes
-        :return: None
-        """
-        self.update()
-        self._engine._del_cache()
-
-    def delete(self):
-        """
-        Override delete in parent class, delete routing configuration
-        after interface deletion.
-        ::
-
-            engine = Engine('vm')
-            interface = engine.interface.get(2)
-            interface.delete()
-        """
-        super(Interface, self).delete()
-        for routes in self._engine.routing:
-            if routes.name == self.name or \
-                    routes.name.startswith('VLAN {}.'.format(self.interface_id)):
-                routes.delete()
-        self._engine._del_cache()
-        
-    def all(self):
-        """
-        Return all interfaces for this engine. This is a common entry
-        point to viewing interface information.
-
-        Retrieve specific information about an interface::
-
-            >>> for interface in engine.interface.all():
-            ...   print(interface.name, interface.addresses)
-            ('Tunnel Interface 2001', [('169.254.9.22', '169.254.9.20/30', '2001')])
-            ('Tunnel Interface 2000', [('169.254.11.6', '169.254.11.4/30', '2000')])
-            ('Interface 2', [('192.168.1.252', '192.168.1.0/24', '2')])
-            ('Interface 1', [('10.0.0.254', '10.0.0.0/24', '1')])
-            ('Interface 0', [('172.18.1.254', '172.18.1.0/24', '0')])
-
-        :return: list :py:class:`smc.elements.interfaces.Interface`
-        """
-        interfaces = []
-        try:
-            for interface in prepared_request(
-                    FetchElementFailed, href=self._parent).read().json:
-                intf_type = lookup_class(interface.get('type'), Interface)
-                interface.update(engine=self._engine)
-                interfaces.append(intf_type(**interface))
-        except AttributeError:
-            pass
-        return interfaces
-
-
-class TunnelInterface(InterfaceCommon, Interface):
+class TunnelInterface(Interface):
     """
     This interface type represents a tunnel interface that is typically used for
     route based VPN traffic.
@@ -615,7 +743,7 @@ class TunnelInterface(InterfaceCommon, Interface):
         dispatch(self, builder, interface)
 
 
-class PhysicalInterface(InterfaceCommon, Interface):
+class PhysicalInterface(Interface):
     """
     Physical Interfaces on NGFW. This represents the following base configuration for
     the following interface types:
@@ -794,7 +922,7 @@ class PhysicalInterface(InterfaceCommon, Interface):
         builder.add_capture(logical_interface_ref)
         if zone_ref:
             builder.zone = zone_ref
-
+        
         dispatch(self, builder)
 
     def add_inline_interface(self, interface_id, logical_interface_ref=None,
@@ -1261,142 +1389,6 @@ class PhysicalInterface(InterfaceCommon, Interface):
         :rtype: bool
         """
         return self._subif_bool_attr('outgoing')
-
-    def set_primary_heartbeat(self, interface_id):
-        """
-        Set this interface as the primary heartbeat for this engine. 
-        This will 'unset' the current primary heartbeat and move to
-        specified interface_id.
-        Clusters and Master NGFW Engines only.
-        
-        :param str,int interface_id: interface specified for primary mgmt
-        :raises UpdateElementFailed: failed modifying interfaces
-        :return: None
-        """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'primary_heartbeat')
-        
-        dispatch(self, interface, self._engine)
-    
-    def set_backup_heartbeat(self, interface_id):
-        """
-        Set this interface as the backup heartbeat interface.
-        Clusters and Master NGFW Engines only.
-        
-        :param str,int interface_id: interface as backup
-        :raises UpdateElementFailed: failure to update interface
-        :return: None
-        """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'backup_heartbeat')
-        
-        dispatch(self, interface, self._engine)
-            
-    def set_primary_mgt(self, interface_id, auth_request=None,
-                        address=None):
-        """
-        Specifies the Primary Control IP address for Management Server
-        contact. For single FW and cluster FW's, this will enable 'Outgoing',
-        'Auth Request' and the 'Primary Control' interface. For clusters, the
-        primary heartbeat will NOT follow this change and should be set
-        separately using :meth:`.set_primary_heartbeat`.
-        For virtual FW engines, only auth_request and outgoing will be set.
-        For master engines, only primary control and outgoing will be set.
-        
-        Primary management can be set on an interface with single IP's,
-        multiple IP's or VLANs.
-        ::
-        
-            engine.physical_interface.set_primary_mgt(1)
-        
-        Set primary management on a VLAN interface::
-        
-            engine.physical_interface.set_primary_mgt('1.100')
-            
-        Set primary management and different interface for auth_request::
-        
-            engine.physical_interface.set_primary_mgt(
-                interface_id='1.100', auth_request=0)
-            
-        Set on specific IP address of interface VLAN with multiple addresses::
-        
-             engine.physical_interface.set_primary_mgt(
-                 interface_id='3.100', address='50.50.50.1')
-        
-        :param str,int interface_id: interface id to make management
-        :param str address: if the interface for management has more than
-            one ip address, this specifies which IP to bind to.
-        :param str,int auth_request: if setting primary mgt on a cluster
-            interface with no CVI, you must pick another interface to set
-            the auth_request field to (default: None)
-        :raises UpdateElementFailed: updating management fails
-        :return: None
-        
-        .. note:: Setting primary management on a cluster interface with no
-            CVI requires you to set the interface for auth_request.
-        """
-        interface = InterfaceModifier.byEngine(self._engine)
-        
-        intfattr = ['primary_mgt', 'outgoing']
-        if self._engine.type in ['virtual_fw']:
-            intfattr.remove('primary_mgt')
-            
-        for attribute in intfattr:
-            interface.set_unset(interface_id, attribute, address)
-        
-        if auth_request is not None:
-            interface.set_auth_request(auth_request)
-        else:
-            interface.set_auth_request(interface_id, address)
-        
-        dispatch(self, interface, self._engine)
-        
-    def set_backup_mgt(self, interface_id):
-        """
-        Set this interface as a backup management interface.
-        
-        Backup management interfaces cannot be placed on an interface with
-        only a CVI (requires node interface/s). To 'unset' the specified
-        interface address, set interface id to None
-        ::
-        
-            engine.physical_interface.set_backup_mgt(2)
-            
-        Set backup on interface 1, VLAN 201::
-    
-            engine.physical_interface.set_backup_mgt('1.201')
-        
-        Remove management backup from engine::
-        
-            engine.physical_interface.set_backup_mgt(None)
-     
-        :param str,int interface_id: interface identifier to make the backup
-            management server.
-        :raises UpdateElementFailed: failure to make modification
-        :return: None
-        """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'backup_mgt')
-        
-        dispatch(self, interface, self._engine)
-    
-    def set_outgoing(self, interface_id):
-        """
-        Specifies the IP address that the engine uses to initiate connections
-        (such as for system communications and ping) through an interface
-        that has no Node Dedicated IP Address. In clusters, you must select
-        an interface that has an IP address defined for all nodes.
-        Setting primary_mgt also sets the default outgoing address to the same
-        interface.
-        
-        :param str,int interface_id: interface to set outgoing
-        :raises UpdateElementFailed: failure to make modification
-        :return: None
-        """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'outgoing')
-        
-        dispatch(self, interface, self._engine)
     
     def change_vlan_id(self, original, new):
         """
@@ -1458,30 +1450,39 @@ class PhysicalInterface(InterfaceCommon, Interface):
         self.save()
         return 
     
-    def remove_vlan(self, interface_id, vlan_id):
+    def remove_vlan(self, vlan_id):
         """
-        Remove a VLAN from any engine, given the interface_id and
-        VLAN id.
-
-        :param str,int interface_id: interface identifier
-        :param int vlan_id: vlan identifier
-        :return: None
+        Remove a VLAN from any engine. This is a no-op if the VLAN specified
+        does not exist. Any routing associated with this VLAN interface will
+        also be automatically removed as well.
+        
+        Check for VLANs::
+        
+            interface = engine.interface.get(12)
+            print(interface.vlan_interfaces())
+        
+        Delete VLAN id 14 on interface 12::
+        
+            interface = engine.interface.get(12)
+            interface.remove_vlan(14)
 
         .. note::
             If a VLAN to be removed has IP addresses assigned, they
             will be removed along with any associated entries in the
             route table.
+        
+        :param str,int interface_id: interface identifier
+        :param int vlan_id: vlan identifier
+        :raises EngineCommandFailed: fail to update
+        :return: None
         """
-        builder, interface = InterfaceBuilder.getBuilder(self, interface_id)
-        if interface is None:
-            raise EngineCommandFailed('Remove VLAN command failed. Interface {} '
-                                      'was not found.'.format(interface_id))
-        else:
+        builder, interface = InterfaceBuilder.getBuilder(self, self.interface_id)
+        if interface.has_vlan and str(vlan_id) in [v.vlan_id for v in interface.vlan_interfaces()]:
             builder.remove_vlan(vlan_id)
             dispatch(self, builder, interface)
-
+            
             for routes in self._engine.routing:
-                if routes.name == 'VLAN {}.{}'.format(interface_id, vlan_id):
+                if routes.name == 'VLAN {}.{}'.format(self.interface_id, vlan_id):
                     routes.delete()
                     break
                
@@ -1677,7 +1678,8 @@ class PhysicalVlanInterface(PhysicalInterface):
     """
     typeof = 'physical_vlan_interface'
 
-    def __init__(self, data, meta=None):
+    def __init__(self, parent, data, **meta):
+        self._parent = parent
         super(PhysicalVlanInterface, self).__init__(href=None)
         self.data = SimpleElement(**data)
 
@@ -1752,6 +1754,16 @@ class PhysicalVlanInterface(PhysicalInterface):
         
         return '-'.join(vlans)
 
+    def delete(self):
+        """
+        Delete this VLAN. This is a helper method that allows the VLAN
+        to be removed directly from this object reference.
+        
+        :raises EngineCommandFailed: fail to update
+        :return: None
+        """
+        self._parent.remove_vlan(self.vlan_id)
+    
     def __str__(self):
         if self.address is not None:
             return '{0}(address={1},vlan_id={2})'.format(
@@ -1779,6 +1791,155 @@ class VirtualPhysicalInterface(PhysicalInterface):
         super(VirtualPhysicalInterface, self).__init__(**meta)
         pass
 
+
+class InterfaceCollection(object):
+    """
+    An interface collection provides top level search capabilities
+    to iterate or get interfaces of the specified type. This also
+    delegates all 'add' methods of an interface to the interface type
+    specified.
+    For example, you can use this to obtain all interfaces of a given
+    type from an engine::
+    
+        for interface in engine.interfaces.all():
+            print(interface)
+            
+    Or only physical interface types::
+    
+        for interface in engine.physical_interfaces:
+            print(interface)
+            
+    Or use delegation to create interfaces::
+        
+        engine.physical_interface.add(2)
+        engine.physical_interface.add_layer3_interface(....)
+        ...
+
+    """
+    class_map = {
+        PhysicalInterface.typeof: PhysicalInterface,
+        TunnelInterface.typeof: TunnelInterface,
+        VirtualPhysicalInterface.typeof: VirtualPhysicalInterface
+        }
+    
+    def __init__(self, engine, rel='interfaces'):
+        self._engine = engine
+        self._rel = rel
+        self.href = engine.data.get_link(rel)
+    
+    def get(self, interface_id):
+        """
+        Get the interface by id, if known. The interface is retrieved from
+        the top level Physical or Tunnel Interface. If the interface is an
+        inline interface, you can specify only one of the two inline pairs and
+        the same interface will be returned.
+        
+        If interface type is unknown, use engine.interface for retrieving::
+
+            >>> engine = Engine('sg_vm')
+            >>> intf = engine.interface.get(0)
+            >>> print(intf, intf.addresses)
+            (PhysicalInterface(name=Interface 0), [('172.18.1.254', '172.18.1.0/24', '0')])
+        
+        Get an interface by index and VLAN (interface 1, VLAN 100)::
+        
+            >>> engine = Engine('sg_vm')
+            >>> intf = engine.interface.get('1.100')
+            
+        Get an inline interface::
+        
+            >>> intf = engine.interface.get('2-3')
+
+        .. note:: For the inline interface example, you could also just specify
+            '2'  or '3' and the fetch will return the pair.
+        
+        :param str,int interface_id: interface ID to retrieve
+        :raises EngineCommandFailed: interface not found
+        :return: interface object by type (Physical, Tunnel, PhysicalVlanInterface)
+        """
+        interface = InterfaceModifier.byEngine(self._engine) 
+        return interface.get(interface_id) 
+    
+    def all(self):
+        """
+        Return all interfaces for this engine. This is a common entry
+        point to viewing interface information.
+
+        Retrieve specific information about an interface::
+
+            >>> for interface in engine.interface.all():
+            ...   print(interface.name, interface.addresses)
+            ('Tunnel Interface 2001', [('169.254.9.22', '169.254.9.20/30', '2001')])
+            ('Tunnel Interface 2000', [('169.254.11.6', '169.254.11.4/30', '2000')])
+            ('Interface 2', [('192.168.1.252', '192.168.1.0/24', '2')])
+            ('Interface 1', [('10.0.0.254', '10.0.0.0/24', '1')])
+            ('Interface 0', [('172.18.1.254', '172.18.1.0/24', '0')])
+
+        :raises FetchElementFailed: failure during query
+        :return: list :py:class:`smc.elements.interfaces.Interface`
+        """
+        return iter(self)
+    
+    def __iter__(self):
+        for interface in InterfaceModifier.byEngine(self._engine):
+            if self._rel != 'interfaces':
+                if interface.typeof == self._rel:
+                    yield interface
+            else:
+                yield interface
+
+    def __getattr__(self, key):
+        # Dispatch to instance methods but only for adding interfaces.
+        # Makes this work: engine.physical_interface.add_xxxx
+        if key.startswith('add') and self.class_map.get(self._rel):
+            return getattr(self.class_map[self._rel](
+                href=self.href, engine=self._engine), key)
+        raise AttributeError('Cannot proxy to given method: %s for the '
+            'following type: %s' % (key, self._rel))
+
+
+class LoopbackCollection(object):
+    """
+    Loopback interfaces can be configured on layer 3 engine types
+    and used as endpoints for authentication requests and outgoing
+    settings within interface options. You can also assign a dynamic
+    routing element to a loopback interface.
+    
+    All loopback interfaces can be fetched from the engine::
+    
+        >>> engine = Engine('fwcluster')
+        >>> for lb in engine.loopback_interface:
+        ...   lb
+        ... 
+        LoopbackClusterVirtualInterface(address=127.0.0.2, auth_request=False)
+        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
+        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
+    
+    Or directly from the nodes::
+    
+        >>> for node in engine.nodes:
+        ...   for lb in node.loopback_interface:
+        ...     lb
+        ... 
+        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
+        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
+    
+    """
+    def __init__(self, engine):
+        self._engine = engine
+    
+    def __iter__(self):
+        for cvi in self._engine.data.get('loopback_cluster_virtual_interface', []):
+            yield LoopbackClusterVirtualInterface(cvi, parent=self._engine)
+        
+        for node in self._engine.nodes:
+            for loopback in node.loopback_interface:
+                yield loopback
+    
+    def all(self):
+        return iter(self)
+
+
 import ipaddress
 
 class InterfaceModifier(object):
@@ -1803,17 +1964,18 @@ class InterfaceModifier(object):
                 subif_type = extract_sub_interface(data)
                 if isinstance(subif_type, InlineInterface):
                     nicids = subif_type.nicid.split('-')
-                    name = 'Interface %s - Interface %s (Inline)' %\
-                        (nicids[0], nicids[1])
+                    name = data['name'] if 'name' in data else \
+                        'Interface %s - Interface %s (Inline)' % (nicids[0], nicids[1])
                 else:
-                    name = 'Interface %s' % data.get('interface_id')
+                    name = data['name'] if 'name' in data else \
+                        'Interface %s' % data.get('interface_id')
                 
                 clazz = lookup_class((typeof), Interface)(
                     name=name,
-                    #name=subif_type.name,
                     type=typeof,
                     href=InterfaceModifier.href_from_link(data.get('link')))
                 clazz.data = SimpleElement(**data)
+                clazz._engine = engine
                 interfaces.append(clazz)
         return cls(interfaces, engine=engine)
     
@@ -1900,9 +2062,9 @@ class InterfaceModifier(object):
                 return
         for interface in self:
             all_subs = interface.sub_interfaces()
-            has_cvi = any(isinstance(t, ClusterVirtualInterface)
-                          for t in all_subs)
-            if has_cvi:
+            
+            # First check to see if it's a cluster CVI
+            if any(isinstance(t, ClusterVirtualInterface) for t in all_subs):
                 for sub_interface in all_subs:
                     if sub_interface.nicid == str(interface_id):
                         if isinstance(sub_interface, ClusterVirtualInterface):
@@ -2039,9 +2201,9 @@ class InterfaceBuilder(object):
         capture = CaptureInterface.create(
             self.interface_id,
             logical_intf_helper(logical_interface_ref))
-
+    
         self.interfaces.append(capture.data)
-
+        
     def add_inline(self, interface_id, logical_interface_ref,
                    failure_mode='normal', zone_ref=None):
         """
@@ -2217,7 +2379,9 @@ class InterfaceBuilder(object):
         interface did not exist, otherwise return that reference.
         """
         try:
-            interface = instance.get(interface_id)
+            #interface = instance.get(interface_id)
+            interfaces = InterfaceModifier.byEngine(instance._engine)
+            interface = interfaces.get(interface_id)
         except EngineCommandFailed:
             if instance.__class__ is TunnelInterface:
                 builder = InterfaceBuilder(TunnelInterface)

@@ -6,7 +6,7 @@ This module provides that ability to access task specific attributes
 and optionally poll for status of an operation.
 
 An example of using a task poller when uploading an engine policy
-(use 'wait_for_finish=True')::
+(use `wait_for_finish=True`)::
 
     engine = Engine('myfirewall')
     poller = engine.upload(policy=fwpolicy, wait_for_finish=True)
@@ -35,7 +35,7 @@ def TaskHistory():
     Task history retrieves a list of tasks in an event queue.
     
     :return: list of task events
-    :rtype: Task
+    :rtype: TaskProgress
     """
     events = Search.objects.entry_point('task_progress')
     return [event.task for event in events]
@@ -45,7 +45,7 @@ class TaskProgress(Element):
     """
     Task Progress represents a task event queue. These
     tasks may be completed or still running. The task event
-    queue events can be retrieved by calling `~TaskHistory`.
+    queue events can be retrieved by calling :func:`~TaskHistory`.
     """
     typeof = 'task_progress'
     
@@ -66,8 +66,7 @@ class Task(SMCCommand):
     """
     Task representation. This is generic and the format is used for
     any calls to SMC that return an asynchronous follower link to
-    check the status of the task. Use this as input to the task_handler
-    generator to control displaying updates to the user.
+    check the status of the task.
 
     :param dict task: task json after task process started
     """
@@ -198,7 +197,9 @@ class Task(SMCCommand):
 class TaskOperationPoller(object):
     """
     Task Operation Poller provides a way to poll the SMC
-    for the status of the task operation.
+    for the status of the task operation. This is returned
+    by functions that return a task. Typically these will be
+    operations like refreshing policy, uploading policy, etc.
     """
     def __init__(self, task, timeout=5, max_tries=36,
                  wait_for_finish=False):

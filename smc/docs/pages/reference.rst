@@ -10,8 +10,8 @@ Session
    :members: 
 
 	
-Element (Base)
---------------
+Element
+-------
 
 .. automodule:: smc.base.model
 	:exclude-members: from_meta, from_href
@@ -64,24 +64,28 @@ Roles
 .. automodule:: smc.administration.role
 	:members:
 	:show-inheritance:
-	
-
-AdminDomain
-+++++++++++
-
-.. autoclass:: smc.administration.system.AdminDomain
-	:members:
-	:show-inheritance:
 
 Certificates
 ++++++++++++
 
+TLSCommon
+*********
+
+.. automodule:: smc.administration.certificates.tls_common
+	:members:
 
 TLSServerCredential
 *******************
 
-.. automodule:: smc.administration.certificates
+.. automodule:: smc.administration.certificates.tls
 	:members: TLSServerCredential
+	:show-inheritance:
+
+Domains
++++++++
+
+.. autoclass:: smc.administration.system.AdminDomain
+	:members:
 	:show-inheritance:
 	
 License
@@ -89,6 +93,13 @@ License
 
 .. automodule:: smc.administration.license
 	:members:
+
+Scheduled Tasks
++++++++++++++++
+
+.. automodule:: smc.administration.scheduled_tasks
+	:members:
+	:show-inheritance:
 
 System
 ++++++
@@ -479,28 +490,6 @@ Hardware Status
 .. autoclass:: smc.core.node.HardwareStatus
 	:members:
 
-ContactAddress
-++++++++++++++
-
-.. automodule:: smc.core.contact_address
-	:members: ContactAddress, InterfaceContactAddress
-
-DefaultNAT
-++++++++++
-
-.. autoclass:: smc.core.properties.DefaultNAT
-	:members:
-
-DNSAddress
-++++++++++
-
-.. autoclass:: smc.core.properties.DNSAddress
-	:members:
-
-.. autoclass:: smc.core.properties.DNSEntry
-	:members:
-
-
 Dynamic Routing
 +++++++++++++++
 Represents classes responsible for configuring dynamic routing protocols
@@ -532,6 +521,27 @@ PrefixList
 
 General
 +++++++
+
+ContactAddress
+**************
+
+.. automodule:: smc.core.contact_address
+	:members: ContactAddress, InterfaceContactAddress
+
+DefaultNAT
+**********
+
+.. autoclass:: smc.core.properties.DefaultNAT
+	:members:
+
+DNSAddress
+**********
+
+.. autoclass:: smc.core.properties.DNSAddress
+	:members:
+
+.. autoclass:: smc.core.properties.DNSEntry
+	:members:
 
 Layer2Settings
 **************
@@ -627,7 +637,20 @@ Interfaces
 Represents classes responsible for configuring interfaces on engines
 
 .. automodule:: smc.core.interfaces
-	:members: Interface, InterfaceCommon
+	:members: Interface
+	
+InterfaceCollection
+*******************
+
+.. autoclass:: InterfaceCollection
+	:members:
+
+InterfaceOptions
+****************
+
+.. autoclass:: InterfaceOptions
+    :members:
+
 
 PhysicalInterface
 *****************
@@ -1074,13 +1097,6 @@ VPNSite
 +++++++
 
 .. autoclass:: smc.vpn.elements.VPNSite
-   :members:
-   :show-inheritance:
-
-VPNCertificate
-++++++++++++++
-
-.. autoclass:: smc.vpn.elements.VPNCertificate
    :members:
    :show-inheritance:
 

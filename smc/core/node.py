@@ -17,6 +17,7 @@ import base64
 from collections import namedtuple
 from smc.base.util import save_to_file
 from smc.base.model import SubElement, SimpleElement
+from smc.core.sub_interfaces import LoopbackNodeInterface
 from smc.api.exceptions import LicenseError, NodeCommandFailed, \
     ResourceNotFound
 
@@ -29,8 +30,11 @@ class Node(SubElement):
     nodes attribute.
     ::
 
-        for node in engine.nodes:
-            ...
+        >>> for node in engine.nodes:
+        ...   node
+        ... 
+        Node(name=fwcluster node 1)
+        Node(name=fwcluster node 2)
 
     """
     def __init__(self, **meta):
@@ -44,7 +48,11 @@ class Node(SubElement):
         return self._meta.type
 
     def rename(self, name):
-        # This should be called from engine level
+        """
+        Rename this node
+        
+        :param str name: new name for node
+        """
         self.update(name='{} node {}'.format(name, self.nodeid))
 
     @property
@@ -54,16 +62,22 @@ class Node(SubElement):
         """
         return self.data.get('nodeid')
 
+    def update(self, *args, **kw):
+        # Delete cache from engine reference
+        super(Node, self).update(*args, **kw)
+        self._engine._del_cache()
+    
     @classmethod
-    def _load(cls, list_of_nodes):
+    def _load(cls, engine):
         nodes = []
-        for node in list_of_nodes:
+        for node in engine.data.get('nodes', []):
             for typeof, data in node.items():
                 cache = SimpleElement(**data)
                 node = Node(name=cache.get('name'),
                             href=cache.get_link('self'),
                             type=typeof)
                 node.data = cache
+                node._engine = engine
                 nodes.append(node)
         return nodes
 
@@ -89,7 +103,18 @@ class Node(SubElement):
             'nodeid': nodeid}
         }
         return node
-
+    
+    @property
+    def loopback_interface(self):
+        """
+        Loopback interfaces for this node. This will return
+        empty if the engine is not a layer 3 firewall type.
+        
+        :rtype: list(LoopbackNodeInterface)
+        """
+        for lb in self.data.get('loopback_node_dedicated_interface', []):
+            yield LoopbackNodeInterface(lb, parent=self)
+        
     def fetch_license(self):
         """
         Fetch the node level license

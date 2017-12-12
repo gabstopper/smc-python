@@ -5,16 +5,14 @@ the top level interface, there are sub-interface configurations that identify th
 basic settings such as ip address, network, administrative settings etc. These are
 not called directly but used as a reference to the top level interface.
 """
-import sys
-import inspect
-            
+from smc.base.util import element_resolver
+from smc.base.model import SubDict
+from smc.api.exceptions import EngineCommandFailed
+
 
 def get_sub_interface(typeof):
-    for itf in clsmembers:
-        try:
-            if getattr(itf[1], 'typeof') == typeof:
-                return itf[1]
-        except AttributeError: pass
+    if typeof in clsmembers:
+        return clsmembers[typeof]
 
 
 def all_interfaces(data):
@@ -27,6 +25,198 @@ def all_interfaces(data):
             for kind, value in interface.items()]
         
 
+class SubInterface(object):
+    def __init__(self, data):
+        self.__dict__ = data
+
+    @property
+    def data(self):
+        return {self.typeof: self.__dict__}
+    
+    def __getattr__(self, _):
+        return None
+
+
+class LoopbackInterface(SubDict):
+    """
+    A Loopback interface can be assigned to any layer 3 routed engine, single
+    firewall, virtual firewall or cluster firewall.
+    
+    Any IP address that is not used to route traffic on another interface can
+    be used as a loopback IP address. Loopback IP addresses are not connected
+    to any physical interface and they do not create connectivity to any
+    network.
+    
+    Some common rules for loopback addresses:
+    
+    * You can add several loopback IP addresses on a given layer 3 firewall
+    * Any IP address that is not already used on another Physical or VLAN
+      Interface in the same firewall can be used as a loopback IP address.
+    * The same IP address can be used as a loopback IP address and as the IP
+      address of a Tunnel Interface.
+    * Loopback IP addresses can be used as the Identity for Authentication
+      Requests, the Source for Authentication Requests, and the Default IP
+      Address for Outgoing Traffic.
+    
+    """
+    def __init__(self, data, **kw):
+        self._parent = kw.pop('parent', None)
+        super(LoopbackInterface, self).__init__(data=data)
+        
+    def delete(self):
+        if isinstance(self, LoopbackClusterVirtualInterface):
+            engine = self._parent
+            engine.data[LoopbackClusterVirtualInterface.typeof] = \
+                [lb for lb in engine.loopback_cluster_virtual_interface
+                 if lb.get('address') != self.address]
+            engine.update()
+        else: 
+            node = self._parent
+            if len(node._engine.nodes) == 1:
+                node.data[LoopbackNodeInterface.typeof] = \
+                    [lb for lb in node.loopback_node_dedicated_interface
+                     if lb.get('address') != self.address]
+                node.update()
+            else: 
+                # For cluster loopbacks, deleting a single loopback
+                # will also delete the peer member entries by the rank
+                # field. In case delete is done in a loop, check that
+                # the loopback exists in the engine reference or noop
+                if any(lb for n in node._engine.nodes
+                       for lb in n.loopback_node_dedicated_interface
+                       if lb.get('address') == self.address):
+                        
+                    nodes = []
+                    for _node in node._engine.nodes:
+                        _node.data[LoopbackNodeInterface.typeof] = \
+                            [lb for lb in _node.loopback_node_dedicated_interface
+                             if lb.get('rank') != self.rank]
+                        nodes.append({_node.type: _node.data})
+            
+                    node._engine.data['nodes'] = nodes
+                    node._engine.update()        
+                
+    def add(self, address, nodeid=1, ospf_area=None, **kwargs):
+        """
+        Add a loopback interface to a single node engine. 
+        
+        :param str address: IP for loopback
+        :param str network_value: network cidr for address
+        :param str nodeid: nodeid for this engine. Will always
+            be 1.
+        :param str ospf_area: optional OSPF area for this loopback
+        :raises EngineCommandFailed: failed creating loopback
+        """
+        if len(self._engine.nodes) == 1:
+            lb = LoopbackNodeInterface.create(
+                address, nodeid, ospf_area, **kwargs)
+            
+            node = self._engine.nodes[0]
+            if LoopbackNodeInterface.typeof in node.data:
+                node.data[LoopbackNodeInterface.typeof].append(lb)
+            else:
+                node.data.update(
+                    {LoopbackNodeInterface.typeof: [lb]})
+            
+            node.update()
+        
+        else:
+            raise EngineCommandFailed('Engine has multiple nodes, use '
+                'add_to_cluster_nodes when adding loopback interfaces '
+                'to clusters, or add a loopback CVI')
+            
+    def add_to_cluster_nodes(self, nodes, ospf_area=None):
+        """
+        Add loopback interfaces to a cluster. When adding a loopback on a
+        cluster, every cluster node must have a loopback defined or you
+        can optionally configure a loopback CVI address.
+        
+        Nodes should be in the format::
+        
+            {'address': '127.0.0.10', 'nodeid': 1,
+             'address': '127.0.0.11', 'nodeid': 2}
+             
+        :param dict nodes: nodes defintion for cluster nodes
+        :param str ospf_area: optional OSPF area for this loopback
+        :raises EngineCommandFailed: failed creating loopback
+        """
+        pass
+    
+    def add_cluster_virtual(self, address, igmp_mode=None, ospf_area=None,
+            auth_request=False, relayed_by_dhcp=False, **kw):
+        """
+        Add a loopback interface as a cluster virtual loopback. This enables
+        the loopback to 'float' between cluster members. Otherwise assign a
+        unique loopback address per cluster node.
+        
+        """
+        lb = LoopbackClusterVirtualInterface.create(
+            address, igmp_mode=igmp_mode, ospf_area=ospf_area,
+            auth_request=auth_request, relayed_by_dhcp=relayed_by_dhcp,
+            **kw)
+        
+        if getattr(self._engine, LoopbackClusterVirtualInterface.typeof):
+            self._engine.data[LoopbackClusterVirtualInterface.typeof].append(lb)
+        else:
+            self._engine.data.update(
+                {LoopbackClusterVirtualInterface.typeof: [lb]})
+        
+        self._engine.update()
+
+                
+class LoopbackNodeInterface(LoopbackInterface):
+    typeof = 'loopback_node_dedicated_interface'
+    
+    def __init__(self, data, **kw):
+        super(LoopbackNodeInterface, self).__init__(data, **kw)
+    
+    @classmethod
+    def create(cls, address, nodeid=1, ospf_area=None, **kwargs):
+        data = {'address': address,
+                'network_value': '{}/32'.format(address),
+                'nicid': 'Loopback Interface',
+                'ospfv2_area_ref': element_resolver(ospf_area) if \
+                    ospf_area else None,
+                'nodeid': nodeid }
+
+        for k, v in kwargs.items():
+            data.update({k: v})
+    
+        return data
+           
+    def __repr__(self):
+        return '{}(address={}, nodeid={})'.format(
+            self.__class__.__name__, self.address, self.nodeid)
+
+        
+class LoopbackClusterVirtualInterface(LoopbackInterface):
+    typeof = 'loopback_cluster_virtual_interface'
+    
+    def __init__(self, data, **kw):
+        super(LoopbackClusterVirtualInterface, self).__init__(data, **kw)
+    
+    @classmethod
+    def create(cls, address, igmp_mode=None, ospf_area=None,
+               auth_request=False, relayed_by_dhcp=False, **kw):
+        
+        data = {'address': address,
+                'network_value': '{}/32'.format(address),
+                'nicid': 'Loopback Interface',
+                'ospfv2_area_ref': element_resolver(ospf_area) if ospf_area else None,
+                'igmp_mode': igmp_mode,
+                'auth_request': auth_request,
+                'relayed_by_dhcp': relayed_by_dhcp}
+
+        for k, v in kw.items():
+            data.update({k: v})
+    
+        return data
+
+    def __repr__(self):
+        return '{}(address={}, auth_request={})'.format(
+            self.__class__.__name__, self.address, self.auth_request)
+            
+'''
 class LoopbackInterface(object):
     @classmethod
     def create(cls, address, network_value, **kwargs):
@@ -38,9 +228,9 @@ class LoopbackInterface(object):
             data.update({k: v})
         
         return data
-
+'''
             
-class ClusterVirtualInterface(object):
+class ClusterVirtualInterface(SubInterface):
     """
     ClusterVirtualInterface
     These interfaces (CVI) are used on cluster devices and applied to layer 3
@@ -60,7 +250,7 @@ class ClusterVirtualInterface(object):
     typeof = 'cluster_virtual_interface'
 
     def __init__(self, data):
-        self.__dict__ = data
+        super(ClusterVirtualInterface, self).__init__(data)
 
     @classmethod
     def create(cls, interface_id, address, network_value,
@@ -82,10 +272,6 @@ class ClusterVirtualInterface(object):
         return cls(data)
 
     @property
-    def data(self):
-        return {self.typeof: self.__dict__}
-
-    @property
     def vlan_id(self):
         """
         VLAN ID for this interface, if any
@@ -98,9 +284,6 @@ class ClusterVirtualInterface(object):
             v = nicid.split('.')
             if len(v) > 1:
                 return nicid.split('.')[1]
-    
-    def __getattr__(self, attr):
-        return None
 
     def __repr__(self):
         if self.vlan_id:
@@ -111,7 +294,7 @@ class ClusterVirtualInterface(object):
                 self.__class__.__name__, self.address)
 
 
-class InlineInterface(object):
+class InlineInterface(SubInterface):
     """
     InlineInterface
     This interface type is used on layer 2 or IPS related engines. It requires
@@ -131,7 +314,7 @@ class InlineInterface(object):
     typeof = 'inline_interface'
 
     def __init__(self, data):
-        self.__dict__ = data
+        super(InlineInterface, self).__init__(data)
 
     @classmethod
     def create(cls, interface_id, logical_interface_ref,
@@ -151,11 +334,7 @@ class InlineInterface(object):
             data.update({k: v})
 
         return cls(data)
-        
-    @property
-    def data(self):
-        return {self.typeof: self.__dict__}
-    
+
     @property
     def vlan_id(self):
         """
@@ -171,9 +350,6 @@ class InlineInterface(object):
                 if vlan.split('.')[-1] not in u:
                     u.append(vlan.split('.')[-1])
             return '-'.join(u)
-
-    def __getattr__(self, attr):
-        return None
 
     def __repr__(self):
         return '{0}(nicid={1})'.format(
@@ -212,7 +388,7 @@ class InlineL2FWInterface(InlineInterface):
         super(InlineL2FWInterface, self).__init__(data)
         
 
-class CaptureInterface(object):
+class CaptureInterface(SubInterface):
     """
     Capture Interface (SPAN)
     This is a single physical interface type that can be installed on either
@@ -227,8 +403,8 @@ class CaptureInterface(object):
     typeof = 'capture_interface'
 
     def __init__(self, data):
-        self.__dict__ = data
-
+        super(CaptureInterface, self).__init__(data)
+        
     @classmethod
     def create(cls, interface_id, logical_interface_ref, **kwargs):
         """
@@ -247,23 +423,16 @@ class CaptureInterface(object):
         return cls(data)
 
     @property
-    def data(self):
-        return {self.typeof: self.__dict__}
-
-    @property
     def vlan_id(self):
         if '.' in self.nicid:
             return self.nicid.split('.')[-1]
-    
-    def __getattr__(self, attr):
-        return None
 
     def __repr__(self):
         return '{0}(nicid={1})'.format(
             self.__class__.__name__, self.nicid)
 
 
-class NodeInterface(object):
+class NodeInterface(SubInterface):
     """
     Node Interface
     Node dedicated interface (NDI) is used on specific engine types and represents
@@ -312,7 +481,7 @@ class NodeInterface(object):
     typeof = 'node_interface'
 
     def __init__(self, data):
-        self.__dict__ = data
+        super(NodeInterface, self).__init__(data)
 
     @classmethod
     def create(cls, interface_id, address, network_value,
@@ -340,10 +509,6 @@ class NodeInterface(object):
         return cls(data)
 
     @property
-    def data(self):
-        return {self.typeof: self.__dict__}
-
-    @property
     def vlan_id(self):
         """
         VLAN ID for this interface, if any
@@ -356,9 +521,6 @@ class NodeInterface(object):
             v = nicid.split('.')
             if len(v) > 1:
                 return nicid.split('.')[1]
-
-    def __getattr__(self, attr):
-        return None
 
     def __repr__(self):
         if self.vlan_id:
@@ -382,7 +544,6 @@ class SingleNodeInterface(NodeInterface):
 
     def __init__(self, data):
         super(SingleNodeInterface, self).__init__(data)
-        pass
 
     @classmethod
     def create(cls, interface_id, address, network_value,
@@ -465,4 +626,16 @@ def _add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):
     vals.update(nicid=nicid)
     return inline_intf
 
-clsmembers = inspect.getmembers(sys.modules[__name__], inspect.isclass)
+
+def inheritors(klass):
+    subclasses = {}
+    work = [klass]
+    while work:
+        parent = work.pop()
+        for child in parent.__subclasses__():
+            if child.typeof not in subclasses:
+                subclasses[child.typeof] = child
+                work.append(child)
+    return subclasses
+
+clsmembers = inheritors(SubInterface)

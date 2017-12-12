@@ -130,6 +130,9 @@ from smc.api.exceptions import CreateElementFailed, CreateVPNFailed
 
 
 class RouteVPN(Element):
+    """
+    Route based VPN in NGFW.
+    """
     typeof = 'rbvpn_tunnel'
     
     def __init__(self, name, **meta):

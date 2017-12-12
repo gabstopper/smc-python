@@ -7,8 +7,8 @@ from smc.api.exceptions import UnsupportedEngineFeature,\
     SMCConnectionError, CertificateError, CreateElementFailed
 from smc.core.node import Node
 from smc.core.resource import Snapshot, PendingChanges
-from smc.core.interfaces import PhysicalInterface, \
-    VirtualPhysicalInterface, TunnelInterface, Interface
+from smc.core.interfaces import InterfaceCollection, InterfaceOptions,\
+    LoopbackCollection
 from smc.administration.tasks import TaskOperationPoller
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
@@ -25,6 +25,7 @@ from smc.base.collection import create_collection, sub_collection
 from smc.base.util import element_resolver
 from smc.administration.access_rights import AccessControlList
 from smc.base.decorators import cached_property, cacheable_resource
+from smc.administration.certificates.vpn import GatewayCertificate
 
 
 class Engine(AddOn, Element):
@@ -206,9 +207,10 @@ class Engine(AddOn, Element):
         :return: None
         """
         for node in self.nodes:
+            print("Before: %s, %s" % (vars(node), vars(node._engine)))
             node.rename(name)
+            print("After: %s, %s" % (vars(node), vars(node._engine)))
         # Flush cache to force refresh
-        self._del_cache()
         self.update(name=name)
         self.vpn.internal_gateway.rename(name)
     
@@ -217,7 +219,8 @@ class Engine(AddOn, Element):
         """
         Log server for this engine.
 
-        :return: :class:`smc.elements.servers.LogServer`
+        :return: The specified log server
+        :rtype: LogServer
         """
         return Element.from_href(self.log_server_ref)
     
@@ -245,6 +248,8 @@ class Engine(AddOn, Element):
         NAT without the requirement to add specific NAT rules. This is a
         more common configuration for outbound traffic. Inbound traffic
         will still require specific NAT rules for redirection.
+        
+        :rtype: DefaultNAT
         """
         if 'default_nat' in self.data:
             return DefaultNAT(self)
@@ -271,7 +276,7 @@ class Engine(AddOn, Element):
         :rtype: DNSAddress
         """
         return DNSAddress(self)
-    
+
     @property
     def antivirus(self):
         """
@@ -317,7 +322,8 @@ class Engine(AddOn, Element):
         Get current status::
         
             engine.sidewinder_proxy.status
-            
+        
+        :raises UnsupportedEngineFeature: requires layer 3 engine    
         :rtype: SidewinderProxy
         """
         if 'sidewinder_proxy_enabled' in self.data:
@@ -333,6 +339,7 @@ class Engine(AddOn, Element):
         
             engine.url_filtering.status
         
+        :raises UnsupportedEngineFeature: not supported on virtual engines
         :rtype: UrlFiltering
         """
         if not self.type.startswith('virtual'):
@@ -348,6 +355,9 @@ class Engine(AddOn, Element):
         Get current status::
         
             engine.sandbox.status
+        
+        :raises UnsupportedEngineFeature: not supported on virtual engine
+        :rtype: Sandbox
         """    
         if not self.type.startswith('virtual'):
             return Sandbox(self)
@@ -412,6 +422,7 @@ class Engine(AddOn, Element):
         a layer 2 interface policy is assigned to the engine and that
         inline_l2fw interfaces are created. 
         
+        :raises UnsupportedEngineFeature: requires layer 3 engine
         :rtype: Layer2Settings
         """
         if 'l2fw_settings' in self.data:
@@ -433,7 +444,7 @@ class Engine(AddOn, Element):
         :return: nodes for this engine
         :rtype: list(Node)
         """
-        return Node._load(self.data.get('nodes', []))
+        return Node._load(self)
 
     @property
     def permissions(self):
@@ -449,6 +460,7 @@ class Engine(AddOn, Element):
             AccessControlList(name=ALL Elements)
             AccessControlList(name=ALL Firewalls)
 
+        :raises UnsupportedEngineFeature: requires SMC version >= 6.1
         :return: access control list permissions
         :rtype: list(AccessControlList)
         """
@@ -776,6 +788,24 @@ class Engine(AddOn, Element):
             self.read_cmd(resource='contact_addresses'))
 
     @property
+    def interface_options(self):
+        """
+        Interface options specify settings related to setting primary/
+        backup management, outgoing, and primary/backup heartbeat
+        interfaces. For example, set primary management interface
+        (this unsets it from the currently assigned interface)::
+        
+            engine.interface_options.set_primary_mgt(10)
+        
+        Obtain the primary management interface::
+        
+            print(engine.interface_options.primary_mgt)
+        
+        :rtype: InterfaceOptions
+        """
+        return InterfaceOptions(self)
+    
+    @property
     def interface(self):
         """
         Get all interfaces, including non-physical interfaces such
@@ -786,13 +816,11 @@ class Engine(AddOn, Element):
             for interfaces in engine.interface.all():
                 ......
 
-        :rtype: Interface
+        :rtype: InterfaceCollection
 
         See :class:`smc.core.interfaces.Interface` for more info
         """
-        return Interface(
-            parent=self.data.get_link('interfaces'),
-            engine=self)
+        return InterfaceCollection(engine=self)
 
     @property
     def physical_interface(self):
@@ -804,12 +832,11 @@ class Engine(AddOn, Element):
             engine.physical_interface.add_layer3_interface(....)
 
         :raises UnsupportedInterfaceType: engine doesn't support this type
-        :rtype: PhysicalInterface
+        :rtype: InterfaceCollection
         """
         try:
-            return PhysicalInterface(
-                parent=self.data.get_link('physical_interface'),
-                engine=self)
+            return InterfaceCollection(
+                engine=self, rel='physical_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'Engine type: {} does not support the physical interface '
@@ -830,12 +857,11 @@ class Engine(AddOn, Element):
                 print(intf)
 
         :raises UnsupportedInterfaceType: virtual engines only
-        :rtype: VirtualPhysicalInterface
+        :rtype: InterfaceCollection
         """
         try:
-            return VirtualPhysicalInterface(
-                parent=self.data.get_link('virtual_physical_interface'),
-                engine=self)
+            return InterfaceCollection(
+                engine=self, rel='virtual_physical_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'Only virtual engines support the virtual physical '
@@ -847,17 +873,35 @@ class Engine(AddOn, Element):
         Get only tunnel interfaces for this engine node.
 
         :raises UnsupportedInterfaceType: layer 3 engine's only
-        :rtype: TunnelInterface
+        :rtype: InterfaceCollection
         """
         try:
-            return TunnelInterface(
-                parent=self.data.get_link('tunnel_interface'),
-                engine=self)
+            return InterfaceCollection(
+                engine=self, rel='tunnel_interface')
         except ResourceNotFound:
             raise UnsupportedInterfaceType(
                 'Tunnel interfaces are only supported on layer 3 single '
                 'engines or clusters; Engine type is: {}'.format(self.type))
 
+    @property
+    def loopback_interface(self):
+        """
+        Retrieve any loopback interfaces for this engine.
+        Loopback interfaces are only supported on layer 3 firewall types.
+        
+        Retrieve all loopback addresses::
+        
+            for loopback in engine.loopback_interface.all():
+                print(loopback)
+        
+        :raises UnsupportedInterfaceType: requires layer 3 firewalls
+        :rtype: LoopbackCollection
+        """
+        if self.type in ('single_fw', 'fw_cluster', 'virtual_fw'):
+            return LoopbackCollection(self)
+        raise UnsupportedInterfaceType(
+            'Loopback addresses are only supported on layer 3 firewall types')
+    
     @property
     def modem_interface(self):
         """
@@ -1122,32 +1166,41 @@ class VPN(object):
     @property
     def gateway_certificate(self):
         """
-        :return: list
+        A Gateway Certificate is used by the engine for securing
+        communications such as VPN. You can also check the expiration,
+        view the signing CA and renew the certificate from this element.
+        
+        :return: GatewayCertificate
+        :rtype: list
         """
-        return self.internal_gateway.read_cmd(resource='gateway_certificate')
+        return [GatewayCertificate(**cert)
+                for cert in self.internal_gateway.read_cmd(resource='gateway_certificate')]
 
-    @property
-    def gateway_certificate_request(self):
-        """
-        :return: list
-        """
-        return self.internal_gateway.read_cmd(resource='gateway_certificate_request')
-
-    def generate_certificate(self, certificate_request):
+    def generate_certificate(self, common_name, public_key_algorithm='rsa',
+            signature_algorithm='rsa_sha_512', key_length=2048,
+            signing_ca=None):
         """
         Generate an internal gateway certificate used for VPN on this engine.
         Certificate request should be an instance of VPNCertificate.
 
-        :param: VPNCertificate certificate_request: CSR generated to provide
-            a valid certificate
+        :param: str common_name: common name for certificate
+        :param str public_key_algorithm: public key type to use. Valid values
+            rsa, dsa, ecdsa.
+        :param str signature_algorithm: signature algorithm. Valid values
+            dsa_sha_1, dsa_sha_224, dsa_sha_256, rsa_md5, rsa_sha_1, rsa_sha_256,
+            rsa_sha_384, rsa_sha_512, ecdsa_sha_1, ecdsa_sha_256, ecdsa_sha_384,
+            ecdsa_sha_512. (Default: rsa_sha_512)
+        :param int key_length: length of key. Key length depends on the key
+            type. For example, RSA keys can be 1024, 2048, 3072, 4096. See SMC
+            documentation for more details.
+        :param str,VPNCertificateCA signing_ca: by default will use the
+            internal RSA CA
         :raises CertificateError: error generating certificate
-        :return: None
+        :return: GatewayCertificate
         """
-        self.internal_gateway.send_cmd(
-            CertificateError,
-            resource='generate_certificate',
-            json=vars(certificate_request))
-        
+        return GatewayCertificate._create(self, common_name, public_key_algorithm,
+            signature_algorithm, key_length, signing_ca)
+
 
 class InternalGateway(SubElement):
     """
@@ -1242,12 +1295,6 @@ class InternalGateway(SubElement):
         :return: list
         """
         return self.read_cmd(resource='gateway_certificate')
-
-    def gateway_certificate_request(self):
-        """
-        :return: list
-        """
-        return self.read_cmd(resource='gateway_certificate_request')
 
     def generate_certificate(self, certificate_request):
         """

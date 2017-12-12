@@ -531,7 +531,6 @@ def get_api_version(base_url, api_version=None, timeout=10, verify=True):
     versions = available_api_versions(base_url, timeout, verify)
     
     newest_version = max([float(i) for i in versions])
-    
     if api_version is None:  # Use latest
         api_version = newest_version
     else:
