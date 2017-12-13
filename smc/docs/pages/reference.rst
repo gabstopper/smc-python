@@ -78,7 +78,7 @@ TLSServerCredential
 *******************
 
 .. automodule:: smc.administration.certificates.tls
-	:members: TLSServerCredential
+	:members:
 	:show-inheritance:
 
 Domains

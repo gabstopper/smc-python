@@ -113,7 +113,7 @@ class Node(SubElement):
         :rtype: list(LoopbackNodeInterface)
         """
         for lb in self.data.get('loopback_node_dedicated_interface', []):
-            yield LoopbackNodeInterface(lb, parent=self)
+            yield LoopbackNodeInterface(lb)
         
     def fetch_license(self):
         """

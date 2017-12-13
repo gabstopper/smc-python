@@ -15,10 +15,10 @@ CERT_TYPES = (b'PRIVATE KEY', b'RSA PRIVATE KEY', b'CERTIFICATE')
     
 _PEM_RE = re.compile(b"-----BEGIN (" + b"|".join(CERT_TYPES) + \
     b""")-----\r?.+?\r?-----END \\1-----\r?\n?""", re.DOTALL)
-    
+
     
 def pem_as_string(cert):
-    cert = cert.encode('ascii') if isinstance(cert, unicode) else cert
+    cert = cert.encode('utf-8') if isinstance(cert, unicode) else cert
     if re.match(_PEM_RE, cert):
         return True
     return False
@@ -82,6 +82,7 @@ class ImportExportCertificate(object):
         format. If filename is provided, the certificate will also be saved
         to the file specified.
         
+        :raises CertificateExportError: error exporting certificate
         :rtype: str or None
         """
         result = self.read_cmd(
@@ -117,6 +118,8 @@ class ImportExportIntermediate(object):
         string format. If filename is provided, the certificate will also be
         saved to the file specified.
         
+        :raises CertificateExportError: error exporting certificate, can occur
+            if no intermediate certificate is available.
         :rtype: str or None
         """
         result = self.read_cmd(

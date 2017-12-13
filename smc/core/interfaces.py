@@ -31,7 +31,7 @@ from smc.core.sub_interfaces import (
     NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
     InlineInterface, CaptureInterface, _add_vlan_to_inline,
     get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface,
-    LoopbackInterface, LoopbackNodeInterface, LoopbackClusterVirtualInterface)
+    LoopbackNodeInterface, LoopbackClusterVirtualInterface)
 from smc.base.util import bytes_to_unicode
 from smc.base.decorators import deprecated
 from smc.elements.helpers import zone_helper, logical_intf_helper
@@ -1792,6 +1792,166 @@ class VirtualPhysicalInterface(PhysicalInterface):
         pass
 
 
+class LoopbackInterface(object):
+    def __init__(self, parent, loopback=None):
+        self._parent = parent
+        self._loopback = loopback
+    
+    def delete(self):
+        if isinstance(self, LoopbackClusterVirtualInterface):
+            engine = self._parent
+            engine.data[LoopbackClusterVirtualInterface.typeof] = \
+                [lb for lb in engine.loopback_cluster_virtual_interface
+                 if lb.get('address') != self.address]
+            engine.update()
+        else: 
+            node = self._parent
+            if len(node._engine.nodes) == 1:
+                node.data[LoopbackNodeInterface.typeof] = \
+                    [lb for lb in node.loopback_node_dedicated_interface
+                     if lb.get('address') != self.address]
+                node.update()
+            else: 
+                # For cluster loopbacks, deleting a single loopback
+                # will also delete the peer member entries by the rank
+                # field. In case delete is done in a loop, check that
+                # the loopback exists in the engine reference or noop
+                if any(lb for n in node._engine.nodes
+                       for lb in n.loopback_node_dedicated_interface
+                       if lb.get('address') == self.address):
+                        
+                    nodes = []
+                    for _node in node._engine.nodes:
+                        _node.data[LoopbackNodeInterface.typeof] = \
+                            [lb for lb in _node.loopback_node_dedicated_interface
+                             if lb.get('rank') != self.rank]
+                        nodes.append({_node.type: _node.data})
+            
+                    node._engine.data['nodes'] = nodes
+                    node._engine.update()        
+                
+    def add(self, address, nodeid=1, ospf_area=None, **kwargs):
+        """
+        Add a loopback interface to a single node engine. 
+        
+        :param str address: IP for loopback
+        :param str network_value: network cidr for address
+        :param str nodeid: nodeid for this engine. Will always
+            be 1.
+        :param str ospf_area: optional OSPF area for this loopback
+        :raises EngineCommandFailed: failed creating loopback
+        """
+        if len(self._engine.nodes) == 1:
+            lb = LoopbackNodeInterface.create(
+                address, nodeid, ospf_area, **kwargs)
+            
+            node = self._engine.nodes[0]
+            if LoopbackNodeInterface.typeof in node.data:
+                node.data[LoopbackNodeInterface.typeof].append(lb)
+            else:
+                node.data.update(
+                    {LoopbackNodeInterface.typeof: [lb]})
+            
+            node.update()
+        
+        else:
+            raise EngineCommandFailed('Engine has multiple nodes, use '
+                'add_to_cluster_nodes when adding loopback interfaces '
+                'to clusters, or add a loopback CVI')
+            
+    def add_cluster_node_loopback(self, nodes, ospf_area=None):
+        """
+        Add loopback interfaces to a cluster. When adding a loopback on a
+        cluster, every cluster node must have a loopback defined or you
+        can optionally configure a loopback CVI address.
+        
+        Nodes should be in the format::
+        
+            {'address': '127.0.0.10', 'nodeid': 1,
+             'address': '127.0.0.11', 'nodeid': 2}
+             
+        :param dict nodes: nodes defintion for cluster nodes
+        :param str ospf_area: optional OSPF area for this loopback
+        :raises EngineCommandFailed: failed creating loopback
+        """
+        pass
+    
+    def add_cluster_virtual_loopback(self, address, igmp_mode=None, ospf_area=None,
+            auth_request=False, relayed_by_dhcp=False, **kw):
+        """
+        Add a loopback interface as a cluster virtual loopback. This enables
+        the loopback to 'float' between cluster members. Otherwise assign a
+        unique loopback address per cluster node.
+        
+        """
+        lb = LoopbackClusterVirtualInterface.create(
+            address, igmp_mode=igmp_mode, ospf_area=ospf_area,
+            auth_request=auth_request, relayed_by_dhcp=relayed_by_dhcp,
+            **kw)
+        
+        if getattr(self._engine, LoopbackClusterVirtualInterface.typeof):
+            self._engine.data[LoopbackClusterVirtualInterface.typeof].append(lb)
+        else:
+            self._engine.data.update(
+                {LoopbackClusterVirtualInterface.typeof: [lb]})
+        
+        self._engine.update()
+    
+
+class LoopbackCollection(object):
+    """
+    Loopback interfaces can be configured on layer 3 engine types
+    and used as endpoints for authentication requests and outgoing
+    settings within interface options. You can also assign a dynamic
+    routing element to a loopback interface.
+    
+    All loopback interfaces can be fetched from the engine::
+    
+        >>> engine = Engine('fwcluster')
+        >>> for lb in engine.loopback_interface:
+        ...   lb
+        ... 
+        LoopbackClusterVirtualInterface(address=127.0.0.2, auth_request=False)
+        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
+        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
+    
+    Or directly from the nodes::
+    
+        >>> for node in engine.nodes:
+        ...   for lb in node.loopback_interface:
+        ...     lb
+        ... 
+        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
+        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
+    
+    """
+    def __init__(self, engine):
+        self._engine = engine
+    
+    def __iter__(self):
+        for cvi in self._engine.data.get('loopback_cluster_virtual_interface', []):
+            yield LoopbackInterface(self._engine, cvi)
+        
+        if self._engine.type in ('fw_cluster',):
+            yield None
+        else:
+            for node in self._engine.nodes:
+                for loopback in node.loopback_interface:
+                    yield LoopbackInterface(self._engine, loopback)
+    
+    def all(self):
+        return iter(self)
+    
+    #def __getattr__(self, key):
+        # Dispatch to instance methods but only for adding interfaces.
+        # Makes this work: engine.loopback_interface.add
+        #if key.startswith('add') and self.class_map.get(self._rel):
+        #    return getattr(self.class_map[self._rel](
+        #        href=self.href, engine=self._engine), key)
+        #raise AttributeError('Cannot proxy to given method: %s for the '
+        #    'following type: %s' % (key, self._rel))
+        
+
 class InterfaceCollection(object):
     """
     An interface collection provides top level search capabilities
@@ -1875,7 +2035,6 @@ class InterfaceCollection(object):
             ('Interface 1', [('10.0.0.254', '10.0.0.0/24', '1')])
             ('Interface 0', [('172.18.1.254', '172.18.1.0/24', '0')])
 
-        :raises FetchElementFailed: failure during query
         :return: list :py:class:`smc.elements.interfaces.Interface`
         """
         return iter(self)
@@ -1896,48 +2055,6 @@ class InterfaceCollection(object):
                 href=self.href, engine=self._engine), key)
         raise AttributeError('Cannot proxy to given method: %s for the '
             'following type: %s' % (key, self._rel))
-
-
-class LoopbackCollection(object):
-    """
-    Loopback interfaces can be configured on layer 3 engine types
-    and used as endpoints for authentication requests and outgoing
-    settings within interface options. You can also assign a dynamic
-    routing element to a loopback interface.
-    
-    All loopback interfaces can be fetched from the engine::
-    
-        >>> engine = Engine('fwcluster')
-        >>> for lb in engine.loopback_interface:
-        ...   lb
-        ... 
-        LoopbackClusterVirtualInterface(address=127.0.0.2, auth_request=False)
-        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
-        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
-    
-    Or directly from the nodes::
-    
-        >>> for node in engine.nodes:
-        ...   for lb in node.loopback_interface:
-        ...     lb
-        ... 
-        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
-        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
-    
-    """
-    def __init__(self, engine):
-        self._engine = engine
-    
-    def __iter__(self):
-        for cvi in self._engine.data.get('loopback_cluster_virtual_interface', []):
-            yield LoopbackClusterVirtualInterface(cvi, parent=self._engine)
-        
-        for node in self._engine.nodes:
-            for loopback in node.loopback_interface:
-                yield loopback
-    
-    def all(self):
-        return iter(self)
 
 
 import ipaddress

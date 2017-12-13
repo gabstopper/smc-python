@@ -813,7 +813,7 @@ class Engine(AddOn, Element):
         objects and can be used to load specific interfaces to modify, etc.
         ::
 
-            for interfaces in engine.interface.all():
+            for interfaces in engine.interface:
                 ......
 
         :rtype: InterfaceCollection
@@ -853,7 +853,7 @@ class Engine(AddOn, Element):
 
         To view all interfaces for a virtual engine::
 
-            for intf in engine.virtual_physical_interface.all():
+            for intf in engine.virtual_physical_interface:
                 print(intf)
 
         :raises UnsupportedInterfaceType: virtual engines only
@@ -891,7 +891,7 @@ class Engine(AddOn, Element):
         
         Retrieve all loopback addresses::
         
-            for loopback in engine.loopback_interface.all():
+            for loopback in engine.loopback_interface:
                 print(loopback)
         
         :raises UnsupportedInterfaceType: requires layer 3 firewalls

@@ -11,9 +11,21 @@ Once you have imported these certificates, you must then assign them to the
 relevant engines that will perform the decryption services. Lastly you will
 need a rule that enables HTTPS with decryption.
 
-Example of importing a pre-existing certificate and private key pair::
+First start by importing the TLS Server Credential class::
 
-    >> from smc.administration.certificates.tls import TLSServerCredential
+    >>> from smc.administration.certificates.tls import TLSServerCredential
+
+If you want to create a TLS Server Credential in steps, the process is as follows::
+
+    tls = TLSServerCredential.create(name)    # Create the certificate element
+    tls.import_certificate(certificate) # Import the certificate
+    tls.import_private_key(private_key) # Import the private key
+    tls.import_intermediate_certificate(intermediate) # Import intermediate certificate (optional)
+
+Otherwise, use helper methods that allow you to do this in a single step.
+    
+For example, creating the TLS credential from certificate files::
+
     >>> tls = TLSServerCredential.import_signed(
                   name='server.test.local',
                   certificate='/pathto/server.crt',
@@ -22,9 +34,21 @@ Example of importing a pre-existing certificate and private key pair::
     >>> tls
     TLSServerCredential(name=server.test.local)
 
-.. note:: Certificates can also be imported in string format and must start with the
-    -----BEGIN CERTIFICATE----- common syntax.
+.. note:: Certificate, private key and intermediate certificates can also be specified in raw
+    string format and must start with the BEGIN CERTIFICATE, etc common syntax.
 
+You can also import certificates from a certificate chain file. When doing so, the certificates
+are expected to be in the order: server certificate, intermediate/s, root certificate. You can
+optionally also add the private key to the chain file or provide it separately::
+
+    tls = TLSServerCredential.import_from_chain(
+        name='fromchain', certificate_file='/path/cert.chain',
+        private_key='/path/priv.key')
+        
+.. note:: If multiple intermediate certificates are added, only the first one is imported
+    into the TLS Server Credential. In addition, the root certificate is ignored and should
+    be imported using :meth:`TLSCertificateAuthority.create`.
+    
 It is also possible to create self signed certificates using the SMC CA::
 
     >>> tls = TLSServerCredential.create_self_signed(
@@ -49,6 +73,14 @@ Optionally export the request to a local file::
     >>> tls = TLSServerCredential.create_csr(
         name='public2.test.local', common_name='CN=public2.test.local')
     >>> tls.certificate_export(filename='public2.test.local.csr')
+    
+If you use an external CA for signing your certficiates, you can also import
+that as a TLS Certificate Authority. The link between the certificates and
+root CA will be made automatically::
+
+    TLSCertificateAuthority.create(
+        name='myrootca',
+        certificate='/path/to/cert/or/string')
 
 Once you have the TLS Server Credentials within SMC, you can then assign them to
 the relevant engines::
@@ -65,7 +97,8 @@ the relevant engines::
 """
 from smc.base.model import Element, ElementCreator
 from smc.administration.certificates.tls_common import ImportExportCertificate, \
-    ImportPrivateKey, ImportExportIntermediate, load_cert_chain
+    ImportPrivateKey, ImportExportIntermediate, load_cert_chain, pem_as_string
+from smc.api.exceptions import CertificateImportError, ActionCommandFailed
     
     
 class TLSCertificateAuthority(ImportExportCertificate, Element):
@@ -88,7 +121,7 @@ class TLSCertificateAuthority(ImportExportCertificate, Element):
     def create(cls, name, certificate):
         """
         Create a TLS CA. The certificate can be either a file with
-        the Root CA, or a string starting with -----BEGIN CERTIFICATE, etc.
+        the Root CA, or a string starting with BEGIN CERTIFICATE, etc.
         When creating a TLS CA, you must also import the CA certificate. Once
         the CA is created, it is possible to import a different certificate to
         map to the CA if necessary.
@@ -96,10 +129,13 @@ class TLSCertificateAuthority(ImportExportCertificate, Element):
         :param str name: name of root CA
         :param str,file certificate: The root CA contents
         :raises CreateElementFailed: failed to create the root CA
+        :raises ValueError: if loading from file and no certificates present
+        :raises IOError: cannot find specified file for certificate
         :rtype: TLSCertificateAuthority
         """
         json = {'name': name,
-                'certificate': certificate}
+                'certificate': certificate if pem_as_string(certificate) else \
+                    load_cert_chain(certificate)[0][1].decode('utf-8')}
         
         return ElementCreator(cls, json)
     
@@ -129,36 +165,22 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         super(TLSServerCredential, self).__init__(name, **meta)
     
     @classmethod
-    def create_self_signed(cls, name, common_name, public_key_algorithm='rsa',
-            signature_algorithm='rsa_sha_512', key_length=4096):
+    def create(cls, name):
         """
-        Create a self signed certificate. This is a convenience method that
-        first calls :meth:`~create_csr`, then calls :meth:`~self_sign` on the
-        returned TLSServerCredential object.
+        Create an empty certificate. This will only create the element
+        in the SMC and will then require that you import the server
+        certificate, intermediate (optional) and private key.
         
-        :param str name: name of TLS Server Credential
-        :param str rcommon_name: common name for certificate. An example
-            would be: "CN=CommonName,O=Organization,OU=Unit,C=FR,ST=PACA,L=Nice".
-            At minimum, a "CN" is required.
-        :param str public_key_algorithm: public key type to use. Valid values
-            rsa, dsa, ecdsa.
-        :param str signature_algorithm: signature algorithm. Valid values
-            dsa_sha_1, dsa_sha_224, dsa_sha_256, rsa_md5, rsa_sha_1, rsa_sha_256,
-            rsa_sha_384, rsa_sha_512, ecdsa_sha_1, ecdsa_sha_256, ecdsa_sha_384,
-            ecdsa_sha_512. (Default: rsa_sha_512)
-        :param int key_length: length of key. Key length depends on the key
-            type. For example, RSA keys can be 1024, 2048, 3072, 4096. See SMC
-            documentation for more details.
-        :raises CreateElementFailed: failed to create CSR
-        :raises ActionCommandFailed: Failure to self sign the certificate
+        .. seealso:: :meth:`~import_signed` and :meth:`~import_from_chain`.
+        
+        :raises CreateElementFailed: failed creating element
         :rtype: TLSServerCredential
         """
-        tls = TLSServerCredential.create_csr(name=name, common_name=common_name,
-            public_key_algorithm=public_key_algorithm, signature_algorithm=signature_algorithm,
-            key_length=key_length)
-        tls.self_sign()
-        return tls
-   
+        json = {'name': name,
+                'certificate_state': 'certificate'}
+        
+        return ElementCreator(cls, json)
+        
     @classmethod
     def create_csr(cls, name, common_name, public_key_algorithm='rsa',
                signature_algorithm='rsa_sha_512', key_length=4096):
@@ -192,6 +214,41 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         return ElementCreator(cls, json)
     
     @classmethod
+    def create_self_signed(cls, name, common_name, public_key_algorithm='rsa',
+            signature_algorithm='rsa_sha_512', key_length=4096):
+        """
+        Create a self signed certificate. This is a convenience method that
+        first calls :meth:`~create_csr`, then calls :meth:`~self_sign` on the
+        returned TLSServerCredential object.
+        
+        :param str name: name of TLS Server Credential
+        :param str rcommon_name: common name for certificate. An example
+            would be: "CN=CommonName,O=Organization,OU=Unit,C=FR,ST=PACA,L=Nice".
+            At minimum, a "CN" is required.
+        :param str public_key_algorithm: public key type to use. Valid values
+            rsa, dsa, ecdsa.
+        :param str signature_algorithm: signature algorithm. Valid values
+            dsa_sha_1, dsa_sha_224, dsa_sha_256, rsa_md5, rsa_sha_1, rsa_sha_256,
+            rsa_sha_384, rsa_sha_512, ecdsa_sha_1, ecdsa_sha_256, ecdsa_sha_384,
+            ecdsa_sha_512. (Default: rsa_sha_512)
+        :param int key_length: length of key. Key length depends on the key
+            type. For example, RSA keys can be 1024, 2048, 3072, 4096. See SMC
+            documentation for more details.
+        :raises CreateElementFailed: failed to create CSR
+        :raises ActionCommandFailed: Failure to self sign the certificate
+        :rtype: TLSServerCredential
+        """
+        tls = TLSServerCredential.create_csr(name=name, common_name=common_name,
+            public_key_algorithm=public_key_algorithm, signature_algorithm=signature_algorithm,
+            key_length=key_length)
+        try:
+            tls.self_sign()
+        except ActionCommandFailed:
+            tls.delete()
+            raise
+        return tls
+    
+    @classmethod
     def import_signed(cls, name, certificate, private_key, intermediate=None):
         """
         Import a signed certificate and private key file to SMC, and optionally
@@ -218,18 +275,19 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         :raises IOError: failure to find certificate files specified
         :rtype: TLSServerCredential
         """
-        json = {'name': name,
-                'certificate_state': 'certificate'}
-        
-        tls = ElementCreator(cls, json)
-        tls.import_certificate(certificate)
-        tls.import_private_key(private_key)
-        if intermediate is not None:
-            tls.import_intermediate_certificate(intermediate)
+        tls = TLSServerCredential.create(name)
+        try:
+            tls.import_certificate(certificate)
+            tls.import_private_key(private_key)
+            if intermediate is not None:
+                tls.import_intermediate_certificate(intermediate)
+        except CertificateImportError:
+            tls.delete()
+            raise
         return tls
     
     @classmethod
-    def import_from_chain(cls, certificate_file, private_key=None):
+    def import_from_chain(cls, name, certificate_file, private_key=None):
         """
         Import the server certificate, intermediate and optionally private
         key from a certificate chain file. The expected format of the chain
@@ -256,19 +314,44 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         .. warning:: A private key is required to create a valid TLS Server
             Credential.
         
+        :param str name: name of TLS Server Credential
+        :param str certificate_file:
         :raises IOError: error occurred reading or finding specified file
         :raises ValueError: Format issues with chain file or empty
+        :rtype: TLSServerCredential
         """
         contents = load_cert_chain(certificate_file)
+        for pem in list(contents):
+            if b'PRIVATE KEY' in pem[0]:
+                private_key = pem[1]
+                contents.remove(pem)
         
-        #if not any(c for c in contents if 'PRIVATE_KEY' in c[0]) and not private_key:
-        #    raise ValueError('Private key was not found in chain file and '
-        #        'was not provided. The private key is required to create a '
-        #        'TLS Server Credential.')
+        if not private_key:
+            raise ValueError('Private key was not found in chain file and '
+                'was not provided. The private key is required to create a '
+                'TLS Server Credential.')
+
+        if contents:
+            if len(contents) == 1:
+                certificate = contents[0][1]
+                intermediate = None
+            else:
+                certificate = contents[0][1]
+                intermediate = contents[1][1]
+        else:
+            raise ValueError('No certificates found in certificate chain file. Did you '
+                'provide only a private key?')
         
-        if len(contents) <= 2: # Contents will always be > 0
-            print("Server cert: %s", contents[0])
-        
+        tls = TLSServerCredential.create(name)
+        try:
+            tls.import_certificate(certificate)
+            tls.import_private_key(private_key)
+            if intermediate is not None:
+                tls.import_intermediate_certificate(intermediate)
+        except CertificateImportError:
+            tls.delete()
+            raise
+        return tls
     
     def self_sign(self):
         """
@@ -330,7 +413,7 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         :param str private_key_file: fully qualified to the private key file
         :raises CertificateImportError: failure during import
         :raises IOError: failure to find certificate files specified
-        :rtype ClientProtectionCA
+        :rtype: ClientProtectionCA
         """
         ca = ClientProtectionCA.create(name=name)
         ca.certificate_import(certificate_file)

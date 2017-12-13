@@ -60,22 +60,21 @@ exception for failure.
 
 Examples of creating elements are as follows::
 
-	>>> from smc.elements.network import Host, Network, AddressRange
+	>> from smc.elements.network import Host, Network, AddressRange
 	>>> host = Host.create(name='hostelement', address='1.1.1.1')
-	
-	>>> print(host)
-	http://1.1.1.1:8082/6.1/elements/host/62618
-	
-	>>> host = Host('hostelement')  #Load the element and check IP
-	>>> print(host.address)
-	1.1.1.1
-	
-	>>> Network.create(name='networkelement', ipv4_network='1.1.1.0/24', comment='foo')
-	'http://1.1.1.1:8082/6.1/elements/network/62619'
-	
-	>>> AddressRange.create(name='rangeelement', iprange='1.1.1.1-1.1.1.100')
-	'http://1.1.1.1:8082/6.1/elements/address_range/62620'
-	...
+	>>> host
+	Host(name=hostelement)
+	>>> host.address
+	u'1.1.1.1'
+	>>> network = Network.create(name='networkelement', ipv4_network='1.1.1.0/24', comment='mynet')
+	>>> network
+	Network(name=networkelement)
+	>>> network.ipv4_network
+	u'1.1.1.0/24'
+	>>> network.comment
+	u'mynet'
+	>>> AddressRange.create(name='myaddrrange', ip_range='1.1.1.1-1.1.1.10')
+	AddressRange(name=myaddrrange)
 
 Check the various reference documentation for defined elements supported.
 
