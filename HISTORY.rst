@@ -52,7 +52,7 @@ Release History
   the query: Host.objects.filter('myhost', case_sensitive=False). Default: case_sensitive=True.
 - Optimize retrieval of nodes by serializing engine node data versus making a call to the engine links. This eliminates
   the query to get the node links and a query for each node that needs to be operated on, or node payload required.
-- Add `smc.core.node.ApplianceInfo` and link on node to retrieve appliance related info::
+- Add `smc.core.node.ApplianceInfo` and link on node to retrieve appliance related info:
 	appliance = node.appliance_info()
 	...
 - GatewayTunnel implemented on PolicyVPN for setting preshared key, enabling/disabling specific tunnel endpoints
@@ -78,7 +78,7 @@ Release History
   and will be removed in the near future.
 - Added support for adding DNS Server entries to engines based on elements (previously only IP addresses were supported).
 - TLS Server Credentials supported for inbound SSL decryption, add to engine from engine.tls_inspection resource.
-- Add create_hook to ElementCreator to intercept json before submitting to SMC server. See :class:`smc.base.decorators.create_hook`
+- Add create_hook to ElementCreator to intercept json before submitting to SMC server. See smc.base.decorators.create_hook
   for more info.
 - Added engine.interface_options node for settings related to setting primary mgt, backup mgt, primary hearbeat, and backup heartbeat
   rather than having them nested on the PhysicalInterface. These can be called directly from the engine which removes ambiguity in how
