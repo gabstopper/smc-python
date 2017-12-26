@@ -57,7 +57,7 @@ class IPSRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('ips_ipv4_access_rules'),
+            self.get_relation('ips_ipv4_access_rules'),
             IPv4Layer2Rule)
 
     @property
@@ -75,7 +75,7 @@ class IPSRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('ips_ethernet_rules'),
+            self.get_relation('ips_ethernet_rules'),
             EthernetRule)
 
 
@@ -95,10 +95,6 @@ class IPSPolicy(IPSRule, Policy):
     :ivar ips_ethernet_rules: :py:class:`~IPSRule.ips_ethernet_rules`
     """
     typeof = 'ips_policy'
-
-    def __init__(self, name, **meta):
-        super(IPSPolicy, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, template):
@@ -142,9 +138,5 @@ class IPSTemplatePolicy(IPSRule, Policy):
             print(rule)
     """
     typeof = 'ips_template_policy'
-
-    def __init__(self, name, **meta):
-        super(IPSTemplatePolicy, self).__init__(name, **meta)
-        pass
 
     def upload(self): pass

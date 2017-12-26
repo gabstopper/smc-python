@@ -266,7 +266,7 @@ class TranslatedFilter(QueryFilter):
         This filter adds specified networks to a filter to check
         for inclusion.
         
-        :param str name of field to filter on. Taken from 'Show Filter
+        :param str field: name of field to filter on. Taken from 'Show Filter
             Expression' within SMC.
         :param list values: network definitions, in cidr format, i.e: 1.1.1.0/24.
         """
@@ -279,7 +279,7 @@ class TranslatedFilter(QueryFilter):
         Add an IP range network filter for relevant address fields.
         Range (between) filters allow only one range be provided.
         
-        :param str name of field to filter on. Taken from 'Show Filter
+        :param str field: name of field to filter on. Taken from 'Show Filter
             Expression' within SMC.
         :param list values: IP range values. Values would be a list of IP's
             separated by a '-', i.e. ['1.1.1.1-1.1.1.254']
@@ -295,7 +295,7 @@ class TranslatedFilter(QueryFilter):
         """
         An exact IPv4 address match on relevant address fields.
         
-        :param str name of field to filter on. Taken from 'Show Filter
+        :param str field: name of field to filter on. Taken from 'Show Filter
             Expression' within SMC.
         :param list values: value/s to add. If more than a single value is
             provided, the query is modified to use UNION vs. ==

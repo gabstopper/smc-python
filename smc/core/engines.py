@@ -1,8 +1,7 @@
-from smc.core.interfaces import extract_sub_interface, InterfaceBuilder
+from smc.core.interfaces import extract_sub_interface, InterfaceBuilder, LoopbackInterface
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
 from smc.base.model import ElementCreator
-from smc.core.sub_interfaces import LoopbackNodeInterface
 
 
 class Layer3Firewall(Engine):
@@ -17,10 +16,6 @@ class Layer3Firewall(Engine):
     Set additional constructor values as necessary.       
     """
     typeof = 'single_fw'
-
-    def __init__(self, name, **meta):
-        super(Layer3Firewall, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network,
@@ -206,9 +201,8 @@ class Layer3Firewall(Engine):
         builder.add_dhcp(dynamic_index, is_mgmt=primary_mgt)
         builder.zone = zone_ref
         
-        loopback = LoopbackNodeInterface.create(
+        loopback = LoopbackInterface.create(
             address=loopback_ndi, 
-            network_value=loopback_ndi_network, 
             nodeid=1, 
             auth_request=True, 
             rank=1)
@@ -216,7 +210,7 @@ class Layer3Firewall(Engine):
         engine = super(Layer3Firewall, cls)._create(
             name=name,
             node_type='firewall_node',
-            loopback_ndi=[loopback],
+            loopback_ndi=[loopback.data],
             physical_interfaces=[{'physical_interface': builder.data}],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
@@ -243,10 +237,6 @@ class Layer2Firewall(Engine):
                                        mgmt_network='1.1.1.0/24')
     """
     typeof = 'single_layer2'
-
-    def __init__(self, name, **meta):
-        super(Layer2Firewall, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network,
@@ -310,10 +300,6 @@ class IPS(Engine):
     Creates an IPS engine with a default inline interface pair
     """
     typeof = 'single_ips'
-
-    def __init__(self, name, **meta):
-        super(IPS, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network,
@@ -391,10 +377,6 @@ class Layer3VirtualEngine(Engine):
     """
     typeof = 'virtual_fw'
 
-    def __init__(self, name, **meta):
-        super(Layer3VirtualEngine, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, master_engine, virtual_resource,
                interfaces, default_nat=False, outgoing_intf=0,
@@ -437,10 +419,8 @@ class Layer3VirtualEngine(Engine):
             # set auth request and outgoing on one of the interfaces
             if interface.get('interface_id') == outgoing_intf:
                 intf = extract_sub_interface(builder.data)
-                intf.outgoing = True
-                intf.auth_request = True
+                intf.update(outgoing=True, auth_request=True)
                 
-            # new_interfaces.append(physical())
             new_interfaces.append({'virtual_physical_interface': builder.data})
 
             engine = super(Layer3VirtualEngine, cls)._create(
@@ -474,10 +454,6 @@ class FirewallCluster(Engine):
     :func:`smc.core.interfaces.PhysicalInterface.add_cluster_virtual_interface`
     """
     typeof = 'fw_cluster'
-
-    def __init__(self, name, **meta):
-        super(FirewallCluster, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, cluster_virtual, cluster_mask,
@@ -549,10 +525,6 @@ class MasterEngine(Engine):
     """
     typeof = 'master_engine'
 
-    def __init__(self, name, **meta):
-        super(MasterEngine, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, master_type, mgmt_ip, mgmt_network,
                mgmt_interface=0,
@@ -608,10 +580,6 @@ class MasterEngineCluster(Engine):
     """
     typeof = 'master_engine'
     
-    def __init__(self, name, **meta):
-        super(MasterEngineCluster, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, master_type, macaddress,
                nodes, mgmt_interface=0, log_server_ref=None,

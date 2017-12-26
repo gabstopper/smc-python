@@ -71,7 +71,7 @@ class Layer2Rule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('layer2_ipv4_access_rules'),
+            self.get_relation('layer2_ipv4_access_rules'),
             IPv4Layer2Rule)
 
     @property
@@ -92,7 +92,7 @@ class Layer2Rule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('layer2_ethernet_rules'),
+            self.get_relation('layer2_ethernet_rules'),
             EthernetRule)
 
 
@@ -112,10 +112,6 @@ class Layer2Policy(Layer2Rule, Policy):
     :ivar layer2_ethernet_rules: :py:class:`~Layer2Rule.layer2_ethernet_rules`
     """
     typeof = 'layer2_policy'
-
-    def __init__(self, name, **meta):
-        super(Layer2Policy, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, template):
@@ -173,9 +169,5 @@ class Layer2TemplatePolicy(Layer2Rule, Policy):
             print rule
     """
     typeof = 'layer2_template_policy'
-
-    def __init__(self, name, **meta):
-        super(Layer2TemplatePolicy, self).__init__(name, **meta)
-        pass
 
     def upload(self): pass  # Not supported on the template

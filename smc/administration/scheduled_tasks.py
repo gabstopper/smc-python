@@ -89,7 +89,7 @@ date::
 """
 
 from smc.base.model import Element, SubElement, ElementCreator
-from smc.api.exceptions import ActionCommandFailed, ResourceNotFound
+from smc.api.exceptions import ActionCommandFailed
 from smc.administration.tasks import Task
 from smc.elements.servers import ManagementServer, LogServer
 from smc.core.engines import MasterEngine
@@ -178,8 +178,6 @@ class TaskSchedule(SubElement):
     :ivar str minute_period: if day_period is set to hourly, when to run
         within the hour.
     """
-    def __init__(self, **meta):
-        super(TaskSchedule, self).__init__(**meta)
     
     @property
     def activated(self):
@@ -215,13 +213,14 @@ class TaskSchedule(SubElement):
                 else:
                     scheduler.activate()
         """
-        try:
-            self.upd_cmd(
+        if 'activate' in self.data.links:
+            self.make_request(
                 ActionCommandFailed,
+                method='update',
                 etag=self.etag,
                 resource='activate')
             self._del_cache()
-        except ResourceNotFound:
+        else:
             raise ActionCommandFailed('Task is already activated. To '
                 'suspend, call suspend() on this task schedule')
             
@@ -229,19 +228,20 @@ class TaskSchedule(SubElement):
         """
         Suspend this scheduled task.
         
-        :raises ActionCommandFailed: failed to suspend, already suspended
+        :raises ActionCommandFailed: failed to suspend, already suspended. Call
+            activate on this task to reactivate.
         :return: None
         """
-        try:
-            self.upd_cmd(
+        if 'suspend' in self.data.links:
+            self.make_request(
                 ActionCommandFailed,
+                method='update',
                 etag=self.etag,
                 resource='suspend')
             self._del_cache()
-        except ResourceNotFound:
-            raise ActionCommandFailed('Task is already in suspend status. To '
-                'reactivate, call activate() on this task schedule')
-        
+        else:
+            raise ActionCommandFailed('Task is already suspended. Call activate '
+                'to reactivate.')
             
 class ScheduledTaskMixin(object):
     """
@@ -256,8 +256,9 @@ class ScheduledTaskMixin(object):
         :return: return as a generic Task
         :rtype: Task
         """
-        return Task(self.send_cmd(
+        return Task(self.make_request(
             ActionCommandFailed,
+            method='create',
             resource='start'))
     
     @property
@@ -266,11 +267,12 @@ class ScheduledTaskMixin(object):
         Return any task schedules associated with this
         scheduled task.
         
+        :raises ActionCommandFailed: failure to retrieve task schedule
         :return: list of task schedules
         :rtype: TaskSchedule
         """
         return [TaskSchedule(**sched)
-                for sched in self.read_cmd(
+                for sched in self.make_request(
                 resource='task_schedule')]
     
     def add_schedule(self, name, activation_date, day_period='one_time',
@@ -320,8 +322,9 @@ class ScheduledTaskMixin(object):
             minute_period = minute_period if minute_period != 'one_time' else 'hourly'
             json['minute_period'] = minute_period
         
-        return self.send_cmd(
+        return self.make_request(
             ActionCommandFailed,
+            method='create',
             resource='task_schedule',
             json=json)
 
@@ -351,9 +354,6 @@ class RefreshPolicyTask(ScheduledTaskMixin, Element):
     """
     typeof = 'refresh_policy_task'
     
-    def __init__(self, name, **meta):
-        super(RefreshPolicyTask, self).__init__(name, **meta)
-
     @classmethod
     def create(cls, name, engines, comment=None,
                validate_policy=True, **kwargs):
@@ -403,9 +403,6 @@ class UploadPolicyTask(ScheduledTaskMixin, Element):
         by policy.upload('engine_name').
     """
     typeof = 'upload_policy_task'
-    
-    def __init__(self, name, **meta):
-        super(UploadPolicyTask, self).__init__(name, **meta)
         
     @classmethod
     def create(cls, name, engines, policy, comment=None,
@@ -450,9 +447,6 @@ class ValidatePolicyTask(ScheduledTaskMixin, Element):
     a future policy push.
     """
     typeof = 'validate_policy_task'
-    
-    def __init__(self, name, **meta):
-        super(ValidatePolicyTask, self).__init__(name, **meta)
     
     @classmethod
     def create(cls, name, engines, policy=None, comment=None, **kwargs):
@@ -505,9 +499,6 @@ class RefreshMasterEnginePolicyTask(ScheduledTaskMixin, Element):
     """
     typeof = 'refresh_master_and_virtual_policy_task'
     
-    def __init__(self, name, **meta):
-        super(RefreshMasterEnginePolicyTask, self).__init__(name, **meta)
-    
     @classmethod
     def create(cls, name, master_engines, comment=None):
         """
@@ -542,9 +533,6 @@ class DeleteLogTask(ScheduledTaskMixin, Element):
         for tasks, use the SMC UI.
     """
     typeof = 'delete_log_task'
-    
-    def __init__(self, name, **meta):
-        super(DeleteLogTask, self).__init__(name, **meta)
         
     @classmethod
     def create(cls, name, servers, time_range='yesterday', all_logs=False,
@@ -606,9 +594,6 @@ class ServerBackupTask(ScheduledTaskMixin, Element):
     """
     typeof = 'backup_task'
     
-    def __init__(self, name, **meta):
-        super(ServerBackupTask, self).__init__(name, **meta)
-    
     @classmethod
     def create(cls, name, servers, backup_log_data=False,
                encrypt_password=None, comment=None):
@@ -664,9 +649,6 @@ class SGInfoTask(ScheduledTaskMixin, Element):
     """
     typeof = 'sginfo_task'
     
-    def __init__(self, name, **meta):
-        super(SGInfoTask, self).__init__(name, **meta)
-    
     @classmethod
     def create(cls, name, engines, include_core_files=False,
                include_slapcat_output=False, comment=None):
@@ -702,9 +684,6 @@ class SystemSnapsotTask(ScheduledTaskMixin, Element):
     """
     typeof = 'create_system_snapshot_task'
     
-    def __init__(self, name, **meta):
-        super(SystemSnapsotTask, self).__init__(name, **meta)
-
     
 class DeleteOldRunTask(ScheduledTaskMixin, Element):
     """
@@ -713,9 +692,6 @@ class DeleteOldRunTask(ScheduledTaskMixin, Element):
     basis to purge the old task data.
     """
     typeof = 'delete_old_executed_task'
-    
-    def __init__(self, name, **meta):
-        super(DeleteOldRunTask, self).__init__(name, **meta)
 
 
 class DisableUnusedAdminTask(ScheduledTaskMixin, Element):
@@ -724,10 +700,7 @@ class DisableUnusedAdminTask(ScheduledTaskMixin, Element):
     used within the time set in the Administrator password policy.
     """
     typeof = 'disable_unused_admin_task'
-
-    def __init__(self, name, **meta):
-        super(DisableUnusedAdminTask, self).__init__(name, **meta)
-        
+    
 
 class DeleteOldSnapshotsTask(ScheduledTaskMixin, Element):
     """
@@ -736,9 +709,6 @@ class DeleteOldSnapshotsTask(ScheduledTaskMixin, Element):
     month, snapshots older than 1 month will be deleted.
     """
     typeof = 'delete_old_snapshots_task'
-    
-    def __init__(self, name, **meta):
-        super(DeleteOldSnapshotsTask, self).__init__(name, **meta)
 
 
 class RenewInternalCertificatesTask(ScheduledTaskMixin, Element):
@@ -748,9 +718,6 @@ class RenewInternalCertificatesTask(ScheduledTaskMixin, Element):
     """
     typeof = 'renew_internal_certificates_task'
 
-    def __init__(self, name, **meta):
-        super(RenewInternalCertificatesTask, self).__init__(name, **meta)
-
 
 class RenewGatewayCertificatesTask(ScheduledTaskMixin, Element):
     """
@@ -758,9 +725,6 @@ class RenewGatewayCertificatesTask(ScheduledTaskMixin, Element):
     gateways which have automatic certificate renewal enabled.
     """
     typeof = 'renew_gw_certificates_task'
-    
-    def __init__(self, name, **meta):
-        super(RenewGatewayCertificatesTask, self).__init__(name, **meta)
 
 
 class RenewInternalCATask(ScheduledTaskMixin, Element):
@@ -770,9 +734,6 @@ class RenewInternalCATask(ScheduledTaskMixin, Element):
     authorities.
     """
     typeof = 'renew_internal_ca_task'
-    
-    def __init__(self, name, **meta):
-        super(RenewInternalCATask, self).__init__(name, **meta)
 
 
 class FetchCertificateRevocationTask(ScheduledTaskMixin, Element):
@@ -781,6 +742,3 @@ class FetchCertificateRevocationTask(ScheduledTaskMixin, Element):
     revocation lists.
     """
     typeof = 'fetch_certificate_revocation_task'
-    
-    def __init__(self, name, **meta):
-        super(FetchCertificateRevocationTask, self).__init__(name, **meta)

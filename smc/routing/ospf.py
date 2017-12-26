@@ -218,10 +218,6 @@ class OSPFArea(Element):
     """
     typeof = 'ospfv2_area'
 
-    def __init__(self, name, **meta):
-        super(OSPFArea, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, interface_settings_ref=None, area_id=1,
                area_default_cost=100, area_type='normal',
@@ -300,10 +296,6 @@ class OSPFInterfaceSetting(Element):
     """
     typeof = 'ospfv2_interface_settings'
 
-    def __init__(self, name, **meta):
-        super(OSPFInterfaceSetting, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, dead_interval=40, hello_interval=10,
                hello_interval_type='normal', dead_multiplier=1,
@@ -367,10 +359,6 @@ class OSPFKeyChain(Element):
     """
     typeof = 'ospfv2_key_chain'
 
-    def __init__(self, name, **meta):
-        super(OSPFKeyChain, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, key_chain_entry):
         """
@@ -412,10 +400,6 @@ class OSPFProfile(Element):
 
     """
     typeof = 'ospfv2_profile'
-
-    def __init__(self, name, **meta):
-        super(OSPFProfile, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, domain_settings_ref=None, external_distance=110,
@@ -502,10 +486,6 @@ class OSPFDomainSetting(Element):
             deprecated_algorithm=True)
     """
     typeof = 'ospfv2_domain_settings'
-
-    def __init__(self, name, **meta):
-        super(OSPFDomainSetting, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, abr_type='cisco', auto_cost_bandwidth=100,

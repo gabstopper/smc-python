@@ -114,10 +114,6 @@ class IPPrefixList(PrefixList, Element):
     """
     typeof = 'ip_prefix_list'
 
-    def __init__(self, name, **meta):
-        super(IPPrefixList, self).__init__(name, **meta)
-        pass
-
 
 class IPv6PrefixList(PrefixList, Element):
     """
@@ -127,7 +123,3 @@ class IPv6PrefixList(PrefixList, Element):
     This represents IPv6 prefix lists
     """
     typeof = 'ipv6_prefix_list'
-
-    def __init__(self, name, **meta):
-        super(IPv6PrefixList, self).__init__(name, **meta)
-        pass

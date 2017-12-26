@@ -1,5 +1,5 @@
 from smc.policy.rule import Rule, RuleCommon
-from smc.base.model import Element, SubElement
+from smc.base.model import Element, SubElement, SubElementCreator
 from smc.policy.rule_elements import LogOptions, Destination
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
     CreateRuleFailed
@@ -446,10 +446,6 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
     """
     typeof = 'fw_ipv4_nat_rule'
 
-    def __init__(self, **meta):
-        super(IPv4NATRule, self).__init__(**meta)
-        pass
-
     def create(self, name, sources=None, destinations=None, services=None,
                dynamic_src_nat=None, dynamic_src_nat_ports=(1024, 65535),
                static_src_nat=None, static_dst_nat=None,
@@ -524,16 +520,11 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
 
         rule_values.update(used_on=used_on)
         
-        result = self.send_cmd(
+        return SubElementCreator(
+            self.__class__,
             CreateRuleFailed,
-            raw_result=True,
             href=self.href,
             json=rule_values)
-
-        return IPv4NATRule(
-            name=name,
-            href=result.href,
-            type=self.typeof)
 
 
 class IPv6NATRule(IPv4NATRule):
@@ -544,7 +535,3 @@ class IPv6NATRule(IPv4NATRule):
     being deployed to an engine and the rule will be ignored.
     """
     typeof = 'fw_ipv6_nat_rule'
-
-    def __init__(self, **meta):
-        super(IPv6NATRule, self).__init__(**meta)
-        pass

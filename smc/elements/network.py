@@ -30,9 +30,6 @@ class Host(Element):
     """
     typeof = 'host'
 
-    def __init__(self, name, **meta):
-        super(Host, self).__init__(name, **meta)
-        
     @classmethod
     def create(cls, name, address=None, ipv6_address=None,
                secondary=None, comment=None):
@@ -89,9 +86,6 @@ class AddressRange(Element):
         '10.10.10.1-10.10.10.10'
     """
     typeof = 'address_range'
-    
-    def __init__(self, name, **meta):
-        super(AddressRange, self).__init__(name, **meta)
         
     @classmethod
     def create(cls, name, ip_range, comment=None):
@@ -133,9 +127,6 @@ class Router(Element):
     """
     typeof = 'router'
 
-    def __init__(self, name, **meta):
-        super(Router, self).__init__(name, **meta)
-        
     @classmethod
     def create(cls, name, address=None, ipv6_address=None,
                secondary=None, comment=None):
@@ -190,9 +181,6 @@ class Network(Element):
     """
     typeof = 'network'
 
-    def __init__(self, name, **meta):
-        super(Network, self).__init__(name, **meta)
-        
     @classmethod
     def create(cls, name, ipv4_network=None, ipv6_network=None,
                comment=None):
@@ -231,9 +219,6 @@ class DomainName(Element):
     """
     typeof = 'domain_name'
 
-    def __init__(self, name, **meta):
-        super(DomainName, self).__init__(name, **meta)
-        
     @classmethod
     def create(cls, name, comment=None):
         """
@@ -273,9 +258,6 @@ class Expression(Element):
     """
     typeof = 'expression'
 
-    def __init__(self, name, **meta):
-        super(Expression, self).__init__(name, **meta)
-        
     @staticmethod
     def build_sub_expression(name, ne_ref=None, operator='union'):
         """
@@ -341,9 +323,6 @@ class URLListApplication(Element):
     """
     typeof = 'url_list_application'
 
-    def __init__(self, name, **meta):
-        super(URLListApplication, self).__init__(name, **meta)
-        
     @classmethod
     def create(cls, name, url_entry, comment=None):
         """
@@ -408,9 +387,6 @@ class IPList(Element):
     """
     typeof = 'ip_list'
 
-    def __init__(self, name, **meta):
-        super(IPList, self).__init__(name, **meta)
-        
     def download(self, filename=None, as_type='zip'):
         """
         Download the IPList. List format can be either zip, text or
@@ -434,7 +410,7 @@ class IPList(Element):
             elif as_type == 'json':
                 headers = {'accept': 'application/json'}
         
-            result = self.read_cmd(
+            result = self.make_request(
                 FetchElementFailed,
                 raw_result=True,
                 resource='ip_address_list',
@@ -470,8 +446,9 @@ class IPList(Element):
         elif as_type == 'txt':
             params = {'format': 'txt'}
 
-        self.send_cmd(
+        self.make_request(
             CreateElementFailed,
+            method='create',
             resource='ip_address_list',
             headers=headers, files=files, json=json,
             params=params)
@@ -540,8 +517,9 @@ class IPList(Element):
         if result and iplist is not None:
             element = IPList(name)
 
-            element.send_cmd(
+            element.make_request(
                 CreateElementFailed,
+                method='create',
                 resource='ip_address_list',
                 json={'ip': iplist})
     
@@ -561,9 +539,6 @@ class Zone(Element):
     """
     typeof = 'interface_zone'
     
-    def __init__(self, name, **meta):
-        super(Zone, self).__init__(name, **meta)
-        
     @classmethod
     def create(cls, name, comment=None):
         """
@@ -665,9 +640,9 @@ class Alias(Element):
         :rtype: list
         """
         if not self.resolved_value:
-            result = self.read_cmd(
+            result = self.make_request(
                 ElementNotFound,
-                href=self.data.get_link('resolve'),
+                href=self.get_relation('resolve'),
                 params={'for': engine})
 
             self.resolved_value = result.get('resolved_value')

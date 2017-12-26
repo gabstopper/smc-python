@@ -1,10 +1,13 @@
 from smc.base.model import Element, ElementCreator, SubDict
 from smc.api.exceptions import ElementNotFound
 from smc.base.util import element_resolver
-from smc.base.decorators import cacheable_resource
 
 
 class RuleElement(object):
+    """
+    Rule Element encapsulates actions for source, destination and 
+    service fields. 
+    """
     @property
     def is_any(self):
         """
@@ -638,7 +641,6 @@ class AuthenticationOptions(SubDict):
             auth = dict(
                 methods=[],
                 require_auth=False,
-                timeout=3600,
                 users=[])
         else: 
             auth = rule.data.get('authentication_options', {})
@@ -754,10 +756,6 @@ class MatchExpression(Element):
 
     """
     typeof = 'match_expression'
-
-    def __init__(self, name, **meta):
-        super(MatchExpression, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, user=None, network_element=None, domain_name=None,

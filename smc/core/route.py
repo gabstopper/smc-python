@@ -85,7 +85,7 @@ When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the 
 is updated immediately.
 """
 from collections import namedtuple
-from smc.base.model import SubElement, SimpleElement
+from smc.base.model import SubElement, ElementCache
 from smc.base.util import element_resolver
 
 
@@ -97,11 +97,11 @@ class Routing(SubElement):
     def __init__(self, data=None, **meta):
         super(Routing, self).__init__(**meta)
         if data is not None:
-            self.data = SimpleElement(**data)
+            self.data = ElementCache(**data)
             
     def __iter__(self):
         for node in self.data['routing_node']:
-            data = SimpleElement(**node)
+            data = ElementCache(**node)
             yield(Routing(
                     href=data.get_link('self'),
                     data=node))
@@ -503,11 +503,11 @@ class Antispoofing(SubElement):
     def __init__(self, data=None, **meta):
         super(Antispoofing, self).__init__(**meta)
         if data is not None:
-            self.data = SimpleElement(**data)
+            self.data = ElementCache(**data)
 
     def __iter__(self):
         for node in self.data['antispoofing_node']:
-            data = SimpleElement(**node)
+            data = ElementCache(**node)
             yield(Antispoofing(
                     href=data.get_link('self'),
                     data=node))
@@ -660,7 +660,6 @@ class PolicyRouteEntry(namedtuple(
     :param str comment: optional comment
     """
     __slots__ = ()
-    
     def __new__(cls, source, destination, gateway_ip, comment=None):  # @ReservedAssignment
         return super(PolicyRouteEntry, cls).__new__(
             cls, source, destination, gateway_ip, comment)

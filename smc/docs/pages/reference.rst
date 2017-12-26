@@ -472,24 +472,6 @@ TLSInspection
 .. autoclass:: smc.core.properties.TLSInspection
 	:members:
 
-Appliance Status
-++++++++++++++++
-
-.. autoclass:: smc.core.node.ApplianceStatus
-	:members:
-
-Interface Status
-****************
-
-.. autoclass:: smc.core.node.InterfaceStatus
-	:members:
-
-Hardware Status
-***************
-
-.. autoclass:: smc.core.node.HardwareStatus
-	:members:
-
 Dynamic Routing
 +++++++++++++++
 Represents classes responsible for configuring dynamic routing protocols
@@ -521,12 +503,6 @@ PrefixList
 
 General
 +++++++
-
-ContactAddress
-**************
-
-.. automodule:: smc.core.contact_address
-	:members: ContactAddress, InterfaceContactAddress
 
 DefaultNAT
 **********
@@ -638,7 +614,7 @@ Represents classes responsible for configuring interfaces on engines
 
 .. automodule:: smc.core.interfaces
 	:members: Interface
-	
+
 InterfaceCollection
 *******************
 
@@ -651,7 +627,25 @@ InterfaceOptions
 .. autoclass:: InterfaceOptions
     :members:
 
+LoopbackInterface
+*****************
 
+.. autoclass:: LoopbackInterface
+    :members:
+    :exclude-members: create
+    :show-inheritance:
+    
+.. autoclass:: LoopbackCollection
+	:members:
+
+LoopbackClusterInterface
+************************
+
+.. autoclass:: LoopbackClusterInterface
+    :members:
+    :exclude-members: create
+    :show-inheritance:
+    
 PhysicalInterface
 *****************
 
@@ -680,6 +674,12 @@ TunnelInterface
 .. autoclass:: TunnelInterface
     :members:
     :show-inheritance:
+
+ContactAddress
+**************
+
+.. automodule:: smc.core.contact_address
+	:members:
 
 Sub-Interface Types
 *******************
@@ -729,6 +729,45 @@ Node
    :members: Node
    :exclude-members: create
    :show-inheritance:
+
+Appliance Info
+**************
+
+.. autoclass:: smc.core.node.ApplianceInfo
+	:show-inheritance:
+
+Appliance Status
+****************
+
+.. autoclass:: smc.core.node.ApplianceStatus
+	:show-inheritance:
+
+Hardware Status
+***************
+
+.. autoclass:: smc.core.node.HardwareStatus
+	:members:
+
+.. autoclass:: smc.core.node.HardwareCollection
+	:members:
+	
+.. autoclass:: smc.core.node.Status
+	:show-inheritance:
+	
+Interface Status
+****************
+
+.. autoclass:: smc.core.node.InterfaceStatus
+	:members:
+
+.. autoclass:: smc.core.node.ImmutableInterface
+	:show-inheritance:
+
+Debug
+*****
+
+.. autoclass:: smc.core.node.Debug
+	:members:
 
 Pending Changes
 +++++++++++++++

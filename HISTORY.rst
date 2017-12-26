@@ -42,11 +42,12 @@ Release History
 - Sending empty payload on POST request with parameters might cause validation error. Do not submit empty
   dict with POST requests.
   
-0.5.7
+0.5.8
 -----
 
 **Improvements**
 
+- Support for SMC version 6.3.0, 6.3.1 and 6.3.2
 - Add ``case_sensitive`` key word to filtered queries. This requires SMC 6.3+. Set this as a kwarg when making
   the query: Host.objects.filter('myhost', case_sensitive=False). Default: case_sensitive=True.
 - Optimize retrieval of nodes by serializing engine node data versus making a call to the engine links. This eliminates
@@ -88,11 +89,10 @@ Release History
 - remove_vlan on interface no longer requires the interface reference, however now requires the interface context to run. Before:
   engine.physical_interface.remove_vlan(interface_id=100, vlan_id=1), now you need to load the interface, then delete the
   vlan: interface = engine.interface.get(100); interface.remove_vlan(1)
+- history property on Element added
   
-
-
  **Bugfixes**
  
- - If a search is provided in format: Host.objects.filter(address='1.1.1.1').first(), and the search returns meta, but the
+ - If a search is provided in format: Host.objects.filter(address='1.1.1.1').first(), and the search returns meta but the
    filtered results do not return a match, the method tries to pop from an empty list. Return None instead.
 

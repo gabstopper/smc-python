@@ -131,3 +131,17 @@ def exception(function):
             result.exception = exception[0]
         return result
     return wrapper
+
+
+def with_metaclass(mcls):
+    """
+    Metaclass class decorator for py2 and py3
+    """
+    def decorator(cls):
+        body = vars(cls).copy()
+        # clean out class body
+        body.pop('__dict__', None)
+        body.pop('__weakref__', None)
+        return mcls(cls.__name__, cls.__bases__, body)
+    return decorator
+

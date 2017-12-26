@@ -43,9 +43,6 @@ class ContactAddress(object):
 
 
 class ServerContactAddress(SubElement):
-    def __init__(self, **meta):
-        super(ServerContactAddress, self).__init__(**meta)
-
     def __iter__(self):
         if self.data:
             for contact in self.data['multi_contact_addresses']:
@@ -92,7 +89,7 @@ class ServerCommon(object):
         :rtype: list(ContactAddress)
         """
         contact = ServerContactAddress(
-            href=self.data.get_link('contact_addresses'))
+            href=self.get_relation('contact_addresses'))
         return [c for c in contact]
 
     def add_contact_address(self, contact_address, location):
@@ -109,7 +106,7 @@ class ServerCommon(object):
         :return: None
         """
         contact = ServerContactAddress(
-            href=self.data.get_link('contact_addresses'))
+            href=self.get_relation('contact_addresses'))
         contact.add(contact_address, location)
     
     def remove_contact_address(self, location):
@@ -123,7 +120,7 @@ class ServerCommon(object):
         :return: None
         """
         contact = ServerContactAddress(
-            href=self.data.get_link('contact_addresses'))
+            href=self.get_relation('contact_addresses'))
         contact.remove_by_location(location)
 
        
@@ -143,10 +140,6 @@ class ManagementServer(ServerCommon, Element):
     """
     typeof = 'mgt_server'
 
-    def __init__(self, name, **meta):
-        super(ManagementServer, self).__init__(name, **meta)
-        pass
-
 
 class LogServer(ServerCommon, Element):
     """
@@ -162,10 +155,6 @@ class LogServer(ServerCommon, Element):
     """
     typeof = 'log_server'
 
-    def __init__(self, name, **meta):
-        super(LogServer, self).__init__(name, **meta)
-        pass
-
     
 class HttpProxy(Element):
     """
@@ -174,10 +163,6 @@ class HttpProxy(Element):
     
     """
     typeof = 'http_proxy'
-    
-    def __init__(self, name, **meta):
-        super(HttpProxy, self).__init__(name, **meta)
-        pass
     
     @classmethod
     def create(cls, name, address, proxy_port=8080, username=None,
@@ -227,9 +212,6 @@ class DNSServer(Element):
     """
     typeof = 'dns_server'
 
-    def __init__(self, name, **meta): 
-        super(DNSServer, self).__init__(name, **meta) 
-    
     @classmethod
     def create(cls, name, address, time_to_live=20, update_interval=10,
                secondary=None, comment=None):

@@ -39,6 +39,7 @@ import threading
 
 CFG_STATUS = frozenset(['Initial', 'Declared', 'Configured', 'Installed'])
 
+
 STATUS = frozenset(['Not Monitored', 'Unknown', 'Online', 'Going Online',
                     'Locked Online', 'Going Locked Online','Offline','Going Offline',
                     'Locked Offline', 'Going Locked Offline','Standby','Going Standby',

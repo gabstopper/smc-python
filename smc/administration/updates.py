@@ -3,7 +3,6 @@ Functionality related to updating dynamic update packages and
 engine upgrades
 """
 from smc.base.model import SubElement
-from smc.api.exceptions import ResourceNotFound, ActionCommandFailed
 from smc.administration.tasks import TaskOperationPoller
 
 
@@ -23,17 +22,13 @@ class PackageMixin(object):
         :raises TaskRunFailed: failure during task status
         :rtype: TaskOperationPoller
         """
-        try:
-            task = self.send_cmd(resource='download')
+        task = self.make_request(
+            method='create',
+            resource='download')
         
-            return TaskOperationPoller(
-                task=task, timeout=timeout,
-                wait_for_finish=wait_for_finish)
-
-        except ResourceNotFound:
-            raise ActionCommandFailed(
-                'Package cannot be downloaded, package state: {}' .format(
-                    self.state))
+        return TaskOperationPoller(
+            task=task, timeout=timeout,
+            wait_for_finish=wait_for_finish)
 
     def activate(self, resource=None, timeout=3,
                  wait_for_finish=False):
@@ -47,18 +42,14 @@ class PackageMixin(object):
         :raises TaskRunFailed: failure during task run
         :rtype: TaskOperationPoller
         """
-        try:
-            task = self.send_cmd(
-                resource='activate',
-                json={'resource': resource})
+        task = self.make_request(
+            method='create',
+            resource='activate',
+            json={'resource': resource})
 
-            return TaskOperationPoller(
-                task=task, timeout=timeout,
-                wait_for_finish=wait_for_finish)
-
-        except ResourceNotFound:
-            raise ActionCommandFailed(
-                'Activation failed, resource is not available')
+        return TaskOperationPoller(
+            task=task, timeout=timeout,
+            wait_for_finish=wait_for_finish)
 
     @property
     def release_notes(self):
@@ -80,10 +71,6 @@ class EngineUpgrade(PackageMixin, SubElement):
                 upgrade.download(wait_for_finish=True).wait()
 
     """
-
-    def __init__(self, **meta):
-        super(EngineUpgrade, self).__init__(**meta)
-        pass
 
     @property
     def release_date(self):
@@ -123,10 +110,6 @@ class UpdatePackage(PackageMixin, SubElement):
                     package.activate() #Activate it on SMC
 
     """
-
-    def __init__(self, **meta):
-        super(UpdatePackage, self).__init__(**meta)
-        pass
 
     @property
     def activation_date(self):

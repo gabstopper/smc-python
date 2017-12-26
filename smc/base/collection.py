@@ -8,8 +8,8 @@ See :ref:`collection-reference-label` for examples on search capabilities.
 import re
 import copy
 from itertools import islice
-from smc import session
 import smc.base.model
+from smc import session
 from smc.base.decorators import cached_property, classproperty
 from smc.api.exceptions import FetchElementFailed, InvalidSearchFilter
 
@@ -27,7 +27,7 @@ class SubElementCollection(object):
     def __init__(self, href, cls):
         self.href = href
         self.cls = cls
-
+    
     def __iter__(self):
         for item in smc.base.model.prepared_request(
                 FetchElementFailed,

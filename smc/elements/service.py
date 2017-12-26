@@ -41,10 +41,6 @@ class TCPService(ProtocolAgentMixin, Element):
     """
     typeof = 'tcp_service'
 
-    def __init__(self, name, **meta):
-        super(TCPService, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, min_dst_port, max_dst_port=None,
                comment=None):
@@ -87,10 +83,6 @@ class UDPService(ProtocolAgentMixin, Element):
     """
     typeof = 'udp_service'
 
-    def __init__(self, name, **meta):
-        super(UDPService, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, min_dst_port, max_dst_port=None,
                comment=None):
@@ -130,10 +122,6 @@ class IPService(ProtocolAgentMixin, Element):
     :ivar str protocol_number: IP protocol number for this service
     """
     typeof = 'ip_service'
-
-    def __init__(self, name, **meta):
-        super(IPService, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, protocol_number, comment=None):
@@ -181,10 +169,6 @@ class EthernetService(Element):
     """
     typeof = 'ethernet_service'
 
-    def __init__(self, name, **meta):
-        super(EthernetService, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, frame_type='eth2', value1=None, comment=None):
         """
@@ -223,20 +207,12 @@ class Protocol(Element):
     """
     typeof = 'protocol'
 
-    def __init__(self, name, **meta):
-        super(Protocol, self).__init__(name, **meta)
-        pass
-
 
 class RPCService(Element):
     """
     Represents an RPC service element
     """
     typeof = 'rpc_service'
-
-    def __init__(self, name, **meta):
-        super(RPCService, self).__init__(name, **meta)
-        pass
 
 
 class ICMPService(Element):
@@ -257,10 +233,6 @@ class ICMPService(Element):
     :ivar int icmp_code: icmp type code
     """
     typeof = 'icmp_service'
-
-    def __init__(self, name, **meta):
-        super(ICMPService, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, icmp_type, icmp_code=None, comment=None):
@@ -300,10 +272,6 @@ class ICMPIPv6Service(Element):
     """
     typeof = 'icmp_ipv6_service'
 
-    def __init__(self, name, **meta):
-        super(ICMPIPv6Service, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, icmp_type, comment=None):
         """
@@ -332,17 +300,10 @@ class ApplicationSituation(Element):
     """
     typeof = 'application_situation'
 
-    def __init__(self, name, **meta):
-        super(ApplicationSituation, self).__init__(name, **meta)
-    
-    
+
 class URLCategory(Element):
     """
     Represents a URL Category for policy. This class is read only. To make
     whitelist or blacklists, use :class:`smc.elements.network.IPList`.
     """
     typeof = 'url_category'
-    
-    def __init__(self, name, **meta):
-        super(URLCategory, self).__init__(name, **meta)
-    

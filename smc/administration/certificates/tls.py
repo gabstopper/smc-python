@@ -114,9 +114,6 @@ class TLSCertificateAuthority(ImportExportCertificate, Element):
     """
     typeof = 'tls_certificate_authority'
     
-    def __init__(self, name, **meta):
-        super(TLSCertificateAuthority, self).__init__(name, **meta)
-    
     @classmethod
     def create(cls, name, certificate):
         """
@@ -160,9 +157,6 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
     
     """
     typeof = 'tls_server_credentials'
-    
-    def __init__(self, name, **meta):
-        super(TLSServerCredential, self).__init__(name, **meta)
     
     @classmethod
     def create(cls, name):
@@ -359,7 +353,8 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
         
         :raises ActionCommandFailed: failed to sign with reason
         """
-        return self.send_cmd(
+        return self.make_request(
+            method='create',
             resource='self_sign')
 
 
@@ -386,9 +381,6 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         or configure users web browsers to trust the engine signing certificate.
     """
     typeof = 'tls_signing_certificate_authority'
-    
-    def __init__(self, name, **meta):
-        super(ClientProtectionCA, self).__init__(name, **meta)
     
     @classmethod
     def import_signed(cls, name, certificate_file, private_key_file):

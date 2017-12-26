@@ -72,7 +72,7 @@ class SMCAPIConnection(object):
 
                 elif method == SMCAPIConnection.POST:
                     if request.files:  # File upload request
-                        return self.file_upload(request)
+                        return self.file_upload(method, request)
                     
                     response = self.session.post(
                         request.href,
@@ -91,11 +91,11 @@ class SMCAPIConnection(object):
 
                 elif method == SMCAPIConnection.PUT:
                     if request.files:  # File upload request
-                        return self.file_upload(request)
+                        return self.file_upload(method, request)
                     
                     # Etag should be set in request object
                     request.headers.update(Etag=request.etag)
-                    logger.debug('PUT: %s', vars(request))
+                    logger.debug('PUT: %s', request)
                     
                     response = self.session.put(
                         request.href,
@@ -180,14 +180,14 @@ class SMCAPIConnection(object):
         else:
             raise SMCOperationFailure(response)
 
-    def file_upload(self, request):
+    def file_upload(self, method, request):
         """
         Perform a file upload PUT/POST to SMC. Request should have the
         files attribute set which will be an open handle to the
         file that will be binary transfer.
         """
         logger.debug('Upload: %s', vars(request))
-        command = getattr(self.session, request._method.lower())
+        command = getattr(self.session, method.lower())
         
         response = command(
             request.href,

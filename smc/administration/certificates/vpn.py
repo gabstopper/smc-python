@@ -4,7 +4,8 @@ and other VPN related connections. Each gateway certificate is signed by
 a VPN CA and uses the default internal CA by default.
 """
 
-from smc.base.model import Element, ElementCreator, SubElement
+from smc.base.model import Element, ElementCreator, SubElement,\
+    SubElementCreator
 from smc.administration.certificates.tls_common import ImportExportCertificate
 from smc.api.exceptions import CertificateError
 from smc.base.util import element_resolver
@@ -23,9 +24,6 @@ class VPNCertificateCA(ImportExportCertificate, Element):
     :ivar bool oscp_checking_enabled: is OSCP validation enabled
     """
     typeof = 'vpn_certificate_authority'
-    
-    def __init__(self, name, **meta):
-        super(VPNCertificateCA, self).__init__(name, **meta)
     
     @classmethod    
     def create(cls, name, certificate):
@@ -53,8 +51,7 @@ class GatewayCertificate(SubElement):
     renew a gateway certificate, export, check the expiration, or
     find the certificate authority that signed this gateway certificate.
     """
-    def __init__(self, **meta): 
-        super(GatewayCertificate, self).__init__(**meta)
+    typeof = 'gateway_certificate'
     
     @staticmethod
     def _create(self, common_name, public_key_algorithm='rsa',
@@ -69,19 +66,17 @@ class GatewayCertificate(SubElement):
         
         cert_auth = element_resolver(signing_ca)
         
-        cert = self.internal_gateway.send_cmd(
+        return SubElementCreator(
+            GatewayCertificate,
             CertificateError,
-            resource='generate_certificate',
-            raw_result=True,
+            href=self.internal_gateway.get_relation('generate_certificate'),
             json={
                 'common_name': common_name,
                 'public_key_algorithm': public_key_algorithm,
                 'signature_algorithm': signature_algorithm,
                 'public_key_length': key_length,
                 'certificate_authority_href': cert_auth})
-        
-        return GatewayCertificate(href=cert.href)
-             
+
     @property
     def certificate_authority(self):
         return Element.from_href(self.data.get('certificate_authority'))

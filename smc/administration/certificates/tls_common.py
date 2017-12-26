@@ -30,7 +30,7 @@ def load_cert_chain(chain_file):
     
     :raises IOError: Failure to read specified file
     :raises ValueError: Format issues with chain file or missing entries
-    :return list of cert type matches
+    :return: list of cert type matches
     """
     with open(chain_file, 'rb') as f:
         cert_chain = f.read()
@@ -67,8 +67,9 @@ class ImportExportCertificate(object):
         """
         multi_part = 'signed_certificate' if self.typeof == 'tls_server_credentials'\
             else 'certificate'
-        self.send_cmd(
+        self.make_request(
             CertificateImportError,
+            method='create',
             resource='certificate_import',
             headers = {'content-type': 'multipart/form-data'}, 
             files={ 
@@ -85,7 +86,7 @@ class ImportExportCertificate(object):
         :raises CertificateExportError: error exporting certificate
         :rtype: str or None
         """
-        result = self.read_cmd(
+        result = self.make_request(
             CertificateExportError,
             raw_result=True,
             resource='certificate_export')
@@ -103,8 +104,19 @@ class ImportExportIntermediate(object):
     certificates
     """
     def import_intermediate_certificate(self, certificate):
-        self.send_cmd(
+        """
+        Import a valid certificate. Certificate can be either a file path
+        or a string of the certificate. If string certificate, it must include
+        the -----BEGIN CERTIFICATE----- string.
+        
+        :param str certificate: fully qualified path or string 
+        :raises CertificateImportError: failure to import cert with reason
+        :raises IOError: file not found, permissions, etc.
+        :return: None
+        """
+        self.make_request(
             CertificateImportError,
+            method='create',
             resource='intermediate_certificate_import',
             headers = {'content-type': 'multipart/form-data'}, 
             files={ 
@@ -122,7 +134,7 @@ class ImportExportIntermediate(object):
             if no intermediate certificate is available.
         :rtype: str or None
         """
-        result = self.read_cmd(
+        result = self.make_request(
             CertificateExportError,
             raw_result=True,
             resource='intermediate_certificate_export')
@@ -151,8 +163,9 @@ class ImportPrivateKey(object):
         :raises IOError: file not found, permissions, etc.
         :return: None
         """
-        self.send_cmd(
+        self.make_request(
             CertificateImportError,
+            method='create',
             resource='private_key_import',
             headers = {'content-type': 'multipart/form-data'}, 
             files={ 

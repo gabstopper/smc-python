@@ -56,10 +56,6 @@ class DNSRelayProfile(Element):
     """
     typeof = 'dns_relay_profile'
 
-    def __init__(self, name, **meta):
-        super(DNSRelayProfile, self).__init__(name, **meta)
-        pass
-
     def _create_or_update(self, key, json):
         try:
             self.data[key].extend(json)
@@ -200,6 +196,3 @@ class DNSRelayProfile(Element):
 class SandboxService(Element):
     typeof = 'sandbox_service'
 
-    def __init__(self, name, **meta):
-        super(SandboxService, self).__init__(name, **meta)
-        pass

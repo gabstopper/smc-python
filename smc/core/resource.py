@@ -26,10 +26,6 @@ class Snapshot(SubElement):
     Snapshot filename will be <snapshot_name>.zip if not specified.
     """
 
-    def __init__(self, **meta):
-        super(Snapshot, self).__init__(**meta)
-        pass
-
     def download(self, filename=None):
         """
         Download snapshot to filename
@@ -41,7 +37,7 @@ class Snapshot(SubElement):
         if not filename:
             filename = '{}{}'.format(self.name, '.zip')
         try:
-            self.read_cmd(
+            self.make_request(
                 EngineCommandFailed,
                 resource='content',
                 filename=filename)
@@ -85,7 +81,7 @@ class PendingChanges(object):
         :return: list :py:class:`smc.core.resource.ChangeRecord`
         """
         return [ChangeRecord(**record)
-                for record in self._engine.read_cmd(resource='pending_changes')]
+                for record in self._engine.make_request(resource='pending_changes')]
     
     def approve_all(self):
         """
@@ -94,7 +90,9 @@ class PendingChanges(object):
         :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
-        self._engine.send_cmd(resource='approve_all_changes')
+        self._engine.make_request(
+            method='create',
+            resource='approve_all_changes')
 
     def disapprove_all(self):
         """
@@ -103,7 +101,9 @@ class PendingChanges(object):
         :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
-        self._engine.send_cmd(resource='disapprove_all_changes')
+        self._engine.make_request(
+            method='create',
+            resource='disapprove_all_changes')
 
     @property
     def has_changes(self):
@@ -127,7 +127,6 @@ class ChangeRecord(namedtuple(
     :param modifier: account making the modification
     """
     __slots__ = ()
-    
     @property
     def resolve_element(self):
         return Element.from_href(self.element)

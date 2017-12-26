@@ -113,10 +113,6 @@ class Group(GroupMixin, Element):
     """
     typeof = 'group'
 
-    def __init__(self, name, **meta):
-        super(Group, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, members=None, comment=None):
         """
@@ -158,10 +154,6 @@ class ServiceGroup(GroupMixin, Element):
     """
     typeof = 'service_group'
 
-    def __init__(self, name, **meta):
-        super(ServiceGroup, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, members=None, comment=None):
         """
@@ -198,10 +190,6 @@ class TCPServiceGroup(GroupMixin, Element):
         retrieved the resolved list of elements.
     """
     typeof = 'tcp_service_group'
-
-    def __init__(self, name, **meta):
-        super(TCPServiceGroup, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, members=None, comment=None):
@@ -241,10 +229,6 @@ class UDPServiceGroup(GroupMixin, Element):
     """
     typeof = 'udp_service_group'
 
-    def __init__(self, name, **meta):
-        super(UDPServiceGroup, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, members=None, comment=None):
         """
@@ -276,10 +260,6 @@ class IPServiceGroup(GroupMixin, Element):
         retrieved the resolved list of elements.
     """
     typeof = 'ip_service_group'
-
-    def __init__(self, name, **meta):
-        super(IPServiceGroup, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, members=None, comment=None):
@@ -313,10 +293,6 @@ class ICMPServiceGroup(GroupMixin, Element):
     """
     typeof = 'icmp_service_group'
 
-    def __init__(self, name, **meta):
-        super(ICMPServiceGroup, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, members=None, comment=None):
         """
@@ -339,8 +315,4 @@ class ICMPServiceGroup(GroupMixin, Element):
 
 class URLCategoryGroup(Element):
     typeof = 'url_category_group'
-
-    def __init__(self, name, **meta):
-        super(URLCategoryGroup, self).__init__(name, **meta)
-        pass
 

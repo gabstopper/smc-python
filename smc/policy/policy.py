@@ -20,8 +20,7 @@ overidden.
           needed, calling open() will lock the policy from test_external modifications
           until save() is called.
 """
-from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed,\
-    ResourceNotFound
+from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed
 from smc.administration.tasks import TaskOperationPoller
 from smc.base.model import Element, lookup_class
 from collections import namedtuple
@@ -39,10 +38,6 @@ class Policy(Element):
     'export', and 'upload' are encapsulated into this base class.
     """
 
-    def __init__(self, name, **meta):
-        super(Policy, self).__init__(name, **meta)
-        pass
-
     def upload(self, engine, timeout=5, wait_for_finish=False, **kw):
         """
         Upload policy to specific device. Using wait for finish
@@ -59,8 +54,9 @@ class Policy(Element):
         :raises: TaskRunFailed
         :return: TaskOperationPoller
         """
-        task = self.send_cmd(
+        task = self.make_request(
             TaskRunFailed,
+            method='create',
             resource='upload',
             params={'filter': engine})
             #json={"resource":[engine.href]})
@@ -81,13 +77,10 @@ class Policy(Element):
         :raises PolicyCommandFailed: Cannot open policy
         :return: None
         """
-        try:
-            self.send_cmd(
-                PolicyCommandFailed,
-                resource='open')
-
-        except ResourceNotFound:
-            pass
+        self.make_request(
+            PolicyCommandFailed,
+            method='create',
+            resource='open')
 
     def save(self):
         """ Save policy that was modified
@@ -95,21 +88,20 @@ class Policy(Element):
 
         :return: None
         """
-        try:
-            self.send_cmd(
-                PolicyCommandFailed,
-                resource='save')
-
-        except ResourceNotFound:
-            pass
+        self.make_request(
+            PolicyCommandFailed,
+            method='create',
+            resource='save')
 
     def force_unlock(self):
-        """ Forcibly unlock a locked policy
+        """
+        Forcibly unlock a locked policy
 
         :return: None
         """
-        self.send_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='create',
             resource='force_unlock')
 
     def search_rule(self, search):
@@ -126,7 +118,7 @@ class Policy(Element):
         :return: rule elements matching criteria
         :rtype: list(Element)
         """
-        result = self.read_cmd(
+        result = self.make_request(
             resource='search_rule',
             params={'filter': search})
         
@@ -200,7 +192,10 @@ class Policy(Element):
         """
         json = {'target_ref': engine.href, 'duration_type': duration_type}
         return [RuleCounter(**rule)
-                for rule in self.send_cmd(resource='rule_counter', json=json)]
+                for rule in self.make_request(
+                    method='create',
+                    resource='rule_counter',
+                    json=json)]
 
 
 class InspectionPolicy(Policy):
@@ -212,10 +207,6 @@ class InspectionPolicy(Policy):
     on the rule properties.
     """
     typeof = 'inspection_template_policy'
-
-    def __init__(self, name, **meta):
-        super(InspectionPolicy, self).__init__(name, **meta)
-        pass
 
     def export(self): pass  # Not valid for inspection policy
 

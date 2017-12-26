@@ -262,10 +262,6 @@ class AutonomousSystem(Element):
     """
     typeof = 'autonomous_system'
 
-    def __init__(self, name, **meta):
-        super(AutonomousSystem, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, as_number, comment=None):
         """
@@ -320,10 +316,6 @@ class BGPProfile(Element):
             subnet_distance=[(Network('inside'), 100)])  
     """
     typeof = 'bgp_profile'
-
-    def __init__(self, name, **meta):
-        super(BGPProfile, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, port=179, external_distance=20, internal_distance=200,
@@ -419,10 +411,6 @@ class ExternalBGPPeer(Element):
     """
     typeof = 'external_bgp_peer'
 
-    def __init__(self, name, **meta):
-        super(ExternalBGPPeer, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, neighbor_as_ref, neighbor_ip,
                neighbor_port=179):
@@ -492,10 +480,6 @@ class BGPPeering(Element):
 
     """
     typeof = 'bgp_peering'
-
-    def __init__(self, name, **meta):
-        super(BGPPeering, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, connection_profile_ref=None,
@@ -587,10 +571,6 @@ class BGPConnectionProfile(Element):
             session_keep_alive=150)        
     """
     typeof = 'bgp_connection_profile'
-
-    def __init__(self, name, **meta):
-        super(BGPConnectionProfile, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, md5_password=None, connect_retry=120,

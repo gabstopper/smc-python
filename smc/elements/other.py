@@ -26,9 +26,6 @@ class Category(Element):
     """
     typeof = 'category_tag'
 
-    def __init__(self, name, **meta):
-        super(Category, self).__init__(name, **meta)
-
     @classmethod
     def create(cls, name, comment=None):
         """
@@ -57,7 +54,7 @@ class Category(Element):
         """
         return [Element.from_meta(**tag)
                 for tag in
-                self.read_cmd(resource='search_elements_from_category_tag')]
+                self.make_request(resource='search_elements_from_category_tag')]
 
     def add_element(self, element):
         """
@@ -74,8 +71,9 @@ class Category(Element):
         """
         element = element_resolver(element)
 
-        self.send_cmd(
+        self.make_request(
             ModificationFailed,
+            method='create',
             resource='category_add_element',
             json={'value': element})
 
@@ -96,8 +94,9 @@ class Category(Element):
         """
         element = element_resolver(element)
 
-        self.send_cmd(
+        self.make_request(
             ModificationFailed,
+            method='create',
             resource='category_remove_element',
             json={'value': element})
 
@@ -140,9 +139,6 @@ class CategoryTag(Element):
     on the tag.
     """
     typeof = 'category_group_tag'
-    
-    def __init__(self, name, **meta):
-        super(CategoryTag, self).__init__(name, **meta)
     
     @classmethod
     def create(cls, name, comment=None):
@@ -209,9 +205,6 @@ class FilterExpression(Element):
     """
     typeof = 'filter_expression'
     
-    def __init__(self, name, **meta):
-        super(FilterExpression, self).__init__(name, **meta)
-
 
 class Location(Element):
     """
@@ -225,9 +218,6 @@ class Location(Element):
     .. note:: Locations require SMC API version >= 6.1
     """
     typeof = 'location'
-
-    def __init__(self, name, **meta):
-        super(Location, self).__init__(name, **meta)
 
     @classmethod
     def create(cls, name, comment=None):
@@ -257,7 +247,7 @@ class Location(Element):
         """
         return [Element.from_meta(**element)
                 for element in
-                self.read_cmd(resource='search_nated_elements_from_location')]
+                self.make_request(resource='search_nated_elements_from_location')]
 
 
 class LogicalInterface(Element):
@@ -271,9 +261,6 @@ class LogicalInterface(Element):
         LogicalInterface.create('mylogical_interface')  
     """
     typeof = 'logical_interface'
-
-    def __init__(self, name, **meta):
-        super(LogicalInterface, self).__init__(name, **meta)
 
     @classmethod
     def create(cls, name, comment=None):
@@ -303,9 +290,6 @@ class MacAddress(Element):
         MacAddress(name=mymac)
     """
     typeof = 'mac_address'
-
-    def __init__(self, name, **meta):
-        super(MacAddress, self).__init__(name, **meta)
 
     @classmethod
     def create(cls, name, mac_address, comment=None):

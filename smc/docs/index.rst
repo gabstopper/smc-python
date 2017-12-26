@@ -25,6 +25,7 @@ Contents:
    pages/extensions
    pages/reference
 
+
 Indices and tables
 ==================
 

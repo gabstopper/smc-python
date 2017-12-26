@@ -70,7 +70,7 @@ Examples of rule operations::
     IPv4Rule(name=discard at bottom) discard at bottom discard
 
 """
-from smc.base.model import Element, SubElement
+from smc.base.model import Element, SubElement, SubElementCreator
 from smc.elements.other import LogicalInterface
 from smc.vpn.policy import PolicyVPN
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
@@ -248,15 +248,15 @@ class RulePosition(object):
     def add_at_position(self, pos):
         if pos <= 0:
             pos = 1
-        rules = self.read_cmd(href=self.href)
+        rules = self.make_request(href=self.href)
         if rules:
             if len(rules) >= pos:  # Position somewhere in the list
                 for position, entry in enumerate(rules):
                     if position + 1 == pos:
-                        return self.__class__(**entry).data.get_link('add_before')
+                        return self.__class__(**entry).get_relation('add_before')
             else:  # Put at the end
                 last_rule = rules.pop()
-                return self.__class__(**last_rule).data.get_link('add_after')
+                return self.__class__(**last_rule).get_relation('add_after')
         return self.href
 
     def add_before_after(self, before=None, after=None):
@@ -380,11 +380,8 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
         sources='any'
     """
     typeof = 'fw_ipv4_access_rule'
-    _actions = ['allow', 'discard', 'continue', 'refuse', 'jump',
-                'apply_vpn', 'enforce_vpn', 'forward_vpn', 'blacklist']
-    
-    def __init__(self, **meta):
-        super(IPv4Rule, self).__init__(**meta)
+    _actions = ('allow', 'discard', 'continue', 'refuse', 'jump',
+                'apply_vpn', 'enforce_vpn', 'forward_vpn', 'blacklist')
     
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
@@ -472,16 +469,12 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
         else:
             params = self.add_before_after(before, after)
     
-        result = self.send_cmd(
+        return SubElementCreator(
+            self.__class__,
             CreateRuleFailed,
-            raw_result=True,
             href=href,
             params=params,
             json=rule_values)
-        
-        return IPv4Rule(name=name,
-                        href=result.href,
-                        type=self.typeof)
 
 
 class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
@@ -497,12 +490,9 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
                                                services='any')
     """
     typeof = 'layer2_ipv4_access_rule'
-    _actions = ['allow', 'continue', 'discard',
-                'refuse', 'jump', 'blacklist']
+    _actions = ('allow', 'continue', 'discard',
+                'refuse', 'jump', 'blacklist')
     
-    def __init__(self, **meta):
-        super(IPv4Layer2Rule, self).__init__(**meta)
-
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
@@ -560,17 +550,12 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
         else:
             params = self.add_before_after(before, after)
  
-        result = self.send_cmd(
+        return SubElementCreator(
+            self.__class__,
             CreateRuleFailed,
-            raw_result=True,
             href=href,
             params=params,
             json=rule_values)
-        
-        return IPv4Layer2Rule(
-            name=name,
-            href=result.href,
-            type=self.typeof)
 
 
 class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
@@ -589,10 +574,7 @@ class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
                                             action='discard')
     """
     typeof = 'ethernet_rule'
-    _actions = ['allow', 'discard']
-
-    def __init__(self, **meta):
-        super(EthernetRule, self).__init__(**meta)
+    _actions = ('allow', 'discard')
 
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
@@ -652,17 +634,12 @@ class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
         else:
             params = self.add_before_after(before, after)
 
-        result = self.send_cmd(
+        return SubElementCreator(
+            self.__class__,
             CreateRuleFailed,
-            raw_result=True,
             href=href,
             params=params,
             json=rule_values)
-        
-        return EthernetRule(
-            name=name,
-            href=result.href,
-            type=self.typeof)
 
 
 class IPv6Rule(IPv4Rule):
@@ -675,7 +652,3 @@ class IPv6Rule(IPv4Rule):
               attempting to push policy.
     """
     typeof = 'fw_ipv6_access_rule'
-
-    def __init__(self, **meta):
-        super(IPv6Rule, self).__init__(**meta)
-        pass

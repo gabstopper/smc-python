@@ -39,7 +39,7 @@ Python 3.4, 3.5
 
 Requests >= 2.12.0
 
-Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2, 6.2.1, 6.3.0
+Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2, 6.2.1, 6.3.0, 6.3.1, 6.3.2
 
 Getting Started
 ---------------
@@ -52,7 +52,7 @@ Use pip to get latest released version:
 
 Specific version:
 
-``pip install smc-python>=0.5.5``
+``pip install smc-python>=0.5.8``
 
 If you are installing directly from git or tarball, you will be installing
 the latest dev branch. The dev branch does undergo unittest prior to push,

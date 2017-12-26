@@ -23,10 +23,6 @@ class PolicyVPN(Element):
     """
     typeof = 'vpn'
 
-    def __init__(self, name, **meta):
-        super(PolicyVPN, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name, nat=False, mobile_vpn_toplogy_mode=None,
                vpn_profile=None):
@@ -91,7 +87,7 @@ class PolicyVPN(Element):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.data.get_link('central_gateway_node'),
+            self.get_relation('central_gateway_node'),
             type('CentralGatewayNode', (GatewayNode,), {}))
         
     @property
@@ -103,7 +99,7 @@ class PolicyVPN(Element):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.data.get_link('satellite_gateway_node'),
+            self.get_relation('satellite_gateway_node'),
             type('SatelliteGatewayNode', (GatewayNode,), {}))
 
     @property
@@ -116,7 +112,7 @@ class PolicyVPN(Element):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.data.get_link('mobile_gateway_node'),
+            self.get_relation('mobile_gateway_node'),
             type('MobileGatewayNode', (GatewayNode,), {}))
 
     @property
@@ -139,39 +135,45 @@ class PolicyVPN(Element):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.data.get_link('gateway_tunnel'), GatewayTunnel)
+            self.get_relation('gateway_tunnel'), GatewayTunnel)
 
     def open(self):
         """
-        Open the policy for editing
+        Open the policy for editing. This is only a valid method for
+        SMC version <= 6.1
 
-        :return: None
         :raises PolicyCommandFailed: couldn't open policy with reason
+        :return: None
         """
-        self.send_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='create',
             resource='open')
 
     def save(self):
         """
-        Save the policy after editing
+        Save the policy after editing. This is only a valid method for
+        SMC version <= 6.1
 
-        :return: None
         :raises PolicyCommandFailed: save failed with reason
+        :return: None
         """
-        self.send_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='create',
             resource='save')
 
     def close(self):
         """
-        Close the policy 
+        Close the policy. This is only a valid method for
+        SMC version <= 6.1
 
         :raises PolicyCommandFailed: close failed with reason
         :return: None
         """
-        self.send_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='create',
             resource='close')
 
     def validate(self):
@@ -182,7 +184,7 @@ class PolicyVPN(Element):
         :return: status as string
         :rtype: str
         """
-        return self.read_cmd(
+        return self.make_request(
             resource='validate').get('value')
 
     def add_central_gateway(self, gateway):
@@ -196,8 +198,9 @@ class PolicyVPN(Element):
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
-        self.send_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='create',
             resource='central_gateway_node',
             json={'gateway': gateway,
                   'node_usage': 'central'})
@@ -216,8 +219,9 @@ class PolicyVPN(Element):
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
-        self.send_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='create',
             resource='satellite_gateway_node',
             json={'gateway': gateway,
                   'node_usage': 'satellite'})
@@ -265,10 +269,6 @@ class GatewayNode(SubElement):
         >>> vpn.close()
     """
 
-    def __init__(self, **meta):
-        super(GatewayNode, self).__init__(**meta)
-        pass
-    
     @cached_property
     def gateway(self):
         """
@@ -297,7 +297,7 @@ class GatewayNode(SubElement):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.data.get_link('enabled_vpn_site'), GatewayTreeNode)
+            self.get_relation('enabled_vpn_site'), GatewayTreeNode)
 
     @property
     def disabled_sites(self):
@@ -309,7 +309,7 @@ class GatewayNode(SubElement):
         :rtype: SubElementCollection
         """
         return sub_collection(
-            self.data.get_link('disabled_vpn_site'), GatewayTreeNode)
+            self.get_relation('disabled_vpn_site'), GatewayTreeNode)
 
 
 class GatewayTreeNode(SubElement):
@@ -338,8 +338,9 @@ class GatewayTreeNode(SubElement):
         :raises PolicyCommandFailed: enabling or disabling failed
         :return: None
         """
-        self.del_cmd(
+        self.make_request(
             PolicyCommandFailed,
+            method='delete',
             resource='self')
     
     @property
@@ -377,9 +378,6 @@ class GatewayTunnel(SubElement):
         gateways, you must set a new key to provide the same value to
         the remote gateway.
     """
-    def __init__(self, **meta):
-        super(GatewayTunnel, self).__init__(**meta)
-        pass
 
     def enable_disable(self):
         """

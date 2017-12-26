@@ -28,7 +28,7 @@ class InterfaceRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('l2_interface_ipv4_access_rules'),
+            self.get_relation('l2_interface_ipv4_access_rules'),
             IPv4Layer2Rule)
 
     @property
@@ -50,7 +50,7 @@ class InterfaceRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('l2_interface_ethernet_rules'),
+            self.get_relation('l2_interface_ethernet_rules'),
             EthernetRule)
 
 
@@ -69,10 +69,6 @@ class InterfacePolicy(InterfaceRule, Policy):
     :ivar layer2_ethernet_rules: :py:class:`~Layer2Rule.layer2_ethernet_rules`
     """
     typeof = 'l2_interface_policy'
-
-    def __init__(self, name, **meta):
-        super(InterfacePolicy, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, template):
@@ -115,10 +111,6 @@ class InterfaceTemplatePolicy(InterfaceRule, Policy):
     
     """
     typeof = 'l2_interface_template_policy'
-
-    def __init__(self, name, **meta):
-        super(InterfaceTemplatePolicy, self).__init__(name, **meta)
-        pass
 
     def inspection_policy(self): pass
     

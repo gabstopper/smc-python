@@ -13,33 +13,19 @@ from smc.base.util import unicode_to_bytes
 logger = logging.getLogger(__name__)
 
 
-def method(method):
-    def _method(f):
-        def wrapper(self, *args):
-            setattr(self, '_method', method)
-            return f(self, *args)
-        return wrapper
-    return _method
-
-
 class _RequestHandler(object):
     def __init__(self, **kwargs):
-        self._method = None
         self.files = None
         self.headers = {'content-type': 'application/json'}
 
-    @property
-    def method(self):
-        return self._method
-
-    def _make_request(self):
+    def _make_request(self, method):
         err = None
         result = None
         try:
-            if self.method == 'GET':
+            if method == 'GET':
                 if not self.href:
                     self.href = session.entry_points.get('elements')
-            result = session.connection.send_request(self.method, self)
+            result = session.connection.send_request(method, self)
 
         except SMCOperationFailure as e:
             result = e.smcresult
@@ -88,25 +74,27 @@ class SMCRequest(_RequestHandler):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    @method('POST')
     def create(self):
-        return self._make_request()
+        return self._make_request(method='POST')
 
-    @method('DELETE')
     def delete(self):
-        return self._make_request()
+        return self._make_request(method='DELETE')
 
-    @method('PUT')
     def update(self):
-        return self._make_request()
+        return self._make_request(method='PUT')
 
-    @method('GET')
     def read(self):
-        return self._make_request()
+        return self._make_request(method='GET')
 
-    def __repr__(self):
-        return '<SMCRequest [%s]>' % (self.method)
-
+    def __str__(self):
+        sb = []
+        for key in self.__dict__:
+            sb.append(
+                "{key}='{value}'".format(
+                    key=key,
+                    value=self.__dict__[key]))
+        return 'SMCRequest({})'.format(','.join(sb))
+    
 
 def fetch_entry_point(name):
     """

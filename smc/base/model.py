@@ -27,7 +27,7 @@ Element class relationship (abbreviated)::
 
                              ElementBase (object)
                                    |
-                                data = SimpleElement()
+                                data = ElementCache()
                                 meta = Meta(href,name,type)
                                 update()
                                 delete()
@@ -54,19 +54,18 @@ from collections import namedtuple, MutableMapping
 import smc.base.collection
 from smc.compat import string_types
 from smc.base.decorators import cached_property, classproperty, exception,\
-    create_hook
+    create_hook, with_metaclass
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
     DeleteElementFailed, FetchElementFailed, UpdateElementFailed
-from smc.base.resource import with_metaclass, Registry
 from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
     find_type_from_self
-from .mixins import UnicodeMixin, SMCCommand
+from smc.base.mixins import RequestAction, UnicodeMixin
 
 
 @exception
-def prepared_request(*exception, **kwargs):
+def prepared_request(*exception, **kwargs):  # @UnusedVariable
     """
     Prepared request is a wrapper to allow an exception to
     be thrown to wrap the SMCResult. Exception is optional.
@@ -78,17 +77,17 @@ def prepared_request(*exception, **kwargs):
 
 def LoadElement(href, only_etag=False):
     """
-    Return an instance of a element as a SimpleElement dict
+    Return an instance of a element as a ElementCache dict
     used as a cache.
     
-    :rtype SimpleElement
+    :rtype ElementCache
     """
     request = SMCRequest(href=href)
     request.exception = FetchElementFailed
     result = request.read()
     if only_etag:
         return result.etag
-    return SimpleElement(
+    return ElementCache(
         etag=result.etag, **result.json)
 
 
@@ -115,6 +114,32 @@ def ElementCreator(cls, json):
                href=result.href)
 
 
+def SubElementCreator(cls, *exception, **kwargs):
+    """
+    Helper method for creating sub elements. SubElements do not
+    have direct entry points in the SMC API and require a direct
+    href reference. This is a lazy load that will provide
+    only the meta for the element. Additional attribute access
+    will load the full data.
+
+    :return: instance of type SubElement with meta
+    :rtype: SubElement
+    """
+    exc = exception[0] if exception else CreateElementFailed
+    if 'href' not in kwargs:
+        raise exc('Cannot create SubElement: %s. Missing the href value'
+            % cls.__name__)
+    
+    result = SMCRequest(**kwargs).create()
+    if result.msg:
+        raise exc(result.msg)
+    
+    name = kwargs.get('json')
+    return cls(name=name.get('name'),
+               type=cls.typeof,
+               href=result.href)
+
+
 def ElementFactory(href):
     """
     Factory returns an object of type Element when only
@@ -127,7 +152,7 @@ def ElementFactory(href):
         e = typeof(name=element.json.get('name'),
                    href=href,
                    type=istype)
-        e.data = SimpleElement(
+        e.data = ElementCache(
             etag=element.etag, **element.json)
         return e
 
@@ -135,9 +160,8 @@ def ElementFactory(href):
 class SubDict(MutableMapping): 
     """ 
     Generic dict structure that can be used to objectify 
-    complex json. This dict will return None if an attribute 
-    is not found. It also supports dotted attribute access
-    to flatten out the top level dict keys.
+    complex json. This dict allows attribute access for data
+    stored in the data dict by overridding getattr.
     """ 
     def __init__(self, data=None, **kwargs):
         self.data = data if data else {}
@@ -154,20 +178,13 @@ class SubDict(MutableMapping):
     def __len__(self):
         return len(self.data)
     def __getattr__(self, key):
-        return self.get(key)
-    
-    #def __getstate__(self):
-    #    return (self.data, dict(self))
-
-    #def __setstate__(self, state):
-    #    self.data, data = state
-    #    self.update(data)
-
-    #def __reduce__(self):
-    #    return (SubDict, (), self.__getstate__())
+        if key in self:
+            return self[key]
+        raise AttributeError("%r object has no attribute %r" 
+            % (self.__class__, key)) 
 
 
-class SimpleElement(dict):
+class ElementCache(dict):
     """
     Basic container for retrieved element. Can be inserted
     where a cached copy is needed. Also provides methods to
@@ -175,7 +192,7 @@ class SimpleElement(dict):
     """
     def __init__(self, *arg, **kw):
         self._etag = kw.pop('etag', None)
-        super(SimpleElement, self).__init__(*arg, **kw)
+        super(ElementCache, self).__init__(*arg, **kw)
 
     def etag(self, href):
         """
@@ -186,7 +203,7 @@ class SimpleElement(dict):
             self._etag = LoadElement(href, only_etag=True)
         return self._etag
     
-    @property
+    @cached_property
     def links(self):
         return {link['rel']:link['href'] for link in self['link']}
     
@@ -194,11 +211,10 @@ class SimpleElement(dict):
         """
         Return link for specified resource
         """
-        for link in self['link']:
-            if link.get('rel') == rel:
-                return link['href']
+        if rel in self.links:
+            return self.links[rel]
         raise ResourceNotFound('Resource requested: %r is not available '
-                               'on this element.' % rel)
+            'on this element.' % rel)
 
 
 class ElementLocator(object):
@@ -245,9 +261,22 @@ class ElementLocator(object):
                     'and cannot be referenced directly, type: {}'
                     .format(instance))
 
-    
-@with_metaclass(Registry)
-class ElementBase(UnicodeMixin, SMCCommand):
+
+class ElementMeta(type):
+    """
+    Element metaclass that registers classes with the typeof
+    attribute into a registry for later lookups.
+    """
+    _map = {}
+    def __new__(meta, name, bases, clsdict):  # @NoSelf
+        cls = super(ElementMeta, meta).__new__(meta, name, bases, clsdict)
+        if 'typeof' in clsdict:
+            meta._map[clsdict['typeof']] = cls
+        return cls
+
+
+@with_metaclass(ElementMeta)
+class ElementBase(RequestAction, UnicodeMixin):
     """
     Element base provides a meta data container and an
     instance cache as well as methods to retrieve aspects
@@ -288,6 +317,18 @@ class ElementBase(UnicodeMixin, SMCCommand):
     def etag(self):
         return self.data.etag(self.href)
     
+    def get_relation(self, rel, exception=None):
+        """
+        Get a relational link. Provide optional exception to be
+        returned instead of ResourceNotFound.
+        """
+        try:
+            return self.data.get_link(rel)
+        except ResourceNotFound as e:
+            if exception:
+                raise exception(e)
+            raise
+    
     def _del_cache(self):
         try:
             del self.data
@@ -311,7 +352,7 @@ class ElementBase(UnicodeMixin, SMCCommand):
                 pass
         raise AttributeError("%r object has no attribute %r"
                 % (self.__class__, key))
-
+    
     def delete(self):
         """
         Delete the element
@@ -441,7 +482,10 @@ class ElementBase(UnicodeMixin, SMCCommand):
 
 class Element(ElementBase):
     """
-    Base element with common methods shared by inheriting classes
+    Base element with common methods shared by inheriting classes.
+    If stashing attributes on this class, be sure to prefix with
+    an underscore to avoid having the attributes serialized when
+    calling update.
     """
     href = ElementLocator()  # : href of this resource
 
@@ -539,9 +583,9 @@ class Element(ElementBase):
 
         if filter_key:
             elements = cls.objects.filter(**filter_key)
-            if elements.exists():
-                return elements.first()
-            element = cls.create(**kwargs)
+            element = elements.first()
+            if not element:
+                element = cls.create(**kwargs)
         else:
             try:
                 element = cls.get(kwargs.get('name'))
@@ -685,7 +729,7 @@ class Element(ElementBase):
         :return: list :py:class:`smc.elements.other.Category`
         """
         return [Element.from_meta(**tag)
-                for tag in self.read_cmd(
+                for tag in self.make_request(
                     resource='search_category_tags_from_element')]
 
     def export(self, filename='element.zip'):
@@ -702,22 +746,22 @@ class Element(ElementBase):
             print("File downloaded to: %s" % extask.filename)
 
         :param str filename: filename to store exported element
-        :raises TaskRunFailed: invalid permissions, invalid directory..
+        :raises TaskRunFailed: invalid permissions, invalid directory, or this
+            element is a system element and cannot be exported.
         :return: DownloadTask
+        
+        .. note:: It is not possible to export system elements
         """
-        from smc.administration.tasks import DownloadTask,TaskRunFailed
-        try:
-            task = self.send_cmd(
-                TaskRunFailed,
-                resource='export',
-                filename=filename)
+        from smc.administration.tasks import DownloadTask, TaskRunFailed
+        task = self.make_request(
+            TaskRunFailed,
+            method='create',
+            resource='export',
+            filename=filename)
 
-            return DownloadTask(
-                filename=filename, task=task
-            )
-
-        except ResourceNotFound:
-            return []
+        return DownloadTask(
+            filename=filename, task=task
+        )
 
     @property
     def referenced_by(self):
@@ -730,7 +774,8 @@ class Element(ElementBase):
         """
         href = fetch_entry_point('references_by_element')
         return [Element.from_meta(**ref)
-                for ref in self.send_cmd(
+                for ref in self.make_request(
+                    method='create',
                     href=href,
                     json={'value': self.href})]
 
@@ -749,16 +794,34 @@ class Element(ElementBase):
         :rtype: History
         """
         from smc.core.resource import History
-        return History(**self.read_cmd(resource='history'))
+        return History(**self.make_request(resource='history'))
         
+    def duplicate(self, name):
+        """
+        .. versionadded:: 0.5.8
+            Requires SMC version >- 6.3.2
         
+        Duplicate this element. This is a shortcut method that will make
+        a direct copy of the element under the new name and type.
+        
+        :param str name: name for the duplicated element
+        :raises ActionCommandFailed: failed to duplicate the element
+        :return: the newly created element
+        """
+        dup = self.make_request(
+            method='update',
+            raw_result=True,
+            resource='duplicate',
+            params={'name': name})
+        return type(self)(name=name, href=dup.href, type=type(self).typeof)
+       
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
 
     def __repr__(self):
         return str(self)
 
-
+        
 class SubElement(ElementBase):
     """
     SubElement is the base class for elements that do not
@@ -786,18 +849,18 @@ class SubElement(ElementBase):
 
 
 def lookup_class(typeof, default=Element):
-    cls = Registry._registry.get(typeof, None)
+    cls = ElementMeta._map.get(typeof, None)
     if cls is None: # Create a dynamic class from meta type field
         attrs = {'typeof': typeof}
         # There are multiple entry points for specific aliases
         # that should derive from the smc.elements.network.Alias
         # class so it has access to Alias class methods like ``resolve``.
         if 'alias' in typeof:
-            default = Registry._registry.get('alias')
+            default = ElementMeta._map.get('alias')
         cls_name = '{0}Dynamic'.format(typeof.title())
         return type(cls_name.replace('_',''), (default,), attrs)
         
-    return Registry._registry.get(typeof, default)
+    return ElementMeta._map.get(typeof, default)
 
 
 class Meta(namedtuple('Meta', 'name href type')):

@@ -3,7 +3,7 @@ Access Control Lists are assigned to SMC admin accounts to grant limited
 access permissions to either Engines, Policies or Domains.
 """
 
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, SubDict
 from smc.base.util import element_resolver
 from smc.administration.system import AdminDomain
 
@@ -21,9 +21,6 @@ class AccessControlList(Element):
 
     """
     typeof = 'access_control_list'
-
-    def __init__(self, name, **meta):
-        super(AccessControlList, self).__init__(name, **meta)
 
     @classmethod
     def create(cls, name, granted_element=None):
@@ -86,7 +83,7 @@ class AccessControlList(Element):
         self.update()
 
 
-class Permission(object):
+class Permission(SubDict):
     """
     Permissions are added to admin users that do not have super user access
     rights. An Admin User can also have multiple permissions. There are three
@@ -99,15 +96,18 @@ class Permission(object):
     A permission might be used to grant read-only access to specific policies
     or firewalls (read-only vs read write). It can also be specific to the 
     Admin Domain.
+    
+    .. seealso:: :py:mod:`smc.elements.user`
     """
-    def __init__(self, granted_elements=None, role_ref=None,
-                 granted_domain_ref=None):
-        self._domain = granted_domain_ref
-        self._role = role_ref
-        self._elements = granted_elements
-        
+    def __init__(self, granted_elements=None, role_ref=None, granted_domain_ref=None):
+        data = dict(
+            granted_domain_ref=element_resolver(granted_domain_ref),
+            role_ref=element_resolver(role_ref),
+            granted_elements=element_resolver(granted_elements))
+        super(Permission, self).__init__(data=data)
+    
     @classmethod
-    def create(cls, granted_elements, role, domain=None):
+    def create(cls, elements, role, domain=None):
         """
         Create a permission.
         
@@ -120,12 +120,9 @@ class Permission(object):
         """
         if not domain:
             domain = AdminDomain('Shared Domain')
-        json = {
-            'granted_domain_ref': element_resolver(domain),
-            'role_ref': element_resolver(role),
-            'granted_elements': element_resolver(granted_elements)}
-
-        return Permission(**json)
+        
+        return Permission(
+            granted_elements=elements, role_ref=role, granted_domain_ref=domain)
     
     @property
     def granted_elements(self):
@@ -135,41 +132,28 @@ class Permission(object):
         
         :rtype: list(Element)
         """
-        return [Element.from_href(element) for element in self._elements]
+        return [Element.from_href(element) for element in self.get('granted_elements')]
     
     @property
-    def role_ref(self):
+    def role(self):
         """
         Specific Role assigned to this permission. A role is what allows read/write
         access to specific operations on the granted elements
         
         :rtype: Role
         """
-        return Element.from_href(self._role)
+        return Element.from_href(self.get('role_ref'))
     
     @property
-    def granted_domain_ref(self):
+    def domain(self):
         """
         Domain this permission applies to. Shared Domain if unspecified.
         
         :rtype: AdminDomain
         """
-        return Element.from_href(self._domain)
-    
-    def _as_dict(self):
-        """
-        Internal representation in dict format. Used when adding permission
-        to AdminUser.
-        """
-        return {'granted_domain_ref': self._domain,
-                'role_ref': self._role,
-                'granted_elements': self._elements}
+        return Element.from_href(self.get('granted_domain_ref', 'Shared Domain'))
     
     def __repr__(self):
-        return "{0}(granted_elements={1},role_ref='{2}',granted_domain_ref='{3}')"\
-            .format(
-                self.__class__.__name__,
-                self.granted_elements,
-                self.role_ref,
-                self.granted_domain_ref
-        )
+        return "Permission(elements={}, role={}, domain={})"\
+            .format(self.granted_elements, self.role, self.domain)
+

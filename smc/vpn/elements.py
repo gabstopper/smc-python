@@ -1,5 +1,4 @@
-from smc.base.model import SubElement
-from smc.base.collection import Search
+from smc.base.model import SubElement, SubElementCreator
 from smc.api.exceptions import CreateElementFailed
 from smc.base.model import Element, ElementCreator
 from smc.base.collection import create_collection
@@ -17,10 +16,6 @@ class GatewaySettings(Element):
         engine.vpn.gateway_settings
     """
     typeof = 'gateway_settings'
-
-    def __init__(self, name, **meta):
-        super(GatewaySettings, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, negotiation_expiration=200000,
@@ -72,10 +67,6 @@ class GatewayProfile(Element):
     """
     typeof = 'gateway_profile'
 
-    def __init__(self, name, **meta):
-        super(GatewayProfile, self).__init__(name, **meta)
-        pass
-
     def capabilities(self):
         pass
 
@@ -93,10 +84,6 @@ class ExternalGateway(Element):
 
     """
     typeof = 'external_gateway'
-
-    def __init__(self, name, **meta):
-        super(ExternalGateway, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, trust_all_cas=True):
@@ -125,7 +112,7 @@ class ExternalGateway(Element):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('vpn_site'),
+            self.get_relation('vpn_site'),
             VPNSite)
 
     @property
@@ -145,7 +132,7 @@ class ExternalGateway(Element):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('external_endpoint'),
+            self.get_relation('external_endpoint'),
             ExternalEndpoint)
 
     @property
@@ -182,11 +169,8 @@ class ExternalEndpoint(SubElement):
         gw.external_endpoint.create(name='aws01', address='2.2.2.2')
     
     """
-
-    def __init__(self, **meta):
-        super(ExternalEndpoint, self).__init__(**meta)
-        pass
-
+    typeof = 'external_endpoint'
+    
     def create(self, name, address=None, enabled=True, balancing_mode='active',
                ipsec_vpn=True, nat_t=False, force_nat_t=False, dynamic=False,
                ike_phase1_id_type=None, ike_phase1_id_value=None):
@@ -226,17 +210,11 @@ class ExternalEndpoint(SubElement):
             json.update(
                 ike_phase1_id_type=ike_phase1_id_type,
                 ike_phase1_id_value=ike_phase1_id_value)
-            
-        result = self.send_cmd(
-            CreateElementFailed,
-            raw_result=True,
+        
+        return SubElementCreator(
+            self.__class__,
             href=self.href,
             json=json)
-        
-        return ExternalEndpoint(
-            name=name,
-            href=result.href,
-            type='external_endpoint')
 
     @property
     def force_nat_t(self):
@@ -299,11 +277,8 @@ class VPNSite(SubElement):
     or :py:class:`smc.vpn.elements.ExternalGateway` and should not be accessed
     directly.
     """
-
-    def __init__(self, **meta):
-        super(VPNSite, self).__init__(**meta)
-        pass
-
+    typeof = 'vpn_site'
+    
     def create(self, name, site_element):
         """
         Create a VPN site for an internal or external gateway
@@ -320,17 +295,11 @@ class VPNSite(SubElement):
             'name': name,
             'site_element': site_element}
         
-        result = self.send_cmd(
-            CreateElementFailed,
-            raw_result=True,
+        return SubElementCreator(
+            self.__class__,
             href=self.href,
             json=json)
-            
-        return VPNSite(
-            name=name,
-            href=result.href,
-            type='vpn_site')
-    
+
     @property
     def name(self):
         name = super(VPNSite, self).name
@@ -374,8 +343,5 @@ class VPNProfile(Element):
     """
     typeof = 'vpn_profile'
 
-    def __init__(self, name, **meta):
-        super(VPNProfile, self).__init__(name, **meta)
-        pass
 
         

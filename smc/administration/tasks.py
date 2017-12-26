@@ -19,8 +19,7 @@ An example of using a task poller when uploading an engine policy
 import re
 import time
 import threading
-from smc.base.mixins import SMCCommand
-from smc.base.model import SimpleElement, Element
+from smc.base.model import ElementCache, Element, SubElement
 from smc.api.exceptions import TaskRunFailed, ActionCommandFailed,\
     ResourceNotFound
 from smc.base.collection import Search
@@ -48,10 +47,7 @@ class TaskProgress(Element):
     queue events can be retrieved by calling :func:`~TaskHistory`.
     """
     typeof = 'task_progress'
-    
-    def __init__(self, name, **meta):
-        super(TaskProgress, self).__init__(name, **meta)
-    
+
     @property
     def task(self):
         """
@@ -62,16 +58,23 @@ class TaskProgress(Element):
         return Task(self.data)
         
 
-class Task(SMCCommand):
+class Task(SubElement):
     """
     Task representation. This is generic and the format is used for
     any calls to SMC that return an asynchronous follower link to
     check the status of the task.
 
-    :param dict task: task json after task process started
+    :param str last_message: Last message received on this task
+    :param bool in_progress: Whether the task is in progress or finished
+    :param bool success: Whether the task succeeded or not
+    :param str follower: Fully qualified path to the follower link to track
+        this task.
     """
     def __init__(self, task):
-        self.data = SimpleElement(**task)
+        super(Task, self).__init__(
+            href=task.get('follower', None),
+            name=task.get('type', None))
+        self.data = ElementCache(**task)
 
     @property
     def resource(self):
@@ -84,19 +87,6 @@ class Task(SMCCommand):
                 for resource in self.data['resource']]
 
     @property
-    def href(self):
-        return self.data['follower']
-
-    @property
-    def last_message(self):
-        """
-        Return the last message logged by SMC
-
-        :rtype: str
-        """
-        return self.data['last_message']
-
-    @property
     def progress(self):
         """
         Percentage of completion
@@ -104,24 +94,6 @@ class Task(SMCCommand):
         :rtype: int
         """
         return self.data.get('progress', 0)
-
-    @property
-    def in_progress(self):
-        """
-        Is this task in progress or complete
-
-        :rtype: bool
-        """
-        return self.data['in_progress']
-
-    @property
-    def success(self):
-        """
-        Was the task completion considered successful
-
-        :rtype: bool
-        """
-        return self.data['success']
 
     @property
     def start_time(self):
@@ -153,7 +125,8 @@ class Task(SMCCommand):
         :return: None
         """
         try:
-            self.del_cmd(
+            self.make_request(
+                method='delete',
                 resource='abort')
     
         except ResourceNotFound:
@@ -168,7 +141,7 @@ class Task(SMCCommand):
 
         :rtype: str
         """
-        return self.data.get_link('result')
+        return self.get_relation('result')
 
     def update_status(self):
         """
@@ -177,21 +150,14 @@ class Task(SMCCommand):
 
         :raises TaskRunFailed: fail to update task status
         """
-        task = self.read_cmd(
+        task = self.make_request(
             TaskRunFailed,
             href=self.href)
 
         return Task(task)
-
+    
     def __getattr__(self, key):
-        try:
-            return self.data[key]
-        except KeyError:
-            pass
-
-    def __repr__(self):
-        return '{0}(type={1})'.format(
-            self.__class__.__name__, self.type)
+        return self.data.get(key)
 
 
 class TaskOperationPoller(object):
@@ -318,10 +284,12 @@ class DownloadTask(TaskOperationPoller):
         if not self.task.in_progress and not self.task.success:
             raise TaskRunFailed(self.task.last_message)
         try:
-            result = self.task._request(
+            result = self.task.make_request(
                 TaskRunFailed,
+                raw_result=True,
                 href=self.task.result_url,
-                filename=self.filename).read()
+                filename=self.filename)
+
             self.filename = result.content
     
         except IOError as io:

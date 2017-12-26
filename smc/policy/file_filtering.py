@@ -9,10 +9,6 @@ class FileFilteringRule(SubElement):
     """
     typeof = 'file_filtering_rule'
 
-    def __init__(self, **meta):
-        super(FileFilteringRule, self).__init__(**meta)
-        pass
-
     def create(self):
         pass
 
@@ -33,10 +29,6 @@ class FileFilteringPolicy(Policy):
     """
     typeof = 'file_filtering_policy'
 
-    def __init__(self, name, **meta):
-        super(FileFilteringPolicy, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls):
         pass
@@ -50,7 +42,7 @@ class FileFilteringPolicy(Policy):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('file_filtering_rules'),
+            self.get_relation('file_filtering_rules'),
             FileFilteringRule)
 
     def export(self): pass  # Not valid on file filtering policy

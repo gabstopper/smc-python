@@ -22,13 +22,13 @@ Create a permission using the default domain of Shared, granting access to a spe
 engine and firewall policy::
 
     permission = Permission.create(
-        granted_elements=[Engine('vm'), FirewallPolicy('VM Policy')], 
+        elements=[Engine('vm'), FirewallPolicy('VM Policy')], 
         role=Role('Viewer'))
 
 Create a second permission granting access to all firewalls in the domain 'mydomain'::
 
     domain_perm = Permission.create(
-        granted_elements=[AccessControlList('ALL Firewalls')],
+        elements=[AccessControlList('ALL Firewalls')],
         role=Role('Owner'),
         domain=AdminDomain('mydomain'))
 
@@ -66,7 +66,7 @@ class UserMixin(object):
         :raises UpdateElementFailed: failed with reason
         :return: None
         """
-        self.update(href=self.data.get_link('enable_disable'))
+        self.update(href=self.get_relation('enable_disable'))
 
     def change_password(self, password):
         """
@@ -75,8 +75,9 @@ class UserMixin(object):
         :param str password: new password
         :return: None
         """
-        self.upd_cmd(
+        self.make_request(
             ModificationFailed,
+            method='update',
             resource='change_password',
             params={'password': password})
 
@@ -87,10 +88,11 @@ class UserMixin(object):
         :return: random password
         :rtype: str
         """
-        pwd = self.upd_cmd(
+        pwd = self.make_request(
+            method='update',
             resource='generate_password')
-        if 'value' in pwd.json:
-            return pwd.json['value'][0]
+        if 'value' in pwd:
+            return pwd['value'][0]
         
     def add_permission(self, permission):
         """
@@ -111,7 +113,7 @@ class UserMixin(object):
             self.data['permissions'] = {'permission':[]}
         
         for p in permission:
-            self.data['permissions']['permission'].append(p._as_dict())
+            self.data['permissions']['permission'].append(p.data)
         self.update()
         
     @property
@@ -156,10 +158,6 @@ class AdminUser(UserMixin, Element):
     :ivar bool superuser: is this account a superuser for SMC
     """
     typeof = 'admin_user'
-
-    def __init__(self, name, **meta):
-        super(AdminUser, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, local_admin=False, allow_sudo=False,
@@ -207,8 +205,9 @@ class AdminUser(UserMixin, Element):
         :raises ModificationFailed: failed setting password on engine
         :return: None
         """
-        self.upd_cmd(
+        self.make_request(
             ModificationFailed,
+            method='update',
             resource='change_engine_password',
             params={'password': password})
 
@@ -218,10 +217,6 @@ class ApiClient(UserMixin, Element):
     Represents an API Client
     """
     typeof = 'api_client'
-
-    def __init__(self, name, **meta):
-        super(ApiClient, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, enabled=True, superuser=True):
@@ -247,26 +242,3 @@ class ApiClient(UserMixin, Element):
             'superuser': superuser}
 
         return ElementCreator(cls, json)
-   
-    '''
-    def one_time_password(self, password):
-        """
-        Generate a one-time password for a single session. As the
-        method implies, the password will be expired after single use.
-        Use :func:`change_password` if you want a multi-use password.
-        
-        :param str password: one-time password value
-        :raises: :py:class:`smc.api.exceptions.ModificationFailed`
-        :return: None
-        """
-        self.upd_cmd(
-            ModificationFailed,
-            resource='change_password',
-            params={'one_time_password': password})
-        
-        #prepared_request(ModificationFailed,
-        #                 href=self._resource.change_password,
-        #                 params={'one_time_password': password},
-        #                 etag=self.etag,
-        #                 .update()
-    '''

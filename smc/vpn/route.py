@@ -135,9 +135,6 @@ class RouteVPN(Element):
     """
     typeof = 'rbvpn_tunnel'
     
-    def __init__(self, name, **meta):
-        super(RouteVPN, self).__init__(name, **meta)
-    
     @classmethod
     def create_ipsec_tunnel(cls, name, local_endpoint, remote_endpoint,
                             preshared_key, monitoring_group=None,
@@ -163,7 +160,7 @@ class RouteVPN(Element):
         :param bool enabled: enable the RBVPN or leave it disabled
         :param str comment: optional comment
         :raises CreateVPNFailed: failed to create the VPN with reason
-        :return RouteVPN
+        :return: RouteVPN
         """
         group = monitoring_group if monitoring_group else \
             TunnelMonitoringGroup('Uncategorized')
@@ -212,7 +209,7 @@ class RouteVPN(Element):
         :param int ttl: ttl for connections on the VPN (default: 0)
         :param str comment: optional comment
         :raises CreateVPNFailed: failed to create the VPN with reason
-        :return RouteVPN
+        :return: RouteVPN
         """
         json = {
             'name': name,
@@ -273,7 +270,7 @@ class RouteVPN(Element):
         :param int ttl: ttl for connections on the VPN (default: 0)
         :param str comment: optional comment
         :raises CreateVPNFailed: failed to create the VPN with reason
-        :return RouteVPN
+        :return: RouteVPN
         """
         group = monitoring_group if monitoring_group else \
             TunnelMonitoringGroup('Uncategorized')
@@ -334,7 +331,7 @@ class RouteVPN(Element):
         """
         The local endpoint for this RBVPN
         
-        :return TunnelEndpoint
+        :return: TunnelEndpoint
         """
         return TunnelEndpoint(**self.rbvpn_tunnel_side_a)
     
@@ -343,7 +340,7 @@ class RouteVPN(Element):
         """
         The remote endpoint for this RBVPN
         
-        :return TunnelEndpoint
+        :return: TunnelEndpoint
         """
         return TunnelEndpoint(**self.rbvpn_tunnel_side_b)
     
@@ -352,7 +349,7 @@ class RouteVPN(Element):
         """
         The tunnel mode for this RBVPN
         
-        :rtype str
+        :rtype: str
         """
         return self.data.get('tunnel_mode')
     
@@ -363,7 +360,7 @@ class RouteVPN(Element):
         visibility from the Home page. This RBVPN monitoring
         group.
         
-        :return TunnelMonitoringGroup
+        :return: TunnelMonitoringGroup
         """
         return Element.from_href(self.monitoring_group_ref)
     
@@ -372,7 +369,7 @@ class RouteVPN(Element):
         """
         VPN profile for this RBVPN
         
-        :return VPNProfile
+        :return: VPNProfile
         """
         if self.data.get('vpn_profile_ref'):
             return Element.from_href(self.vpn_profile_ref)
@@ -384,9 +381,6 @@ class TunnelMonitoringGroup(Element):
     for monitoring on the Home->VPN dashboard.
     """
     typeof = 'rbvpn_tunnel_monitoring_group'
-    
-    def __init__(self, name, **meta):
-        super(TunnelMonitoringGroup, self).__init__(name, **meta)
 
 
 class TunnelEndpoint(object):
@@ -418,7 +412,7 @@ class TunnelEndpoint(object):
             this tunnel endpoint. Required for SMC managed devices.
         :param str remote_address: IP address, only required if the tunnel
             endpoint is a remote gateway.
-        :rtype: TunnelEndpoint
+        :return: TunnelEndpoint
         """
         tunnel_interface = tunnel_interface.href if tunnel_interface else None
         endpoint = endpoint.href if endpoint else None
@@ -439,7 +433,7 @@ class TunnelEndpoint(object):
             element for this tunnel endpoint.
         :param TunnelInterface tunnel_interface: the tunnel interface for
             this tunnel endpoint. Required for SMC managed devices.
-        :rtype: TunnelEndpoint
+        :return: TunnelEndpoint
         """
         tunnel_interface = tunnel_interface.href if tunnel_interface else None
         return TunnelEndpoint(
@@ -459,7 +453,7 @@ class TunnelEndpoint(object):
         :param TunnelInterface tunnel_interface: Tunnel interface for
             this RBVPN. This can be None if the gateway is a non-SMC
             managed gateway.
-        :rtype: TunnelEndpoint
+        :return: TunnelEndpoint
         """
         tunnel_interface = tunnel_interface.href if tunnel_interface else None
         return TunnelEndpoint(

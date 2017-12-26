@@ -7,18 +7,27 @@ different sets of elements. There are some default Administrator Roles, but if
 you want to customize the permissions in any way, you must create custom
 Administrator Role elements.
 
+Create a new role is done by using the create classmethod. By default the role
+will not have any permissions set::
+
+    >>> from smc.administration.role import Role
+    >>> role = Role.create(name='mynewrole')
+
 A role has many attributes (mostly boolean) that can be enabled, therefore the
 simplest way to create a new role is to duplicate an existing role.
 ::
 
-    >>> from smc.administration.role import Role
     >>> list(Role.objects.all())
-    [Role(name=Reports Manager), Role(name=Reporter), Role(name=Viewer), Role(name=Logs Viewer),
-    Role(name=Monitor), Role(name=Owner), Role(name=Editor), Role(name=Operator),
-    Role(name=Superuser)]
+    [Role(name=myeditor), Role(name=Logs Viewer), Role(name=Reports Manager), Role(name=Owner),
+     Role(name=Viewer), Role(name=Operator), Role(name=Monitor), Role(name=Editor),
+     Role(name=Superuser)]
     ...
-    >>> Role.duplicate(name='dupviewer', role=Role('Viewer'))
-    Role(name=dupviewer)
+
+Duplicate an existing role to simplify making modifications on permissions::
+
+    >>> role = Role('Editor')
+    >>> role.duplicate('customeditor')
+    Role(name=customeditor)
 
 To enable or disable role permissions, use the enable/disable option after retrieving
 the Role resource.
@@ -36,7 +45,7 @@ attribute::
      {'bookmark_manage': True}, {'admin_mgmt': False}, {'name': 'newrole'}, {'overview_manage': True},
      {'internal_user_mgmt': False}, {'refresh_policy': False}]
 
-Then enable specific roles::
+Then enable specific roles by specifying the keys to enable::
 
     >>> role.enable(['element_create', 'upload_policy'])
 
@@ -44,9 +53,14 @@ Also disable specific roles::
 
     >>> role.disable(['element_create', 'upload_policy'])
     
+Once modification is complete, call update on the role::
+
+    >>> role.update()
+    'http://172.18.1.151:8082/6.4/elements/role/10'
+    
 """
 from smc.base.model import Element, ElementCreator
-from smc.base.decorators import autocommit
+
 
 class Role(Element):
     """
@@ -55,33 +69,23 @@ class Role(Element):
     Lists).
     """
     typeof = 'role'
-    reserved = ['key',
-                'link',
-                'system', 
-                'system_key',  
-                'read_only',
-                'comment']
-
+    _reserved = ('comment', 'key', 'link', 'name', 'read_only', 'system')
+ 
     @classmethod
-    def duplicate(cls, name, role):
+    def create(cls, name, comment=None):
         """
-        Copy a role from an existing system role.
+        Create a new role. The role will not have any permissions by default
+        so it will be required to call enable on the role after creation.
         
-        :param str name: name of new role
-        :param str,Role role: Role to copy
-        :raises ElementNotFound: unable to locate role
+        :param str name: name of role
+        :param str comment: comment for role
         :raises CreateElementFailed: failed to create role
-        :return: instance with meta
         :rtype: Role
         """
-        for attr in Role.reserved:
-            role.data.pop(attr, None)
-        role.data['name'] = name
+        json = {'name': name, 'comment': comment}
+        return ElementCreator(cls, json)
     
-        return ElementCreator(cls, role.data)
-    
-    @autocommit(now=False)   
-    def enable(self, values, autocommit=False):
+    def enable(self, values):
         """
         Enable specific permissions on this role. Use :py:attr:`~permissions` to
         view valid permission settings and current value/s. Change is committed
@@ -94,8 +98,7 @@ class Role(Element):
             if value in self.data:
                 self.data[value] = True
     
-    @autocommit(now=False)
-    def disable(self, values, autocommit=False):
+    def disable(self, values):
         """
         Disable specific permissions on this role. Use :py:attr:`~permissions` to
         view valid permission settings and current value/s. Change is committed
@@ -121,7 +124,7 @@ class Role(Element):
         """
         permissions = []
         for permission, value in self.data.items():
-            if permission not in Role.reserved:
+            if permission not in self._reserved:
                 permissions.append({permission: value})
         return permissions
             

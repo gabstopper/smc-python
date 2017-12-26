@@ -4,7 +4,9 @@ is linked from the engine and will be PhysicalInterface, TunnelInterface, etc. W
 the top level interface, there are sub-interface configurations that identify the
 basic settings such as ip address, network, administrative settings etc. These are
 not called directly but used as a reference to the top level interface.
+All sub interfaces are type dict. 
 """
+from smc.base.model import SubDict
 
 def get_sub_interface(typeof):
     if typeof in clsmembers:
@@ -21,73 +23,16 @@ def all_interfaces(data):
             for kind, value in interface.items()]
         
 
-class SubInterface(object):
+class SubInterface(SubDict):
     def __init__(self, data):
-        self.__dict__ = data
-
-    @property
-    def data(self):
-        return {self.typeof: self.__dict__}
+        super(SubInterface, self).__init__(data=data)
     
-    def __getattr__(self, _):
-        return None
-
-                
-class LoopbackNodeInterface(SubInterface):
-    typeof = 'loopback_node_dedicated_interface'
-    
-    def __init__(self, data):
-        super(LoopbackNodeInterface, self).__init__(data)
-    
-    @classmethod
-    def create(cls, address, nodeid=1, ospf_area=None, **kwargs):
-        data = {'address': address,
-                'network_value': '{}/32'.format(address),
-                'nicid': 'Loopback Interface',
-                'ospfv2_area_ref': ospf_area,
-                'nodeid': nodeid }
-
-        for k, v in kwargs.items():
-            data.update({k: v})
-    
-        return data
-           
-    def __repr__(self):
-        return '{}(address={}, nodeid={})'.format(
-            self.__class__.__name__, self.address, self.nodeid)
-
-        
-class LoopbackClusterVirtualInterface(SubInterface):
-    typeof = 'loopback_cluster_virtual_interface'
-    
-    def __init__(self, data):
-        super(LoopbackClusterVirtualInterface, self).__init__(data)
-    
-    @classmethod
-    def create(cls, address, igmp_mode=None, ospf_area=None,
-               auth_request=False, relayed_by_dhcp=False, **kw):
-        
-        data = {'address': address,
-                'network_value': '{}/32'.format(address),
-                'nicid': 'Loopback Interface',
-                'ospfv2_area_ref': ospf_area,
-                'igmp_mode': igmp_mode,
-                'auth_request': auth_request,
-                'relayed_by_dhcp': relayed_by_dhcp}
-
-        for k, v in kw.items():
-            data.update({k: v})
-    
-        return data
-
-    def __repr__(self):
-        return '{}(address={}, auth_request={})'.format(
-            self.__class__.__name__, self.address, self.auth_request)
+    def __getattr__(self, key):
+        return self.get(key)
 
             
 class ClusterVirtualInterface(SubInterface):
     """
-    ClusterVirtualInterface
     These interfaces (CVI) are used on cluster devices and applied to layer 3
     interfaces. They specify a 'VIP' (or shared IP) to be used for traffic load
     balancing or high availability. Each engine will still also have a 'node'
@@ -106,7 +51,7 @@ class ClusterVirtualInterface(SubInterface):
 
     def __init__(self, data):
         super(ClusterVirtualInterface, self).__init__(data)
-
+            
     @classmethod
     def create(cls, interface_id, address, network_value,
                **kwargs):
@@ -114,7 +59,7 @@ class ClusterVirtualInterface(SubInterface):
         :param int interface_id: nic id to use for physical interface
         :param str address: address of CVI
         :param str network_value: network for CVI
-        :rtype: dict
+        :rtype: ClusterVirtualInterface
         """
         data = {'address': address,
                 'network_value': network_value,

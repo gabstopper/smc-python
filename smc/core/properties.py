@@ -85,8 +85,7 @@ class Layer2Settings(SubDict):
                 raise LoadPolicyFailed('Invalid policy type specified. The policy'
                     'type must be InterfacePolicy')
                 
-        self.update(
-            l2_interface_policy_ref=element_resolver(policy))
+        self.update(l2_interface_policy_ref=element_resolver(policy))
     
     @property
     def policy(self):
@@ -149,7 +148,8 @@ class AntiVirus(SubDict):
         Update the day when updates should occur.
         
         :param str day: only used if 'weekly' is specified. Which day
-        or week to perform update. Valid options: mo, tu, we, th, fr, sa, su.
+            or week to perform update. Valid options: mo, tu, we, th,
+            fr, sa, su.
         """
         if day in ('mo','tu','we','th','fr','sa','su'):
             self.update(antivirus_update_day=day)
@@ -194,7 +194,7 @@ class AntiVirus(SubDict):
         
         :rtype: bool
         """
-        return self.antivirus_enabled
+        return self.get('antivirus_enabled', False)
     
     def enable(self):
         """
@@ -202,9 +202,9 @@ class AntiVirus(SubDict):
         """
         self.update(antivirus_enabled=True,
                     virus_mirror='update.nai.com/Products/CommonUpdater' if \
-                        not self.virus_mirror else self.virus_mirror,
+                        not self.get('virus_mirror') else self.virus_mirror,
                     antivirus_update_time=self.antivirus_update_time if \
-                        self.antivirus_update_time else 21600000)
+                        self.get('antivirus_update_time') else 21600000)
         
     def __repr__(self):
         return '{0}(enabled={1})'.format(
@@ -369,7 +369,7 @@ class UrlFiltering(SubDict):
         
         :rtype: bool
         """
-        return self.ts_enabled
+        return self.get('ts_enabled', False)
     
     def __repr__(self):
         return '{0}(enabled={1})'.format(

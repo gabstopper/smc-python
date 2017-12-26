@@ -101,10 +101,6 @@ class IPAccessList(AccessList, Element):
     """
     typeof = 'ip_access_list'
 
-    def __init__(self, name, **meta):
-        super(IPAccessList, self).__init__(name, **meta)
-        pass
-
 
 class IPv6AccessList(AccessList, Element):
     """
@@ -113,7 +109,3 @@ class IPv6AccessList(AccessList, Element):
     Protocols like OSPF and BGP allow inbound and outbound filters using these.
     """
     typeof = 'ipv6_access_list'
-
-    def __init__(self, name, **meta):
-        super(IPv6AccessList, self).__init__(name, **meta)
-        pass

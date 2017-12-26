@@ -60,7 +60,7 @@ class FirewallRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('fw_ipv4_access_rules'),
+            self.get_relation('fw_ipv4_access_rules'),
             IPv4Rule)
 
     @property
@@ -72,7 +72,7 @@ class FirewallRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('fw_ipv4_nat_rules'),
+            self.get_relation('fw_ipv4_nat_rules'),
             IPv4NATRule)
 
     @property
@@ -84,7 +84,7 @@ class FirewallRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('fw_ipv6_access_rules'),
+            self.get_relation('fw_ipv6_access_rules'),
             IPv6Rule)
 
     @property
@@ -96,7 +96,7 @@ class FirewallRule(object):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('fw_ipv6_nat_rules'),
+            self.get_relation('fw_ipv6_nat_rules'),
             IPv6NATRule)
 
 
@@ -119,10 +119,6 @@ class FirewallPolicy(FirewallRule, Policy):
 
     """
     typeof = 'fw_policy'
-
-    def __init__(self, name, **meta):
-        super(FirewallPolicy, self).__init__(name, **meta)
-        pass
 
     @classmethod
     def create(cls, name, template='Firewall Inspection Template'):
@@ -181,10 +177,6 @@ class FirewallSubPolicy(Policy):
     """
     typeof = 'sub_ipv4_fw_policy'
 
-    def __init__(self, name, **meta):
-        super(FirewallSubPolicy, self).__init__(name, **meta)
-        pass
-
     @classmethod
     def create(cls, name):
         """
@@ -207,7 +199,7 @@ class FirewallSubPolicy(Policy):
         :rtype: create_collection
         """
         return create_collection(
-            self.data.get_link('fw_ipv4_access_rules'),
+            self.get_relation('fw_ipv4_access_rules'),
             IPv4Rule)
 
 
@@ -228,9 +220,5 @@ class FirewallTemplatePolicy(FirewallRule, Policy):
             print rule
     """
     typeof = 'fw_template_policy'
-
-    def __init__(self, name, **meta):
-        super(FirewallTemplatePolicy, self).__init__(name, **meta)
-        pass
 
     def upload(self): pass  # Not supported on the template

@@ -24,14 +24,13 @@ VLANs are properties of specific interfaces and can also be retrieved by
 first getting the top level interface, and calling :func:`~smc.core.interfaces.Interface.vlan_interfaces`
 to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
-from smc.base.model import prepared_request, SubElement, lookup_class,\
-    SimpleElement
-from smc.api.exceptions import EngineCommandFailed, UpdateElementFailed
+from smc.base.model import SubElement, lookup_class, ElementCache
+from smc.api.exceptions import EngineCommandFailed, UpdateElementFailed,\
+    UnsupportedInterfaceType
 from smc.core.sub_interfaces import (
     NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
     InlineInterface, CaptureInterface, _add_vlan_to_inline,
-    get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface,
-    LoopbackNodeInterface, LoopbackClusterVirtualInterface)
+    get_sub_interface, all_interfaces, InlineL2FWInterface, InlineIPSInterface)
 from smc.base.util import bytes_to_unicode
 from smc.base.decorators import deprecated
 from smc.elements.helpers import zone_helper, logical_intf_helper
@@ -39,10 +38,9 @@ from smc.elements.helpers import zone_helper, logical_intf_helper
 
 def dispatch(instance, builder, interface=None):
     """
-    Dispatch to SMC. Once successfully, reset the
-    engine level cache or instances will not have
-    visibility to newly added interfaces without
-    re-retrieving.
+    Dispatch to SMC. Once successful, reset the
+    engine level cache or instances will have a stale
+    copy of the engine data.
     """
     if interface: # Modify
         interface.update(
@@ -52,11 +50,12 @@ def dispatch(instance, builder, interface=None):
             json=builder.data)
     else:
         # Create
-        prepared_request(
+        instance.make_request(
             EngineCommandFailed,
+            method='create',
             href=instance.href,
-            json=builder.data
-        ).create()
+            json=builder.data)
+
     # Clear cache, next call for attributes will refresh it
     instance._engine._del_cache()
 
@@ -335,11 +334,11 @@ class Interface(SubElement):
                     ip.add_contact_address(contact_address='2.2.2.2')
             
         :return: list of interface contact addresses
-        :rtype: InterfaceContactAddress
+        :rtype: ContactAddressInterface
 
         .. seealso:: :py:mod:`smc.core.contact_address`
         """
-        return self._engine.contact_addresses(self.interface_id)
+        return self._engine.contact_addresses.get(self.interface_id)
 
     @property
     def has_vlan(self):
@@ -471,14 +470,13 @@ class Interface(SubElement):
                 mask = sub.network_value
                 if replace_ip:
                     if sub.address == replace_ip:
-                        sub.address = address
-                        sub.network_value = network_value
+                        sub.update(address=address, network_value=network_value)
                         nicid = sub.nicid
+                        
                         do_save = True
                         break
                 else:
-                    sub.address = address
-                    sub.network_value = network_value
+                    sub.update(address=address, network_value=network_value)
                     nicid = sub.nicid
                     do_save = True
                     break
@@ -554,15 +552,15 @@ class Interface(SubElement):
         
         for interface in interfaces:
             if cvi and isinstance(interface, ClusterVirtualInterface):
-                interface.address = cvi
+                interface.update(address=cvi)
                 if cvi_network_value:
-                    interface.network_value = cvi_network_value
+                    interface.update(network_value=cvi_network_value)
                 do_save = True
             elif nodes and isinstance(interface, NodeInterface):
                 for node in nodes:
                     if node.get('nodeid') == interface.nodeid:
-                        interface.address = node.get('address')
-                        interface.network_value = node.get('network_value')
+                        interface.update(address=node.get('address'),
+                            network_value=node.get('network_value'))
                         do_save = True
 
         if do_save:
@@ -610,15 +608,15 @@ class Interface(SubElement):
                 for sub in vlan.interfaces:                            
                     if isinstance(sub, InlineInterface):
                         vlans = sub.vlan_id.split('-')
-                        sub.nicid = '{}.{}-{}.{}'.format(
+                        sub['nicid'] = '{}.{}-{}.{}'.format(
                             interface_id[0], vlans[0],
                             interface_id[1], vlans[-1])
             vlanInterfaces.append(vlan.data)
         for sub in self.interfaces:
             if isinstance(sub, InlineInterface):
-                sub.nicid = '{}'.format('-'.join(interface_id))
+                sub['nicid'] = '{}'.format('-'.join(interface_id))
             elif getattr(sub, 'nicid'):
-                sub.nicid = interface_id[0]
+                sub['nicid'] = interface_id[0]
         if vlanInterfaces:
             self.data['vlanInterfaces'] = vlanInterfaces
         self.save()
@@ -640,7 +638,7 @@ class Interface(SubElement):
     @interface_id.setter
     def interface_id(self, value):
         self.data['interface_id'] = value
-
+    
     @property
     def zone_ref(self):
         """
@@ -670,10 +668,6 @@ class TunnelInterface(Interface):
     """
     typeof = 'tunnel_interface'
 
-    def __init__(self, **meta):
-        super(TunnelInterface, self).__init__(**meta)
-        pass
-    
     def add_single_node_interface(self, tunnel_id, address, network_value,
                                   zone_ref=None):
         """
@@ -769,10 +763,6 @@ class PhysicalInterface(Interface):
     When making changes, the etag used should be the top level engine etag.
     """
     typeof = 'physical_interface'
-
-    def __init__(self, **meta):
-        super(PhysicalInterface, self).__init__(**meta)
-        pass
 
     def add(self, interface_id, virtual_mapping=None,
             virtual_resource_name=None, zone_ref=None):
@@ -1433,13 +1423,13 @@ class PhysicalInterface(Interface):
                 # Interfaces in VLAN
                 for interface in vlan.interfaces:
                     if interface.nicid == vlan.interface_id:
-                        setattr(interface, 'nicid', new_ifid)
+                        interface.update(nicid=new_ifid)
                     elif isinstance(interface, InlineInterface):
                         if interface.vlan_id == str(original):
                             itfs = [i.split('.')[0] for i in interface.nicid.split('-')]
                             # Reset the VLANs
-                            interface.nicid = '{}.{}-{}.{}'.format(
-                                itfs[0], new_vlan[0], itfs[-1], new_vlan[-1])
+                            interface.update(nicid='{}.{}-{}.{}'.format(
+                                itfs[0], new_vlan[0], itfs[-1], new_vlan[-1]))
                 # Reset top level interface        
                 vlan.interface_id = new_ifid
                 vlanInterfaces.append(vlan.data)
@@ -1681,7 +1671,7 @@ class PhysicalVlanInterface(PhysicalInterface):
     def __init__(self, parent, data, **meta):
         self._parent = parent
         super(PhysicalVlanInterface, self).__init__(href=None)
-        self.data = SimpleElement(**data)
+        self.data = ElementCache(**data)
 
     @staticmethod
     def create(interface_id, vlan_id,
@@ -1711,7 +1701,7 @@ class PhysicalVlanInterface(PhysicalInterface):
         # Address sent as kwarg?
         interface = kwargs.pop('interface', None)
         if interface:  # Should be sub-interface type
-            intf.get('interfaces').append(interface.data)
+            intf.get('interfaces').append(interface)
         return intf
 
     @property
@@ -1787,79 +1777,54 @@ class VirtualPhysicalInterface(PhysicalInterface):
     """
     typeof = 'virtual_physical_interface'
 
-    def __init__(self, **meta):
-        super(VirtualPhysicalInterface, self).__init__(**meta)
-        pass
 
-
-class LoopbackInterface(object):
-    def __init__(self, parent, loopback=None):
-        self._parent = parent
-        self._loopback = loopback
+class LoopbackClusterInterface(ClusterVirtualInterface):
+    """
+    This represents the CVI Loopback IP address.
+    A CVI loopback IP address is used for loopback traffic that is sent to
+    the whole cluster. It is shared by all the nodes in the cluster.
+    """
+    typeof = 'loopback_cluster_virtual_interface'
+    
+    def __init__(self, data, engine=None):
+        self._engine = engine
+        super(LoopbackClusterInterface, self).__init__(data)
+        
+    @classmethod
+    def create(cls, address, ospf_area=None, **kwargs):
+        """
+        Create a loopback interface. Uses parent constructor
+        
+        :rtype: LoopbackClusterInterface
+        """
+        return super(LoopbackClusterInterface, cls).create(
+            address=address,
+            network_value='{}/32'.format(address),
+            interface_id='Loopback Interface',
+            ospfv2_area_ref=ospf_area,
+            **kwargs)
     
     def delete(self):
-        if isinstance(self, LoopbackClusterVirtualInterface):
-            engine = self._parent
-            engine.data[LoopbackClusterVirtualInterface.typeof] = \
-                [lb for lb in engine.loopback_cluster_virtual_interface
-                 if lb.get('address') != self.address]
-            engine.update()
-        else: 
-            node = self._parent
-            if len(node._engine.nodes) == 1:
-                node.data[LoopbackNodeInterface.typeof] = \
-                    [lb for lb in node.loopback_node_dedicated_interface
-                     if lb.get('address') != self.address]
-                node.update()
-            else: 
-                # For cluster loopbacks, deleting a single loopback
-                # will also delete the peer member entries by the rank
-                # field. In case delete is done in a loop, check that
-                # the loopback exists in the engine reference or noop
-                if any(lb for n in node._engine.nodes
-                       for lb in n.loopback_node_dedicated_interface
-                       if lb.get('address') == self.address):
-                        
-                    nodes = []
-                    for _node in node._engine.nodes:
-                        _node.data[LoopbackNodeInterface.typeof] = \
-                            [lb for lb in _node.loopback_node_dedicated_interface
-                             if lb.get('rank') != self.rank]
-                        nodes.append({_node.type: _node.data})
-            
-                    node._engine.data['nodes'] = nodes
-                    node._engine.update()        
-                
-    def add(self, address, nodeid=1, ospf_area=None, **kwargs):
         """
-        Add a loopback interface to a single node engine. 
+        Delete a loopback cluster virtual interface from this engine. 
+        Changes to the engine configuration are done immediately.
         
-        :param str address: IP for loopback
-        :param str network_value: network cidr for address
-        :param str nodeid: nodeid for this engine. Will always
-            be 1.
-        :param str ospf_area: optional OSPF area for this loopback
-        :raises EngineCommandFailed: failed creating loopback
+        You can find cluster virtual loopbacks by iterating at the
+        engine level::
+        
+            for loopbacks in engine.loopback_interface:
+                ...
+        
+        :raises UpdateElementFailed: failure to delete loopback interface
+        :return: None
         """
-        if len(self._engine.nodes) == 1:
-            lb = LoopbackNodeInterface.create(
-                address, nodeid, ospf_area, **kwargs)
+        self._engine.data[self.typeof] = \
+            [loopback for loopback in self._engine.data.get(self.typeof, [])
+             if loopback.get('address') != self.address]
             
-            node = self._engine.nodes[0]
-            if LoopbackNodeInterface.typeof in node.data:
-                node.data[LoopbackNodeInterface.typeof].append(lb)
-            else:
-                node.data.update(
-                    {LoopbackNodeInterface.typeof: [lb]})
-            
-            node.update()
-        
-        else:
-            raise EngineCommandFailed('Engine has multiple nodes, use '
-                'add_to_cluster_nodes when adding loopback interfaces '
-                'to clusters, or add a loopback CVI')
-            
-    def add_cluster_node_loopback(self, nodes, ospf_area=None):
+        self._engine.update()
+    
+    def add_node_loopback(self, nodes, ospf_area=None):
         """
         Add loopback interfaces to a cluster. When adding a loopback on a
         cluster, every cluster node must have a loopback defined or you
@@ -1876,44 +1841,120 @@ class LoopbackInterface(object):
         """
         pass
     
-    def add_cluster_virtual_loopback(self, address, igmp_mode=None, ospf_area=None,
-            auth_request=False, relayed_by_dhcp=False, **kw):
+    def add_cvi_loopback(self, address, ospf_area=None, **kw):
         """
         Add a loopback interface as a cluster virtual loopback. This enables
-        the loopback to 'float' between cluster members. Otherwise assign a
-        unique loopback address per cluster node.
+        the loopback to 'float' between cluster members. Changes are committed
+        immediately.
         
+        :param str address: ip address for loopback
+        :param int rank: rank of this entry
+        :param str,Element ospf_area: optional ospf_area to add to loopback
+        :raises UpdateElementFailed: failure to save loopback address
+        :return: None
         """
-        lb = LoopbackClusterVirtualInterface.create(
-            address, igmp_mode=igmp_mode, ospf_area=ospf_area,
-            auth_request=auth_request, relayed_by_dhcp=relayed_by_dhcp,
-            **kw)
-        
-        if getattr(self._engine, LoopbackClusterVirtualInterface.typeof):
-            self._engine.data[LoopbackClusterVirtualInterface.typeof].append(lb)
+        lb = self.create(address, ospf_area, **kw)
+       
+        if self.typeof in self._engine.data:
+            self._engine.data[self.typeof].append(lb.data)
         else:
-            self._engine.data.update(
-                {LoopbackClusterVirtualInterface.typeof: [lb]})
+            self._engine.data[self.typeof] = [lb.data]
         
         self._engine.update()
+  
+    def __repr__(self):
+        return 'LoopbackClusterInterface(address={}, auth_request={})'.format(
+            self.address, self.auth_request)
+        
+
+class LoopbackInterface(NodeInterface):
+    """
+    Loopback interface for a physical or virtual single firewall.
+    To create a loopback interface, call from the engine node::
     
+        engine.loopback_interface.add_single(...)
+    """
+    typeof = 'loopback_node_dedicated_interface'
+    
+    def __init__(self, data, engine=None):
+        self._engine = engine
+        super(LoopbackInterface, self).__init__(data)
+        
+    @classmethod
+    def create(cls, address, rank=1, nodeid=1, ospf_area=None, **kwargs):
+        return super(LoopbackInterface, cls).create(
+            interface_id='Loopback Interface',
+            #rank=rank,
+            address=address,
+            network_value='{}/32'.format(address),
+            nodeid=nodeid,
+            ospfv2_area_ref=ospf_area,
+            **kwargs)
+    
+    def add_single(self, address, rank=1, nodeid=1, ospf_area=None, **kwargs):
+        """
+        Add a single loopback interface to this engine. This is used
+        for single or virtual FW engines.
+        
+        :param str address: ip address for loopback
+        :param int nodeid: nodeid to apply. Default to 1 for single FW
+        :param str, Element ospf_area: ospf area href or element
+        :raises UpdateElementFailed: failure to create loopback address
+        :return: None
+        """
+        lb = self.create(address, rank, nodeid, ospf_area, **kwargs)
+        self._engine.nodes[0].data[self.typeof].append(lb.data)
+        self._engine.update()
+    
+    def delete(self):
+        """
+        Delete a loopback interface from this engine. Changes to the
+        engine configuration are done immediately.
+        
+        A simple way to obtain an existing loopback is to iterate the
+        loopbacks or to get by address::
+        
+            lb = engine.loopback_interface.get('127.0.0.10')
+            lb.delete()
+        
+        .. warning:: When deleting a loopback assigned to a node on a cluster
+            all loopbacks with the same rank will also be removed.
+        
+        :raises UpdateElementFailed: failure to delete loopback interface
+        :return: None
+        """
+        nodes = []
+        for node in self._engine.nodes:
+            node.data[self.typeof] = \
+                [lb for lb in node.loopback_node_dedicated_interface
+                 if lb.get('rank') != self.rank]
+            nodes.append({node.type: node.data})
+        
+        self._engine.data['nodes'] = nodes
+        self._engine.update()
+    
+    def change_ipaddress(self, address):
+        self.update(address=address,
+                    network_value='{}/32'.format(address))
+
+    def __repr__(self):
+        return 'LoopbackInterface(address={}, nodeid={}, rank={})'.format(
+            self.address, self.nodeid, self.rank)        
+
 
 class LoopbackCollection(object):
     """
-    Loopback interfaces can be configured on layer 3 engine types
-    and used as endpoints for authentication requests and outgoing
-    settings within interface options. You can also assign a dynamic
-    routing element to a loopback interface.
+    An loopback collection provides top level search capabilities
+    to iterate or get loopback interfaces from a given engine.
     
     All loopback interfaces can be fetched from the engine::
     
-        >>> engine = Engine('fwcluster')
+        >>> engine = Engine('dingo')
         >>> for lb in engine.loopback_interface:
         ...   lb
         ... 
-        LoopbackClusterVirtualInterface(address=127.0.0.2, auth_request=False)
-        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
-        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
+        LoopbackInterface(address=172.20.1.1, nodeid=1, rank=1)
+        LoopbackInterface(address=172.31.1.1, nodeid=1, rank=2)
     
     Or directly from the nodes::
     
@@ -1921,35 +1962,63 @@ class LoopbackCollection(object):
         ...   for lb in node.loopback_interface:
         ...     lb
         ... 
-        LoopbackNodeInterface(address=127.0.0.3, nodeid=1)
-        LoopbackNodeInterface(address=127.0.0.4, nodeid=2)
+        LoopbackInterface(address=172.20.1.1, nodeid=1, rank=1)
+        LoopbackInterface(address=172.31.1.1, nodeid=1, rank=2)
     
     """
     def __init__(self, engine):
         self._engine = engine
     
     def __iter__(self):
-        for cvi in self._engine.data.get('loopback_cluster_virtual_interface', []):
-            yield LoopbackInterface(self._engine, cvi)
+        if 'fw_cluster' in self._engine.type:
+            for cvi in self._engine.data.get('loopback_cluster_virtual_interface', []):
+                yield LoopbackClusterInterface(cvi, self._engine)
+        for node in self._engine.nodes:
+            for lb in node.loopback_node_dedicated_interface:
+                yield LoopbackInterface(lb, self._engine)
+    
+    def get(self, address):
+        """
+        Get a loopback address by it's address. Find all loopback addresses
+        by iterating at either the node level or the engine::
         
-        if self._engine.type in ('fw_cluster',):
-            yield None
-        else:
-            for node in self._engine.nodes:
-                for loopback in node.loopback_interface:
-                    yield LoopbackInterface(self._engine, loopback)
+            loopback = engine.loopback_interface.get('127.0.0.10')
+        
+        :param str address: ip address of loopback
+        :rtype: LoopbackInterface
+        """
+        for loopback in self:
+            if loopback.address == address:
+                return loopback
+        raise EngineCommandFailed('Loopback address specified was not found')
     
     def all(self):
+        """
+        Return all loopback interfaces for this engine. This is a common
+        entry point to viewing interface information. If the engine is a
+        cluster, this will show all node loopbacks and cluster loopback/s
+        if they exist. Since loopback is an iterable class, this method is
+        optional but is provided for consistency.
+        ::
+        
+            for loopback in engine.loopback_interface.all():
+                ...
+        
+        :rtype: LoopbackInterface
+        """
         return iter(self)
     
-    #def __getattr__(self, key):
+    def __getattr__(self, key):
         # Dispatch to instance methods but only for adding interfaces.
         # Makes this work: engine.loopback_interface.add
-        #if key.startswith('add') and self.class_map.get(self._rel):
-        #    return getattr(self.class_map[self._rel](
-        #        href=self.href, engine=self._engine), key)
-        #raise AttributeError('Cannot proxy to given method: %s for the '
-        #    'following type: %s' % (key, self._rel))
+        if key.startswith('add_'):
+            if 'fw_cluster' not in self._engine.type:
+                return getattr(LoopbackInterface(None, self._engine), key)
+            else: # Cluster
+                return getattr(LoopbackClusterInterface(None, self._engine), key)
+        
+        raise AttributeError('Cannot proxy to given method: %s for the '
+            'following engine type: %s' % (key, self._engine.type))
         
 
 class InterfaceCollection(object):
@@ -1975,6 +2044,8 @@ class InterfaceCollection(object):
         engine.physical_interface.add_layer3_interface(....)
         ...
 
+    .. note:: This can raise UnsupportedInterfaceType for unsupported engine
+        types based on the interface context.
     """
     class_map = {
         PhysicalInterface.typeof: PhysicalInterface,
@@ -1985,7 +2056,7 @@ class InterfaceCollection(object):
     def __init__(self, engine, rel='interfaces'):
         self._engine = engine
         self._rel = rel
-        self.href = engine.data.get_link(rel)
+        self.href = engine.get_relation(rel, UnsupportedInterfaceType)
     
     def get(self, interface_id):
         """
@@ -2091,7 +2162,7 @@ class InterfaceModifier(object):
                     name=name,
                     type=typeof,
                     href=InterfaceModifier.href_from_link(data.get('link')))
-                clazz.data = SimpleElement(**data)
+                clazz.data = ElementCache(**data)
                 clazz._engine = engine
                 interfaces.append(clazz)
         return cls(interfaces, engine=engine)
@@ -2158,13 +2229,13 @@ class InterfaceModifier(object):
                             if address is not None: # Find IP on Node Interface
                                 if ipaddress.ip_address(bytes_to_unicode(address)) in \
                                     ipaddress.ip_network(sub_interface.network_value):
-                                    setattr(sub_interface, attribute, True)
+                                    sub_interface[attribute] = True
                                 else:
-                                    setattr(sub_interface, attribute, False)
+                                    sub_interface[attribute] = False
                             else:
-                                setattr(sub_interface, attribute, True)
+                                sub_interface[attribute] = True
                         else: #unset
-                            setattr(sub_interface, attribute, False)
+                            sub_interface[attribute] = False
          
     def set_auth_request(self, interface_id, address=None):
         """
@@ -2187,28 +2258,28 @@ class InterfaceModifier(object):
                         if isinstance(sub_interface, ClusterVirtualInterface):
                             if address is not None: # Bind to single CVI
                                 if sub_interface.address == address:
-                                    sub_interface.auth_request = True
+                                    sub_interface.update(auth_request=True)
                                 else:
-                                    sub_interface.auth_request = False
+                                    sub_interface.update(auth_request=False)
                             else:
-                                sub_interface.auth_request = True
+                                sub_interface.update(auth_request=True)
                         else:
-                            sub_interface.auth_request = False
+                            sub_interface.update(auth_request=False)
                     else:
-                        sub_interface.auth_request = False
+                        sub_interface.update(auth_request=False)
             else:
                 for sub_interface in all_subs:
                     if not isinstance(sub_interface, PhysicalVlanInterface):
                         if sub_interface.nicid == str(interface_id):
                             if address is not None: # Specific IP on interface
                                 if sub_interface.address == address:
-                                    sub_interface.auth_request = True
+                                    sub_interface.update(auth_request=True)
                                 else:
-                                    sub_interface.auth_request = False
+                                    sub_interface.update(auth_request=False)
                             else:
-                                sub_interface.auth_request = True
+                                sub_interface.update(auth_request=True)
                         else:
-                            sub_interface.auth_request = False
+                            sub_interface.update(auth_request=False)
 
     @property
     def data(self):
@@ -2267,9 +2338,10 @@ class InterfaceBuilder(object):
             address, network_value)
 
         if is_mgmt:
-            cvi.auth_request = True
+            #cvi.auth_request = True
+            cvi.update(auth_request=True)
 
-        self.interfaces.append(cvi.data)
+        self.interfaces.append({cvi.typeof: cvi.data})
 
     def add_sni_only(self, address, network_value, is_mgmt=False,
                      **kw):
@@ -2283,14 +2355,12 @@ class InterfaceBuilder(object):
             **kw)
 
         if is_mgmt:
-            sni.auth_request = True
-            sni.outgoing = True
-            sni.primary_mgt = True
+            sni.update(auth_request=True, outgoing=True, primary_mgt=True)
 
         if hasattr(self, 'interfaces'):  # BUG in SMC 6.1.2
-            self.interfaces.append(sni.data)
+            self.interfaces.append({sni.typeof: sni.data})
         else:  # Interface assigned, with no IP's
-            self.interfaces = [sni.data]
+            self.interfaces = [{sni.typeof: sni.data}]
 
     def add_ndi_only(self, address, network_value, nodeid=1, is_mgmt=False,
                      **kw):
@@ -2305,11 +2375,9 @@ class InterfaceBuilder(object):
             **kw)
 
         if is_mgmt:
-            ndi.primary_mgt = True
-            ndi.outgoing = True
-            ndi.primary_heartbeat = True
+            ndi.update(primary_mgt=True, outgoing=True, primary_heartbeat=True)
 
-        self.interfaces.append(ndi.data)
+        self.interfaces.append({ndi.typeof: ndi.data})
     
     def add_capture(self, logical_interface_ref):
         """
@@ -2319,7 +2387,7 @@ class InterfaceBuilder(object):
             self.interface_id,
             logical_intf_helper(logical_interface_ref))
     
-        self.interfaces.append(capture.data)
+        self.interfaces.append({capture.typeof: capture.data})
         
     def add_inline(self, interface_id, logical_interface_ref,
                    failure_mode='normal', zone_ref=None):
@@ -2334,7 +2402,7 @@ class InterfaceBuilder(object):
             failure_mode=failure_mode,
             zone_ref=zone_ref)  # Zone ref directly on the inline interface
 
-        self.interfaces.append(inline.data)
+        self.interfaces.append({inline.typeof: inline.data})
     
     def add_l2_inline(self, interface_id, logical_interface_ref,
                       vlan_id=None, vlan_id2=None,
@@ -2362,12 +2430,12 @@ class InterfaceBuilder(object):
                 logical_interface_ref=logical_interface_ref)
             
             if not vlan_id:
-                setattr(inline, 'zone_ref', zone_helper(zone_ref_intf2))
+                inline.update(zone_ref=zone_helper(zone_ref_intf2))
             
             if if_type is not InlineL2FWInterface:
-                setattr(inline, 'failure_mode', kw.get('failure_mode', 'normal'))
-                
-            self.interfaces.append(inline.data)
+                inline.update(failure_mode=kw.get('failure_mode', 'normal'))
+            
+            self.interfaces.append({inline.typeof: inline.data})
         
         if vlan_id:
             first_intf = interface_id.split('-')[0]
@@ -2385,7 +2453,7 @@ class InterfaceBuilder(object):
             if if_type is not InlineL2FWInterface:
                 # Get failure mode setting from parent interface
                 parent_if = if_type(self.interfaces[0][if_type.typeof])
-                setattr(inline_intf, 'failure_mode', parent_if.failure_mode)
+                inline_intf.update(failure_mode=parent_if.failure_mode)
             
             if if_type is not InlineInterface:
                 # Layer 3 FW inline interfaces can only have 1 VLAN on the
@@ -2394,7 +2462,7 @@ class InterfaceBuilder(object):
             
             vlan.get('interfaces').append(
                 _add_vlan_to_inline(
-                    inline_intf.data,
+                    {inline_intf.typeof: inline_intf.data},
                     vlan_id,
                     vlan_id2))
 
@@ -2409,11 +2477,10 @@ class InterfaceBuilder(object):
             dynamic_index)
 
         if is_mgmt:
-            intf.primary_mgt = True
-            intf.reverse_connection = True
-            intf.automatic_default_route = True
-
-        self.interfaces.append(intf.data)
+            intf.update(primary_mgt=True, reverse_connection=True,
+                        automatic_default_route=True)
+        
+        self.interfaces.append({intf.typeof: intf.data})
 
     def add_ndi_to_vlan(self, address, network_value, vlan_id,
                         nodeid=1, zone_ref=None, cls=NodeInterface):
@@ -2433,9 +2500,9 @@ class InterfaceBuilder(object):
                     nodeid=nodeid,
                     nicid=vlan_str)
                 if vlan.get('interfaces'):
-                    vlan['interfaces'].append(intf.data)
+                    vlan['interfaces'].append({intf.typeof: intf.data})
                 else:  # VLAN exists but no interfaces assigned
-                    vlan['interfaces'] = [intf.data]
+                    vlan['interfaces'] = [{intf.typeof: intf.data}]
                 found = True
                 break
         if not found:  # create new
@@ -2448,7 +2515,7 @@ class InterfaceBuilder(object):
                 self.interface_id,
                 vlan_id,
                 zone_ref=zone_ref,
-                interface=intf)
+                interface={intf.typeof: intf.data})
 
             self.vlanInterfaces.append(vlan)
 
@@ -2466,7 +2533,7 @@ class InterfaceBuilder(object):
         vlan = PhysicalVlanInterface.create(
             self.interface_id,
             vlan_id,
-            interface=cvi)
+            interface={cvi.typeof: cvi.data})
 
         self.vlanInterfaces.append(vlan)
 
@@ -2496,7 +2563,6 @@ class InterfaceBuilder(object):
         interface did not exist, otherwise return that reference.
         """
         try:
-            #interface = instance.get(interface_id)
             interfaces = InterfaceModifier.byEngine(instance._engine)
             interface = interfaces.get(interface_id)
         except EngineCommandFailed:

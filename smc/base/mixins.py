@@ -1,77 +1,40 @@
-from smc.api.exceptions import FetchElementFailed, ActionCommandFailed
+from smc.api.exceptions import ActionCommandFailed, ResourceNotFound
 from smc.api.common import SMCRequest
 
 
-class SMCCommand(object):
+class RequestAction(object):
     """
-    Mixin class to simplify using REST operations to SMC. This is inherited by
-    ElementBase so all sub classes have access to these methods. This mixin
-    represents GET,POST,PUT,DELETE operations that are not direct updates to
-    an elements attributes (use .update() and delete()), but rather generic calls
-    to execute some operation related to the element. For example, Node commands
-    such as 'Go Online', etc require PUT be called. Since the element itself is
-    not modified, update calls do not require the ETag attribute.
+    A Generic request action provides a simple interface to
+    building and executing an SMCRequest. This will raise
+    the exception specified if the resource is not found.
     
-    If the 'resource' kwarg is provided, this should contain the name of the resource
-    'rel' link and it will resolve the link automatically. Otherwise provide 'href'
-    kwarg to identify the destination for the operation. In addition, you can provide
-    a custom exception class as the first arg otherwise a default will be chosen based
-    on the operation type.
+    Valid parameters that can be provided in kwargs are:
     
-    :param str resource: name of resource as found in elements links cache
-    :param str raw_result: provide raw_result to return as SMCResult versus json
-    :raises ResourceNotFound: only raised in the case where a 'resource' kwarg
-        link is provided where that link does not exist.
+    :param str method: method for which to call. Can be
+        'read', 'create', 'update' or 'delete' (default: 'read')
+    :param str resource: The element resource to act on. If the
+        href is already known, this can be provided as href
+    :param bool raw_result: Return the raw SMCResult
     """
-    
-    def read_cmd(self, *exception, **kwargs):
-        exc = FetchElementFailed
-        if exception:
-            exc = exception[0]
-        
-        raw_result = kwargs.pop('raw_result', None)
-        request = self._request(exc, **kwargs)
-        if raw_result:
-            return request.read()
-        return request.read().json
-
-    def send_cmd(self, *exception, **kwargs):
-        exc = ActionCommandFailed
-        if exception:
-            exc = exception[0]
-        
-        raw_result = kwargs.pop('raw_result', None)
-        request = self._request(exc, **kwargs)
-        if raw_result:
-            return request.create()
-        return request.create().json
-    
-    def del_cmd(self, *exception, **kwargs):
-        exc = ActionCommandFailed
-        if exception:
-            exc = exception[0]
-        
-        request = self._request(exc, **kwargs)
-        return request.delete().json
-    
-    def upd_cmd(self, *exception, **kwargs):
-        exc = ActionCommandFailed
-        if exception:
-            exc = exception[0]
-        
-        request = self._request(exc, **kwargs)
-        return request.update()
-        
-    def _request(self, exception, **kwargs):
-        link = kwargs.pop('resource', None)
-        if link is not None:
-            kwargs.update(href=self.data.get_link(link))
+    def make_request(self, *exception, **kwargs):
+        raw_result = kwargs.pop('raw_result', False)
+        method = kwargs.pop('method', 'read')
+        ex = exception[0] if exception else ActionCommandFailed
+        if 'resource' in kwargs:
+            try:
+                kwargs.update(href=self.data.get_link(
+                    kwargs.pop('resource')))
+            except ResourceNotFound as e:
+                raise ex(e)
         
         request = SMCRequest(**kwargs)
-        request.exception = exception
-        return request
+        request.exception = ex
+        result = getattr(request, method)()
+        if raw_result:
+            return result
+        return result.json
 
-
+   
 class UnicodeMixin(object):
     """
     Mixin used to stage for supporting python 3. After py2 support is dropped
