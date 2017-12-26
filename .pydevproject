@@ -7,7 +7,7 @@
 </pydev_pathproperty>
 <pydev_pathproperty name="org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH">
 <path>/Users/davidlepage/git/smc-python/src</path>
-<path>/Users/davidlepage/git/smc-python/src/venv/lib/python2.7/site-packages</path>
 <path>/Users/davidlepage/git/smc-python/src/smc-monitoring</path>
+<path>/Users/davidlepage/git/smc-python/src/venv/lib/python2.7/site-packages</path>
 </pydev_pathproperty>
 </pydev_project>

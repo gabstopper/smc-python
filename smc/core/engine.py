@@ -1,6 +1,6 @@
 from smc.compat import min_smc_version
 from smc.elements.helpers import domain_helper, location_helper
-from smc.base.model import Element, ResourceNotFound,\
+from smc.base.model import Element, \
     SubElement, lookup_class, SubElementCreator
 from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
