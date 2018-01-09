@@ -35,7 +35,7 @@ def datetime_from_ms(ms):
     """
     try:
         return datetime.datetime.fromtimestamp(ms/1000.0)
-    except TypeError: # SMC version 6.2 returns in invalid (non-ms) format (2018-01-09T00:58:41Z)
+    except TypeError: # SMC version 6.2 returns in invalid format (2018-01-09T00:58:41Z)
         return ms
 
 

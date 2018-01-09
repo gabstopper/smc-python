@@ -68,6 +68,8 @@ unzip and run:
 
 ``python setup.py install``
 
+*The master branch is used as a dev branch, installing from this branch will pull the latest code commit. All commits are still tested before being uploaded.*
+
 Testing
 -------
 
