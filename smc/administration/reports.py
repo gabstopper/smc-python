@@ -1,5 +1,6 @@
 """
 .. versionadded:: 0.6.0
+    Requires SMC version >= 6.3
 
 Reports generated from the SMC. Provides an interface to running existing report
 designs and exporting their contents.
@@ -79,6 +80,7 @@ class ReportDesign(Element):
         Generate the report and optionally wait for results.
         
         :param int timeout: timeout between queries
+        :param bool wait_for_finish: enable polling for results
         :raises TaskRunFailed: refresh failed, possibly locked policy
         :rtype: TaskOperationPoller
         """
@@ -90,6 +92,7 @@ class ReportDesign(Element):
         """
         Retrieve all reports that are currently available on the SMC.
         
+        :rtype: list(Report)
         """
         return [Report(**report) for report in self.make_request(
                 resource='report_files')]
@@ -192,5 +195,6 @@ class Report(Element):
             filename=filename,
             raw_result=True, 
             headers = {'accept': 'text/plain'})
+
         if not filename:
             return result.content

@@ -33,7 +33,10 @@ def datetime_from_ms(ms):
     :return: datetime from ms
     :rtype: datetime
     """
-    return datetime.datetime.fromtimestamp(ms/1000.0)
+    try:
+        return datetime.datetime.fromtimestamp(ms/1000.0)
+    except TypeError: # SMC version 6.2 returns in invalid (non-ms) format (2018-01-09T00:58:41Z)
+        return ms
 
 
 def millis_to_utc(millis):
