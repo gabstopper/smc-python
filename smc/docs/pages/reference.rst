@@ -18,6 +18,7 @@ Element
 
 .. autoclass:: ElementBase
 	:members:
+	:exclude-members: get_relation
 
 .. autoclass:: Element
 	:members:
@@ -25,6 +26,13 @@ Element
 	:exclude-members: from_meta, from_href
 
 	.. automethod:: objects(self)
+
+.. autoclass:: SubElement
+	:members:
+	:show-inheritance:
+
+.. autoclass:: smc.core.resource.History
+	:members:
 
 .. _element-reference-label:
 
@@ -101,6 +109,13 @@ Scheduled Tasks
 	:members:
 	:show-inheritance:
 
+Reports
++++++++
+
+.. automodule:: smc.administration.reports
+	:members:
+	:show-inheritance:
+
 System
 ++++++
 
@@ -112,6 +127,7 @@ Tasks
 
 .. automodule:: smc.administration.tasks
     :members:
+    :exclude-members: download, execute
     :show-inheritance:
 
 Updates
@@ -414,14 +430,16 @@ MacAddress
 Profiles
 ++++++++
 
-.. automodule:: smc.elements.profiles
+Profiles are generic container settings that are used in other areas of the SMC configuration.
+Each profile should document it's usage and how it is referenced.
 
 DNSRelayProfile
 ***************
 
-.. autoclass:: DNSRelayProfile
-	:members:
+.. automodule:: smc.elements.profiles
+	:members: DNSRelayProfile, FixedDomainAnswer, HostnameMapping, DomainSpecificDNSServer, DNSAnswerTranslation, DNSRule
 	:show-inheritance:
+
 
 Engine
 ------
@@ -519,6 +537,12 @@ DNSAddress
 .. autoclass:: smc.core.properties.DNSEntry
 	:members:
 
+DNS Relay
+*********
+
+.. autoclass:: smc.core.properties.DNSRelay
+	:members:
+	
 Layer2Settings
 **************
 
@@ -612,14 +636,16 @@ Interfaces
 ++++++++++
 Represents classes responsible for configuring interfaces on engines
 
+InterfaceCollections
+********************
+
+.. automodule:: smc.core.collection
+	:members:
+	:exclude-members: get_all_loopbacks
+	:show-inheritance:
+
 .. automodule:: smc.core.interfaces
 	:members: Interface
-
-InterfaceCollection
-*******************
-
-.. autoclass:: InterfaceCollection
-	:members:
 
 InterfaceOptions
 ****************
@@ -630,18 +656,15 @@ InterfaceOptions
 LoopbackInterface
 *****************
 
-.. autoclass:: LoopbackInterface
+.. autoclass:: smc.core.sub_interfaces.LoopbackInterface
     :members:
     :exclude-members: create
     :show-inheritance:
-    
-.. autoclass:: LoopbackCollection
-	:members:
 
 LoopbackClusterInterface
 ************************
 
-.. autoclass:: LoopbackClusterInterface
+.. autoclass:: smc.core.sub_interfaces.LoopbackClusterInterface
     :members:
     :exclude-members: create
     :show-inheritance:
@@ -680,53 +703,22 @@ ContactAddress
 
 .. automodule:: smc.core.contact_address
 	:members:
+	:show-inheritance:
 
-Sub-Interface Types
-*******************
+
+Sub-Interfaces
+**************
 
 .. automodule:: smc.core.sub_interfaces
-
-ClusterVirtualInterface
-^^^^^^^^^^^^^^^^^^^^^^^
-
-.. autoclass:: ClusterVirtualInterface
 	:members:
 	:exclude-members: create
 
-InlineInterface
-^^^^^^^^^^^^^^^
-
-.. autoclass:: InlineInterface
-   :members:
-   :exclude-members: create
-
-CaptureInterface
-^^^^^^^^^^^^^^^^
-
-.. autoclass:: CaptureInterface
-	:members:
-	:exclude-members: create
-
-NodeInterface
-^^^^^^^^^^^^^
-
-.. autoclass:: NodeInterface
-	:members:
-	:exclude-members: create
-
-SingleNodeInterface
-^^^^^^^^^^^^^^^^^^^
-
-.. autoclass:: SingleNodeInterface
-	:members:
-	:show-inheritance:
-	:exclude-members: create, create_dhcp
 
 Node
 ++++
 
 .. automodule:: smc.core.node
-   :members: Node
+   :members: Node, NodeCollection
    :exclude-members: create
    :show-inheritance:
 
@@ -747,6 +739,7 @@ Hardware Status
 
 .. autoclass:: smc.core.node.HardwareStatus
 	:members:
+	:show-inheritance:
 
 .. autoclass:: smc.core.node.HardwareCollection
 	:members:
@@ -759,6 +752,7 @@ Interface Status
 
 .. autoclass:: smc.core.node.InterfaceStatus
 	:members:
+	:show-inheritance:
 
 .. autoclass:: smc.core.node.ImmutableInterface
 	:show-inheritance:
@@ -774,6 +768,7 @@ Pending Changes
 
 .. automodule:: smc.core.resource
 	:members: PendingChanges, ChangeRecord
+	:show-inheritance:
 
 Routing
 +++++++
@@ -1175,19 +1170,45 @@ GatewayTunnel
 	:show-inheritance:
 
 
-Searching
----------
-
-Collection
-++++++++++
+Collections Reference
+---------------------
 
 .. automodule:: smc.base.collection
+
+ElementCollection
++++++++++++++++++
+
+.. autoclass:: ElementCollection
+	:members:
+
+.. autoclass:: CollectionManager
+	:members:
+
+.. autoclass:: Search
 	:members:
 	:show-inheritance:
 
+SubElementCollection
+++++++++++++++++++++
 
-Search
-++++++
+.. autoclass:: SubElementCollection
+	:members:
+
+CreateCollection
+++++++++++++++++
+
+.. autoclass:: CreateCollection
+	:members:
+	:show-inheritance:
+
+IndexedIterable
++++++++++++++++
+
+.. autoclass:: IndexedIterable
+	:members:
+
+Search (Legacy)
++++++++++++++++
 
 Low level searching helper functions.
 

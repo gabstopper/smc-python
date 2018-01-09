@@ -18,6 +18,5 @@ exclude_lines =
     if compat.PY3
     if recursive and is_pkg
     string_types
-    super
     unicode = str 
     unicode = unicode 

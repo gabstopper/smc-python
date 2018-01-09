@@ -1,12 +1,29 @@
 """
-Miscellaneous functionality to control aspects of an engine such
-as features specified under engine AddOns, default nat, and DNS
-addressing.
+Engine feature add on functionality such as default NAT, Antivirus,
+File Reputation, etc. These are common settings that are located under
+the SMC AddOn or General properties.
+
+Property features will have a common interface allowing you to `enable`,
+`disable` and check `status` from the engine reference. When property
+features are modified, they are done so against a local copy of the server
+intsance. To commit the change, you must call .update() on the engine instance.
+
+For example, to view status of antivirus, given a specific engine::
+
+    engine.antivirus.status
+
+Then enable or disable::
+
+    engine.antivirus.enable()
+    engine.antivirus.disable()
+    engine.update()
+   
+..note:: Engine property settings require that you call engine.update() after
+    making / queuing your changes.
 """
-from collections import namedtuple
-from smc.base.model import Element, SubDict
-from smc.base.decorators import autocommit, deprecated
-from smc.api.exceptions import UnsupportedEngineFeature, LoadPolicyFailed
+import collections
+from smc.base.model import Element, NestedDict
+from smc.api.exceptions import LoadPolicyFailed
 from smc.policy.interface import InterfacePolicy
 from smc.elements.network import Host
 from smc.elements.servers import DNSServer
@@ -23,7 +40,7 @@ def get_proxy(http_proxy):
     return proxies
 
 
-class Layer2Settings(SubDict):
+class Layer2Settings(NestedDict):
     """
     Layer 2 Settings are only applicable on Layer 3 Firewall engines
     that want to run specific interfaces in layer 2 mode. This
@@ -33,7 +50,7 @@ class Layer2Settings(SubDict):
     
     Set policy for the engine::
         
-        engine.l2fw_settings.set_policy(InterfacePolicy('mylayer2'))
+        engine.l2fw_settings.enable(InterfacePolicy('mylayer2'))
     
     :ivar bool bypass_overload_traffic: whether to bypass traffic on overload
     :ivar str tracking_mode: connection tracking mode
@@ -71,7 +88,7 @@ class Layer2Settings(SubDict):
         """
         self.pop('l2_interface_policy_ref', None)
     
-    def set_policy(self, policy):
+    def enable(self, policy):
         """
         Set a layer 2 interface policy.
         
@@ -101,7 +118,7 @@ class Layer2Settings(SubDict):
             self.__class__.__name__, self.policy)
         
 
-class AntiVirus(SubDict):
+class AntiVirus(NestedDict):
     """
     Antivirus settings for the engine. In order to use AV,
     you must also have DNS server addresses configured on
@@ -211,14 +228,14 @@ class AntiVirus(SubDict):
             self.__class__.__name__, self.status)
 
 
-class FileReputation(SubDict):
+class FileReputation(NestedDict):
     """
     Configure the engine to use File Reputation capabilities.
     
     Enable file reputation and specify outbound http proxies for
     queries::
     
-        engine.file_reputation.enable_gti(http_proxy=[HttpProxy('myproxy')])
+        engine.file_reputation.enable(http_proxy=[HttpProxy('myproxy')])
         engine.update()
     
     :ivar str file_reputation_context: file reputation context, either
@@ -258,7 +275,7 @@ class FileReputation(SubDict):
         """
         return [Element.from_href(proxy) for proxy in self.get('http_proxy')]
         
-    def enable_gti(self, http_proxy=None):
+    def enable(self, http_proxy=None):
         """
         Enable GTI reputation on the engine. If proxy servers
         are needed, provide a list of proxy elements.
@@ -315,7 +332,7 @@ class SidewinderProxy(object):
             self.__class__.__name__, self.status)
     
 
-class UrlFiltering(SubDict):
+class UrlFiltering(NestedDict):
     """
     Enable URL Filtering on the engine.
     
@@ -376,7 +393,7 @@ class UrlFiltering(SubDict):
             self.__class__.__name__, self.status)
     
 
-class Sandbox(SubDict):
+class Sandbox(NestedDict):
     """
     Engine based sandbox settings. Sandbox can be configured for
     local (on prem) or cloud based sandbox. To create file filtering
@@ -490,8 +507,7 @@ class TLSInspection(object):
         Return a list of assigned (if any) TLSServerCredentials
         assigned to this engine.
         
-        :return: TLSServerCredential
-        :rtype: list
+        :rtype: list(TLSServerCredential)
         """
         return [Element.from_href(credential)
                 for credential in self.engine.server_credential]
@@ -672,7 +688,7 @@ class DNSAddress(object):
         return -1
 
 
-class DNSEntry(namedtuple('DNSEntry', 'value rank ne_ref')):
+class DNSEntry(collections.namedtuple('DNSEntry', 'value rank ne_ref')):
     """ 
     DNSEntry represents a single DNS entry within an engine
     DNSAddress list.
@@ -685,7 +701,6 @@ class DNSEntry(namedtuple('DNSEntry', 'value rank ne_ref')):
         will returned a resolved version of the ne_ref field.
     """
     __slots__ = () 
-
     def __new__(cls, rank, value=None, ne_ref=None):  # @ReservedAssignment 
         return super(DNSEntry, cls).__new__(cls, value, rank, ne_ref)
     
@@ -697,528 +712,59 @@ class DNSEntry(namedtuple('DNSEntry', 'value rank ne_ref')):
         return 'DNSEntry(rank={0},value={1},ne_ref={2})'\
             .format(self.rank, self.value, self.element)
 
-                                
-def antivirus_options(**kw):
+
+class DNSRelay(object):
     """
-    Antivirus options for more granular controls. Default setting is to update
-    daily at midnight.
+    DNS Relay allows the engine to provide DNS caching or specific
+    host, IP and domain replies to clients. It can also be used
+    to sinkhole specific DNS requests.
     
-    :param str antivirus_update: how often to check for updates. Valid options
-        are: 'never','1hour', 'startup', 'daily', 'weekly'.
-    :param int antivirus_update_time: only used if 'daily' or 'weekly' is specified.
-        Time is given as a long value value in a 24-hour format. (Default: 21600000,
-        which is midnight) 
-    :param str antivirus_update_day: only used if 'weekly' is specified. Which day
-        or week to perform update. Valid options: 'mo','tu','we','th','fr','sa','su'.
-    :param str log_level: none,transient,stored,essential,alert
+    .. seealso:: :class:`smc.elements.profiles.DNSRelayProfile`
     """
-    antivirus = {
-        'antivirus_enabled': True,
-        'antivirus_update': 'daily',
-        'antivirus_update_day': 'su',
-        'antivirus_update_time': 21600000,
-        'virus_log_level': 'stored',
-        'virus_mirror': 'update.nai.com/Products/CommonUpdater'}
-    
-    for key, value in kw.items():
-        antivirus[key] = value
-    
-    return antivirus
-    
-    
-            
-class AddOn:
-    """
-    Engine features that enable specific functionality and can be
-    set or changed after the engine exists. Each setting requires
-    that policy be refreshed to take effect.
-    """
-    @autocommit(now=False)
-    def enable_dns_relay(self, interface_id, dns_relay_profile=None, **kw):
-        """
-        DNS Relay allows the engine to provide DNS caching or specific
-        host, IP and domain replies to clients. It can also be used
-        to sinkhole specific DNS requests.
-
-        :param str,DNSRelayProfile dns_relay_profile: DNSRelayProfile element
-            or str href
-        :param int interface_id: interface id to enable relay
-        :raises EngineCommandFailed: interface not found
-        :raises ElementNotFound: profile not found
-        :raises UpdateElementFailed: failure message from SMC
-        :raises UnsupportedEngineFeature: unsupported engine type or version
-        :return: None
-        """
-        if not self.is_dns_relay_enabled:
-            if not dns_relay_profile:  # Use default
-                dns_relay_profile = DNSRelayProfile('Cache Only').href
-            else:
-                dns_relay_profile = element_resolver(dns_relay_profile)
-
-            data = self.interface.get(interface_id)
-
-            d = dict(dns_relay_profile_ref=dns_relay_profile)
-            d.update(dns_relay_interface=([{'address': ip, 'nicid': nicid}
-                                           for ip, _, nicid in data.addresses]))
-            self.data.update(**d)
-    
-    @autocommit(now=False)
-    def disable_dns_relay(self, **kw):
-        """
-        Disable DNS Relay. This requires a policy push to update the
-        engine settings.
-
-        :raises UpdateElementFailed: failure message from SMC
-        :raises UnsupportedEngineFeature: unsupported engine type or version
-        :return: None
-        """
-        if self.is_dns_relay_enabled:
-            self.data.update(dns_relay_interface=[])
-            self.data.pop('dns_relay_profile_ref', None)
-
+    def __init__(self, engine):
+        self.engine = engine
+        
     @property
-    def is_dns_relay_enabled(self):
+    def status(self):
         """
         Status of DNS Relay on this engine.
 
-        :raises UnsupportedEngineFeature: unsupported engine type or version
         :rtype: bool
         """
-        if 'dns_relay_interface' in self.data:
-            if 'dns_relay_profile_ref' in self.data:
-                return True
-            return False
-        raise UnsupportedEngineFeature(
-            'DNS Relay requires a layer 3 engine and version >= v6.2.')
-
-    @property
-    @deprecated('engine.sidewinder_proxy')
-    def is_sidewinder_proxy_enabled(self):
-        """
-        Status of Sidewinder Proxy on this engine
-
-        :raises UnsupportedEngineFeature: requires engine >= v6.1
-        :rtype: bool
-        """
-        if 'sidewinder_proxy_enabled' in self.data:
-            return self.data['sidewinder_proxy_enabled']
-        raise UnsupportedEngineFeature(
-            'Sidewinder Proxy requires a layer 3 engine and version >= v6.1.')
-
-    @autocommit(now=False)
-    @deprecated('engine.sidewinder_proxy')
-    def enable_sidewinder_proxy(self, **kw):
-        """
-        Enable Sidewinder Proxy on this engine. This requires
-        engine version >= 6.2.
-
-        :raises UpdateElementFailed: failure message from SMC
-        :raises UnsupportedEngineFeature: unsupported engine type or version
-        :return: None
-        """
-        if not self.is_sidewinder_proxy_enabled:
-            self.data.update(sidewinder_proxy_enabled=True)
-
-    @autocommit(now=False)
-    @deprecated('engine.sidewinder_proxy')
-    def disable_sidewinder_proxy(self, **kw):
-        """
-        Disable Sidewinder Proxy on this engine. This requires
-        engine version >= 6.2.
-
-        :raises UpdateElementFailed: failure message from SMC
-        :raises UnsupportedEngineFeature: unsupported engine type or version
-        :return: None
-        """
-        if self.is_sidewinder_proxy_enabled:
-            self.data.update(sidewinder_proxy_enabled=False)
-
-    @property
-    @deprecated('engine.file_reputation')
-    def is_gti_enabled(self):
-        """
-        Is McAfee GTI File Reputation enabled on this engine.
-
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :rtype: bool
-        """
-        if not self.type.startswith('virtual'):
-            gti = self.data['gti_settings'].get('file_reputation_context')
-            if gti == 'disabled':
-                return False
-            return True
-        raise UnsupportedEngineFeature(
-            'GTI should be enabled on the Master Engine not directly on the '
-            'virtual engine.')
-
-    @autocommit(now=False)
-    @deprecated('engine.file_reputation')
-    def enable_gti_file_reputation(self, **kw):
-        """
-        Enable McAfee GTI File Reputation on this engine. Enabling
-        GTI requires DNS server settings and GTI must be enabled on
-        the global properties within SMC.
-
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :raises UpdateElementFailed: failure message from SMC
-        :return: None
-        """
-        if not self.is_gti_enabled:
-            gti = self.data['gti_settings']
-            gti.update(file_reputation_context='gti_cloud_only')
-    
-    @autocommit(now=False)
-    @deprecated('engine.file_reputation')
-    def disable_gti_file_reputation(self):
-        """
-        Disable McAfee GTI File Reputation on this engine.
-
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :raises UpdateElementFailed: failure message from SMC
-        :return: None
-        """
-        if self.is_gti_enabled:
-            gti = self.data['gti_settings']
-            gti.update(file_reputation_context='disabled')
-    
-    @property
-    @deprecated('engine.antivirus')
-    def is_antivirus_enabled(self):
-        """
-        Whether Anti-Virus is enable on this engine
-
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :rtype: bool
-        """
-        if not self.type.startswith('virtual'):
-            return self.data['antivirus'].get('antivirus_enabled', False)
-        raise UnsupportedEngineFeature(
-            'Antivirus is not supported directly on this engine type. If this '
-            'is a virtual engine, AV is enabled on the master engine.')
-
-    @autocommit(now=False)
-    @deprecated('engine.antivirus')
-    def enable_antivirus(self, **kw):
-        """
-        Enable Antivirus on this engine. Enabling anti-virus requires
-        DNS server settings to resolve the AV update servers. Keyword arguments
-        can be provided to further customize settings for updates.
-
-        :param kw: see :func:`~antivirus_options` for documented optional keyword
-            settings.
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :raises UpdateElementFailed: failure message from SMC
-        :return: None
-        """
-        if not self.is_antivirus_enabled:
-            av = self.data['antivirus']
-            options = antivirus_options(**kw)
-            av.update(**options)
-    
-    
-    @autocommit(now=False)
-    @deprecated('engine.antivirus')
-    def disable_antivirus(self, **kw):
-        """
-        Disable Anti-virus on this engine.
-
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :raises UpdateElementFailed: failure message from SMC
-        :return: None
-        """
-        if self.is_antivirus_enabled:
-            av = self.data['antivirus']
-            av.update(antivirus_enabled=False)
-    
-    @property
-    @deprecated('engine.bgp')
-    def is_bgp_enabled(self):
-        """
-        Is BGP enabled on this engine. BGP is only supported on layer 3
-        engines (virtual included).
-
-        :rtype: bool
-        """
-        return self.bgp.is_enabled
-
-    @autocommit(now=False)
-    @deprecated('engine.bgp')
-    def enable_bgp(self, autonomous_system, announced_networks,
-                   router_id=None, bgp_profile=None, **kw):
-        """
-        Enable BGP on this engine. On master engine, enable BGP on the
-        virtual firewall.
-        ::
-
-            engine.enable_bgp(
-                autonomous_system=AutonomousSystem('aws_as'),
-                announced_networks=[Network('bgpnet'),Network('inside')],
-                router_id='10.10.10.10')
-
-        :param str,AutonomousSystem autonomous_system: provide the AS element
-            or str href for the element
-        :param str,BGPProfile bgp_profile: provide the BGPProfile element or
-            str href for the element; if None, use system default
-        :param list announced_networks: list of networks to advertise via BGP
-        :type announced_networks: list(str,Network)
-        :param str router_id: router id for BGP, should be an IP address
-        :raises UpdateElementFailed: failure message from SMC
-        :raises ElementNotFound: ospf profile not found
-        :raises UnsupportedEngineFeature: unsupported engine type or version
-        :return: None
-        """
-        self.bgp.enable(autonomous_system, announced_networks,
-               router_id=None, bgp_profile=bgp_profile)
-
-    @autocommit(now=False)
-    @deprecated('engine.bgp')
-    def disable_bgp(self, **kw):
-        """
-        Disable BGP on this engine.
-
-        :raises UnsupportedEngineFeature: BGP not supported on this engine type
-        :return: None
-        """
-        self.bgp.disable()
-
-    @property
-    @deprecated('engine.ospf')
-    def is_ospf_enabled(self):
-        """
-        Is OSPF enabled on this engine
-
-        :raises UnsupportedEngineFeature: unsupported engine type
-        :rtype: bool
-        """
-        return self.ospf.is_enabled
-
-    @autocommit(now=False)
-    @deprecated('engine.ospf')
-    def enable_ospf(self, ospf_profile=None, router_id=None, **kw):
-        """
-        Enable OSPF on this engine. For master engines, enable
-        OSPF on the virtual firewall.
-
-        Once enabled on the engine, add an OSPF area to an interface::
-
-            engine.enable_ospf()
-            interface = engine.routing.get(0)
-            interface.add_ospf_area(OSPFArea('myarea'))
-
-
-        :param str,OSPFProfile ospf_profile: OSPFProfile element or str
-            href; if None, use default profile
-        :param str router_id: single IP address router ID
-        :raises ElementNotFound: ospf profile not found
-        :return: None
-        """
-        self.ospf.enable(ospf_profile=ospf_profile, router_id=router_id)
-
-    @autocommit(now=False)
-    @deprecated('engine.ospf')
-    def disable_ospf(self, **kw):
-        """
-        Disable OSPF on this engine.
-
-        :raises UpdateElementFailed: failure message from SMC
-        :return: None
-        """
-        self.ospf.disable()
-
-    @autocommit(now=False)
-    @deprecated('engine.dns')
-    def add_dns_servers(self, dns_servers, **kw):
-        """
-        Add DNS servers to this engine.
-
-        :param list dns_servers: DNS server addresses
-        :return: None
-        """
-        for num, server in enumerate(dns_servers):
-            if hasattr(server, 'href'):
-                dns = {'rank': num, 'ne_ref': server.href}
-            else:
-                dns = {'rank': num, 'value': server}
-            
-            self.data['domain_server_address'].append(dns)
-
-    @property
-    @deprecated('engine.dns')
-    def dns_servers(self):
-        """
-        DNS Servers for this engine (if any). DNS Servers are
-        used to resolve specific features enabled on the engine
-        such as Anti-Virus updates.
-
-        :return: DNS Servers configured
-        :rtype: list
-        """
-        servers = []
-        for server in self.data.get('domain_server_address'):
-            if 'value' in server:
-                servers.append(server['value'])
-            elif 'ne_ref' in server:
-                servers.append(Element.from_href(server['ne_ref']))
-        return servers
-
-    @property
-    @deprecated('engine.default_nat')
-    def is_default_nat_enabled(self):
-        """
-        Default NAT provides NAT service by associating directly
-        attached networks with a NAT address of the exiting interface.
-        This simplifies how NAT is handled without creating specific
-        NAT rules.
-
-        :raises UnsupportedEngineFeature: for engines that do not support
-            default NAT
-        :rtype: bool
-        """
-        if 'default_nat' in self.data:
-            return self.data['default_nat']
-        raise UnsupportedEngineFeature(
-            'This engine type does not support default NAT.')
-
-    @autocommit(now=False)
-    @deprecated('engine.default_nat')
-    def enable_default_nat(self, **kw):
-        """
-        Enable default NAT at the engine level for engines that
-        support NAT (i.e. layer 3 engines)
-
-        :raises UnsupportedEngineFeature: for engines that do not support
-            default NAT
-        :return: None
-        """
-        if not self.is_default_nat_enabled:
-            self.data.update(default_nat=True)
-
-    @autocommit(now=False)
-    @deprecated('engine.default_nat')
-    def disable_default_nat(self, **kw):
-        """
-        Disable default NAT on this engine if supported.
-
-        :raises UnsupportedEngineFeature: for engines that do not support
-            default NAT
-        :return: None
-        """
-        if self.is_default_nat_enabled:
-            self.data.update(default_nat=False)
-
-    @property
-    @deprecated('engine.sandbox')
-    def is_sandbox_enabled(self):
-        """
-        Whether sandbox is enabled on this engine.
-
-        :raises UpdateElementFailed: requires engine version >= 6.2
-        :rtype: bool
-        """
-        if not self.type.startswith('virtual'):
-            if 'sandbox_type' in self.data:
-                if self.data['sandbox_type'] == 'none':
-                    return False
-                return True
-            return False  # Tmp, attribute missing on newly created engines
-        raise UnsupportedEngineFeature(
-            'Enabling sandbox should be done on the Master Engine, not '
-            'directly on the virtual engine.')
-
-    @autocommit(now=False)
-    @deprecated('engine.sandbox')
-    def enable_sandbox(self, license_key, license_token, sandbox_type='cloud_sandbox',
-                       service=None, **kw):
-        """
-        Enable sandbox on this engine. Sandbox provides the ability to
-        extract file type content and interrogate for behavioral purposes to
-        discover malicious embedded content. Provide a valid license key and
-        license token obtained from your engine licensing.
+        return getattr(self.engine, 'dns_relay_profile_ref', False)
         
-        .. note:: Cloud sandbox is a feature that requires an engine license
+    def enable(self, interface_id, dns_relay_profile=None):
+        """
+        Enable the DNS Relay service on this engine.
 
-        :param str license_key: license key for specific engine
-        :param str license_token: license token for specific engine
-        :param str sandbox_type: 'local_sandbox' or 'cloud_sandbox'
-        :param str,SandboxService service: a sandbox service element from SMC. The service
-            defines which location the engine is in and which data centers to use.
-            The default is to use the 'Automatic' profile if undefined.
+        :param int interface_id: interface id to enable relay
+        :param str,DNSRelayProfile dns_relay_profile: DNSRelayProfile element
+            or str href
+        :raises EngineCommandFailed: interface not found
+        :raises ElementNotFound: profile not found
         :return: None
         """
-        if not self.is_sandbox_enabled:
-            if not service:
-                service = SandboxService('Automatic').href
-            else:
-                service = element_resolver(service)
-            
-            if min_smc_version(6.3):
-                sandbox = dict(sandbox_license_key=license_key,
-                               sandbox_license_token=license_token,
-                               sandbox_service=service)
-                self.data.update(sandbox_settings=sandbox,
-                                 sandbox_type=sandbox_type)
-            else:
-                sandbox = dict(cloud_sandbox_license_key=license_key,
-                               cloud_sandbox_license_token=license_token,
-                               sandbox_service=service)
-                self.data.update(cloud_sandbox_settings=sandbox,
-                                 sandbox_type=sandbox_type)
-                
-            #self.data.update(cloud_sandbox_settings=sandbox)
-            #self.data.update(sandbox_type='cloud_sandbox')
+        if not dns_relay_profile:  # Use default
+            href = DNSRelayProfile('Cache Only').href
+        else:
+            href = element_resolver(dns_relay_profile)
 
-    @autocommit(now=False)
-    @deprecated('engine.sandbox')
-    def disable_sandbox(self, **kw):
+        data = self.engine.interface.get(interface_id)
+        
+        self.engine.data.update(dns_relay_profile_ref=href)
+        self.engine.data.update(dns_relay_interface=
+            ([{'address': ip, 'nicid': nicid}
+                for ip, _, nicid in data.addresses]))
+        
+    def disable(self):
         """
-        Disable sandbox on this engine
-
-        :raises UnsupportedEngineFeature: Requires engine version >= 6.2
+        Disable DNS Relay on this engine
+        
         :return: None
         """
-        if self.is_sandbox_enabled:
-            self.data['sandbox_type'] = 'none'
-            self.data.pop('cloud_sandbox_settings', None)
-            self.data.pop('sandbox_settings', None)
-
-    @property
-    @deprecated('engine.url_filtering')
-    def is_url_filtering_enabled(self):
-        """
-        Is URL Filtering enabled on this engine. This requires an additional
-        engine license.
-
-        :raises UnsupportedEngineFeature: Not allowed on virtual engine
-        :rtype: bool
-        """
-        if not self.type.startswith('virtual'):
-            return self.data['ts_settings'].get('ts_enabled')
-        raise UnsupportedEngineFeature(
-            'Enabling URL Filtering should be done on the Master Engine, not '
-            'directly on the virtual engine.')
-
-    @autocommit(now=False)
-    @deprecated('engine.url_filtering')
-    def enable_url_filtering(self, **kw):
-        """
-        Enable URL Filtering on this engine.
-
-        .. note:: URL Filtering requires an engine feature license
-
-        :raises UpdateElementFailed: failure enabling URL Filtering on engine
-        :return: None
-        """
-        if not self.is_url_filtering_enabled:
-            self.data.update(ts_settings={'ts_enabled': True})
-
-    @autocommit(now=False)
-    @deprecated('engine.url_filtering')
-    def disable_url_filtering(self, **kw):
-        """
-        Disable URL Filtering on this engine.
-
-        :raises UpdateElementFailed: failed disabling URL Filtering
-        :return: None
-        """
-        if self.is_url_filtering_enabled:
-            self.data.update(ts_settings={'ts_enabled': False})
+        self.engine.data.update(dns_relay_interface=[])
+        self.engine.data.pop('dns_relay_profile_ref', None)
+    
+    def __repr__(self):
+        return '{0}(enabled={1})'.format(
+            self.__class__.__name__, self.status)

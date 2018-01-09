@@ -3,13 +3,12 @@ from smc.elements.helpers import domain_helper, location_helper
 from smc.base.model import Element, \
     SubElement, lookup_class, SubElementCreator
 from smc.api.exceptions import UnsupportedEngineFeature,\
-    UnsupportedInterfaceType, TaskRunFailed, EngineCommandFailed,\
-    SMCConnectionError, CertificateError
-from smc.core.node import Node
+    UnsupportedInterfaceType, EngineCommandFailed, SMCConnectionError
+from smc.core.node import Node, NodeCollection
 from smc.core.resource import Snapshot, PendingChanges
-from smc.core.interfaces import InterfaceCollection, InterfaceOptions,\
-    LoopbackCollection
-from smc.administration.tasks import TaskOperationPoller
+from smc.core.interfaces import InterfaceOptions
+from smc.core.collection import InterfaceCollection, LoopbackCollection
+from smc.administration.tasks import Task
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
 from smc.vpn.elements import VPNSite
@@ -17,18 +16,18 @@ from smc.routing.bgp import BGP
 from smc.routing.ospf import OSPF, OSPFProfile
 from smc.core.route import Antispoofing, Routing, Routes, PolicyRoute
 from smc.core.contact_address import ContactAddressCollection
-from smc.core.properties import AddOn, AntiVirus, Layer2Settings, FileReputation,\
+from smc.core.properties import AntiVirus, Layer2Settings, FileReputation,\
     SidewinderProxy, UrlFiltering, Sandbox, TLSInspection, DNSAddress,\
-    DefaultNAT
+    DefaultNAT, DNSRelay
 from smc.elements.servers import LogServer
 from smc.base.collection import create_collection, sub_collection
 from smc.base.util import element_resolver
 from smc.administration.access_rights import AccessControlList
-from smc.base.decorators import cached_property, cacheable_resource
+from smc.base.decorators import cacheable_resource
 from smc.administration.certificates.vpn import GatewayCertificate
 
 
-class Engine(AddOn, Element):
+class Engine(Element):
     """
     An engine is the top level representation of a firewall, IPS
     or virtualized software.
@@ -170,7 +169,7 @@ class Engine(AddOn, Element):
         :rtype: str or None
         """
         for node in self.nodes:
-            return node.status().installed_policy
+            return node.health.installed_policy
     
     def rename(self, name):
         """
@@ -181,7 +180,7 @@ class Engine(AddOn, Element):
         for node in self.nodes:
             node.rename(name)
         self.update(name=name)
-        self.vpn.internal_gateway.rename(name)
+        self.vpn.rename(name)
     
     @property
     def log_server(self):
@@ -335,6 +334,23 @@ class Engine(AddOn, Element):
             'directly on the virtual engine.')
     
     @property
+    def dns_relay(self):
+        """
+        Enable, disable or get status for the DNS Relay Service
+        on this engine. You must still separately configure the
+        :class:`smc.elements.profiles.DNSRelayProfile` that the
+        engine references.
+        
+        :raises UnsupportedEngineFeature: unsupported feature on
+            this engine type.
+        :rtype: DNSRelay
+        """
+        if 'dns_relay_interface' in self.data:
+            return DNSRelay(self)
+        raise UnsupportedEngineFeature(
+            'DNS Relay requires a layer 3 engine and version >= v6.2.')
+    
+    @property
     def tls_inspection(self):
         """    
         TLS Inspection settings manage certificates assigned to the
@@ -411,9 +427,9 @@ class Engine(AddOn, Element):
             [Node(name=myfirewall node 1)]
         
         :return: nodes for this engine
-        :rtype: list(Node)
+        :rtype: NodeCollection
         """
-        return Node._load(self)
+        return NodeCollection(self)
 
     @property
     def permissions(self):
@@ -672,11 +688,7 @@ class Engine(AddOn, Element):
         :return: this engines internal gateway
         :rtype: InternalGateway
         """
-        result = self.make_request(
-            UnsupportedEngineFeature,
-            resource='internal_gateway')
-        if result:
-            return InternalGateway(**result[0])
+        return self.vpn
 
     @cacheable_resource
     def vpn(self):
@@ -698,8 +710,8 @@ class Engine(AddOn, Element):
         returned based on the address. Endpoints are properties of the
         engines Internal Gateway.
         
-        :return: collection of :class:`.InternalEndpoint`
-        :rtype: SubElementCollection
+        :raises UnsupportedEngineFeature: only supported on layer 3 engines
+        :rtype: SubElementCollection(InternalEndpoint)
         """
         return self.vpn.internal_endpoint
 
@@ -713,8 +725,7 @@ class Engine(AddOn, Element):
             engine.virtual_resource.all()
 
         :raises UnsupportedEngineFeature: master engine only
-        :return: collection of `.VirtualResource`
-        :rtype: create_collection
+        :rtype: CreateCollection(VirtualResource)
         """
         return create_collection(
             self.get_relation(
@@ -748,9 +759,10 @@ class Engine(AddOn, Element):
         
         .. seealso:: :py:mod:`smc.core.contact_address`
 
-        :rtype: ContactAddressCollection
+        :rtype: ContactAddressCollection(ContactInterfaceAddress)
         """
-        return ContactAddressCollection(self)
+        return ContactAddressCollection(
+            self.get_relation('contact_addresses'))        
 
     @property
     def interface_options(self):
@@ -920,16 +932,9 @@ class Engine(AddOn, Element):
         :raises TaskRunFailed: refresh failed, possibly locked policy
         :rtype: TaskOperationPoller
         """
-        task = self.make_request(
-            TaskRunFailed,
-            method='create',
-            resource='refresh')
-
-        return TaskOperationPoller(
-            task=task, timeout=timeout,
-            wait_for_finish=wait_for_finish,
-            **kw)
-
+        return Task.execute(self, 'refresh',
+            timeout=timeout, wait_for_finish=wait_for_finish, **kw)
+        
     def upload(self, policy=None, timeout=5, wait_for_finish=False, **kw):
         """
         Upload policy to engine. This is used when a new policy is required
@@ -951,16 +956,8 @@ class Engine(AddOn, Element):
         :raises TaskRunFailed: upload failed with reason
         :rtype: TaskOperationPoller
         """
-        task = self.make_request(
-            TaskRunFailed,
-            method='create',
-            resource='upload',
-            params={'filter': policy})
-
-        return TaskOperationPoller(
-            task=task, timeout=timeout,
-            wait_for_finish=wait_for_finish,
-            **kw)
+        return Task.execute(self, 'upload', params={'filter': policy},
+            timeout=timeout, wait_for_finish=wait_for_finish, **kw)
 
     def generate_snapshot(self, filename='snapshot.zip'):
         """
@@ -990,8 +987,7 @@ class Engine(AddOn, Element):
         the date the snapshot was made
 
         :raises EngineCommandFailed: failure downloading, or IOError
-        :return: collection of :class:`smc.core.resource.Snapshot`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(Snapshot)
         """
         return sub_collection(
             self.get_relation('snapshots', EngineCommandFailed), Snapshot)
@@ -1009,15 +1005,24 @@ class VPN(object):
     """
     def __init__(self, engine):
         self.engine = engine
-    
-    @cached_property
-    def internal_gateway(self):
         result = self.engine.make_request(
             UnsupportedEngineFeature,
             resource='internal_gateway') 
-        if result: 
-            return InternalGateway(**result[0]) 
+        self.internal_gateway = InternalGateway(**result[0])
     
+    def rename(self, name):
+        """
+        Rename the internal gateway.
+        
+        :param str name: new name for internal gateway
+        :return: None
+        """
+        self.internal_gateway.rename(name) # Engine update changes this ETag
+    
+    @property
+    def name(self):
+        return self.internal_gateway.name      
+
     @property
     def vpn_client(self):
         """
@@ -1032,9 +1037,14 @@ class VPN(object):
     @property
     def sites(self):
         """
-        VPN sites configured for this engine
+        VPN sites configured for this engine. Using sub element
+        methods simplify fetching sites of interest::
         
-        :rtype: VPNSite
+            engine = Engine('sg_vm')
+            mysite = engine.vpn.sites.get_contains('inter')
+            print(mysite)
+        
+        :rtype: CreateCollection(VPNSite)
         """
         return create_collection( 
             self.internal_gateway.get_relation('vpn_site'), 
@@ -1071,7 +1081,7 @@ class VPN(object):
         """
         Internal endpoints to enable VPN for the engine.
         
-        :rtype: InternalEndpoint
+        :rtype: SubElementCollection(InternalEndpoint)
         """
         return sub_collection( 
             self.internal_gateway.get_relation('internal_endpoint'), 
@@ -1146,113 +1156,44 @@ class VPN(object):
         return GatewayCertificate._create(self, common_name, public_key_algorithm,
             signature_algorithm, key_length, signing_ca)
 
+    def __repr__(self):
+        return 'VPN(name={})'.format(self.name)
+
 
 class InternalGateway(SubElement):
     """
-    InternalGateway represents the engine side VPN configuration.
-    An Internal Gateway correlates to the VPN Client area within
-    the SMC.
-    Each layer 3 engine has only one internal gateway.
-
-    List endpoints where VPN can be enabled::
-
-        >>> list(engine.vpn.internal_endpoint)
-        [InternalEndpoint(name=10.0.0.254), InternalEndpoint(name=172.18.1.254)]
-
+    InternalGateway represents the VPN Client configuration
+    endpoint on the NGFW. Settings under Internal Gateway
+    reflect client settings such as requiring antivirus, 
+    windows firewall and setting the VPN client mode.
+    
+        View settings through an engine reference::
+        
+            >>> engine = Engine('dingo')
+            >>> vpn = engine.vpn
+            >>> vpn.name
+            u'dingo Primary'
+            >>> vpn.vpn_client.firewall
+            False
+            >>> vpn.vpn_client.antivirus
+            False
+            >>> vpn.vpn_client.vpn_client_mode
+            u'ipsec'
+        
+        Enable client AV and windows FW::
+        
+            engine.vpn.vpn_client.update(
+                firewall=True, antivirus=True)
+    
+    :ivar bool firewall: require windows firewall
+    :ivar bool antivirus: require client antivirus
+    :ivar str vpn_client_mode: 
     """
     typeof = 'internal_gateway'
 
     def rename(self, name):
         self._del_cache() # Engine update changes this ETag
         self.update(name='{} Primary'.format(name))
-
-    @property
-    def vpn_site(self):
-        """
-        Retrieve VPN Site information for this internal gateway
-
-        Find all configured sites for engine::
-
-            >>> for sites in engine.internal_gateway.vpn_site:
-            ...   sites
-            ...
-            VPNSite(name=Automatic Site for sg_vm_vpn)
-
-        :return: collection of :class:`smc.vpn.elements.VPNSite`
-        :rtype: create_collection
-        """
-        return create_collection(
-            self.get_relation('vpn_site'),
-            VPNSite)
-
-    def add_site(self, name, site_elements=None):
-        """
-        Add a VPN site with site elements to this engine.
-        VPN sites identify the sites with protected networks
-        to be included in the VPN.
-        Add a network and new VPN site::
-        
-            >>> net = Network.get_or_create(name='wireless', ipv4_network='192.168.5.0/24')
-            >>> engine.internal_gateway.add_site(name='wireless', site_elements=[net])
-            VPNSite(name=wireless)
-            >>> list(engine.internal_gateway.vpn_site)
-            [VPNSite(name=dingo - Primary Site), VPNSite(name=wireless)]
-        
-        :param str name: name for VPN site
-        :param list site_elements: network elements for VPN site
-        :type site_elements: list(str,Element)
-        :raises ElementNotFound: if site element is not found
-        :raises UpdateElementFailed: failed to add vpn site
-        :rtype: VPNSite
-        
-        .. note:: Update is immediate for this operation.
-        """
-        site_elements = site_elements if site_elements else []
-        return self.vpn_site.create(
-            name, site_elements)
-    
-    @property
-    def internal_endpoint(self):
-        """
-        Internal Endpoints define and enable VPN settings on a
-        specific interface.
-
-        Find all internal endpoints for an engine::
-
-            >>> for gw in engine.internal_gateway.internal_endpoint:
-            ...   gw
-            ...
-            InternalEndpoint(name=10.0.0.254)
-            InternalEndpoint(name=172.18.1.254)
-
-        :return: collection of :class:`.InternalEndpoint`
-        :rtype: SubElementCollection
-        """
-        return sub_collection(
-            self.get_relation('internal_endpoint'),
-            InternalEndpoint)
-
-    def gateway_certificate(self):
-        """
-        :return: list
-        """
-        return self.make_request(resource='gateway_certificate')
-
-    def generate_certificate(self, certificate_request):
-        """
-        Generate an internal gateway certificate used for VPN on this engine.
-        Certificate request should be an instance of VPNCertificate.
-
-        :param: VPNCertificate certificate_request: CSR generated to provide
-            a valid certificate
-        :raises CertificateError: error generating certificate
-        :return: None
-        """
-        self.make_request(
-            CertificateError,
-            method='create',
-            resource='generate_certificate',
-            json=vars(certificate_request))
     
 
 class InternalEndpoint(SubElement):

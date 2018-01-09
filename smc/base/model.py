@@ -50,7 +50,7 @@ Element class relationship (abbreviated)::
 Classes that do not require state on retrieved json or provide basic
 container functionality may inherit from object.
 """
-from collections import namedtuple, MutableMapping
+import collections
 import smc.base.collection
 from smc.compat import string_types
 from smc.base.decorators import cached_property, classproperty, exception,\
@@ -157,7 +157,7 @@ def ElementFactory(href):
         return e
 
     
-class SubDict(MutableMapping): 
+class NestedDict(collections.MutableMapping): 
     """ 
     Generic dict structure that can be used to objectify 
     complex json. This dict allows attribute access for data
@@ -510,7 +510,7 @@ class Element(ElementBase):
         """
         Return an instance of an Element based on the href
 
-        :return: :py:class:`smc.base.model.Element` type
+        :rtype: Element
         """
         return ElementFactory(href) if href else None
 
@@ -520,7 +520,7 @@ class Element(ElementBase):
         Return an instance of an Element based on meta
 
         :param dict meta: raw dict meta from smc
-        :return: :py:class:`smc.base.model.Element` type
+        :rtype: Element
         """
         return lookup_class(meta.get('type'))(**meta)
 
@@ -532,13 +532,13 @@ class Element(ElementBase):
         :param str name: name of element
         :param bool raise_exc: optionally disable exception. 
         :raises ElementNotFound: if element does not exist
-        :return: :py:class:`smc.base.model.Element` type
+        :rtype: Element
         """
-        element = cls.objects.filter(name, exact_match=True).first() if name \
-            is not None else None
+        element = cls.objects.filter(name, exact_match=True).first() if \
+            name is not None else None
         if not element and raise_exc:
-            raise ElementNotFound('Cannot find specified element: %s, type: %s' %
-                (name, cls.__name__))
+            raise ElementNotFound('Cannot find specified element: %s, type: '
+                '%s' % (name, cls.__name__))
         return element 
         
     @classmethod
@@ -726,7 +726,7 @@ class Element(ElementBase):
             >>> Host('kali').categories
             [Category(name=foo), Category(name=foocategory)]
 
-        :return: list :py:class:`smc.elements.other.Category`
+        :rtype: list(Category)
         """
         return [Element.from_meta(**tag)
                 for tag in self.make_request(
@@ -752,16 +752,8 @@ class Element(ElementBase):
         
         .. note:: It is not possible to export system elements
         """
-        from smc.administration.tasks import DownloadTask, TaskRunFailed
-        task = self.make_request(
-            TaskRunFailed,
-            method='create',
-            resource='export',
-            filename=filename)
-
-        return DownloadTask(
-            filename=filename, task=task
-        )
+        from smc.administration.tasks import Task
+        return Task.download(self, 'export', filename)
 
     @property
     def referenced_by(self):
@@ -771,6 +763,7 @@ class Element(ElementBase):
         a group, etc.
 
         :return: list referenced elements
+        :rtype: list(Element)
         """
         href = fetch_entry_point('references_by_element')
         return [Element.from_meta(**ref)
@@ -799,7 +792,7 @@ class Element(ElementBase):
     def duplicate(self, name):
         """
         .. versionadded:: 0.5.8
-            Requires SMC version >- 6.3.2
+            Requires SMC version >= 6.3.2
         
         Duplicate this element. This is a shortcut method that will make
         a direct copy of the element under the new name and type.
@@ -807,6 +800,7 @@ class Element(ElementBase):
         :param str name: name for the duplicated element
         :raises ActionCommandFailed: failed to duplicate the element
         :return: the newly created element
+        :rtype: Element
         """
         dup = self.make_request(
             method='update',
@@ -863,7 +857,7 @@ def lookup_class(typeof, default=Element):
     return ElementMeta._map.get(typeof, default)
 
 
-class Meta(namedtuple('Meta', 'name href type')):
+class Meta(collections.namedtuple('Meta', 'name href type')):
     """
     Internal namedtuple used to store top level element information. When
     doing base level searches, SMC API will return only meta data for the

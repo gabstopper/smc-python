@@ -20,10 +20,10 @@ overidden.
           needed, calling open() will lock the policy from test_external modifications
           until save() is called.
 """
-from smc.api.exceptions import TaskRunFailed, PolicyCommandFailed
-from smc.administration.tasks import TaskOperationPoller
+import collections
+from smc.api.exceptions import PolicyCommandFailed
+from smc.administration.tasks import Task
 from smc.base.model import Element, lookup_class
-from collections import namedtuple
 
 
 class Policy(Element):
@@ -54,18 +54,8 @@ class Policy(Element):
         :raises: TaskRunFailed
         :return: TaskOperationPoller
         """
-        task = self.make_request(
-            TaskRunFailed,
-            method='create',
-            resource='upload',
-            params={'filter': engine})
-            #json={"resource":[engine.href]})
-    
-        return TaskOperationPoller(
-            task=task,
-            timeout=timeout,
-            wait_for_finish=wait_for_finish,
-            **kw)
+        return Task.execute(self, 'upload', params={'filter': engine},
+            timeout=timeout, wait_for_finish=wait_for_finish, **kw)
 
     def open(self):
         """
@@ -213,7 +203,7 @@ class InspectionPolicy(Policy):
     def upload(self): pass  # Not valid for inspection policy
     
 
-class RuleCounter(namedtuple(
+class RuleCounter(collections.namedtuple(
         'RuleCounter', 'hits rule_ref total_hits')):
     """
     Rule counter representing hits for a specific rule.

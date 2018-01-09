@@ -83,9 +83,18 @@ Check the various reference documentation for defined elements supported.
 Update
 ------  
 
-Updating elements can be done in multiple ways. By default, any element can be updated
-by setting the attribute on the class instance itself. The attributes should be a supported
-attribute for the respective element type.
+Updating elements can be done in multiple ways. In most cases, making modifications to an
+element through methods or element attributes are the preferred way. Modifications done through
+existing methods/attributes are done idempotent to the elements cache.
+In order to commit these changes to the SMC, calling .update() is required unless
+explicitly documented otherwise.
+
+.. note:: There are some edge cases where .update() is called automatically like when modifying
+	interfaces where multiple areas are updated. These will be documented on the method.
+
+In addition to making modifications through method calls, any element can be updated by setting
+attributes on the class itlsef. The attributes should be a supported attribute for the respective
+element type.
 
 Once the element is set on the class instance and attributes are set, you must call
 update() on the instance to submit the change to the SMC. 
@@ -133,9 +142,9 @@ An attribute value can also be a callable and will be evaluated during update::
 	with '_'. Attributes without this prefix will merge into the cache and could cause
 	the update to fail.
 
-Another way to update an element is by providing the kwarg values in the update() call.
+Another way to update an element is by providing the kwarg values in the update() call directly.
 
-Taking the example above, this could be done this way::
+Taking the example above, this could be done the following way::
 
 	host = Host('kali')
 	host.update(

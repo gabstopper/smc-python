@@ -67,8 +67,7 @@ class Layer2Rule(object):
         """ 
         Layer2 Firewall access rule
 
-        :return: collection of :class:`smc.policy.rule.IPv4Layer2Rule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv4Layer2Rule)
         """
         return create_collection(
             self.get_relation('layer2_ipv4_access_rules'),
@@ -88,8 +87,7 @@ class Layer2Rule(object):
         """
         Layer 2 Ethernet access rule
 
-        :return: collection of :class:`smc.policy.rule.EthernetRule`
-        :rtype: create_collection
+        :rtype: CreateCollection(EthernetRule)
         """
         return create_collection(
             self.get_relation('layer2_ethernet_rules'),

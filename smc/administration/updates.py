@@ -3,7 +3,7 @@ Functionality related to updating dynamic update packages and
 engine upgrades
 """
 from smc.base.model import SubElement
-from smc.administration.tasks import TaskOperationPoller
+from smc.administration.tasks import Task
 
 
 class PackageMixin(object):
@@ -12,44 +12,29 @@ class PackageMixin(object):
     upgrades
     """
 
-    def download(self, timeout=5,
-                 wait_for_finish=False):
+    def download(self, timeout=5, wait_for_finish=False):
         """
         Download Package or Engine Update
 
         :param int timeout: timeout between queries
-        :raises ActionCommandFailed: task kick off failed
         :raises TaskRunFailed: failure during task status
         :rtype: TaskOperationPoller
         """
-        task = self.make_request(
-            method='create',
-            resource='download')
-        
-        return TaskOperationPoller(
-            task=task, timeout=timeout,
+        return Task.execute(self, 'download', timeout=timeout,
             wait_for_finish=wait_for_finish)
-
-    def activate(self, resource=None, timeout=3,
-                 wait_for_finish=False):
+    
+    def activate(self, resource=None, timeout=3, wait_for_finish=False):
         """
         Activate this package on the SMC
 
         :param list resource: node href's to activate on. Resource is only
                required for software upgrades
         :param int timeout: timeout between queries
-        :raises ActionCommandFailed: failure during activation (downloading, etc)
-        :raises TaskRunFailed: failure during task run
+        :raises TaskRunFailed: failure during activation (downloading, etc)
         :rtype: TaskOperationPoller
         """
-        task = self.make_request(
-            method='create',
-            resource='activate',
-            json={'resource': resource})
-
-        return TaskOperationPoller(
-            task=task, timeout=timeout,
-            wait_for_finish=wait_for_finish)
+        return Task.execute(self, 'activate', json={'resource': resource},
+            timeout=timeout, wait_for_finish=wait_for_finish)
 
     @property
     def release_notes(self):
@@ -66,9 +51,15 @@ class EngineUpgrade(PackageMixin, SubElement):
     For example, to check engine upgrades and find a specific
     one, then download for installation::
 
-        for upgrade in system.engine_upgrade():
-            if upgrade.name == 'NGFW upgrade 6.1.3 build 17053 for X86-64-small':
-                upgrade.download(wait_for_finish=True).wait()
+        system = System()
+        upgrades = system.engine_upgrade()
+        package = upgrades.get_contains('6.2')
+        
+        poller = package.download(wait_for_finish=True)
+        while not poller.done():
+            print(poller.result(3))
+        print("Finished download: %s" % poller.result())
+        package.activate() 
 
     """
 
@@ -101,13 +92,14 @@ class UpdatePackage(PackageMixin, SubElement):
     Download and activate a package::
 
         system = System()
-        print(system.last_activated_package)
-
-        for package in system.update_package():
-            if package.name == 'Update Package 788': #Use specific package
-                task = package.download().wait()
-                if task.success:
-                    package.activate() #Activate it on SMC
+        packages = system.update_package()
+        dynup = packages.get_contains('1007')
+        
+        poller = dynup.download(wait_for_finish=True)
+        while not poller.done():
+            print(poller.result(3))
+        print("Finished download: %s" % poller.result())
+        package.activate() 
 
     """
 

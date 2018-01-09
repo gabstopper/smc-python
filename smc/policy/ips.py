@@ -53,8 +53,7 @@ class IPSRule(object):
         """ 
         IPS ipv4 access rules
 
-        :return: collection of :class:`smc.policy.rule.IPv4Layer2Rule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv4Layer2Rule)
         """
         return create_collection(
             self.get_relation('ips_ipv4_access_rules'),
@@ -71,8 +70,7 @@ class IPSRule(object):
         """
         IPS Ethernet access rule
 
-        :return: collection of :class:`smc.policy.rule.EthernetRule`
-        :rtype: create_collection
+        :rtype: CreateCollection(EthernetRule)
         """
         return create_collection(
             self.get_relation('ips_ethernet_rules'),

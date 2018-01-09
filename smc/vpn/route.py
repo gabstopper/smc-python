@@ -160,7 +160,7 @@ class RouteVPN(Element):
         :param bool enabled: enable the RBVPN or leave it disabled
         :param str comment: optional comment
         :raises CreateVPNFailed: failed to create the VPN with reason
-        :return: RouteVPN
+        :rtype: RouteVPN
         """
         group = monitoring_group if monitoring_group else \
             TunnelMonitoringGroup('Uncategorized')
@@ -209,7 +209,7 @@ class RouteVPN(Element):
         :param int ttl: ttl for connections on the VPN (default: 0)
         :param str comment: optional comment
         :raises CreateVPNFailed: failed to create the VPN with reason
-        :return: RouteVPN
+        :rtype: RouteVPN
         """
         json = {
             'name': name,
@@ -270,7 +270,7 @@ class RouteVPN(Element):
         :param int ttl: ttl for connections on the VPN (default: 0)
         :param str comment: optional comment
         :raises CreateVPNFailed: failed to create the VPN with reason
-        :return: RouteVPN
+        :rtype: RouteVPN
         """
         group = monitoring_group if monitoring_group else \
             TunnelMonitoringGroup('Uncategorized')
@@ -331,7 +331,7 @@ class RouteVPN(Element):
         """
         The local endpoint for this RBVPN
         
-        :return: TunnelEndpoint
+        :rtype: TunnelEndpoint
         """
         return TunnelEndpoint(**self.rbvpn_tunnel_side_a)
     
@@ -340,7 +340,7 @@ class RouteVPN(Element):
         """
         The remote endpoint for this RBVPN
         
-        :return: TunnelEndpoint
+        :rtype: TunnelEndpoint
         """
         return TunnelEndpoint(**self.rbvpn_tunnel_side_b)
     
@@ -360,7 +360,7 @@ class RouteVPN(Element):
         visibility from the Home page. This RBVPN monitoring
         group.
         
-        :return: TunnelMonitoringGroup
+        :rtype: TunnelMonitoringGroup
         """
         return Element.from_href(self.monitoring_group_ref)
     
@@ -369,7 +369,7 @@ class RouteVPN(Element):
         """
         VPN profile for this RBVPN
         
-        :return: VPNProfile
+        :rtype: VPNProfile
         """
         if self.data.get('vpn_profile_ref'):
             return Element.from_href(self.vpn_profile_ref)
@@ -412,7 +412,7 @@ class TunnelEndpoint(object):
             this tunnel endpoint. Required for SMC managed devices.
         :param str remote_address: IP address, only required if the tunnel
             endpoint is a remote gateway.
-        :return: TunnelEndpoint
+        :rtype: TunnelEndpoint
         """
         tunnel_interface = tunnel_interface.href if tunnel_interface else None
         endpoint = endpoint.href if endpoint else None
@@ -433,7 +433,7 @@ class TunnelEndpoint(object):
             element for this tunnel endpoint.
         :param TunnelInterface tunnel_interface: the tunnel interface for
             this tunnel endpoint. Required for SMC managed devices.
-        :return: TunnelEndpoint
+        :rtype: TunnelEndpoint
         """
         tunnel_interface = tunnel_interface.href if tunnel_interface else None
         return TunnelEndpoint(
@@ -453,7 +453,7 @@ class TunnelEndpoint(object):
         :param TunnelInterface tunnel_interface: Tunnel interface for
             this RBVPN. This can be None if the gateway is a non-SMC
             managed gateway.
-        :return: TunnelEndpoint
+        :rtype: TunnelEndpoint
         """
         tunnel_interface = tunnel_interface.href if tunnel_interface else None
         return TunnelEndpoint(
@@ -471,7 +471,8 @@ class TunnelEndpoint(object):
         be an InternalGateway (SMC managed) or ExternalGateway (non-SMC managed)
         element. Gateway references are used in IPSEC wrapped RBVPN's.
         
-        :return InternalGateway,ExternalGateway: gateway reference for the VPN
+        :returng ateway reference for the VPN
+        :rtype: InternalGateway,ExternalGateway
         """
         if self.gateway_ref:
             return Element.from_href(self.gateway_ref)
@@ -481,7 +482,8 @@ class TunnelEndpoint(object):
         """
         Show the tunnel interface for this TunnelEndpoint.
         
-        :return TunnelInterface: interface for this endpoint
+        :return: interface for this endpoint
+        :rtype: TunnelInterface
         """
         if self.tunnel_interface_ref:
             return Element.from_href(self.tunnel_interface_ref)
@@ -493,7 +495,8 @@ class TunnelEndpoint(object):
         VPN. This is the InternalEndpoint property of the
         InternalGateway.
         
-        :return InternalEndpoint: internal endpoint where VPN is enabled.
+        :return: internal endpoint where VPN is enabled
+        :rtype: InternalEndpoint
         """
         if self.endpoint_ref:
             return InternalEndpoint(href=self.endpoint_ref)

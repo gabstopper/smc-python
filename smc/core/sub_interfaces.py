@@ -6,26 +6,51 @@ basic settings such as ip address, network, administrative settings etc. These a
 not called directly but used as a reference to the top level interface.
 All sub interfaces are type dict. 
 """
-from smc.base.model import SubDict
+
+from smc.base.model import NestedDict
+from smc.base.collection import IndexedIterable
+from smc.api.exceptions import EngineCommandFailed
+
 
 def get_sub_interface(typeof):
     if typeof in clsmembers:
         return clsmembers[typeof]
 
-
-def all_interfaces(data):
+    
+class SubInterfaceCollection(IndexedIterable):
     """
-    Return a list of subinterfaces based on the interface
-    list.
+    A Sub Interface collection for non-VLAN interfaces.
     """
-    return [get_sub_interface(kind)(value)
-            for interface in data
-            for kind, value in interface.items()]
-        
+    def __init__(self, interface):
+        data = [clsmembers.get(kind)(data)
+                for intf in interface.data.get('interfaces', [])
+                for kind, data in intf.items()]
+        super(SubInterfaceCollection, self).__init__(data)
 
-class SubInterface(SubDict):
+
+class SubInterface(NestedDict):
     def __init__(self, data):
         super(SubInterface, self).__init__(data=data)
+    
+    def change_interface_id(self, interface_id):
+        """
+        Generic change interface ID for VLAN interfaces that are not
+        Inline Interfaces (non-VLAN sub interfaces do not have an
+        interface_id field).
+        
+        :param str, int interface_id: interface ID value
+        """
+        _, second = self.nicid.split('.')
+        self.update(nicid='{}.{}'.format(str(interface_id), second))
+    
+    def change_vlan_id(self, vlan_id):
+        """
+        Change a VLAN id
+        
+        :param str vlan_id: new vlan
+        """
+        first, _ = self.nicid.split('.')
+        self.update(nicid='{}.{}'.format(first, str(vlan_id)))
     
     def __getattr__(self, key):
         return self.get(key)
@@ -107,7 +132,7 @@ class InlineInterface(SubInterface):
     :ivar boolean inspect_unspecified_vlans: promiscuous SPAN on unspecified VLANs
     :ivar str logical_interface_ref (required): logical interface to use, by href
     :ivar str failure_mode: normal or bypass
-    :ivar str nicid: interfaces for inline pair, for example, '1-2', '5-6' (interfaces 5 and 6)
+    :ivar str nicid: interfaces for inline pair, for example, '4.50-5.55', '5-6'
     :ivar str vlan_id: vlan identifier for interface
     :ivar str zone_ref (optional): zone for second interface in pair
     """
@@ -134,7 +159,49 @@ class InlineInterface(SubInterface):
             data.update({k: v})
 
         return cls(data)
+    
+    def change_vlan_id(self, vlan_id):
+        """
+        Change a VLAN id for an inline interface.
+        
+        :param str vlan_id: New VLAN id. Can be in format '1-2' or
+            a single numerical value. If in '1-2' format, this specifies
+            the vlan ID for the first inline interface and the rightmost
+            for the second.
+        :return: None
+        """
+        first, second = self.nicid.split('-')
+        firstintf = first.split('.')[0]
+        secondintf = second.split('.')[0]
+        newvlan = str(vlan_id).split('-')
+        self.update(nicid='{}.{}-{}.{}'.format(
+            firstintf, newvlan[0], secondintf, newvlan[-1]))
 
+    def change_interface_id(self, newid):
+        """
+        Change the inline interface ID. The current format is
+        nicid='1-2', where '1' is the top level interface ID (first),
+        and '2' is the second interface in the pair. Consider the existing
+        nicid in case this is a VLAN.
+        
+        :param str newid: string defining new pair, i.e. '3-4'
+        :return: None
+        """
+        try:
+            newleft, newright = newid.split('-')
+        except ValueError:
+            raise EngineCommandFailed('You must provide two parts when changing '
+                'the interface ID on an inline interface, i.e. 1-2.')
+        first, second = self.nicid.split('-')
+        if '.' in first and '.' in second:
+            firstvlan = first.split('.')[-1]
+            secondvlan = second.split('.')[-1]
+            self.update(nicid='{}.{}-{}.{}'.format(
+                newleft, firstvlan, newright, secondvlan))
+        else:
+            # Top level interface or no VLANs
+            self.update(nicid=newid)
+    
     @property
     def vlan_id(self):
         """
@@ -307,7 +374,7 @@ class NodeInterface(SubInterface):
             data.update({k: v})
 
         return cls(data)
-
+    
     @property
     def vlan_id(self):
         """
@@ -401,6 +468,170 @@ class SingleNodeInterface(NodeInterface):
             data.update({k: v})
 
         return cls(data)
+
+
+class LoopbackClusterInterface(ClusterVirtualInterface):
+    """
+    This represents the CVI Loopback IP address.
+    A CVI loopback IP address is used for loopback traffic that is sent to
+    the whole cluster. It is shared by all the nodes in the cluster.
+    """
+    typeof = 'loopback_cluster_virtual_interface'
+    
+    def __init__(self, data, engine=None):
+        self._engine = engine
+        super(LoopbackClusterInterface, self).__init__(data)
+        
+    @classmethod
+    def create(cls, address, ospf_area=None, **kwargs):
+        """
+        Create a loopback interface. Uses parent constructor
+        
+        :rtype: LoopbackClusterInterface
+        """
+        return super(LoopbackClusterInterface, cls).create(
+            address=address,
+            network_value='{}/32'.format(address),
+            interface_id='Loopback Interface',
+            ospfv2_area_ref=ospf_area,
+            **kwargs)
+    
+    def delete(self):
+        """
+        Delete a loopback cluster virtual interface from this engine. 
+        Changes to the engine configuration are done immediately.
+        
+        You can find cluster virtual loopbacks by iterating at the
+        engine level::
+        
+            for loopbacks in engine.loopback_interface:
+                ...
+        
+        :raises UpdateElementFailed: failure to delete loopback interface
+        :return: None
+        """
+        self._engine.data[self.typeof] = \
+            [loopback for loopback in self._engine.data.get(self.typeof, [])
+             if loopback.get('address') != self.address]
+            
+        self._engine.update()
+    
+    def add_node_loopback(self, nodes, ospf_area=None):
+        """
+        Add loopback interfaces to a cluster. When adding a loopback on a
+        cluster, every cluster node must have a loopback defined or you
+        can optionally configure a loopback CVI address.
+        
+        Nodes should be in the format::
+        
+            {'address': '127.0.0.10', 'nodeid': 1,
+             'address': '127.0.0.11', 'nodeid': 2}
+             
+        :param dict nodes: nodes defintion for cluster nodes
+        :param str ospf_area: optional OSPF area for this loopback
+        :raises EngineCommandFailed: failed creating loopback
+        """
+        pass
+    
+    def add_cvi_loopback(self, address, ospf_area=None, **kw):
+        """
+        Add a loopback interface as a cluster virtual loopback. This enables
+        the loopback to 'float' between cluster members. Changes are committed
+        immediately.
+        
+        :param str address: ip address for loopback
+        :param int rank: rank of this entry
+        :param str,Element ospf_area: optional ospf_area to add to loopback
+        :raises UpdateElementFailed: failure to save loopback address
+        :return: None
+        """
+        lb = self.create(address, ospf_area, **kw)
+       
+        if self.typeof in self._engine.data:
+            self._engine.data[self.typeof].append(lb.data)
+        else:
+            self._engine.data[self.typeof] = [lb.data]
+        
+        self._engine.update()
+  
+    def __repr__(self):
+        return 'LoopbackClusterInterface(address={}, auth_request={})'.format(
+            self.address, self.auth_request)
+        
+
+class LoopbackInterface(NodeInterface):
+    """
+    Loopback interface for a physical or virtual single firewall.
+    To create a loopback interface, call from the engine node::
+    
+        engine.loopback_interface.add_single(...)
+    """
+    typeof = 'loopback_node_dedicated_interface'
+    
+    def __init__(self, data, engine=None):
+        self._engine = engine
+        super(LoopbackInterface, self).__init__(data)
+        
+    @classmethod
+    def create(cls, address, rank=1, nodeid=1, ospf_area=None, **kwargs):
+        return super(LoopbackInterface, cls).create(
+            interface_id='Loopback Interface',
+            #rank=rank,
+            address=address,
+            network_value='{}/32'.format(address),
+            nodeid=nodeid,
+            ospfv2_area_ref=ospf_area,
+            **kwargs)
+    
+    def add_single(self, address, rank=1, nodeid=1, ospf_area=None, **kwargs):
+        """
+        Add a single loopback interface to this engine. This is used
+        for single or virtual FW engines.
+        
+        :param str address: ip address for loopback
+        :param int nodeid: nodeid to apply. Default to 1 for single FW
+        :param str, Element ospf_area: ospf area href or element
+        :raises UpdateElementFailed: failure to create loopback address
+        :return: None
+        """
+        lb = self.create(address, rank, nodeid, ospf_area, **kwargs)
+        self._engine.nodes[0].data[self.typeof].append(lb.data)
+        self._engine.update()
+    
+    def delete(self):
+        """
+        Delete a loopback interface from this engine. Changes to the
+        engine configuration are done immediately.
+        
+        A simple way to obtain an existing loopback is to iterate the
+        loopbacks or to get by address::
+        
+            lb = engine.loopback_interface.get('127.0.0.10')
+            lb.delete()
+        
+        .. warning:: When deleting a loopback assigned to a node on a cluster
+            all loopbacks with the same rank will also be removed.
+        
+        :raises UpdateElementFailed: failure to delete loopback interface
+        :return: None
+        """
+        nodes = []
+        for node in self._engine.nodes:
+            node.data[self.typeof] = \
+                [lb for lb in node.loopback_node_dedicated_interface
+                 if lb.get('rank') != self.rank]
+            nodes.append({node.type: node.data})
+        
+        self._engine.data['nodes'] = nodes
+        self._engine.update()
+    
+    def change_ipaddress(self, address):
+        self.update(address=address,
+                    network_value='{}/32'.format(address))
+
+    def __repr__(self):
+        return 'LoopbackInterface(address={}, nodeid={}, rank={})'.format(
+            self.address, self.nodeid, self.rank)   
 
 
 def _add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):

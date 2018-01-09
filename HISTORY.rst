@@ -96,3 +96,19 @@ Release History
  - If a search is provided in format: Host.objects.filter(address='1.1.1.1').first(), and the search returns meta but the
    filtered results do not return a match, the method tries to pop from an empty list. Return None instead.
 
+0.6.0
+-----
+
+**Improvements**
+
+- SubElementCollection helper methods for using matching criteria on returned results: get, get_contains, get_all_contains.
+  Useful for searching meta data returned for this collection type.
+- IndexedIterable used for collections returned in various areas of the configuration and provides a common interface
+  for data that is returned in lists. IndexedIterable classes provide a simplified interface to retrieving data from the
+  collection.
+- Change add_arp_entry to static_arp_entry in physical_interface
+- Added Reports to smc.administration module
+- Added collections for all interfaces making it possible to fetch a VLAN or sub interface without iterating
+
+  
+

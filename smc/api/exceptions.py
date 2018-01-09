@@ -207,6 +207,13 @@ class ModificationFailed(SMCException):
     pass
 
 
+class ModificationAborted(SMCException):
+    """
+    A previous requirement was not met which prevented an
+    attempted change from being executed.
+    """
+    pass
+
 class ActionCommandFailed(SMCException):
     """
     Action type commands use this exception

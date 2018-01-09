@@ -196,7 +196,7 @@ class TaskSchedule(SubElement):
         object.
             
         :return: datetime object in format '%Y-%m-%d %H:%M:%S.%f'
-        :rtype: datetime
+        :rtype: datetime.datetime
         """
         return datetime_from_ms(self.data.get('activation_date'))
 

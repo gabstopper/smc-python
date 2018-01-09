@@ -23,9 +23,9 @@ from smc.elements.other import prepare_blacklist
 from smc.base.model import SubElement, Element, ElementCreator
 from smc.administration.updates import EngineUpgrade, UpdatePackage
 from smc.administration.license import Licenses
-from smc.api.exceptions import TaskRunFailed, ActionCommandFailed
-from smc.administration.tasks import DownloadTask
+from smc.administration.tasks import Task
 from smc.base.util import millis_to_utc
+from smc.base.collection import sub_collection
 
 
 class System(SubElement):
@@ -80,34 +80,44 @@ class System(SubElement):
 
     def update_package(self):
         """
-        Show all update packages on SMC
+        Show all update packages on SMC.
+        
+        To find specific updates available from the returned
+        collection, use convenience methods::
+        
+            system = System()
+            updates = system.update_package()
+            updates.get_contains('1027')
 
         :raises ActionCommandFailed: failure to retrieve resource
-        :rtype: list(UpdatePackage)
+        :rtype: SubElementCollection(UpdatePackage)
         """
-        return [UpdatePackage(**update)
-                for update in self.make_request(resource='update_package')]
+        return sub_collection(
+            self.get_relation('update_package'),
+            UpdatePackage)
 
     def update_package_import(self):
         pass
 
-    def engine_upgrade(self, engine_version=None):
+    def engine_upgrade(self):
         """
         List all engine upgrade packages available
 
-        Call this function without parameters to see available engine
-        versions. Once you have found the engine version to upgrade, use
-        the engine_version=href to obtain the guid. Obtain the download
-        link and POST to download using
-        engine_upgrade_download(download_link) to download the update.
+        To find specific upgrades available from the returned
+        collection, use convenience methods::
+        
+            system = System()
+            upgrades = system.engine_upgrade()
+            upgrades.get_contains('6.2')
+            upgrades.get_all_contains('6.2')
 
         :param engine_version: Version of engine to retrieve
         :raises ActionCommandFailed: failure to retrieve resource
-        :return: settings in raw dict format
-        :rtype: dict
+        :rtype: SubElementCollection(EngineUpgrade)
         """
-        return [EngineUpgrade(**upgrade)
-                for upgrade in self.make_request(resource='engine_upgrade')]
+        return sub_collection(
+            self.get_relation('engine_upgrade'),
+            EngineUpgrade)
 
     def uncommitted(self):
         pass
@@ -256,17 +266,9 @@ class System(SubElement):
         valid_types = ['all', 'nw', 'ips', 'sv', 'rb', 'al', 'vpn']
         if typeof not in valid_types:
             typeof = 'all'
-
-        task = self.make_request(
-            TaskRunFailed,
-            method='create',
-            resource='export_elements',
-            params={
-                'recursive': True,
-                'type': typeof})
-
-        return DownloadTask(
-                filename=filename, task=task)
+        
+        return Task.download(self, 'export_elements', filename,
+            params={'recursive': True, 'type': typeof})
 
     def active_alerts_ack_all(self):
         """

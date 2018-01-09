@@ -1,4 +1,4 @@
-from smc.base.model import Element, ElementCreator, SubDict
+from smc.base.model import Element, ElementCreator, NestedDict
 from smc.api.exceptions import ElementNotFound
 from smc.base.util import element_resolver
 
@@ -133,7 +133,7 @@ class RuleElement(object):
         return []
 
 
-class Destination(RuleElement, SubDict):
+class Destination(RuleElement, NestedDict):
     """
     Destination fields for a rule.
     """
@@ -147,7 +147,7 @@ class Destination(RuleElement, SubDict):
         super(Destination, self).__init__(data=dests)
     
     
-class Source(RuleElement, SubDict):
+class Source(RuleElement, NestedDict):
     """
     Source fields for a rule
     """
@@ -161,7 +161,7 @@ class Source(RuleElement, SubDict):
         super(Source, self).__init__(data=sources)
             
 
-class Service(RuleElement, SubDict):
+class Service(RuleElement, NestedDict):
     """
     Service fields for a rule
     """
@@ -175,7 +175,7 @@ class Service(RuleElement, SubDict):
         super(Service, self).__init__(data=services)    
 
         
-class Action(SubDict): 
+class Action(NestedDict): 
     """ 
     This represents the action associated with the rule. 
     """ 
@@ -339,7 +339,7 @@ class Action(SubDict):
         self.update(mobile_vpn=value)
             
 
-class ConnectionTracking(SubDict):
+class ConnectionTracking(NestedDict):
     """
     Connection tracking settings can be configured on a per rule basis to
     control settings such as enforced MSS and how to handle connection states.
@@ -452,7 +452,7 @@ class ConnectionTracking(SubDict):
         self.update(sync_connections=value)
 
 
-class LogOptions(SubDict):
+class LogOptions(NestedDict):
     """
     Log Options represent the settings related to per rule logging.
 
@@ -630,7 +630,7 @@ class LogOptions(SubDict):
             self.update(user_logging=value)
 
 
-class AuthenticationOptions(SubDict):
+class AuthenticationOptions(NestedDict):
     """
     Authentication options are set on a per rule basis and dictate
     whether a user requires identification to match.

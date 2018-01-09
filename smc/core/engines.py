@@ -1,4 +1,5 @@
-from smc.core.interfaces import extract_sub_interface, InterfaceBuilder, LoopbackInterface
+from smc.core.interfaces import extract_sub_interface, InterfaceBuilder
+from smc.core.sub_interfaces import LoopbackInterface
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
 from smc.base.model import ElementCreator

@@ -4,194 +4,223 @@ functionality for specific feature sets. For example, to enable DNS Relay on
 an engine you must specify a DNSRelayProfile to use which defines the common
 settings (or sub-settings) for that feature.
 
-Profile's do not have a direct ``create`` method like other resources of type
-:class:`smc.core.model.Element`. They are created dynamically if they do not 
-exist. However they require at least one of the instance methods be called
-in order to properly initialize the profile.
-
-For example, to create a DNSRelayProfile, specify the resource by name and call
-a method to initialize::
+A DNS Relay Profile allows multiple DNS related mappings that can be configured.
+Example usage::
 
     >>> from smc.elements.profiles import DNSRelayProfile
-    >>> p = DNSRelayProfile('mynewprofile')
-    >>> p.add_hostname_mapping(hostnames='myhost,myhost2',ipaddress='1.1.1.1')
-    >>> p.hostname_mapping
-    [{u'hostnames': u'myhost,myhost2', u'ipaddress': u'1.1.1.1'}]
-    >>> p.add_fixed_domain_answer('malwaresite.com', 'sinkhole.local')
-    >>> p.fixed_domain_answer
-    [{u'domain_name': u'malwaresite.com', u'translated_domain_name': u'sinkhole.local'}]
-    >>> 
-    >>> myprofile = DNSRelayProfile('mynewprofile')
-    >>> myprofile.href
-    u'http://172.18.1.150:8082/6.2/elements/dns_relay_profile/5'
+    >>> profile = DNSRelayProfile('mynewprofile')
 
-.. seealso:: :class:`smc.core.properties.EngineFeature.enable_dns_relay` for
-             enabling dns relay on an engine using a DNSRelayProfile.
+.. note:: If the DNSRelayProfile does not exist, it will automatically be
+    created when a DNS relay rule is added to the DNSRelayProfile instance.
+    
+Add a fixed domain answer rule::
+
+    >>> profile.fixed_domain_answer.add([('microsoft3.com', 'foo.com'), ('microsoft4.com',)])
+    >>> profile.fixed_domain_answer.all()
+    [{u'domain_name': u'microsoft3.com', u'translated_domain_name': u'foo.com'}, {u'domain_name': u'microsoft4.com'}]
+    
+Translate hostnames (not fqdn) to a specific IP address::
+
+    >>> profile.hostname_mapping.add([('hostname1,hostname2', '1.1.1.12')])
+    >>> profile.hostname_mapping.all()
+    [{u'hostnames': u'hostname1,hostname2', u'ipaddress': u'1.1.1.12'}]
+
+Translate an IP address to another::
+
+    >>> profile.dns_answer_translation.add([('12.12.12.12', '172.18.1.20')])
+    >>> profile.dns_answer_translation.all()
+    [{u'translated_ipaddress': u'172.18.1.20', u'original_ipaddress': u'12.12.12.12'}]
+
+Specify a DNS server to handle specific domains::
+
+    >>> profile.domain_specific_dns_server.add([('myfoo.com', '172.18.1.20')])
+    >>> profile.domain_specific_dns_server.all()
+    [{u'dns_server_addresses': u'172.18.1.20', u'domain_name': u'myfoo.com'}]
 
 """
 from smc.base.model import Element, ElementCreator
 from smc.api.exceptions import ElementNotFound
 
 
+class DNSRule(object):
+    """
+    DNSRule is the parent class for all DNS relay rules.
+    """
+    __slots__ = ('profile')
+    def __init__(self, profile):
+        self.profile = profile
+    
+    def add(self, instance, answers):
+        key, left, right = instance._attr
+        json = [dict(zip([left, right], d)) 
+                for d in answers]
+        try:
+            self.profile.data[key].extend(json)
+            self.profile.update()
+        except ElementNotFound:
+            j = {'name': self.profile.name,
+                  key: json}
+            return ElementCreator(self.profile.__class__, j)
+    
+    def all(self):
+        """
+        Return all entries
+        
+        :rtype: list(dict)
+        """
+        attribute = self._attr[0]
+        return self.profile.data.get(attribute, [])
+
+    
+class FixedDomainAnswer(DNSRule):
+    """
+    Direct requests for specific domains to IPv4 addresses, IPv6
+    addresses, fully qualified domain names (FQDNs), or empty DNS replies
+    """
+    _attr = ('fixed_domain_answer', 'domain_name', 'translated_domain_name')
+    
+    def add(self, answers):
+        """
+        Add a fixed domain answer. This should be a list of
+        two-tuples, the first entry is the domain name, and
+        the second is the translated domain value::
+        
+            profile = DNSRelayProfile('dnsrules')
+            profile.fixed_domain_answer.add([
+                ('microsoft.com', 'foo.com'), ('microsoft2.com',)])
+        
+        :param answers: (domain_name, translated_domain_name)
+        :type answers: tuple[str, str]
+        :raises UpdateElementFailed: failure to add to SMC
+        :return: None
+        
+        .. note:: translated_domain_name can be none, which will cause
+            the NGFW to return NXDomain for the specified domain.
+        """
+        super(FixedDomainAnswer, self).add(self, answers)
+
+    
+class HostnameMapping(DNSRule):
+    """
+    Statically map host names, aliases for host names, and unqualified
+    names (a host name without the domain suffix) to IPv4 or IPv6
+    addresses
+    """
+    _attr = ('hostname_mapping', 'hostnames', 'ipaddress')
+    
+    def add(self, answers):
+        """
+        Map specific hostname to specified IP address. Provide a list
+        of two-tuples. The first entry is the hostname/s to translate
+        (you can provide multiple comma separated values). The second
+        entry should be the IP address to map the hostnames to::
+        
+            profile = DNSRelayProfile('dnsrules')
+            profile.hostname_mapping.add([('hostname1,hostname2', '1.1.1.1')])
+
+        :param answers: (hostnames, ipaddress), hostnames can be a
+            comma separated list.
+        :type answers: tuple[str, str]
+        :raises UpdateElementFailed: failure to add to SMC
+        :return: None
+        """
+        super(HostnameMapping, self).add(self, answers)
+
+
+class DomainSpecificDNSServer(DNSRule):
+    """
+    Forward DNS requests to different DNS servers based on
+    the requested domain.
+    """
+    _attr = ('domain_specific_dns_server', 'domain_name', 'dns_server_addresses')
+    
+    def add(self, answers):
+        """
+        Relay specific domains to a specified DNS server. Provide
+        a list of two-tuple with first entry the domain name to relay
+        for. The second entry is the DNS server that should handle the
+        query::
+            
+            profile = DNSRelayProfile('dnsrules')
+            profile.domain_specific_dns_server.add([('myfoo.com', '172.18.1.20')])
+
+        :param answers: (domain_name, dns_server_addresses), dns server
+            addresses can be a comma separated string
+        :type answers: tuple[str, str]
+        :raises UpdateElementFailed: failure to add to SMC
+        :return: None
+        """
+        super(DomainSpecificDNSServer, self).add(self, answers)
+        
+
+class DNSAnswerTranslation(DNSRule):
+    """
+    Map IPv4 addresses resolved by external DNS servers to IPv4
+    addresses in the internal network.  
+    """
+    _attr = ('dns_answer_translation', 'original_ipaddress', 'translated_ipaddress')
+    
+    def add(self, answers):
+        """
+        Takes an IPv4 address and translates to a specified IPv4 value.
+        Provide a list of two-tuple with the first entry providing the
+        original address and second entry specifying the translated address::
+        
+            profile = DNSRelayProfile('dnsrules')
+            profile.dns_answer_translation.add([('12.12.12.12', '172.18.1.20')])
+        
+        :param answers: (original_ipaddress, translated_ipaddress)
+        :type answers: tuple[str, str]
+        :raises UpdateElementFailed: failure to add to SMC
+        :return: None
+        """
+        super(DNSAnswerTranslation, self).add(self, answers)
+
+   
 class DNSRelayProfile(Element):
     """
     DNS Relay Settings specify a profile to handle how the engine will
     interpret DNS queries. Stonesoft can act as a DNS relay, rewrite 
     DNS queries or redirect domains to the specified DNS servers.
-
-    All DNSRelayProfile methods support an ``as_list`` keyword argument 
-    that will take a list of 2-tuple's that should contain the values for
-    each ``add_`` method. The constructor of each method indicates the order
-    which the tuple will be mapped.
-
-    For example, loading a list of hostname_mappings::
-
-        profile.add_hostname_mapping(
-            as_list=[('hostname1', 'ipaddress1'),
-                     ('hostname2', 'ipaddress2'),
-                     ('hostname3', 'ipaddress3')]
-
-    If keyword argument ``as_list`` is not provided, a single entry can be
-    added using the other available method arguments. 
     """
     typeof = 'dns_relay_profile'
-
-    def _create_or_update(self, key, json):
-        try:
-            self.data[key].extend(json)
-            self.update()
-        except ElementNotFound:
-            j = {'name': self.name,
-                 key: json}
-            return ElementCreator(self.__class__, j)
-
-    def add_dns_answer_translation(self, original_ipaddress=None,
-                                   translated_ipaddress=None, as_list=None):
-        """
-        Takes an IPv4 address and translates to a specified IPv4 value
-
-        :param str original_ipaddress: original IP address
-        :param str translated_ipaddress: translate original IP to this IP address
-        :param list as_list: provide a list of tuple values in same order as
-            constructor: [(original_ipaddress,translated_ipaddress)]
-        :raises UpdateElementFailed: failure to add to SMC
-        :return: None
-        """
-        if as_list:
-            json = [dict(zip(['original_ipaddress', 'translated_ipaddress'], d))
-                    for d in as_list]
-        else:
-            json = [{'original_ipaddress': original_ipaddress,
-                     'translated_ipaddress': translated_ipaddress}]
-
-        self._create_or_update('dns_answer_translation', json)
-
-    @property
-    def dns_answer_translation(self):
-        """
-        This profiles original ip to translated ip values
-
-        :return: list of dict (original ip, translated ip)
-        """
-        return self.data.get('dns_answer_translation', [])
-
-    def add_fixed_domain_answer(self, domain_name=None,
-                                translated_domain_name=None,
-                                as_list=None):
-        """
-        Takes a source domain and translates it to a specified domain
-        or returns a NXDomain (no such domain) if no translated domain
-        is provided.
-
-        :param str domain_name: source domain to match
-        :param str translated_domain_name: translate source domain to this domain
-        :param list as_list: provide a list of tuple values in same order as
-            constructor: [(domain_name,translated_domain_name)]
-        :raises UpdateElementFailed: failure to add to SMC
-        :return: None
-
-        .. note:: If translated_domain_name is None, NXDomain is returned for
-                  the source domain.
-        """
-        if as_list:
-            json = [dict(zip(['domain_name', 'translated_domain_name'], d))
-                    for d in as_list]
-        else:
-            json = [{'domain_name': domain_name,
-                     'translated_domain_name': translated_domain_name}]
-
-        self._create_or_update('fixed_domain_answer', json)
 
     @property
     def fixed_domain_answer(self):
         """
-        This profiles fixed domain translation values
-
-        :return: list of dict (domain name, translated domain)
+        Add a fixed domain answer entry.
+        
+        :rtype: FixedDomainAnswer
         """
-        return self.data.get('fixed_domain_answer', [])
-
-    def add_hostname_mapping(self, hostnames=None, ipaddress=None,
-                             as_list=None):
-        """
-        Map specific hostname to specified IP address
-
-        :param str hostnames: fqdn or hostname/s of host to translate (comma separate multiple)
-        :param str ipaddress: ip address for reply
-        :param list as_list: provide a list of tuple values in same order as
-            constructor: [(hostnames,ipaddress)]
-        :raises UpdateElementFailed: failure to add to SMC
-        :return: None
-        """
-        if as_list:
-            json = [dict(zip(['hostnames', 'ipaddress'], d))
-                    for d in as_list]
-        else:
-            json = [{'hostnames': hostnames,
-                     'ipaddress': ipaddress}]
-
-        self._create_or_update('hostname_mapping', json)
-
+        return FixedDomainAnswer(self)
+    
     @property
     def hostname_mapping(self):
         """
-        This profiles hostname to ip address mappings
-
-        :return: list of dict (hostname, ip address mapping)
+        Add a hostname to IP mapping
+        
+        :rtype: HostnameMapping
         """
-        return self.data.get('hostname_mapping', [])
-
-    def add_domain_specific_dns_server(self, domain_name=None,
-                                       dns_server_addresses=None,
-                                       as_list=None):
-        """
-        Relay specific domains to a specified DNS server
-
-        :param str domain_name: domain name for match
-        :param str dns_server_addresses: DNS servers to use (comma separate multiple)
-        :param list as_list: provide a list of tuple values in same order as
-            constructor: [(domain_name,dns_server_addresses)]
-        :raises UpdateElementFailed: failure to add to SMC
-        :return: None
-        """
-        if as_list:
-            json = [dict(zip(['domain_name', 'dns_server_addresses'], d))
-                    for d in as_list]
-        else:
-            json = [{'domain_name': domain_name,
-                     'dns_server_addresses': dns_server_addresses}]
-
-        self._create_or_update('domain_specific_dns_server', json)
-
+        return HostnameMapping(self)
+    
     @property
     def domain_specific_dns_server(self):
         """
-        This profiles domain to dns server mappings
-
-        :return: list of dict (domain, dns server/s)
+        Add domain to DNS server mapping
+        
+        :rtype: DomainSpecificDNSServer
         """
-        return self.data.get('domain_specific_dns_server', [])
-
+        return DomainSpecificDNSServer(self)
+    
+    @property
+    def dns_answer_translation(self):
+        """
+        Add a DNS answer translation
+        
+        :rtype: DNSAnswerTranslation
+        """
+        return DNSAnswerTranslation(self)
+        
 
 class SandboxService(Element):
     typeof = 'sandbox_service'

@@ -20,7 +20,7 @@ Obtain all eligible interfaces for contact addressess::
         
 Retrieve a specific contact address interface for modification::
 
-    >>> ca = engine.contact_addresses.get(interface_id=12, bound_to='3.3.3.3')
+    >>> ca = engine.contact_addresses.get(interface_id=12, interface_ip='3.3.3.3')
     >>> ca
     ContactAddressInterface(interface_id=12, interface_ip=3.3.3.3)
     >>> list(ca)
@@ -42,11 +42,12 @@ Remove a contact address::
 .. note:: Contact Addresses for servers (Management/Log Server) do not use
           this same object definition
 """
-from smc.base.model import Element, SubElement, SubDict
+from smc.base.model import Element, SubElement, NestedDict
 from smc.elements.helpers import location_helper
+from smc.base.collection import SubElementCollection
 
 
-class ContactAddress(SubDict):
+class ContactAddress(NestedDict):
     """
     Contact address definition used on engine interfaces. This is a
     dict and can be updated directly.
@@ -80,6 +81,10 @@ class ContactAddress(SubDict):
     
 
 class ContactAddressInterface(SubElement):
+    """
+    A mapping of contact address to interface. This is specific to
+    assigning the contact address on the engine.
+    """
     def __init__(self, **meta):
         meta.update(type='contact_addresses')
         super(ContactAddressInterface, self).__init__(**meta)
@@ -158,8 +163,8 @@ class ContactAddressInterface(SubElement):
         return 'ContactAddressInterface(interface_id={}, interface_ip={})'.format(
             self.interface_id, self.interface_ip)
 
-            
-class ContactAddressCollection(object):
+
+class ContactAddressCollection(SubElementCollection):
     """
     A contact address collection provides all available interfaces that
     can be used to configure a contact address. An eligible interface is
@@ -169,17 +174,11 @@ class ContactAddressCollection(object):
         for ca in engine.contact_addresses:
             ...
     """
-    def __init__(self, engine):
-        self._engine = engine
-    
-    def __iter__(self):
-        for addr in self._engine.make_request(resource='contact_addresses'):
-            yield ContactAddressInterface(**addr)
-    
-    def all(self):
-        return iter(self)
-    
-    def get(self, interface_id, bound_to=None):
+    def __init__(self, resource):
+        super(ContactAddressCollection, self).__init__(
+            resource, ContactAddressInterface)
+        
+    def get(self, interface_id, interface_ip=None):
         """
         Get will return a list of interface references based on the
         specified interface id. Multiple references can be returned if
@@ -192,10 +191,9 @@ class ContactAddressCollection(object):
         interfaces = []
         for interface in iter(self):
             if interface.interface_id == str(interface_id):
-                if bound_to:
-                    if interface.interface_ip == bound_to:
+                if interface_ip:
+                    if interface.interface_ip == interface_ip:
                         return interface
                 else:
                     interfaces.append(interface)
         return interfaces
-        

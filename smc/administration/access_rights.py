@@ -3,7 +3,7 @@ Access Control Lists are assigned to SMC admin accounts to grant limited
 access permissions to either Engines, Policies or Domains.
 """
 
-from smc.base.model import Element, ElementCreator, SubDict
+from smc.base.model import Element, ElementCreator, NestedDict
 from smc.base.util import element_resolver
 from smc.administration.system import AdminDomain
 
@@ -83,7 +83,7 @@ class AccessControlList(Element):
         self.update()
 
 
-class Permission(SubDict):
+class Permission(NestedDict):
     """
     Permissions are added to admin users that do not have super user access
     rights. An Admin User can also have multiple permissions. There are three

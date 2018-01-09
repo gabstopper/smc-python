@@ -14,12 +14,36 @@ For example, to load an engine and run node level commands::
         ...
 """
 import base64
-from collections import namedtuple
+import collections
 from smc.base.util import save_to_file
 from smc.base.model import SubElement, ElementCache
-from smc.core.interfaces import LoopbackInterface
+from smc.core.sub_interfaces import LoopbackInterface
 from smc.api.exceptions import LicenseError, NodeCommandFailed
+from smc.base.collection import IndexedIterable
 
+
+class NodeCollection(IndexedIterable):
+    """
+    Node Collection provides a simplified interface to retrieving
+    nodes from an engine reference::
+    
+        engine.nodes.get(0)
+        engine.nodes.all()
+    
+    :rtype: Node
+    """
+    def __init__(self, engine):
+        nodes = Node._load(engine)
+        super(NodeCollection, self).__init__(nodes)
+    
+    def get(self, nodeid):
+        """
+        Get a node by Node ID
+        
+        :rtype: Node
+        """
+        return super(NodeCollection, self).get(nodeid=nodeid)
+        
 
 class Node(SubElement):
     """
@@ -278,8 +302,7 @@ class Node(SubElement):
         name dynamic package version, configuration status, platform and
         version.
 
-        :return: ApplianceStatus
-        :rtype: namedtuple
+        :rtype: ApplianceStatus
         """
         result = self.make_request(
             NodeCommandFailed,
@@ -296,8 +319,7 @@ class Node(SubElement):
         
         :raises NodeCommandFailed: Appliance info not supported on
             this node
-        :return: ApplianceInfo
-        :rtype: namedtuple
+        :rtype: ApplianceInfo
         """
         if 'appliance_info' in self.data:
             return ApplianceInfo(**self.data['appliance_info'])
@@ -310,8 +332,7 @@ class Node(SubElement):
         name dynamic package version, configuration status, platform and
         version.
 
-        :return: ApplianceStatus
-        :rtype: namedtuple
+        :rtype: ApplianceStatus
         """
         result = self.make_request(
             NodeCommandFailed,
@@ -419,7 +440,7 @@ class Node(SubElement):
 
         :param bool filter_enabled: returns all enabled diagnostics
         :raises NodeCommandFailed: failure getting diagnostics
-        :return: Debug
+        :rtype: Debug
         
         .. seealso:: :class:`~Debug` for example usage
         """
@@ -574,7 +595,7 @@ class Node(SubElement):
             resource='certificate_info')
 
 
-ImmutableInterface = namedtuple('ImmutableInterface',
+ImmutableInterface = collections.namedtuple('ImmutableInterface',
     'aggregate_is_active capability flow_control interface_id mtu name port speed_duplex status')
 
 """
@@ -591,13 +612,17 @@ Interface status fields
 :ivar str status: Status of interface, Up, Down, etc.
 """
 
-ApplianceStatus = namedtuple('ApplianceStatus', 
+ApplianceStatus = collections.namedtuple('ApplianceStatus', 
     'configuration_status dyn_up installed_policy name platform state status version')      
 
 """
 Appliance status attributes define specifics about the hardware platform
 itself, including version, dynamic package, current configuration status
 and installed policy.
+Retrieve appliance status for engine nodes::
+
+    for node in engine.nodes:
+        node.health
 
 :ivar str dyn_up: Dynamic update package version
 :ivar str installed_policy: Installed policy by name
@@ -628,7 +653,7 @@ and installed policy.
 ApplianceStatus.__new__.__defaults__ = (None,) * len(ApplianceStatus._fields)
 
 
-Status = namedtuple('Status', 'label param status sub_system value')
+Status = collections.namedtuple('Status', 'label param status sub_system value')
 
 """ 
 Status fields for hardware status. These fields have generic titles which
@@ -642,7 +667,7 @@ are used to represent the field and values for each hardware type.
 """
 
 
-ApplianceInfo = namedtuple('ApplianceInfo', 
+ApplianceInfo = collections.namedtuple('ApplianceInfo', 
     'cloud_id cloud_type first_upload_time hardware_version initial_contact_time product_name '
     'initial_license_remaining_days proof_of_serial software_features software_version')
 
@@ -651,6 +676,12 @@ Appliance specific information about the given engine node.
 Appliance info is specific to the engine itself and will provide additional
 details about the hardware model, applied license features, if the engine
 has made initial contact and when initial policy upload was made.
+
+    Retrieve appliance info engine nodes::
+    
+        engine = Engine('dingo')
+        for node in engine.nodes:
+            node.appliance_info()
 
 :ivar str cloud_id: N/A
 :ivar str cloud_type: N/A
@@ -666,7 +697,7 @@ has made initial contact and when initial policy upload was made.
 ApplianceInfo.__new__.__defaults__ = (None,) * len(ApplianceInfo._fields)
 
    
-class InterfaceStatus(object):
+class InterfaceStatus(IndexedIterable):
     """
     An iterable that provides a collections interface to interfaces
     and current status on the specified node.
@@ -674,27 +705,22 @@ class InterfaceStatus(object):
     
     :rtype: ImmutableInterface
     """
-    __slots__ = ('data')
+    
     def __init__(self, status):
-        self.data = status.get('interface_status')
-        
-    def __iter__(self):
-        for interface in self.data:
-            yield ImmutableInterface(**interface)
+        data = status.get('interface_status')
+        super(InterfaceStatus, self).__init__(data, ImmutableInterface)
     
     def get(self, interface_id):
         """
-        Get the interface status by interface id
+        Get a specific interface by the interface id
         
-        :param int interface_id: interface_id
+        :param int interface_id: interface ID
         :rtype: ImmutableInterface
         """
-        for interface in iter(self):
-            if interface_id == interface.interface_id:
-                return interface
+        return super(InterfaceStatus, self).get(interface_id=interface_id)
 
 
-class HardwareStatus(object):
+class HardwareStatus(IndexedIterable):
     """
     Provides an interface to methods that simplify viewing
     hardware statuses on this node.
@@ -720,10 +746,13 @@ class HardwareStatus(object):
         Status(label=u'Tmp', param=u'Size', status=-1, sub_system=u'File Systems', value=u'3941 MB')
         Status(label=u'Swap', param=u'Usage', status=-1, sub_system=u'File Systems', value=u'0.0%')
         Status(label=u'Swap', param=u'Size', status=-1, sub_system=u'File Systems', value=u'1887 MB')
+    
+    :rtype: HardwareCollection
     """
-    __slots__ = ('data')
+    
     def __init__(self, status):
-        self.data = status.get('hardware_statuses')
+        data = status.get('hardware_statuses')
+        super(HardwareStatus, self).__init__(data, HardwareCollection)
     
     @property
     def filesystem(self):
@@ -732,10 +761,10 @@ class HardwareStatus(object):
         
         :rtype: HardwareCollection
         """
-        for hw in self.data:
-            if hw.get('name').startswith('File System'):
-                return HardwareCollection(**hw)
-    
+        for status in self:
+            if status.name.startswith('File System'):
+                return status
+
     @property
     def logging_subsystem(self):
         """
@@ -743,33 +772,33 @@ class HardwareStatus(object):
         
         :rtype: HardwareCollection
         """
-        for hw in self.data:
-            if hw.get('name').startswith('Logging'):
-                return HardwareCollection(**hw)
-   
+        for status in self:
+            if status.name.startswith('Logging'):
+                return status
+
     def __repr__(self):
-        items = [item.get('name') for item in self.data]
+        items = [item.name for item in self]
         return 'HardwareStatus({})'.format(', '.join(items))
 
 
 class HardwareCollection(object):
     """
-    Hardware collection is a container for iterating categories
+    Hardware collection is an iterable for returning categories
     of hardware status. This is not called directly, but instead
-    by a node reference
+    by a node reference.
     
     :rtype: Status
     """
-    __slots__ = ('name', 'items')
+    
     def __init__(self, name, **kwargs):
         self.name = name
         self.items = kwargs.pop('items', [])
-    
+            
     def __iter__(self):
         for item in self.items:
             for status in item.get('statuses'):
                 yield Status(**status)
-            
+         
     def __repr__(self):
         return 'HardwareCollection({}, items: {})'.format(
             self.name, len(self.items))
@@ -790,42 +819,44 @@ class Debug(object):
         Node(name=ngf-1065)
         >>> debug = node.debug()
         >>> debug
-        Debug(Access_Guardian=False, Accounting=False, Anti__Malware=False, Authentication=False, Blacklisting=False,
-            Browser__Based_User_Authentication=False, Cluster_Daemon=False, Cluster_Protocol=False,
-            Connection_Tracking=False, DHCP_Client=False, DHCP_Relay=False, DHCP_Service=False, DNS_Resolution=False,
-            Data_Synchronization=False, Dynamic_Routing=False, Endpoint_Integration=False, File_Reputation=False,
-            IPsec_VPN=False, Inspection=False, Invalid=False, Licensing=False, Load_Balancing_Filter=False,
-            Log_server=False, Logging_System=False, Management=False, McAfee_Logon_Collector=False, Monitoring=False,
-            Multicast_Routing=False, NAT=False, Netlink_incoming_HA=False, Packet_Filtering=False, Protocol_Agent=False,
-            Radius_Forwarder=False, SNMP=False, SSL_VPN=False, SSL_VPN_Portal=False, SSL_VPN_Session_Manager=False,
-            Sandbox=False, Server_Pool_Load_Balancing=False, State_Synchronisation=False, Syslog=False,
-            System_Utilities=False, Tester=False, User_Agent=False, Wireless_Access_Point=False)
-        >>> debug.Log_server = True
-        >>> debug.IPsec_VPN = True
-        >>> node.set_debug(debug)
+        Debug(access_guardian=False, accounting=False, anti_malware=False, authentication=False,
+            blacklisting=False, browser_based_user_authentication=False, cluster_daemon=False,
+            cluster_protocol=False, connection_tracking=False, data_synchronization=False,
+            dhcp_client=False, dhcp_relay=False, dhcp_service=False, dns_resolution=False,
+            dynamic_routing=False, endpoint_integration=False, file_reputation=False,
+            inspection=False, invalid=False, ipsec_vpn=False, licensing=False,
+            load_balancing_filter=False, log_server=False, logging_system=False, management=False,
+            mcafee_logon_collector=False, monitoring=False, multicast_routing=False, nat=False,
+            netlink_incoming_ha=False, packet_filtering=False, protocol_agent=False,
+            radius_forwarder=False, sandbox=False, server_pool_load_balancing=False, snmp=False,
+            ssl_vpn=False, ssl_vpn_portal=False, ssl_vpn_session_manager=False,
+            state_synchronisation=False, syslog=False, system_utilities=False, tester=False,
+            user_agent=False, wireless_access_point=False)
+            >>> debug.management=True
+            >>> debug.sandbox=True
+            >>> node.set_debug(debug)
     """
+    _attr_map = {}
     def __init__(self, diag):
         for diagnostic in diag:
             setting = diagnostic.get('diagnostic')
-            setattr(self, setting.get('name'),
+            name = setting.get('name')
+            escaped_key = name.replace(" ", "_").replace('-', '_').lower()
+            setattr(self, escaped_key,
                     setting.get('enabled'))
+            self._attr_map[escaped_key] = name
             
     def __setattr__(self, key, value):
-        # Replace spaces in the name with a single underscore
-        # Replace dashes in the name with a double underscore
-        escaped_key = key.replace(" ", "_").replace('-', '__')
         if not isinstance(value, bool):
             raise ValueError('Attributes can only be True or False.')
-        super(Debug, self).__setattr__(escaped_key, value)
+        super(Debug, self).__setattr__(key, value)
     
     def serialize(self):
-        # Replace single underscore with a space
-        # Replace double underscore with a dash
-        debug = [{'enabled': v, 'name': k.replace("__", "-").replace('_', ' ')}
+        debug = [{'enabled': v, 'name': self._attr_map.get(k)}
                  for k, v in self.__dict__.items()]
         return {'diagnostics' : [{'diagnostic': item} for item in debug]}
     
     def __repr__(self):
         keys = sorted(self.__dict__)
         items = ("{}={!r}".format(k, self.__dict__[k]) for k in keys)
-        return "{}({})".format(type(self).__name__, ", ".join(items))
+        return "{}({})".format(type(self).__name__, ", ".join(items))  

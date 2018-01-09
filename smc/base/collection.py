@@ -3,6 +3,17 @@ Collections module provides interfaces to obtain resources from this API
 and provides searching mechanisms to auto-load resources into the
 correct class type.
 
+An ElementCollection is bound to :class:`smc.base.model.Element` as the
+`objects` class property and provides the ability to use an element as
+the base for iterating elements of that type::
+
+    for hosts in Host.objects.all():
+        ...
+
+SubElementCollections are used when references to element data require
+a fetch from the SMC, but these element references do not have a direct
+SMC entry point.
+
 See :ref:`collection-reference-label` for examples on search capabilities.
 """
 import re
@@ -14,37 +25,334 @@ from smc.base.decorators import cached_property, classproperty
 from smc.api.exceptions import FetchElementFailed, InvalidSearchFilter
 
 
+class IndexedIterable(object):
+    """
+    An indexed iterable is a collections class that provides a pre-filled
+    container. This container type is used when an element retrieval returns
+    all of an elements data in a single query and will contain multiple values
+    for the same serialized type.
+    Elements can be retrieved from the container through iteration,
+    slicing, or by using `get` and providing either the index or an
+    attribute / value pair.
+    
+    If not providing a model with items, the elements should already be
+    serialized into objects. 
+    
+    If subclassing, it may be useful to override `get` to provide a restricted
+    interface to common attributes to fetch.
+    
+    Examples of using indexediterable::
+    
+        >>> for status in engine.nodes[0].interface_status:
+        ...   status
+        ... 
+        ImmutableInterface(aggregate_is_active=False, ....
+    
+    By index::
+    
+        >>> engine.nodes[0].interface_status[1]
+
+    Slicing::
+    
+        >>> engine.nodes[0].interface_status[1:5:2]
+        >>> engine.nodes[0].interface_status[::-1]
+    
+    Using get by index or attribute::
+    
+        >>> engine.nodes[0].interface_status.get(1)
+        >>> engine.nodes[0].interface_status.get(interface_id=2)
+        
+    :param iterable item: items for which to perform iteration. Can be
+        another class with an __iter__ method also to chain iterators.
+    :param model: optional class to serialize each iteration. 
+    """
+    def __init__(self, items, *model):
+        self.items = [model[0](**r) for r in items] if \
+                model else items
+        self.model = model[0] if model else None # class for serialization
+
+    def __iter__(self):
+        return iter(self.items)
+
+    def __getitem__(self, index):
+        if not isinstance(index, (int, slice)):
+            raise TypeError('Invalid index specified. Must be int or slice.')
+        if isinstance(index, slice):
+            return self.items[index.start:index.stop:index.step]
+        else:
+            return self.items[index]
+
+    def __bool__(self):
+        return bool(self.items)
+    __nonzero__ = __bool__
+    
+    def __len__(self):
+        return len(self.items)
+
+    def __repr__(self):
+        return "%s(items: %s)" % (self.__class__.__name__, len(self))
+    
+    def count(self):
+        """
+        Return the number of entries
+        
+        :rtype: int
+        """
+        return len(self)
+    
+    def all(self):
+        """
+        Return the iterable as a list
+        """
+        return list(self)
+    
+    def get(self, *args, **kwargs):
+        """
+        Get an element from the iterable by an arg or kwarg.
+        Args can be a single positional argument that is an index
+        value to retrieve. If the specified index is out of range,
+        None is returned. Otherwise use kwargs to provide a  key/value.
+        The key is expected to be a valid attribute of the iterated class.
+        For example, to get an element that has a attribute name of 'foo',
+        pass name='foo'.
+
+        :raises ValueError: An argument was missing
+        :return: the specified item, type is based on what is
+            returned by this iterable, may be None
+        """
+        if self:
+            if args:
+                index = args[0]
+                if index <= len(self) -1:
+                    return self[args[0]]
+                return None
+            elif kwargs:
+                key, value = kwargs.popitem()
+                for item in self.items:
+                    if getattr(item, key, None) == value:
+                        return item
+            else:
+                raise ValueError('Missing argument. You must provide an '
+                    'arg or kwarg to fetch an element from the collection.')
+                    
+
 class SubElementCollection(object):
     """
-    Collection class providing an interface to iterate sub
-    elements referenced as a resource. It also provides
-    a proxy to methods that require the base collection href
-    before an actual instance is created. References that return
-    this collection type will always have an ``all()`` method
-    and will be iterable.
-    """
+    Collection class providing an iterable interface to sub elements
+    referenced from a top level Element resource. Return types for this
+    collection will be based on the class where the collection was obtained.
+    Elements returned will be serialized into their Element types and
+    only contain the top level meta for each element. The element cache
+    will only be inflated (resulting in an additional query) if an
+    operation is performed that requires the `data` (cache) attribute.
+    
+    Helper methods are provided to simplify fetching from the collection
+    without having to iterate and code the matching yourself. Fetching from
+    the collection has the limitation that only the returned `name` field is
+    used to find a match (to prevent inflating every element before it is
+    needed). If you want to match an available attribute in the resulting class
+    that requires the elements full json, use a loop to attempt your match.
+    
+    Example of using SubElementCollection results to obtain matches from the
+    collection::
 
+        >>> from smc.administration.system import System
+        >>> system = System()
+        >>> upgrades = system.engine_upgrade()
+        >>> upgrades
+        EngineUpgradeCollection(items: 29)
+        >>> list(upgrades)
+        [EngineUpgrade(name=Security Engine upgrade 6.1.2 build 17037 for x86-64), EngineUpgrade(name=Security Engine upgrade 6.2.3 build 18067 for x86-64),  ....]
+        >>> upgrades.get(5)
+        EngineUpgrade(name=Security Engine upgrade 5.8.8 build 12093 for i386)
+        >>> upgrades.get_contains('6.2')
+        EngineUpgrade(name=Security Engine upgrade 6.2.3 build 18067 for x86-64)
+        >>> upgrades.get_contains('6.1')
+        EngineUpgrade(name=Security Engine upgrade 6.1.2 build 17037 for x86-64)
+        >>> upgrades.get_all_contains('6.2')
+        [EngineUpgrade(name=Security Engine upgrade 6.2.3 build 18067 for x86-64), EngineUpgrade(name=Security Engine upgrade 6.2.2 build 18062 for x86-64), ...]
+        >>> 
+
+    :raises FetchElementFailed: If the resource could not be retrieved
+    """
     def __init__(self, href, cls):
         self.href = href
         self.cls = cls
-    
+        self._result_cache = None
+        
     def __iter__(self):
-        for item in smc.base.model.prepared_request(
+        self._fetch_all()
+        return iter(self._result_cache)
+
+    def _fetch_all(self):
+        if self._result_cache is None:
+            results = smc.base.model.prepared_request(
                 FetchElementFailed,
                 href=self.href
-        ).read().json:
-            yield self.cls(**item)
+            ).read().json
+            self._result_cache = [self.cls(**r) for r in results]
+    
+    def __len__(self):
+        self._fetch_all()
+        return len(self._result_cache)
 
+    def __repr__(self):
+        return '{}Collection(items: {})'.format(self.cls.__name__, len(self))
+    
+    def count(self):
+        """
+        Return the number of results in this collection
+        
+        :return: int
+        """
+        return len(self)
+    
+    def get(self, index):
+        """
+        Get the element by index. If index is out of bounds for
+        the internal list, None is returned. Indexes cannot be
+        negative.
+        
+        :param int index: retrieve element by positive index in list
+        :rtype: SubElement or None
+        """
+        if self and (index <= len(self) -1):
+            return self._result_cache[index]
+    
+    def get_exact(self, value):
+        """
+        Get an element using an exact match based on the elements meta
+        `name` field. The SMC is case sensitive so the name will need to
+        honor the case for a valid value match.
+        
+        .. seealso:: :meth:`~get_contains` and :meth:`~get_all_contains` for
+            partial matching
+        
+        :param str value: name to match
+        :rtype: SubElement or None
+        """
+        for element in self:
+            if element.name == value:
+                return element
+    
+    def get_contains(self, value, case_sensitive=True):
+        """
+        A partial match on the name field. Does an `in` comparsion to
+        elements by the meta `name` field. Sub elements created by SMC
+        will generally have a descriptive name that helps to identify
+        their purpose. Returns only the first entry matched even if there
+        are multiple.
+        
+        .. seealso:: :meth:`~get_all_contains` to return all matches
+        
+        :param str value: searchable string for contains match
+        :param bool case_sensitive: whether the match should consider case
+            (default: True)
+        :rtype: SubElement or None
+        """
+        for element in self:
+            if not case_sensitive:
+                if value.lower() in element.name.lower():
+                    return element
+            elif value in element.name:
+                return element
+    
+    def get_all_contains(self, value, case_sensitive=True):
+        """
+        A partial match on the name field. Does an `in` comparsion to
+        elements by the meta `name` field.
+        Returns all elements that match the specified value.
+        
+        .. seealso:: :meth:`get_contains` for returning only a single item.
+        
+        :param str value: searchable string for contains match
+        :param bool case_sensitive: whether the match should consider case
+            (default: True)
+        :return: element or empty list
+        :rtype: list(SubElement)
+        """
+        elements = []
+        for element in self:
+            if not case_sensitive:
+                if value.lower() in element.name.lower():
+                    elements.append(element)
+            elif value in element.name:
+                elements.append(element)
+        return elements
+           
     def all(self):
         """
-        Generator returning collection for sub element
-        types. Return full contents as list or iterate through
-        each.
+        Generator returning collection for sub element types.
+        Return full contents as list or iterate through each.
+        
+        :return: element type based on collection
+        :rtype: list(SubElement)
         """
         return iter(self)
 
 
+class CreateCollection(SubElementCollection):
+    """
+    A CreateCollection extends SubElementCollection by dynamically
+    proxying the elements `create` method into the collection. This
+    provides a simplified way to create sub elements and also iterate
+    through existing.
+    
+    For example, obtaining VPN Sites from an engine returns a
+    CreateCollection so existing sites can be iterated while still being
+    able to create new sites::
+    
+        >>> engine = Engine('dingo')
+        >>> print(engine.vpn.sites)
+        <smc.base.collection.VPNSite object at 0x1098a9ed0>
+        >>> print(help(engine.vpn.sites))
+        Help on VPNSite in module smc.base.collection object:
+
+        class VPNSite(CreateCollection)
+         |  Method resolution order:
+         |      VPNSite
+         |      CreateCollection
+         |      SubElementCollection
+         |      __builtin__.object
+         |  
+         |  Methods defined here:
+         |  
+         |  create(self, name, site_element) from smc.vpn.elements.VPNSite
+         |      Create a VPN site for an internal or external gateway
+         |      
+         |      :param str name: name of site
+         |      :param list site_element: list of protected networks/hosts
+         |      :type site_element: list[str,Element]
+         |      :raises CreateElementFailed: create element failed with reason
+         |      :return: href of new element
+         |      :rtype: str
+         |  
+         ....
+        
+    List existing sites::
+        
+        list(engine.vpn.sites.all())
+        
+    Creating new VPN sites::
+        
+        engine.vpn.sites.create('mynewsite') 
+    """
+    
+    def create(self, *args, **kwargs):
+        """
+        The create function from the sub element is proxied by
+        this collections class to provide the iterable functionality
+        from the parent container, but also protected access to the
+        create method of the instance.
+        """
+        pass
+        
+
 def sub_collection(href, cls):
+    """
+    Helper method to generate a SubElementCollection dynamically
+    using the SubElement constructor.
+    """
     return type(
         cls.__name__, (SubElementCollection,), {})(href, cls)
 
@@ -57,15 +365,15 @@ def create_collection(href, cls):
     
     .. py:method:: create(...)
     
-        Create method is inserted dynamically for the collection class type.
-        See the class types documentation, or use help().
+    Create method is inserted dynamically for the collection class type.
+    See the class types documentation, or use help().
 
     :rtype: SubElementCollection    
     """
     instance = cls(href=href)
     meth = getattr(instance, 'create')
     return type(
-         cls.__name__, (SubElementCollection,), {'create': meth})(href, cls)
+         cls.__name__, (CreateCollection,), {'create': meth})(href, cls)
 
 
 def _strip_metachars(val):
@@ -88,11 +396,10 @@ def _strip_metachars(val):
 
 class ElementCollection(object):
     """
-    ElementCollection is generated dynamically from the connection 
-    manager and provides methods to obtain data from the SMC. Filters
-    can be chained together to generate more complex queries. Each time
-    a filter is added, a clone is returned to preserve the parent query
-    parameters.
+    ElementCollection is generated dynamically from the CollectionManager
+    and provides methods to obtain data from the SMC. Filters can be chained
+    together to generate more complex queries. Each time a filter is added,
+    a clone is returned to preserve the parent query parameters.
     
     Chaining filters do not affect the parent iterator::
     
@@ -156,7 +463,6 @@ class ElementCollection(object):
         self._iexact = params.pop('iexact', None)
 
     def __iter__(self):
-        
         limit = self._params.pop('limit', None)
         count = 0
         
@@ -185,6 +491,18 @@ class ElementCollection(object):
         except FetchElementFailed:
             _list = list()
         return _list  
+    
+    def __bool__(self):
+        return bool(self._list)
+    __nonzero__ = __bool__
+    
+    def __len__(self):
+        return len(self._list)
+    
+    def __repr__(self):
+        query = ['{}={}'.format(q,v) for q,v in self._params.items()]
+        return '{}(GET /elements?{})'.format(self.__class__.__name__, '&'.join(query) if \
+            query else '')
     
     def _clone(self, **kwargs):
         """
@@ -310,7 +628,7 @@ class ElementCollection(object):
         
         :return: element or None
         """
-        if self._list:
+        if len(self):
             self._params.update(limit=1)
             if 'filter' not in self._params:
                 return list(self)[0]
@@ -333,7 +651,7 @@ class ElementCollection(object):
         
         :return: element or None
         """
-        if self._list:
+        if len(self):
             self._params.update(limit=1)
             if 'filter' not in self._params:
                 return list(self)[-1]
@@ -357,9 +675,7 @@ class ElementCollection(object):
         
         :rtype: bool
         """
-        if self._list:
-            return True
-        return False
+        return bool(self)
             
     def count(self):
         """
@@ -367,19 +683,34 @@ class ElementCollection(object):
         
         :rtype: int
         """
-        if self._list:
-            return len(self._list)
+        return len(self)
 
 
 class CollectionManager(object):
     """
     CollectionManager takes a class type as input and dynamically
-    creates an ElementCollection for that class. To get an iterator
-    object that can be re-used, obtain an iterator() from the
-    manager::
+    creates an ElementCollection for that class. All classes of type
+    Element have an `objects` property which returns a manager. You can
+    consume the manager as a re-usable iterator or just called it and
+    it's methods directly.
+    
+    To get an iterator object that can be re-used, obtain an iterator()
+    from the manager::
     
         it = Host.objects.iterator()
         it.filter(....)
+        ...
+    
+    Or more simply call the managers proxied methods to return the
+    ElementCollection for the class type it was called for::
+    
+        >>> from smc.elements.network import Host
+        >>> for host in Host.objects.all():
+        ...   host
+        ... 
+        Host(name=IGMP v3)
+        Host(name=ALL-PIM-ROUTERS)
+        Host(name=Microsoft Lync Online Servers)
         ...
 
     :return: :class:`.CollectionManager`

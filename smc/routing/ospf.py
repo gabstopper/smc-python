@@ -220,9 +220,8 @@ class OSPFArea(Element):
 
     @classmethod
     def create(cls, name, interface_settings_ref=None, area_id=1,
-               area_default_cost=100, area_type='normal',
-               outbound_filters_ref=None, inbound_filters_ref=None,
-               shortcut_capable_area=False,
+               area_type='normal', outbound_filters_ref=None,
+               inbound_filters_ref=None, shortcut_capable_area=False,
                ospfv2_virtual_links_endpoints_container=None,
                ospf_abr_substitute_container=None):
         """
@@ -232,7 +231,6 @@ class OSPFArea(Element):
         :param str,OSPFInterfaceSetting interface_settings_ref: an OSPFInterfaceSetting
             element or href. If None, uses the default system profile
         :param str name: area id
-        :param int area_default_cost: default cost for this area
         :param str area_type: \|normal\|stub\|not_so_stubby\|totally_stubby\|
                totally_not_so_stubby
         :param str outbound_filters_ref: reference to 
@@ -244,7 +242,6 @@ class OSPFArea(Element):
         :param list ospf_abr_substitute_container: substitute types: 
                \|aggregate\|not_advertise\|substitute_with
         :raises CreateElementFailed: failed to create with reason
-        :return: instance with meta
         :rtype: OSPFArea
         """
         if interface_settings_ref is None:
@@ -395,8 +392,7 @@ class OSPFProfile(Element):
 
         OSPFProfile.create(name='myospf')
 
-    See :py:class:`smc.core.properties.EngineFeature.enable_ospf` for enabling 
-    ospf on an existing engine.
+    .. note:: Enable OSPF on engine using engine.ospf.enable()
 
     """
     typeof = 'ospfv2_profile'

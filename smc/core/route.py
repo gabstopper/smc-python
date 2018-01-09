@@ -84,7 +84,7 @@ Routing node nesting can be represented as::
 When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the configuration
 is updated immediately.
 """
-from collections import namedtuple
+import collections
 from smc.base.model import SubElement, ElementCache
 from smc.base.util import element_resolver
 
@@ -448,7 +448,7 @@ class Routing(SubElement):
 
 def routetuple(d):
     d.pop('cluster_ref', None)
-    routes = namedtuple('Route', d.keys())
+    routes = collections.namedtuple('Route', d.keys())
     return routes(**d)
 
 
@@ -649,7 +649,7 @@ class PolicyRoute(object):
             yield PolicyRouteEntry(**pr)
                 
     
-class PolicyRouteEntry(namedtuple(
+class PolicyRouteEntry(collections.namedtuple(
         'PolicyRouteEntry', 'source destination gateway_ip comment')):
     """
     Policy Route for an engine.

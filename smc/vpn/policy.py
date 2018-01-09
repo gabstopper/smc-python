@@ -83,8 +83,7 @@ class PolicyVPN(Element):
         """
         Central Gateway Node acts as the hub of a hub-spoke VPN. 
 
-        :return: collection of :class:`GatewayNode`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(GatewayNode)
         """
         return sub_collection(
             self.get_relation('central_gateway_node'),
@@ -95,8 +94,7 @@ class PolicyVPN(Element):
         """
         Node level settings for configured satellite gateways
 
-        :return: collection of :class:`GatewayNode`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(GatewayNode)
         """
         return sub_collection(
             self.get_relation('satellite_gateway_node'),
@@ -108,8 +106,7 @@ class PolicyVPN(Element):
         Mobile Gateway's are represented by client endpoints connecting
         to the policy based VPN.
 
-        :return: collection of :class:`GatewayNode`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(GatewayNode)
         """
         return sub_collection(
             self.get_relation('mobile_gateway_node'),
@@ -131,8 +128,7 @@ class PolicyVPN(Element):
                 print(tunnela.gateway)
                 print(tunnelb.gateway)
     
-        :return: collection of :class:`GatewayNode`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(GatewayTunnel)
         """
         return sub_collection(
             self.get_relation('gateway_tunnel'), GatewayTunnel)
@@ -293,8 +289,7 @@ class GatewayNode(SubElement):
         Return a collection of VPN Site elements that are enabled
         for this VPN gateway.
 
-        :return: collection of :class:`smc.vpn.elements.VPNSite`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(VPNSite)
         """
         return sub_collection(
             self.get_relation('enabled_vpn_site'), GatewayTreeNode)
@@ -305,8 +300,7 @@ class GatewayNode(SubElement):
         Return a collection of VPN Site elements that are disabled
         for this VPN gateway.
 
-        :return: collection of :class:`smc.vpn.elements.VPNSite`
-        :rtype: SubElementCollection
+        :rtype: SubElementCollection(VPNSite)
         """
         return sub_collection(
             self.get_relation('disabled_vpn_site'), GatewayTreeNode)

@@ -1,5 +1,4 @@
 from smc.base.model import SubElement, SubElementCreator
-from smc.api.exceptions import CreateElementFailed
 from smc.base.model import Element, ElementCreator
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
@@ -108,8 +107,7 @@ class ExternalGateway(Element):
         identify address space that is defined on the other end of
         the VPN tunnel.
 
-        :return: collection of :class:`smc.vpn.elements.VPNSite`
-        :rtype: create_collection
+        :rtype: CreateCollection(VPNSite)
         """
         return create_collection(
             self.get_relation('vpn_site'),
@@ -128,8 +126,7 @@ class ExternalGateway(Element):
             >>> gateway.external_endpoint.create('someendpoint', '12.12.12.12')
             'http://1.1.1.1:8082/6.1/elements/external_gateway/22961/external_endpoint/27467'
 
-        :return: collection of :class:`smc.vpn.elements.ExternalEndpoint`
-        :rtype: create_collection
+        :rtype: CreateCollection(ExternalEndpoint)
         """
         return create_collection(
             self.get_relation('external_endpoint'),

@@ -1,7 +1,8 @@
-from collections import namedtuple
+import collections
 from smc.api.exceptions import EngineCommandFailed
 from smc.base.model import SubElement, Element
 from smc.base.util import datetime_from_ms
+from smc.base.collection import IndexedIterable
 
 
 class Snapshot(SubElement):
@@ -46,8 +47,8 @@ class Snapshot(SubElement):
             raise EngineCommandFailed("Snapshot download failed: {}"
                                       .format(e))
 
-        
-class PendingChanges(object):
+
+class PendingChanges(IndexedIterable):
     """
     Pending changes apply to the engine having changes that have not
     yet been committed.
@@ -69,19 +70,15 @@ class PendingChanges(object):
     
         >>> engine.pending_changes.disapprove_all()
     
+    :raises ActionCommandFailed: failure to retrieve pending changes
+    :rtype: ChangeRecord
     """
-
+    
     def __init__(self, engine):
-        self._engine = engine  # Engine resource reference
-
-    def all(self):
-        """
-        List of pending changes and details of the change
-
-        :return: list :py:class:`smc.core.resource.ChangeRecord`
-        """
-        return [ChangeRecord(**record)
-                for record in self._engine.make_request(resource='pending_changes')]
+        result = engine.make_request(
+            resource='pending_changes')
+        self.engine = engine
+        super(PendingChanges, self).__init__(result, ChangeRecord)
     
     def approve_all(self):
         """
@@ -90,7 +87,7 @@ class PendingChanges(object):
         :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
-        self._engine.make_request(
+        self.engine.make_request(
             method='create',
             resource='approve_all_changes')
 
@@ -101,21 +98,12 @@ class PendingChanges(object):
         :raises ActionCommandFailed: possible permissions issue
         :return: None
         """
-        self._engine.make_request(
+        self.engine.make_request(
             method='create',
             resource='disapprove_all_changes')
 
-    @property
-    def has_changes(self):
-        """
-        Does the policy have pending changes
 
-        :rtype: bool
-        """
-        return bool(self.all())
-
-
-class ChangeRecord(namedtuple(
+class ChangeRecord(collections.namedtuple(
         'ChangeRecord', 'approved_on changed_on element event_type modifier')):
     """
     Change record details for any pending changes.
@@ -132,7 +120,7 @@ class ChangeRecord(namedtuple(
         return Element.from_href(self.element)
 
 
-class History(namedtuple(
+class History(collections.namedtuple(
         'History', 'creation_time creator is_locked is_obsolete is_trashed '
             'last_modification_time modifier')):
     """

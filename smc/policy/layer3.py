@@ -56,8 +56,7 @@ class FirewallRule(object):
         """
         IPv4 rule entry point
 
-        :return: collection of :class:`smc.policy.rule.IPv4Rule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv4Rule)
         """
         return create_collection(
             self.get_relation('fw_ipv4_access_rules'),
@@ -68,8 +67,7 @@ class FirewallRule(object):
         """
         IPv4NAT Rule entry point
 
-        :return: collection of :class:`smc.policy.rule_nat.IPv4NATRule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv4NATRule)
         """
         return create_collection(
             self.get_relation('fw_ipv4_nat_rules'),
@@ -80,8 +78,7 @@ class FirewallRule(object):
         """
         IPv6 Rule entry point
 
-        :return: collection of :class:`smc.policy.rule.IPv6Rule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv6Rule)
         """
         return create_collection(
             self.get_relation('fw_ipv6_access_rules'),
@@ -92,8 +89,7 @@ class FirewallRule(object):
         """
         IPv6NAT Rule entry point
 
-        :return: collection of :class:`smc.policy.rule.IPv6NATRule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv6NATRule)
         """
         return create_collection(
             self.get_relation('fw_ipv6_nat_rules'),
@@ -195,8 +191,7 @@ class FirewallSubPolicy(Policy):
         """
         IPv4 rule entry point
 
-        :return: collection of :class:`smc.policy.rule.IPv4Rule`
-        :rtype: create_collection
+        :rtype: CreateCollection(IPv4Rule)
         """
         return create_collection(
             self.get_relation('fw_ipv4_access_rules'),

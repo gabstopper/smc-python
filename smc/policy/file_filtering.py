@@ -38,8 +38,7 @@ class FileFilteringPolicy(Policy):
         """
         File filtering rules for this policy.
 
-        :return: collection of :class:`.FileFilteringRule`
-        :rtype: create_collection
+        :rtype: CreateCollection(FileFilteringRule)
         """
         return create_collection(
             self.get_relation('file_filtering_rules'),

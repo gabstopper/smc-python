@@ -84,7 +84,7 @@ class Task(SubElement):
         :rtype: list(Element)
         """
         return [Element.from_href(resource)
-                for resource in self.data['resource']]
+                for resource in self.data.get('resource', [])]
 
     @property
     def progress(self):
@@ -158,6 +158,47 @@ class Task(SubElement):
     
     def __getattr__(self, key):
         return self.data.get(key)
+    
+    @staticmethod
+    def execute(self, resource, **kw):
+        """
+        Execute the task and return a TaskOperationPoller.
+        
+        :rtype: TaskOperationPoller
+        """
+        params = kw.pop('params', {})
+        json = kw.pop('json', None)
+        task = self.make_request(
+            TaskRunFailed,
+            method='create',
+            params=params,
+            json=json,
+            resource=resource)
+
+        timeout = kw.pop('timeout', 5)
+        wait_for_finish = kw.pop('wait_for_finish', True)
+        
+        return TaskOperationPoller(
+            task=task, timeout=timeout,
+            wait_for_finish=wait_for_finish,
+            **kw)
+
+    @staticmethod
+    def download(self, resource, filename, **kw):
+        """
+        Start and return a Download Task
+        
+        :rtype: DownloadTask(TaskOperationPoller)
+        """
+        params = kw.pop('params', {})
+        task = self.make_request(
+            TaskRunFailed,
+            method='create',
+            resource=resource,
+            params=params)
+
+        return DownloadTask(
+            filename=filename, task=task)
 
 
 class TaskOperationPoller(object):
@@ -207,7 +248,8 @@ class TaskOperationPoller(object):
         The callable must take 1 argument which will be
         the completed Task.
 
-        :param callable callback
+        :param callback: a callable that takes a single argument which
+            will be the completed Task.
         """
         if self._done is None or self._done.is_set():
             raise ValueError('Task has already finished')
