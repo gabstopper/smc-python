@@ -27,7 +27,8 @@ first getting the top level interface, and calling :func:`~smc.core.interfaces.I
 to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
 from smc.base.model import SubElement, lookup_class, ElementCache
-from smc.api.exceptions import EngineCommandFailed, ModificationAborted
+from smc.api.exceptions import EngineCommandFailed, ModificationAborted,\
+    InterfaceNotFound
 from smc.core.sub_interfaces import (
     NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
     InlineInterface, CaptureInterface, _add_vlan_to_inline,
@@ -2024,8 +2025,8 @@ class InterfaceModifier(object):
                                 str(interface_id) in split_intf:
                                 intf._engine = self.engine
                                 return intf
-
-        raise EngineCommandFailed(
+    
+        raise InterfaceNotFound(
             'Interface id {} was not found on this engine.'.format(interface_id))
     
     @staticmethod        
@@ -2390,7 +2391,7 @@ class InterfaceBuilder(object):
         try:
             interfaces = InterfaceModifier.byEngine(instance._engine)
             interface = interfaces.get(interface_id)
-        except EngineCommandFailed:
+        except InterfaceNotFound:
             if instance.__class__ is TunnelInterface:
                 builder = InterfaceBuilder(TunnelInterface)
             else:

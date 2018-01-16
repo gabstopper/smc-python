@@ -423,8 +423,11 @@ class Engine(Element):
         used to iterate to obtain access to node level operations
         ::
         
-            >>> print(engine.nodes)
+            >>> print(list(engine.nodes))
             [Node(name=myfirewall node 1)]
+            >>> engine.nodes.get(0)
+            Node(name=myfirewall node 1)
+            
         
         :return: nodes for this engine
         :rtype: NodeCollection

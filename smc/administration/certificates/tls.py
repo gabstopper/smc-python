@@ -117,8 +117,9 @@ class TLSCertificateAuthority(ImportExportCertificate, Element):
     @classmethod
     def create(cls, name, certificate):
         """
-        Create a TLS CA. The certificate can be either a file with
-        the Root CA, or a string starting with BEGIN CERTIFICATE, etc.
+        Create a TLS CA. The certificate must be compatible with OpenSSL
+        and be in PEM format. The certificate can be either a file with
+        the Root CA, or a raw string starting with BEGIN CERTIFICATE, etc.
         When creating a TLS CA, you must also import the CA certificate. Once
         the CA is created, it is possible to import a different certificate to
         map to the CA if necessary.
@@ -245,12 +246,13 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
     @classmethod
     def import_signed(cls, name, certificate, private_key, intermediate=None):
         """
-        Import a signed certificate and private key file to SMC, and optionally
+        Import a signed certificate and private key to SMC, and optionally
         an intermediate certificate.
         The certificate and the associated private key must be compatible
-        with OpenSSL and be in PEM format. If importing as a string, be 
-        sure the string has carriage returns after each line and the final
-        -----END CERTIFICATE----- line.
+        with OpenSSL and be in PEM format. The certificate and private key
+        can be imported as a raw string, file path or file object.
+        If importing as a string, be sure the string has carriage returns after
+        each line and the final `END CERTIFICATE` line.
         
         Import a certificate and private key::
         
@@ -262,10 +264,11 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
             TLSServerCredential(name=server2.test.local)   
         
         :param str name: name of TLSServerCredential
-        :param str certificate: fully qualified to the certificate file or string
-        :param str private_key: fully qualified to the private key file or string
-        :param str intermediate: fully qualified to the intermediate file or string
+        :param str certificate: fully qualified to the certificate file, string or file object
+        :param str private_key: fully qualified to the private key file, string or file object
+        :param str intermediate: fully qualified to the intermediate file, string or file object
         :raises CertificateImportError: failure during import
+        :raises CreateElementFailed: failed to create credential
         :raises IOError: failure to find certificate files specified
         :rtype: TLSServerCredential
         """
@@ -309,7 +312,8 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
             Credential.
         
         :param str name: name of TLS Server Credential
-        :param str certificate_file:
+        :param str certificate_file: fully qualified path to chain file or file object
+        :param str private_key: fully qualified path to chain file or file object
         :raises IOError: error occurred reading or finding specified file
         :raises ValueError: Format issues with chain file or empty
         :rtype: TLSServerCredential

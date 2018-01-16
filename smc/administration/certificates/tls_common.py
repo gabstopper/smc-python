@@ -18,6 +18,13 @@ _PEM_RE = re.compile(b"-----BEGIN (" + b"|".join(CERT_TYPES) + \
 
     
 def pem_as_string(cert):
+    """
+    Only return False if the certificate is a file path. Otherwise it
+    is a file object or raw string and will need to be fed to the
+    file open context.
+    """
+    if hasattr(cert, 'read'): # File object - return as is
+        return cert
     cert = cert.encode('utf-8') if isinstance(cert, unicode) else cert
     if re.match(_PEM_RE, cert):
         return True
@@ -32,8 +39,11 @@ def load_cert_chain(chain_file):
     :raises ValueError: Format issues with chain file or missing entries
     :return: list of cert type matches
     """
-    with open(chain_file, 'rb') as f:
-        cert_chain = f.read()
+    if hasattr(chain_file, 'read'):
+        cert_chain = chain_file.read() 
+    else:
+        with open(chain_file, 'rb') as f:
+            cert_chain = f.read()       
     
     if not cert_chain:
         raise ValueError('Certificate chain file is empty!')

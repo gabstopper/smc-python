@@ -6,7 +6,7 @@ from smc.core.interfaces import PhysicalInterface, TunnelInterface, \
     VirtualPhysicalInterface, InterfaceModifier
 from smc.core.sub_interfaces import LoopbackClusterInterface, LoopbackInterface
 from smc.base.collection import IndexedIterable
-from smc.api.exceptions import EngineCommandFailed, UnsupportedInterfaceType
+from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound
 
 
 def get_all_loopbacks(engine):
@@ -61,12 +61,13 @@ class LoopbackCollection(IndexedIterable):
             loopback = engine.loopback_interface.get('127.0.0.10')
         
         :param str address: ip address of loopback
+        :raises InterfaceNotFound: invalid interface specified
         :rtype: LoopbackInterface
         """
         loopback = super(LoopbackCollection, self).get(address=address)
         if loopback:
             return loopback
-        raise EngineCommandFailed('Loopback address specified was not found')
+        raise InterfaceNotFound('Loopback address specified was not found')
     
     def __getattr__(self, key):
         # Dispatch to instance methods but only for adding interfaces.
@@ -152,7 +153,7 @@ class InterfaceCollection(IndexedIterable):
             '2'  or '3' and the fetch will return the pair.
         
         :param str,int interface_id: interface ID to retrieve
-        :raises EngineCommandFailed: interface not found
+        :raises InterfaceNotFound: invalid interface specified
         :return: interface object by type (Physical, Tunnel, PhysicalVlanInterface)
         """
         return self.items.get(interface_id)

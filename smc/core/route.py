@@ -6,7 +6,7 @@ When retrieving routing, it is done from the engine context.
 For example, retrieve all routing for an engine in context::
 
     >>> engine = Engine('sg_vm')
-    >>> for route_node in engine.routing.all():
+    >>> for route_node in engine.routing:
     ...   print(route_node)
     ...
     Routing(name=Interface 0,level=interface)
@@ -15,42 +15,57 @@ For example, retrieve all routing for an engine in context::
     Routing(name=Tunnel Interface 2000,level=interface)
     Routing(name=Tunnel Interface 2001,level=interface)
 
-Routing nodes are nested, starting with the interface level. If nested
-routes exist, you can iterate a given interface to get specific information::
+Routing nodes are nested, starting with the engine level. 
+Routing node nesting is made up of 'levels' and can be
+represented as a tree::
+
+    engine (root)
+        |
+        --> interface
+                | 
+                --> network
+                        |
+                        --> gateway
+                                |
+                                --> any
+    
+If nested routes exist, you can iterate a given node to get specific
+information::
 
     >>> interface = engine.routing.get(1)
-    >>> for routes in interface.all():
+    >>> for routes in interface:
     ...   print(routes)
     ...
     Routing(name=network-10.0.0.0/24,level=network)
     ...
-    >>> for networks in interface.all():
+    >>> for networks in interface:
     ...   networks
-    ...   for gateways in networks.all():
+    ...   for gateways in networks:
     ...     print gateways, gateways.ip
     ...
     Routing(name=network-172.18.1.0/24,level=network)
     Routing(name=asus-wireless,level=gateway) 172.18.1.200
 
-If BGP, OSPF or a Traffic Handler (netlink) needs to be added to an interface
+If BGP, OSPF or a Traffic Handler (netlink) need to be added to an interface
 that has multiple IP addresses assigned and you want to bind to only one, you
 can provide the ``network`` parameter to ``add_`` methods. The network can be
 obtained for an interface::
 
     >>> engine = Engine('sg_vm')
-    >>> rnode = engine.routing.get(0)
-    >>> for routes in rnode:
-    ...   routes, routes.ip
+    >>> interface0 = engine.routing.get(0)
+    >>> for network in interface0:
+    ...   network, network.ip
     ... 
     (Routing(name=network-172.18.1.0/24,level=network), '172.18.1.0/24')
 
 Then add using::
 
     >>> engine = Engine('sg_vm')
-    >>> rnode = engine.routing.get(0)
-    >>> rnode.add_traffic_handler(StaticNetlink('foo'), network='172.18.1.0/24')
+    >>> interface0 = engine.routing.get(0)
+    >>> interface0.add_traffic_handler(StaticNetlink('foo'), network='172.18.1.0/24')
 
-.. note:: Not specifying ``network`` will bind OSPF, BGP or the Traffic Handler
+.. note:: If the ``network`` keyword is omitted and the interface has multiple
+    IP addresses assigned, this will bind OSPF, BGP or the Traffic Handler
     to all address assigned.
 
 Adding a basic static route can be done from the engine directly if it is a
@@ -65,28 +80,18 @@ For more complex static routes such as ones that may use group elements, use
 the routing node::
 
     >>> engine = Engine('ve-1')
-    >>> itf = engine.routing.get(0)
-    >>> itf.add_static_route(Router('tmprouter'), destination=[Group('routegroup')])
+    >>> interface0 = engine.routing.get(0)
+    >>> interface0.add_static_route(Router('tmprouter'), destination=[Group('routegroup')])
 
 .. seealso:: :meth:`.Routing.add_static_route`
-    
-Routing node nesting can be represented as::
 
-    interface
-        | --> network
-                |
-                --> gateway
-
-.. note::
-    Adding OSPF and BGP is done at the interface level, however can still be applied only to a
-    specific network if desired.
-    
-When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the configuration
-is updated immediately.
+.. note:: When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the
+    configuration is updated immediately without calling .update()
 """
 import collections
-from smc.base.model import SubElement, ElementCache
+from smc.base.model import SubElement, Element, ElementCache
 from smc.base.util import element_resolver
+from smc.api.exceptions import InterfaceNotFound, ModificationAborted
 
 
 class Routing(SubElement):
@@ -104,8 +109,38 @@ class Routing(SubElement):
             data = ElementCache(**node)
             yield(Routing(
                     href=data.get_link('self'),
+                    type='routing',
                     data=node))
 
+    def as_tree(self, level=0):
+        """
+        Display the routing tree representation in string
+        format for visualizing the routing structure. This
+        can be used at any level of the routing tree::
+        
+            >>> engine = Engine('myfw')
+            >>> print(engine.routing.as_tree())
+            Routing(name=myfw,level=engine_cluster)
+            --Routing(name=Interface 0,level=interface)
+            ----Routing(name=network-1.1.1.0/24,level=network)
+            ------Routing(name=router-1.1.1.1,level=gateway)
+            --------Routing(name=foonet,level=any)
+            ------Routing(name=mypeering,level=gateway)
+            ------Routing(name=mystatic,level=gateway)
+            --Routing(name=Interface 1,level=interface)
+            ----Routing(name=network-10.10.10.0/24,level=network)
+            ------Routing(name=anotherpeering,level=gateway)
+            --Routing(name=Tunnel Interface 1000,level=interface)
+            ----Routing(name=network-2.2.2.0/24,level=network)
+            --Routing(name=Tunnel Interface 1001,level=interface)
+        
+        :rtype: str
+        """
+        ret = '--' * level + repr(self) + '\n'
+        for routing_node in self:
+            ret += routing_node.as_tree(level+1)
+        return ret
+    
     @property
     def name(self):
         """
@@ -156,7 +191,7 @@ class Routing(SubElement):
         :rtype: str
         """
         return self.data.get('level')
-
+        
     def get(self, interface_id):
         """
         Obtain routing configuration for a specific interface by
@@ -167,14 +202,40 @@ class Routing(SubElement):
             interface id, such as '3.13' (interface 3, VLAN 13)
 
         :param str,int interface_id: interface identifier
+        :raises InterfaceNotFound: invalid interface for engine
         :return: Routing element, or None if not found
         :rtype: Routing
         """
-        for interface in iter(self):
+        for interface in self:
             if interface.nicid == str(interface_id) or \
                 interface.dynamic_nicid == str(interface_id):
-                return interface     
-
+                return interface
+        raise InterfaceNotFound('Specified interface {} does not exist on '
+            'this engine.'.format(interface_id))
+    
+    @property
+    def routing_node_element(self):
+        """
+        A routing node element will reference the element used to represent
+        the node (i.e. router, host, network, netlink, bgp peering, etc).
+        Although the routing node already resolves the element and provides
+        the `ip` property to obtain the address/network, use this property
+        to obtain access to modifying the element itself::
+        
+            >>> interface0 = engine.routing.get(0)
+            >>> for networks in interface0:
+            ...   for gateway in networks:
+            ...     gateway.routing_node_element
+            ... 
+            Router(name=router-1.1.1.1)
+            StaticNetlink(name=mystatic)
+            BGPPeering(name=anotherpeering)
+            BGPPeering(name=mypeering)
+            >>> 
+        """
+        if 'href' in self.data:
+            return from_meta(self)
+            
     def add_traffic_handler(self, netlink, netlink_gw=None, network=None):
         """
         Add a traffic handler to a routing node. A traffic handler can be
@@ -202,7 +263,8 @@ class Routing(SubElement):
             None if no gateway is needed. Element type is typically of type
             :class:`smc.elements.network.Router`.
         :param str network: if network specified, only add OSPF to this network on interface
-        :raises EngineCommandFailed: failure updating routing
+        :raises UpdateElementFailed: failure updating routing
+        :raises ModificationAborted: Change must be made at the interface level
         :raises ElementNotFound: ospf area not found
         :return: None
         """
@@ -220,7 +282,7 @@ class Routing(SubElement):
         
             netlink['routing_node'].append(netlink_gateway)
     
-        self._bind_to_ipv4_network(network, netlink)
+        self._bind_to_ipv4_network(netlink, network)
         self.update()
         
     def add_ospf_area(self, ospf_area,
@@ -254,7 +316,8 @@ class Routing(SubElement):
         :param Element unicast_ref: Element used as unicast gw (required for UNICAST)
         :param str network: if network specified, only add OSPF to this network
             on interface
-        :raises EngineCommandFailed: failure updating routing
+        :raises ModificationAborted: Change must be made at the interface level
+        :raises UpdateElementFailed: failure updating routing
         :raises ElementNotFound: ospf area not found
         :return: None
         """
@@ -273,7 +336,7 @@ class Routing(SubElement):
                 'level': 'any',
                 'name': unicast_ref.name})
 
-        self._bind_to_ipv4_network(network, node)
+        self._bind_to_ipv4_network(node, network)
         self.update()
 
     def add_bgp_peering(self, bgp_peering, external_bgp_peer,
@@ -295,6 +358,7 @@ class Routing(SubElement):
         :param ExternalBGPPeer external_bgp_peer: peer element or href
         :param str network: if network specified, only add OSPF to this network
             on interface
+        :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failed to add BGP
         :return: None
         """
@@ -311,7 +375,7 @@ class Routing(SubElement):
         
         bgp['routing_node'].append(external_peer)
         
-        self._bind_to_ipv4_network(network, bgp)
+        self._bind_to_ipv4_network(bgp, network)
         self.update()
 
     def add_static_route(self, gateway, destination,
@@ -330,6 +394,7 @@ class Routing(SubElement):
         :param Element gateway: gateway for this route (Router, Host)
         :param Element destination: destination network/s for this route.
         :type destination: list(Host, Router, ..)
+        :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure to update routing table
         :return: None
         """
@@ -345,21 +410,24 @@ class Routing(SubElement):
                 'level': 'any',
                 'name': dest.name})            
         
-        self._bind_to_ipv4_network(network, route)
+        self._bind_to_ipv4_network(route, network)
         self.update()
     
     def add_dynamic_gateway(self, networks):
         """
-        A dynamic gateway object is a router that is attached to
-        a DHCP interface. You can associate networks with this gateway
-        address to identify networks on this interface.
+        A dynamic gateway object creates a router object that is 
+        attached to a DHCP interface. You can associate networks with
+        this gateway address to identify networks for routing on this
+        interface.
         ::
         
             route = engine.routing.get(0)
             route.add_dynamic_gateway([Network('mynetwork')])
         
         :param list Network: list of network elements to add to
-            this gateway
+            this DHCP gateway
+        :raises ModificationAborted: Change must be made at the interface level
+        :raises UpdateElementFailed: failure to update routing table
         :return: None
         """
         route = {
@@ -372,14 +440,23 @@ class Routing(SubElement):
                 'href': network.href,
                 'level': 'any',
                 'name': network.name})
-        
-        for networks in iter(self):
-            networks.data['routing_node'].append(route)
-        
+
+        self._bind_to_ipv4_network(route)
         self.update()
             
-    def _bind_to_ipv4_network(self, network, element):
-        for networks in iter(self):
+    def _bind_to_ipv4_network(self, element, network=None):
+        """
+        Bind the pre-configured element to the interface level
+        routing node. It will be saved back at the interface. This
+        should be called when level == 'interface'.
+        """
+        if self.level != 'interface':
+            raise ModificationAborted('You must make this change from the '
+                'interface routing level. Current node: {}'.format(self))
+        for networks in self:
+            if networks.dynamic_nicid: # DHCP interface
+                networks.data['routing_node'].append(element)
+                return
             if len(networks.ip.split(':')) == 1:  # Skip IPv6
                 if network is not None:  # Only place on specific network
                     if networks.ip == network:
@@ -387,31 +464,36 @@ class Routing(SubElement):
                 else:
                     networks.data['routing_node'].append(element)
                         
-    def remove_route_element(self, element, network=None):
+    def remove_route_gateway(self, element, network=None):
         """
         Remove a route element by href or Element. Use this if you want to
         remove a netlink or a routing element such as BGP or OSPF. Removing
         is done from within the routing interface context.
         ::
         
-            rnode = engine.routing.get(0)
-            rnode.remove_route_element(StaticNetlink('mynetlink'))
+            interface0 = engine.routing.get(0)
+            interface0.remove_route_gateway(StaticNetlink('mynetlink'))
             
         Only from a specific network on a multi-address interface::
         
-            rnode.remove_route_element(
+            interface0.remove_route_gateway(
                 StaticNetlink('mynetlink'),
                 network='172.18.1.0/24')
         
         :param str,Element element: element to remove from this routing node
         :param str network: if network specified, only add OSPF to this
             network on interface
-        :raises UpdateElementFailed: failed to remove route element
+        :raises ModificationAborted: Change must be made at the interface level
+        :raises UpdateElementFailed: failure to update routing table
         :return: None
         """
+        if self.level != 'interface':
+            raise ModificationAborted('You must make this change from the '
+                'interface routing level. Current node: {}'.format(self))
+            
         element = element_resolver(element)
         routing_node = []
-        for networks in iter(self):
+        for networks in self:
             if network is not None:
                 if networks.ip != network:
                     routing_node.append(networks.data)
@@ -436,7 +518,7 @@ class Routing(SubElement):
         :return: current route entries as :class:`.Routing` element
         :rtype: list
         """
-        return [node for node in iter(self)]
+        return [node for node in self]
 
     def __str__(self):
         return '{0}(name={1},level={2})'.format(
@@ -444,6 +526,34 @@ class Routing(SubElement):
 
     def __repr__(self):
         return str(self)
+
+
+def from_meta(node):
+    """
+    Helper method that reolves a routing node to element. Rather than doing
+    a lookup and fetch, the routing node provides most of the information to
+    build the element from meta alone (at least in the case of unique element
+    types such as dynamic routing and netlinks). Build from meta when we
+    can, otherwise perform the lookup / SMC fetch to get the element data.
+    
+    :rtype: Element
+    """
+    href = node.data.get('href')
+    if '/bgp_peering/' in href:
+        typeof = 'bgp_peering'
+    elif '/external_bgp_peer/' in href:
+        typeof = 'external_bgp_peer'
+    elif '/ospfv2_area/' in href:
+        typeof = 'ospfv2_area'
+    elif '/netlink/' in href:
+        typeof = 'netlink'
+    else:
+        return Element.from_href(href)
+    
+    return Element.from_meta(
+        name=node.data.get('name'),
+        type=typeof,
+        href=href)
 
 
 def routetuple(d):

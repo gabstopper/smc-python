@@ -99,6 +99,10 @@ Release History
 0.6.0
 -----
 
+**Supported SMC Version**
+
+- Support for SMC 6.2, 6.3
+
 **Improvements**
 
 - SubElementCollection helper methods for using matching criteria on returned results: get, get_contains, get_all_contains.
@@ -109,6 +113,11 @@ Release History
 - Change add_arp_entry to static_arp_entry in physical_interface
 - Added Reports to smc.administration module
 - Added collections for all interfaces making it possible to fetch a VLAN or sub interface without iterating
-
+- File objects can be accepted for TLSServerCredential import methods
+- InterfaceNotFound exception replaces EngineCommandFailed when fetching interfaces
+- engine.routing.get raises InterfaceNotFound instead of returning None when specified interface does not exist
+- renamed remove_route_element to remove_route_gateway in smc.core.route.Routing
+- engine.routing shortcuts: as_tree, 
+- delete instance cache after successful delete() call
   
 

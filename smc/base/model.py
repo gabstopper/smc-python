@@ -365,6 +365,7 @@ class ElementBase(RequestAction, UnicodeMixin):
             headers={'if-match': self.etag}) 
         request.exception = DeleteElementFailed
         request.delete()
+        #self._del_cache() # Remove instance cache
 
     def update(self, *exception, **kwargs):
         """

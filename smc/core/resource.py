@@ -37,6 +37,7 @@ class Snapshot(SubElement):
         """
         if not filename:
             filename = '{}{}'.format(self.name, '.zip')
+        
         try:
             self.make_request(
                 EngineCommandFailed,

@@ -14,29 +14,37 @@ List all existing route based VPNs::
 Example of fully provisioning an IPSEC wrapped RBVPN using a third
 party remote GW::
 
-    engine = Layer3Firewall.create(
-        name='fw1', mgmt_ip='1.1.1.1', mgmt_network='1.1.1.0/24')
+    engine = Layer3Firewall.create(name='myfw', mgmt_ip='1.1.1.1', mgmt_network='1.1.1.0/24')
     
-    # RBVPN requires a tunnel interface
+    # Add a second layer 3 interface for VPN
+    engine.physical_interface.add_layer3_interface(
+        interface_id=1, address='10.10.10.10', network_value='10.10.10.0/24', zone_ref='vpn')
+    
     engine.tunnel_interface.add_single_node_interface(
-        tunnel_id=1000,
-        address='2.2.2.2',
+        tunnel_id=1000, 
+        address='2.2.2.2', 
         network_value='2.2.2.0/24')
     
-    # Enable the internal VPN gateway
-    for vpn in engine.vpn_endpoint:
-        vpn.update(enabled=True)
-        
+    # Enable VPN on the 'Internal Endpoint' interface
+    vpn_endpoint = engine.vpn_endpoint.get_contains('10.10.10.10')
+    vpn_endpoint.update(enabled=True)
+    
+    # A Tunnel Endpoint pairs the interface of the NGFW with it's local VPN gateway.
+    # You must create a tunnel endpoint for both sides of the Route VPN.
+    
     # Create the local Tunnel Endpoint using the engine internal gateway
     # and previously created tunnel interface
     tunnel_if = engine.tunnel_interface.get(1000)
     local_gateway = TunnelEndpoint.create_ipsec_endpoint(engine.vpn.internal_gateway, tunnel_if)
     
+    # Define the remote side details
+    
     # Create the remote side network elements
     Network.create(name='remotenet', ipv4_network='172.18.10.0/24')
     
-    # An ExternalGateway defines the remote side details
-    # Create the element, define the remote IP and network on other end
+    # An ExternalGateway defines the remote side as a 3rd party gateway
+    # Add the address of the remote gateway and the network element created
+    # that defines the remote network/s.
     gw = ExternalGateway.create(name='remotegw')
     gw.external_endpoint.create(name='endpoint1', address='10.10.10.10')
     gw.vpn_site.create(name='remotesite', site_element=[Network('remotenet')])
@@ -45,7 +53,8 @@ party remote GW::
     remote_gateway = TunnelEndpoint.create_ipsec_endpoint(gw)
     
     RouteVPN.create_ipsec_tunnel(
-        name='myvpn', 
+        name='myvpn',
+        preshared_key='abcdefgh123456789',
         local_endpoint=local_gateway, 
         remote_endpoint=remote_gateway)
         
@@ -137,7 +146,7 @@ class RouteVPN(Element):
     
     @classmethod
     def create_ipsec_tunnel(cls, name, local_endpoint, remote_endpoint,
-                            preshared_key, monitoring_group=None,
+                            preshared_key=None, monitoring_group=None,
                             vpn_profile=None, mtu=0, pmtu_discovery=True,
                             ttl=0, enabled=True, comment=None):
         """
@@ -150,6 +159,7 @@ class RouteVPN(Element):
             this VPN.
         :param TunnelEndpoint remote_endpoint: the remote side endpoint for
             this VPN.
+        :param str preshared_key: required if remote endpoint is an ExternalGateway
         :param TunnelMonitoringGroup monitoring_group: the group to place
             this VPN in for monitoring. Default: 'Uncategorized'.
         :param VPNProfile vpn_profile: VPN profile for this VPN.

@@ -765,7 +765,7 @@ class CollectionManager(object):
         
         if not exact_match:
             _filter = _strip_metachars(_filter)
-        
+
         return self.iterator(
             filter=_filter,
             iexact=iexact,

@@ -237,9 +237,12 @@ class BGP(object):
         .. note:: If str is provided for network or route_map, the str value
             should be the href for the element.
         """
-        self.data['announced_ne_setting'].append({
-            'announced_ne_ref': element_resolver(network),
-            'announced_rm_ref': element_resolver(route_map)})
+        resolved = element_resolver(network)
+        existing = [ref.get('announced_ne_ref') for ref in self.data['announced_ne_setting']]
+        if resolved not in existing:
+            self.data['announced_ne_setting'].append({
+                'announced_ne_ref': element_resolver(network),
+                'announced_rm_ref': element_resolver(route_map)})
         
     def remove_advertisement(self, network):
         """

@@ -249,6 +249,7 @@ class StaticNetlink(Element):
         """
         return self.data.get('probe_address')
 
+
 class Multilink(Element):
     """
     You can use Multi-Link to distribute outbound traffic between multiple
@@ -328,6 +329,7 @@ class Multilink(Element):
                 'timeout': timeout}
         
         return ElementCreator(cls, json)
+
     
 def multilink_member(netlink, nat_range, netlink_network=None,
                      netlink_role='active'):

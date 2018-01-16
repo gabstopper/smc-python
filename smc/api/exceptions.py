@@ -7,7 +7,6 @@ from smc.base.util import unicode_to_bytes
 
 class SMCException(Exception):
     """ Base class for exceptions """
-    pass
 
 
 class ConfigLoadError(SMCException):
@@ -15,7 +14,6 @@ class ConfigLoadError(SMCException):
     Thrown when there was a problem reading credential information from
     file. Typically caused by missing settings.
     """
-    pass
 
 
 class SMCConnectionError(SMCException):
@@ -24,7 +22,6 @@ class SMCConnectionError(SMCException):
     This could be that the underlying http requests library could not connect
     due to wrong IP address, wrong port, or time out
     """
-    pass
 
 
 class SMCOperationFailure(SMCException):
@@ -100,34 +97,31 @@ class CertificateError(SMCException):
     creation. For example, engines that are not initialized can not respond
     to certificate creation requests and SMC API will return an error.
     """
-    pass
 
 
 class CertificateImportError(CertificateError):
     """
     Failure to import a certificate or private key
     """
-    pass
+
 
 class CertificateExportError(CertificateError):
     """
     Failure to export a certificate
     """
-    pass
+
 
 class CreateEngineFailed(SMCException):
     """
     Thrown when a POST operation returns with a failed response.
     API based response will be returned as the exception message
     """
-    pass
 
 
 class LoadEngineFailed(SMCException):
     """ Thrown when attempting to load an engine that does not
     exist
     """
-    pass
 
 
 class PolicyCommandFailed(SMCException):
@@ -135,7 +129,6 @@ class PolicyCommandFailed(SMCException):
     Generic policy related command failures such as opening
     or closing a VPN policy.
     """
-    pass
 
 
 class CreatePolicyFailed(SMCException):
@@ -143,14 +136,12 @@ class CreatePolicyFailed(SMCException):
     Thrown when failures occur when creating specific
     poliies like Firewall Policy, IPS, VPN, etc.
     """
-    pass
 
 
 class LoadPolicyFailed(SMCException):
     """
     Failure when trying to load a specific policy type
     """
-    pass
 
 
 class LoadElementFailed(SMCException):
@@ -158,14 +149,12 @@ class LoadElementFailed(SMCException):
     Failure when attempting to obtain the settings for a specific
     element. This is more generic for a broad class of elements.
     """
-    pass
 
 
 class FetchElementFailed(SMCException):
     """
     Failure when fetching results
     """
-    pass
 
 
 class CreateElementFailed(SMCException):
@@ -173,7 +162,6 @@ class CreateElementFailed(SMCException):
     Generic exception when there was a failure calling a
     create method
     """
-    pass
 
 
 class DeleteElementFailed(SMCException):
@@ -181,7 +169,6 @@ class DeleteElementFailed(SMCException):
     Used when deletion fails, typically due to dependencies
     for the target element
     """
-    pass
 
 
 class UpdateElementFailed(SMCException):
@@ -190,21 +177,18 @@ class UpdateElementFailed(SMCException):
     being invalid, target was modified before change was
     submitted. A resubmit would be required.
     """
-    pass
 
 
 class CreateVPNFailed(SMCException):
     """
     Creating a policy or route based VPN failed.
     """
-    pass
 
 
 class ModificationFailed(SMCException):
     """
     Used when making generic modifications to elements.
     """
-    pass
 
 
 class ModificationAborted(SMCException):
@@ -212,40 +196,37 @@ class ModificationAborted(SMCException):
     A previous requirement was not met which prevented an
     attempted change from being executed.
     """
-    pass
+
 
 class ActionCommandFailed(SMCException):
     """
     Action type commands use this exception
     """
-    pass
 
 
 class InvalidRuleValue(SMCException):
     """
     Used within rule creation methods to prevent invalid submissions
     """
-    pass
 
 
 class CreateRuleFailed(SMCException):
     """
     Indicates a failed response when creating a rule of any type.
     """
-    pass
+
 
 class InvalidSearchFilter(SMCException):
     """
     Thrown by collections when using invalid search sequences.
     """
-    pass
+
 
 class ElementNotFound(SMCException):
     """
     Generic exception when an attempt is made to load an element
     that is not found.
     """
-    pass
 
 
 class ResourceNotFound(SMCException):
@@ -255,7 +236,6 @@ class ResourceNotFound(SMCException):
     will expose available resources but some engines may not have those
     links.
     """
-    pass
 
 
 class MissingRequiredInput(SMCException):
@@ -264,7 +244,6 @@ class MissingRequiredInput(SMCException):
     This is to ensure that some functions have some protection in case the
     user doesn't read the doc's.
     """
-    pass
 
 
 class UnsupportedEntryPoint(SMCException):
@@ -274,7 +253,6 @@ class UnsupportedEntryPoint(SMCException):
     SMC API that does not support that feature. The exception is
     thrown specifying the entry point specified.
     """
-    pass
 
 
 class UnsupportedEngineFeature(SMCException):
@@ -284,7 +262,6 @@ class UnsupportedEngineFeature(SMCException):
     has virtual resources. IPS and Layer 2 Firewall do not have internal
     gateways (used for VPN).
     """
-    pass
 
 
 class UnsupportedInterfaceType(SMCException):
@@ -295,8 +272,7 @@ class UnsupportedInterfaceType(SMCException):
     when an attempt is made to enumerate interfaces for an engine type missing
     a reference to an unsupported interface type
     """
-    pass
-
+    
 
 class TaskRunFailed(SMCException):
     """
@@ -304,8 +280,7 @@ class TaskRunFailed(SMCException):
     from SMC is a failure, possibly due to an incorrect input (i.e. missing policy),
     then this exception will be thrown
     """
-    pass
-
+    
 
 class LicenseError(SMCException):
     """
@@ -314,8 +289,7 @@ class LicenseError(SMCException):
     For node licensing specific actions, see:
     :py:class: `smc.core.node.Node`
     """
-    pass
-
+    
 
 class NodeCommandFailed(SMCException):
     """
@@ -325,8 +299,7 @@ class NodeCommandFailed(SMCException):
     For all node specific command actions, see:
     :py:class: `smc.core.node.Node`
     """
-    pass
-
+    
 
 class EngineCommandFailed(SMCException):
     """
@@ -334,4 +307,10 @@ class EngineCommandFailed(SMCException):
     blacklist entries, flushing blacklist or adding routes. This exception will be
     thrown if the SMC API responds with any sort of error and wrap the response
     """
-    pass
+    
+
+class InterfaceNotFound(SMCException):
+    """
+    Returned when attempting to fetch an interface directly
+    """
+    
