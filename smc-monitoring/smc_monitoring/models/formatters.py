@@ -69,11 +69,13 @@ class _Header(object):
         field_ids = query.format.data.get('field_ids')
         # Format specified by the query for id to name mapping
         field_format = query.format.data.get('field_format')
+        
          # If a combined filter is specified, field_format will be None
         if not field_format:
-            raise InvalidFieldFormat('Field format specified is not a supported '
-                'type for formatters and must be returned as a raw dict.')
+            raise InvalidFieldFormat('Combined field format specified is not a '
+                'supported type for formatters and must be returned as a raw dict.')
         
+        # No custom fields provided, use the class defined field_ids
         if not field_ids:
             field_ids = query.field_ids
          

@@ -363,12 +363,16 @@ class LogField:
     SSLVPNSESSIONMONTIMEOUT = 810 #: Node's local time when the SSL VPN session will time-out
     SSLVPNSESSIONMONID = 811 #: Id of the User Session
     RADIUSACCOUNTINGTYPE=851 #: Radius Accounting Type
-       
+    
+    SITUATION=1000 #: The identifier of the situation that caused sending this event.   
     HTTPREQUESTHOST = 1586 #: HTTP request host
+    IKECOOKIE = 3000
     USERNAME = 3001 #: Username if present
+    IDSERVICE = 3003 # The identifier of the creator of the log entry
 
     NUMBYTESSENT = 12200 #: Number of bytes sent, used for VPN    
     NUMBYTESRECEIVED = 12201 #: Number of bytes received, used for VPN
+    VULNERABILITYREFERENCES=20000 #: Generated from situation and original situation.
     SRCADDRS = 20007 #: Source addresses
     DSTADDRS = 20008 #: Destination addresses
     

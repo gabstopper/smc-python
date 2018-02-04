@@ -52,6 +52,7 @@ class RoutingQuery(Query):
         LogField.DSTZONE,
         LogField.ROUTEGATEWAY,
         LogField.ROUTENETWORK,
+        LogField.ROUTENETMASK,
         LogField.ROUTETYPE,
         LogField.ROUTEMETRIC]
     

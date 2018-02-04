@@ -131,7 +131,7 @@ class LogQuery(Query):
         self.request.update(
             fetch=fetch,
             query=query)
-    
+        
     @property
     def fetch_size(self):
         """

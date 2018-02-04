@@ -54,11 +54,14 @@ class ConnectionQuery(Query):
         LogField.TIMESTAMP,
         LogField.NODEID,
         LogField.SRC,
-        LogField.DST,
-        LogField.SERVICE,
-        LogField.PROTOCOL,
         LogField.SPORT,
+        LogField.SRCZONE,
+        LogField.DST,
         LogField.DPORT,
+        LogField.DSTZONE,
+        LogField.SERVICE,
+        LogField.IPSAPPID,
+        LogField.PROTOCOL,
         LogField.STATE]
     
     def __init__(self, target, **kw):

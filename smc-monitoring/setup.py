@@ -42,7 +42,7 @@ setup(
         ],
     zip_safe=False,
     install_requires=[
-        'smc-python >=0.5.6',
+        'smc-python >=0.6.0',
         'websocket-client'
     ],
 )

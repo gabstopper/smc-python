@@ -40,11 +40,12 @@ class UserQuery(Query):
     location = '/monitoring/session/socket'
     field_ids = [
         LogField.TIMESTAMP,
+        LogField.USERNAME,
         LogField.SRC, 
         LogField.NODEID,
         LogField.SENDERDOMAIN,
         LogField.EXPIRATIONTIME,
-        LogField.USERNAME]
+        LogField.IDSERVICE]
     
     def __init__(self, target, **kw):
         super(UserQuery, self).__init__('USERS', target, **kw)

@@ -3,12 +3,24 @@ A Query is the top level object used to construct parameters to make queries
 to the SMC. 
 
 Query is the parent class for all monitors in package :py:mod:`smc_monitoring.monitors`
+
+Each monitor type will have it's own predefined set of log fields that are considered
+'default' for the query type. These will correlate closely to the default fields you will
+see in the SMC when viewing the same information (Connections, VPN SAs, Blacklist, etc).
+
+Each query also has a specific formatter which defines how the data is returned from
+the query. Formatters are defined in :py:mod:`smc_monitoring.models.formats`.
+
+Each formatter type allows customization of the field_format and allows a value of
+'pretty', 'name' or 'id'. By default 'pretty' is used as the format which aligns with the
+column names in the SMC monitoring views.
+
 """
 import copy
 from smc_monitoring.wsocket import SMCSocketProtocol
 from smc_monitoring.models.filters import TranslatedFilter, InFilter, \
     AndFilter, OrFilter, NotFilter, DefinedFilter
-from smc_monitoring.models.formats import TextFormat
+from smc_monitoring.models.formats import TextFormat, DetailedFormat
 from smc_monitoring.models.formatters import TableFormat
 
 
@@ -216,7 +228,22 @@ class Query(object):
             if 'fields' in fields:
                 return fields['fields']
         return []
-
+    
+    def _get_field_schema(self):
+        """
+        Get a list of all of the default fields for this query type.
+        If data is available in the monitor type, a list of field definitions
+        will be returned ahead of the actual data, providing insight into
+        the available fields. If no data is available in a monitor, this will
+        block on recv().
+        
+        :return: list of dictionary fields with the field schema
+        """
+        self.update_format(DetailedFormat())
+        for fields in self.execute():
+            if 'fields' in fields:
+                return fields['fields']
+            
     def execute(self):
         """
         Execute the query with optional timeout. The response to the execute

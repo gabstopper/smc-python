@@ -271,9 +271,8 @@ class TranslatedFilter(QueryFilter):
         :param list values: network definitions, in cidr format, i.e: 1.1.1.0/24.
         """
         v = ['ipv4_net("%s")' % net for net in values]
-        self.filter.update(
-            value='{} IN union({})'.format(field, ','.join(v)))
-            
+        self.update_filter('{} IN union({})'.format(field, ','.join(v)))
+        
     def within_ipv4_range(self, field, values):
         """
         Add an IP range network filter for relevant address fields.
@@ -288,9 +287,8 @@ class TranslatedFilter(QueryFilter):
              for iprange in values
              for part in iprange.split('-')]
     
-        self.filter.update(
-            value='{} IN range({})'.format(field, ','.join(v)))
-    
+        self.update_filter('{} IN range({})'.format(field, ','.join(v)))
+
     def exact_ipv4_match(self, field, values):
         """
         An exact IPv4 address match on relevant address fields.
@@ -307,6 +305,6 @@ class TranslatedFilter(QueryFilter):
             value='{} IN union({})'.format(field, ','.join(v))
         else:
             value='{} == ipv4("{}")'.format(field, values[0])
-         
-        self.filter.update(value=value)
+        
+        self.update_filter(value) 
                 

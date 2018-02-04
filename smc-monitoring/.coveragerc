@@ -1,12 +1,12 @@
 [run]
 omit = 
-        __init__.py
 
 [report]
 # Regexes for lines to exclude from consideration
 exclude_lines =
 
     # Don't complain about missing debug-only code:
+    _get_field_schema
     except ImportError
     def __repr__
     def __str__

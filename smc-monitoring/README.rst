@@ -197,13 +197,13 @@ Subscribe to a single element event (SMC api entry point):
 
 .. code:: python
 
-	notification = Notification('network’)
+	notification = Notification('network')
 
 Subscribe to multiple element events on a single channel (subscription_id):
 
 .. code:: python
 
-	notification = Notification(‘network,host,iprange’)
+	notification = Notification('network,host,iprange')
 
 Subscribe to multiple element events, each with it’s own channel (subscription_id):
 

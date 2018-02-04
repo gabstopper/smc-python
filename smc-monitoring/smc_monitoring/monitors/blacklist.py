@@ -9,11 +9,13 @@ will have a reference to the entry and hence be possible to remove the entry.
 
 Optionally add an "InFilter" to restrict search to a specific field::
  
-    query.update_filter(FieldValue(LogField.BLACKLISTENTRYSOURCEIP), [IPValue('2.2.2.2')])
+    query.add_in_filter(
+        FieldValue(LogField.BLACKLISTENTRYSOURCEIP), [IPValue('2.2.2.2')])
 
 An InFilter can also use a network based syntax::
 
-    query.update_filter(FieldValue(LogField.BLACKLISTENTRYSOURCEIP), [IPValue('2.2.2.0/24')])
+    query.add_in_filter(
+        FieldValue(LogField.BLACKLISTENTRYSOURCEIP), [IPValue('2.2.2.0/24')])
 
 Or combine filters using "AndFilter" or "OrFilter". Find an entry with
 source IP 2.2.2.2 OR 2.2.2.5::
@@ -63,33 +65,43 @@ class BlacklistQuery(Query):
     location = '/monitoring/session/socket'
     field_ids = [
         LogField.TIMESTAMP,
-        LogField.BLACKLISTENTRYID,
         LogField.BLACKLISTER,
         LogField.BLACKLISTENTRYSOURCEIP,
         LogField.BLACKLISTENTRYDESTINATIONIP,
         LogField.PROTOCOL,
-        LogField.BLACKLISTENTRYDURATION]
+        LogField.BLACKLISTENTRYDURATION,
+        LogField.NODEID,
+        LogField.SENDERDOMAIN,
+        LogField.BLACKLISTENTRYID]
 
     def __init__(self, target, timezone=None, **kw):
-        bldata = TextFormat(field_format='name')
-        if timezone is not None:
-            bldata.set_resolving(timezone=timezone)
     
-        blid = TextFormat(field_format='pretty')
-        blid.field_ids([LogField.BLACKLISTENTRYID])
-        
-        combined = CombinedFormat(bldata=bldata, blid=blid)
-        
-        super(BlacklistQuery, self).__init__('BLACKLIST', target, format=combined, **kw)
+        super(BlacklistQuery, self).__init__('BLACKLIST', target, **kw)
+        if timezone is not None:
+            self.format.set_resolving(timezone=timezone)
     
     def fetch_as_element(self, **kw):
         """
         Fetch the blacklist and return as an instance of Element.
         
-        :return generator returning element instances
+        :return: generator returning element instances
         :rtype: BlacklistEntry
         """
-        for list_of_results in self.fetch_raw(**kw):
+        clone = self.copy()
+        # Replace all filters with a combined filter
+        bldata = TextFormat(field_format='name')
+        # Preserve resolving fields for new filter
+        if 'resolving' in self.format.data:
+           bldata.set_resolving(**self.format.data['resolving'])
+
+        # Resolve the entry ID to match SMC
+        blid = TextFormat(field_format='pretty')
+        blid.field_ids([LogField.BLACKLISTENTRYID])
+        
+        combined = CombinedFormat(bldata=bldata, blid=blid)
+        clone.update_format(combined)
+
+        for list_of_results in clone.fetch_raw(**kw):
             for entry in list_of_results:
                 data = entry.get('bldata')
                 data.update(**entry.get('blid'))

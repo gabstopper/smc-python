@@ -3,8 +3,6 @@ Created on Sep 24, 2017
 
 @author: davidlepage
 '''
-from urlparse import urlparse
-from smc import session
 from smc.base.model import Element
 from smc_monitoring.wsocket import SMCSocketProtocol
 
@@ -95,7 +93,6 @@ class Notification(object):
         
     def notify(self, as_type=None):
         for result in self.run_forever():
-            #print("Result: %s" % result)
             if 'success' in result:
                 self.subscription_map.update(
                     context=result.get('context'),
@@ -125,9 +122,7 @@ class Event(object):
         
     @property
     def element(self):
-        smc_url = urlparse(session.url).netloc
-        event_url = urlparse(self._element).netloc
-        return Element.from_href(self._element.replace(event_url, smc_url))
+        return Element.from_href(self._element)
     
     def __repr__(self):
         return '%s(subscription_id=%s,action=%s,element=%s)' % \
