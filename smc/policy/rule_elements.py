@@ -1,4 +1,5 @@
-from smc.base.model import Element, ElementCreator, NestedDict
+from smc.base.model import Element, ElementCreator
+from smc.base.structs import NestedDict
 from smc.api.exceptions import ElementNotFound
 from smc.base.util import element_resolver
 
@@ -217,7 +218,24 @@ class Action(NestedDict):
         :rtype: ConnectionTracking
         """
         return ConnectionTracking(self) 
- 
+    
+    @property
+    def decrypting(self):
+        """
+        .. versionadded:: 0.6.0
+            Requires SMC version >= 6.3.3
+        
+        Whether the decryption is enabled on this rule.
+        
+        :param bool value: True, False, None (inherit from continue rule) 
+        :rtype: bool
+        """
+        return self.get('decrypting', False)
+    
+    @decrypting.setter
+    def decrypting(self, value):
+        self.update(decrypting=value) 
+        
     @property 
     def deep_inspection(self): 
         """ 

@@ -42,7 +42,8 @@ Remove a contact address::
 .. note:: Contact Addresses for servers (Management/Log Server) do not use
           this same object definition
 """
-from smc.base.model import Element, SubElement, NestedDict
+from smc.base.model import Element, SubElement
+from smc.base.structs import NestedDict
 from smc.elements.helpers import location_helper
 from smc.base.collection import SubElementCollection
 

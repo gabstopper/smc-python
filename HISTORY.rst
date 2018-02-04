@@ -99,9 +99,9 @@ Release History
 0.6.0
 -----
 
-**Supported SMC Version**
+**Tested SMC Version**
 
-- Support for SMC 6.2, 6.3
+- Support for SMC 6.3.3, 6.3.4
 
 **Improvements**
 
@@ -117,7 +117,10 @@ Release History
 - InterfaceNotFound exception replaces EngineCommandFailed when fetching interfaces
 - engine.routing.get raises InterfaceNotFound instead of returning None when specified interface does not exist
 - renamed remove_route_element to remove_route_gateway in smc.core.route.Routing
-- engine.routing shortcuts: as_tree, 
+- engine.routing shortcuts: as_tree, bgp_peerings, ospf_areas, netlinks
 - delete instance cache after successful delete() call
+- Policy rules support for decrypting (requires SMC >= 6.3.3)
+- TLS Server Credential elements support valid_from, valid_to
+- current_user property added to session to derive the logged on user from the API client key
   
 

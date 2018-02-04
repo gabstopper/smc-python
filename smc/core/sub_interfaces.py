@@ -7,8 +7,7 @@ not called directly but used as a reference to the top level interface.
 All sub interfaces are type dict. 
 """
 
-from smc.base.model import NestedDict
-from smc.base.collection import IndexedIterable
+from smc.base.structs import NestedDict, BaseIterable
 from smc.api.exceptions import EngineCommandFailed
 
 
@@ -17,17 +16,17 @@ def get_sub_interface(typeof):
         return clsmembers[typeof]
 
     
-class SubInterfaceCollection(IndexedIterable):
+class SubInterfaceCollection(BaseIterable):
     """
     A Sub Interface collection for non-VLAN interfaces.
     """
-    def __init__(self, interface):
+    def __init__(self, interface): 
         data = [clsmembers.get(kind)(data)
                 for intf in interface.data.get('interfaces', [])
                 for kind, data in intf.items()]
         super(SubInterfaceCollection, self).__init__(data)
 
-
+    
 class SubInterface(NestedDict):
     def __init__(self, data):
         super(SubInterface, self).__init__(data=data)

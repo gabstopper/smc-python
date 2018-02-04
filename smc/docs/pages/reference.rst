@@ -84,10 +84,19 @@ TLSCommon
 
 TLSServerCredential
 *******************
-
 .. automodule:: smc.administration.certificates.tls
+
+.. autoclass:: TLSServerCredential
 	:members:
 	:show-inheritance:
+
+ClientProtectionCA
+******************
+
+.. autoclass:: ClientProtectionCA
+	:members:
+	:show-inheritance:
+
 
 Domains
 +++++++
@@ -741,9 +750,6 @@ Hardware Status
 	:members:
 	:show-inheritance:
 
-.. autoclass:: smc.core.node.HardwareCollection
-	:members:
-	
 .. autoclass:: smc.core.node.Status
 	:show-inheritance:
 	
@@ -752,9 +758,6 @@ Interface Status
 
 .. autoclass:: smc.core.node.InterfaceStatus
 	:members:
-	:show-inheritance:
-
-.. autoclass:: smc.core.node.ImmutableInterface
 	:show-inheritance:
 
 Debug
@@ -774,6 +777,7 @@ Routing
 +++++++
 
 .. automodule:: smc.core.route
+	:members: RoutingTree
 
 Routing
 *******
@@ -782,10 +786,17 @@ Routing
 	:members:
 	:show-inheritance:
 
+Antispoofing
+************
+
+.. autoclass:: Antispoofing
+	:members:
+	:show-inheritance:
+
 Route Table
 ***********
 
-.. autoclass:: Routes
+.. autoclass:: Route
 	:members:
 
 Policy Routing
@@ -793,16 +804,7 @@ Policy Routing
 
 .. autoclass:: PolicyRoute
 	:members:
-	
-.. autoclass:: PolicyRouteEntry
-	:members:
 
-Antispoofing
-************
-
-.. autoclass:: Antispoofing
-	:members:
-	:show-inheritance:
 
 Traffic Handlers (Netlinks)
 ***************************
@@ -1184,10 +1186,6 @@ ElementCollection
 .. autoclass:: CollectionManager
 	:members:
 
-.. autoclass:: Search
-	:members:
-	:show-inheritance:
-
 SubElementCollection
 ++++++++++++++++++++
 
@@ -1201,47 +1199,28 @@ CreateCollection
 	:members:
 	:show-inheritance:
 
-IndexedIterable
-+++++++++++++++
+Search
+++++++
 
-.. autoclass:: IndexedIterable
+.. autoclass:: Search
 	:members:
+	:show-inheritance:
 
-Search (Legacy)
-+++++++++++++++
+BaseIterable
+++++++++++++
 
-Low level searching helper functions.
+.. automodule:: smc.base.structs
 
-Search provides many front end search functions that enable you to retrieve abbreviated versions of the
-data you requested. All GET requests to the SMC API will return an :class:`SMCResult` with attributes set, however
-there may be cases where you only want a subset of this information. The search module provides these helper
-functions to return the data you need.
+.. autoclass:: BaseIterable
+	:members:
+	
+SerializedIterable
+++++++++++++++++++
 
-Below are some common examples of retrieving data from the SMC:
+.. autoclass:: SerializedIterable
+	:members:
+	:show-inheritance:
 
-.. code-block:: python
-
-   #Only return the href of a particular SMC Element:
-   smc.actions.search.element_href(name)
-
-   #To obtain full json for an SMC Element:
-   smc.actions.search.element_as_json(name)
-
-   #To obtain full json data and etag information for SMC Element (etag used for modifying an element):
-   smc.actions.search.element_as_json_with_etag(name)
-
-   #To find all elements by type:
-   smc.actions.search.elements_by_type('host')
-
-   #To find all available log servers:
-   smc.actions.search.log_servers()
-
-   #To find all L3 FW policies:
-   smc.actions.search.fw_policies()
-
-
-.. automodule:: smc.actions.search
-   :members:
 
 Advanced Usage
 --------------

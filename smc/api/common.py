@@ -5,12 +5,15 @@ SMCRequest is the general data structure that is sent to the send_request
 method in smc.api.web.SMCConnection to submit the data to the SMC.
 """
 import logging
-from smc import session
-from smc.api.exceptions import SMCOperationFailure, SMCConnectionError,\
-    UnsupportedEntryPoint
+from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 from smc.base.util import unicode_to_bytes
 
 logger = logging.getLogger(__name__)
+
+
+def _get_default_session():
+    from smc import session
+    return session
 
 
 class _RequestHandler(object):
@@ -24,8 +27,8 @@ class _RequestHandler(object):
         try:
             if method == 'GET':
                 if not self.href:
-                    self.href = session.entry_points.get('elements')
-            result = session.connection.send_request(method, self)
+                    self.href = _get_default_session().entry_points.get('elements')
+            result = _get_default_session().connection.send_request(method, self)
 
         except SMCOperationFailure as e:
             result = e.smcresult
@@ -93,8 +96,8 @@ class SMCRequest(_RequestHandler):
                 "{key}='{value}'".format(
                     key=key,
                     value=self.__dict__[key]))
-        return 'SMCRequest({})'.format(','.join(sb))
-    
+        return 'SMCRequest({})'.format(','.join(sb))    
+
 
 def fetch_entry_point(name):
     """
@@ -104,14 +107,12 @@ def fetch_entry_point(name):
 
     :method: GET
     :param str name: valid element entry point, i.e. 'host', 'iprange', etc
+    :raises UnsupportedEntryPoint: entry point not available in this API version
     :return: href pulled from API cache
     :rtype: str
     """
-    try:
-        return session.entry_points.get(name)  # from entry point cache
-    except UnsupportedEntryPoint:
-        raise
-
+    return _get_default_session().entry_points.get(name)  # from entry point cache
+    
 
 def fetch_no_filter(entry_point, filter=None):  # @ReservedAssignment
     """
@@ -119,7 +120,7 @@ def fetch_no_filter(entry_point, filter=None):  # @ReservedAssignment
     entry point base.
     """
     return SMCRequest(
-        href=session.entry_points.get(entry_point),
+        href=_get_default_session().entry_points.get(entry_point),
         params={'filter': filter}
         ).read().json
     
@@ -205,3 +206,4 @@ def fetch_json_by_post(href, json=None):
     """
     return SMCRequest(href=href,
                       json=json).create()
+

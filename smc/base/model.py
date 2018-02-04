@@ -156,33 +156,6 @@ def ElementFactory(href):
             etag=element.etag, **element.json)
         return e
 
-    
-class NestedDict(collections.MutableMapping): 
-    """ 
-    Generic dict structure that can be used to objectify 
-    complex json. This dict allows attribute access for data
-    stored in the data dict by overridding getattr.
-    """ 
-    def __init__(self, data=None, **kwargs):
-        self.data = data if data else {}
-        self.update(self.data, **kwargs)
-
-    def __setitem__(self, key, value):
-        self.data[key] = value
-    def __getitem__(self, key):
-        return self.data[key]
-    def __delitem__(self, key):
-        del self.data[key]
-    def __iter__(self):
-        return iter(self.data)
-    def __len__(self):
-        return len(self.data)
-    def __getattr__(self, key):
-        if key in self:
-            return self[key]
-        raise AttributeError("%r object has no attribute %r" 
-            % (self.__class__, key)) 
-
 
 class ElementCache(dict):
     """
@@ -365,7 +338,6 @@ class ElementBase(RequestAction, UnicodeMixin):
             headers={'if-match': self.etag}) 
         request.exception = DeleteElementFailed
         request.delete()
-        #self._del_cache() # Remove instance cache
 
     def update(self, *exception, **kwargs):
         """

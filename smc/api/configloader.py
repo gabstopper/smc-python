@@ -231,6 +231,9 @@ def transform_login(config):
         api_version=api_version,
         verify=verify,
         timeout=timeout,
-        domain=config.pop('domain', None),
-        kwargs=config) # Any remaining args
+        domain=config.pop('domain', None)) 
+    
+    if config:
+        transformed.update(kwargs=config) # Any remaining args
+    
     return transformed

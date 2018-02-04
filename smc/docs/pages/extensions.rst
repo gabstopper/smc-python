@@ -126,5 +126,11 @@ VPNs
 	:members:
 	:show-inheritance:
 
+Alerts
+******
+
+.. automodule:: smc_monitoring.monitors.alerts
+	:members:
+	:show-inheritance:
 
 

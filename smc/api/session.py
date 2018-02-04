@@ -3,51 +3,17 @@ Session module for tracking existing connection state to SMC
 """
 import json
 import logging
-import collections
 import requests
 
-
 import smc.api.web
-from smc.api.exceptions import SMCConnectionError, UnsupportedEntryPoint,\
-    ConfigLoadError
+from smc.api.entry_point import Resource
+from smc.elements.user import ApiClient
+from smc.api.exceptions import ConfigLoadError, SMCConnectionError
 from smc.api.configloader import load_from_file, load_from_environ
-
 # requests.packages.urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
-
-class _EntryPoint(object):
-    def __init__(self, _listof):
-        self.entries = _listof
-
-    def __iter__(self):
-        for entry in self.entries:
-            yield EntryPoint(
-                href=entry.get('href'),
-                rel=entry.get('rel'))
-
-    def __len__(self):
-        return len(self.entries)
-
-    def get(self, rel):
-        for link in iter(self):
-            if link.rel == rel:
-                return link.href
-        raise UnsupportedEntryPoint(
-            "The specified entry point '{}' was not found in this "
-            "version of the SMC API. Check the element documentation "
-            "to determine the correct version and specify the api_version "
-            "parameter during session.login() if necessary.".format(rel))
-
-    def all(self):
-        """
-        Return all available rel's for this API
-        """
-        return [entry_rel.rel for entry_rel in iter(self)]
-
-
-EntryPoint = collections.namedtuple('EntryPoint', 'href rel')
 
 '''
 #from requests.adapters import HTTPAdapter
@@ -68,7 +34,7 @@ class SSLAdapter(HTTPAdapter):
             maxsize=maxsize,
             block=block,
             ssl_version=self.ssl_version)
-'''     
+'''
 
 class Session(object):
     """
@@ -78,32 +44,38 @@ class Session(object):
     when it expires. Best practice is to call logout() after to clear the
     session from the SMC.
     """
-    AUTOCOMMIT = False
     _MODS_LOADED = False
     
     #: The default format string to use when configuring the logger
     LOG_FORMAT = '%(asctime)s - %(name)s - [%(levelname)s] - %(message)s'
     
     def __init__(self):
-        self._entry_points = []
         self._api_version = None
+        # The session is the underlying requests session object
         self._session = None
+        # A connection reference to an SMCAPIConnection
         self._connection = None
         self._url = None
         self._timeout = 10
         self._domain = 'Shared Domain'
+        # Extra args are collected and used if provided. These are generally
+        # not needed but may be needed to enable visibility of beta features
         self._extra_args = {}
+        # Resource provides an interface to entry points
+        self._resource = Resource()
         self.credential = Credential()
-        # Added to support domain switching
+        # Added to support domain switching. Sessions store a dict of
+        # {'domain': session} to allow for switching domains within a
+        # single session
         self._sessions = {}
-
+    
     @property
     def entry_points(self):
-        if not len(self._entry_points):
+        if not len(self._resource):
             raise SMCConnectionError(
                 "No entry points found, it is likely there is no valid "
                 "login session.")
-        return self._entry_points
+        return self._resource
 
     @property
     def api_version(self):
@@ -153,6 +125,23 @@ class Session(object):
         """ Logged in domain """
         return self._domain
 
+    @property
+    def current_user(self):
+        """
+        .. versionadded:: 0.6.0
+            Requires SMC version >= 6.4
+        
+        Return the currently logged on API Client user element.
+        
+        :raises UnsupportedEntryPoint: Current user is only supported with SMC
+            version >= 6.4
+        :rtype: ApiClient
+        """
+        if self.session:
+            response = self.session.get(self.entry_points.get('current_user'))
+            if response.status_code in (200, 201):
+                return ApiClient.from_href(response.json().get('value'))
+    
     def login(self, url=None, api_key=None, login=None, pwd=None,
               api_version=None, timeout=None, verify=True,
               alt_filepath=None, domain=None, **kwargs):
@@ -214,17 +203,18 @@ class Session(object):
             verify = cfg.get('verify')
             timeout = cfg.get('timeout')
             domain = cfg.get('domain')
-            kwargs=cfg.get('kwargs')
-    
+            kwargs = cfg.get('kwargs')
+        
         if timeout:
             self._timeout = timeout
 
         self._api_version = get_api_version(url, api_version, timeout, verify)
         
         base = get_api_base(url, self.api_version, verify=verify)
-        self._entry_points = get_entry_points(base, timeout, verify)
-
-        s = requests.session()  # no session yet
+        
+        self._resource.add(get_entry_points(base, timeout, verify))
+        
+        s = requests.session()  # empty session
 
         json = {
             'domain': domain
@@ -297,14 +287,15 @@ class Session(object):
                 except requests.exceptions.SSLError as e:
                     logger.error('SSL exception thrown during logout: %s', e)
 
-            self._entry_points = []
+            self.entry_points.clear()
             self._session = None
 
     def refresh(self):
         """
         Refresh session on 401. Wrap this in a loop with retries.
 
-        :raises SMCConnectionError
+        :raises SMCConnectionError: Problem re-authenticating using existing
+            api credentials
         """
         # Did we already have a session that just timed out
         if self.session and self.credential.has_credentials and self.url:
@@ -477,13 +468,13 @@ def get_entry_points(base_url, timeout=10, verify=True):
     """
     try:
         r = requests.get('%s/api' % (base_url), timeout=timeout,
-                         verify=verify)
+            verify=verify)
 
         if r.status_code == 200:
-            j = json.loads(r.text)
+            entry_point_list = json.loads(r.text)
             logger.debug('Successfully retrieved API entry points from SMC')
             
-            return _EntryPoint(j['entry_point'])
+            return entry_point_list['entry_point']
 
         else:
             raise SMCConnectionError(
@@ -510,7 +501,6 @@ def available_api_versions(base_url, timeout=10, verify=True):
             versions = []
             for version in j['version']:
                 versions.append(version['rel'])
-            #versions = [float(i) for i in versions]
             return versions
         
         raise SMCConnectionError(

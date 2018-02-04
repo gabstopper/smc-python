@@ -2,7 +2,7 @@ import collections
 from smc.api.exceptions import EngineCommandFailed
 from smc.base.model import SubElement, Element
 from smc.base.util import datetime_from_ms
-from smc.base.collection import IndexedIterable
+from smc.base.structs import SerializedIterable
 
 
 class Snapshot(SubElement):
@@ -49,7 +49,7 @@ class Snapshot(SubElement):
                                       .format(e))
 
 
-class PendingChanges(IndexedIterable):
+class PendingChanges(SerializedIterable):
     """
     Pending changes apply to the engine having changes that have not
     yet been committed.

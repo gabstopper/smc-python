@@ -3,7 +3,8 @@ Access Control Lists are assigned to SMC admin accounts to grant limited
 access permissions to either Engines, Policies or Domains.
 """
 
-from smc.base.model import Element, ElementCreator, NestedDict
+from smc.base.model import Element, ElementCreator
+from smc.base.structs import NestedDict
 from smc.base.util import element_resolver
 from smc.administration.system import AdminDomain
 

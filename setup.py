@@ -9,7 +9,7 @@ with open('HISTORY.rst') as f:
 
     
 setup(name='smc-python',
-      version='0.6.0-dev.201801161204',
+      version='0.6.0',
       description='Python based API to Stonesoft Security Management Center',
       long_description=readme + '\n\n' + history,
       url='http://github.com/gabstopper/smc-python',

@@ -3,7 +3,6 @@ Decorators used in various areas throughout smc-python.
 """
 import warnings
 import functools
-from smc import session
 
 
 def deprecated(func_replacement):
@@ -93,29 +92,6 @@ def create_hook(function):
             json = cls._create_hook(json)
         return function(cls, json)
     return run
-
-
-def autocommit(now=False):
-    """
-    A method decorated with autocommit provides a mechanism to delay (or not)
-    the update of an element. If methods decorated with autocommit should
-    always update after completion, provide autocommit=True to the constructor
-    or set session.AUTOCOMMIT = True.
-    If autocommit is not set, you must make your changes and call .update() on
-    the element.
-    """
-    def _decorator(func):
-        @functools.wraps(func)
-        def _wrapped_func(self, *args, **kwargs):
-            as_kwarg = kwargs.pop('autocommit', None)
-            func(self, *args, **kwargs)
-            if as_kwarg is not None:
-                if as_kwarg:
-                    self.update()
-            elif (now or session.AUTOCOMMIT):
-                self.update()
-        return _wrapped_func
-    return _decorator
 
 
 def exception(function):

@@ -19,10 +19,10 @@ from smc.base.util import save_to_file
 from smc.base.model import SubElement, ElementCache
 from smc.core.sub_interfaces import LoopbackInterface
 from smc.api.exceptions import LicenseError, NodeCommandFailed
-from smc.base.collection import IndexedIterable
+from smc.base.structs import SerializedIterable, BaseIterable
 
 
-class NodeCollection(IndexedIterable):
+class NodeCollection(BaseIterable):
     """
     Node Collection provides a simplified interface to retrieving
     nodes from an engine reference::
@@ -262,14 +262,17 @@ class Node(SubElement):
             >>> node.interface_status
             <smc.core.node.InterfaceStatus object at 0x103b2f310>
             >>> node.interface_status.get(0)
-            ImmutableInterface(aggregate_is_active=False, capability=u'Normal Interface', flow_control=u'AutoNeg: off Rx: off Tx: off', interface_id=0, mtu=1500, name=u'eth0_0', port=u'Copper', speed_duplex=u'1000 Mb/s / Full / Automatic', status=u'Up')
+            InterfaceStatus(aggregate_is_active=False, capability=u'Normal Interface',
+                flow_control=u'AutoNeg: off Rx: off Tx: off',
+                interface_id=0, mtu=1500, name=u'eth0_0', port=u'Copper',
+                speed_duplex=u'1000 Mb/s / Full / Automatic', status=u'Up')
     
         Or iterate and get all interfaces::
             
             >>> for stat in node.interface_status:
             ...   stat
             ... 
-            ImmutableInterface(aggregate_is_active=False, capability=u'Normal Interface', ...
+            InterfaceStatus(aggregate_is_active=False, capability=u'Normal Interface', ...
             ...
             
         :raises NodeCommandFailed: failure to retrieve current status
@@ -595,23 +598,6 @@ class Node(SubElement):
             resource='certificate_info')
 
 
-ImmutableInterface = collections.namedtuple('ImmutableInterface',
-    'aggregate_is_active capability flow_control interface_id mtu name port speed_duplex status')
-
-"""
-Interface status fields
-
-:ivar bool aggregate_is_active: Is link aggregation enabled on this interface
-:ivar str capability: What type of interface this is, i.e. "Normal Interface"
-:ivar str flow_control: Autonegotiation, etc
-:ivar int interface_id: Physical interface id
-:ivar int mtu: Max transmission unit
-:ivar str name: Name of the interface, i.e. eth0_0, etc
-:ivar str port: Type of physical port, i.e. Copper, Fiber
-:ivar str speed_duplex: Negotiated speed on the interface
-:ivar str status: Status of interface, Up, Down, etc.
-"""
-
 ApplianceStatus = collections.namedtuple('ApplianceStatus', 
     'configuration_status dyn_up installed_policy name platform state status version')      
 
@@ -653,20 +639,6 @@ Retrieve appliance status for engine nodes::
 ApplianceStatus.__new__.__defaults__ = (None,) * len(ApplianceStatus._fields)
 
 
-Status = collections.namedtuple('Status', 'label param status sub_system value')
-
-""" 
-Status fields for hardware status. These fields have generic titles which
-are used to represent the field and values for each hardware type.
-
-:ivar str label: name for this field
-:ivar str param: field this measures
-:ivar int status: unused
-:ivar str sub_system: category for this hardware status
-:ivar str value: value for this field
-"""
-
-
 ApplianceInfo = collections.namedtuple('ApplianceInfo', 
     'cloud_id cloud_type first_upload_time hardware_version initial_contact_time product_name '
     'initial_license_remaining_days proof_of_serial software_features software_version')
@@ -696,31 +668,65 @@ has made initial contact and when initial policy upload was made.
 """
 ApplianceInfo.__new__.__defaults__ = (None,) * len(ApplianceInfo._fields)
 
+
+interface_status = collections.namedtuple('InterfaceStatus',
+    'aggregate_is_active capability flow_control interface_id mtu name port speed_duplex status')
+
    
-class InterfaceStatus(IndexedIterable):
+class InterfaceStatus(SerializedIterable):
     """
     An iterable that provides a collections interface to interfaces
     and current status on the specified node.
-    This iterable returns read only ImmutableInterface types.
     
-    :rtype: ImmutableInterface
+    Interface status fields:
+    
+    :ivar bool aggregate_is_active: Is link aggregation enabled on this interface
+    :ivar str capability: What type of interface this is, i.e. "Normal Interface"
+    :ivar str flow_control: Autonegotiation, etc
+    :ivar int interface_id: Physical interface id
+    :ivar int mtu: Max transmission unit
+    :ivar str name: Name of the interface, i.e. eth0_0, etc
+    :ivar str port: Type of physical port, i.e. Copper, Fiber
+    :ivar str speed_duplex: Negotiated speed on the interface
+    :ivar str status: Status of interface, Up, Down, etc.
     """
     
     def __init__(self, status):
         data = status.get('interface_status')
-        super(InterfaceStatus, self).__init__(data, ImmutableInterface)
+        super(InterfaceStatus, self).__init__(data, interface_status)
     
     def get(self, interface_id):
         """
         Get a specific interface by the interface id
         
         :param int interface_id: interface ID
-        :rtype: ImmutableInterface
+        :rtype: InterfaceStatus
         """
         return super(InterfaceStatus, self).get(interface_id=interface_id)
 
 
-class HardwareStatus(IndexedIterable):
+def item_status(item):
+    for items in item.items:
+        for status in items.get('statuses'): 
+            yield Status(**status)
+                
+
+label = collections.namedtuple('Label', 'name items')
+Status = collections.namedtuple('Status', 'label param status sub_system value')
+
+""" 
+Status fields for hardware status. These fields have generic titles which
+are used to represent the field and values for each hardware type.
+
+:ivar str label: name for this field
+:ivar str param: field this measures
+:ivar int status: unused
+:ivar str sub_system: category for this hardware status
+:ivar str value: value for this field
+"""
+
+
+class HardwareStatus(SerializedIterable):
     """
     Provides an interface to methods that simplify viewing
     hardware statuses on this node.
@@ -747,61 +753,38 @@ class HardwareStatus(IndexedIterable):
         Status(label=u'Swap', param=u'Usage', status=-1, sub_system=u'File Systems', value=u'0.0%')
         Status(label=u'Swap', param=u'Size', status=-1, sub_system=u'File Systems', value=u'1887 MB')
     
-    :rtype: HardwareCollection
     """
+    def __init__(self, status): 
+        data = status.get('hardware_statuses') 
+        super(HardwareStatus, self).__init__(data, label)
     
-    def __init__(self, status):
-        data = status.get('hardware_statuses')
-        super(HardwareStatus, self).__init__(data, HardwareCollection)
+    def __repr__(self):
+        items = [item.name for item in self]
+        return "%s(%s)" % (self.__class__.__name__, ','.join(items))
     
+    @property 
+    def logging_subsystem(self):
+        """
+        A collection of logging subsystem statuses
+        
+        :rtype: Status
+        """
+        for item in self:
+            if item.name.startswith('Logging'):
+                for s in item_status(item):
+                    yield s
+
     @property
     def filesystem(self):
         """
         A collection of filesystem related statuses
         
-        :rtype: HardwareCollection
+        :rtype: Status
         """
-        for status in self:
-            if status.name.startswith('File System'):
-                return status
-
-    @property
-    def logging_subsystem(self):
-        """
-        A collection of logging subsystem statuses
-        
-        :rtype: HardwareCollection
-        """
-        for status in self:
-            if status.name.startswith('Logging'):
-                return status
-
-    def __repr__(self):
-        items = [item.name for item in self]
-        return 'HardwareStatus({})'.format(', '.join(items))
-
-
-class HardwareCollection(object):
-    """
-    Hardware collection is an iterable for returning categories
-    of hardware status. This is not called directly, but instead
-    by a node reference.
-    
-    :rtype: Status
-    """
-    
-    def __init__(self, name, **kwargs):
-        self.name = name
-        self.items = kwargs.pop('items', [])
-            
-    def __iter__(self):
-        for item in self.items:
-            for status in item.get('statuses'):
-                yield Status(**status)
-         
-    def __repr__(self):
-        return 'HardwareCollection({}, items: {})'.format(
-            self.name, len(self.items))
+        for item in self:
+            if item.name.startswith('File System'):
+                for s in item_status(item):
+                    yield s
 
 
 class Debug(object):

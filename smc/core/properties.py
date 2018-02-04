@@ -22,7 +22,8 @@ Then enable or disable::
     making / queuing your changes.
 """
 import collections
-from smc.base.model import Element, NestedDict
+from smc.base.model import Element
+from smc.base.structs import NestedDict
 from smc.api.exceptions import LoadPolicyFailed
 from smc.policy.interface import InterfacePolicy
 from smc.elements.network import Host

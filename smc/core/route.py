@@ -28,7 +28,29 @@ represented as a tree::
                         --> gateway
                                 |
                                 --> any
-    
+
+You can get a representation of the routing or antispoofing tree nodes
+by calling as_tree::
+
+    >>> print(engine.routing.as_tree())
+    Routing(name=myfw,level=engine_cluster)
+    --Routing(name=Interface 0,level=interface)
+    ----Routing(name=network-1.1.1.0/24,level=network)
+    ------Routing(name=mypeering,level=gateway)
+    ------Routing(name=mynetlink,level=gateway)
+    --------Routing(name=router-1.1.1.1,level=any)
+    ------Routing(name=mystatic,level=gateway)
+    --Routing(name=Interface 1,level=interface)
+    ----Routing(name=network-10.10.10.0/24,level=network)
+    ------Routing(name=anotherpeering,level=gateway)
+    --Routing(name=Tunnel Interface 1000,level=interface)
+    ----Routing(name=network-2.2.2.0/24,level=network)
+    --Routing(name=Tunnel Interface 1001,level=interface)
+    --Routing(name=Interface 2,level=interface)
+    ----Routing(name=Network (IPv4),level=network)
+    ------Routing(name=dynamic_netlink-myfw-Interface 2,level=gateway)
+    --------Routing(name=Any network,level=any)
+
 If nested routes exist, you can iterate a given node to get specific
 information::
 
@@ -92,54 +114,43 @@ import collections
 from smc.base.model import SubElement, Element, ElementCache
 from smc.base.util import element_resolver
 from smc.api.exceptions import InterfaceNotFound, ModificationAborted
+from smc.base.structs import SerializedIterable
 
 
-class Routing(SubElement):
+def flush_parent_cache(node):
     """
-    Routing represents the Engine routing configuration and provides the
-    ability to view and add features to routing nodes such as OSPF.
+    Flush parent cache will recurse back up the tree and
+    wipe the cache from each parent node reference on the
+    given element. This allows the objects to be reused
+    and a clean way to force the object to update itself
+    if attributes or methods are referenced after update.
+    """
+    if node._parent is None:
+        node._del_cache()
+        return
+    node._del_cache()
+    flush_parent_cache(node._parent)
+
+
+class RoutingTree(SubElement):
+    """
+    RoutingTree is the base class for both Routing and Antispoofing nodes.
+    This provides a commmon API for operations that affect how routing table
+    and antispoofing operate.
     """
     def __init__(self, data=None, **meta):
-        super(Routing, self).__init__(**meta)
+        super(RoutingTree, self).__init__(**meta)
         if data is not None:
             self.data = ElementCache(**data)
-            
+    
     def __iter__(self):
-        for node in self.data['routing_node']:
+        for node in self.data[self.typeof]:
             data = ElementCache(**node)
-            yield(Routing(
+            yield(self.__class__(
                     href=data.get_link('self'),
-                    type='routing',
-                    data=node))
-
-    def as_tree(self, level=0):
-        """
-        Display the routing tree representation in string
-        format for visualizing the routing structure. This
-        can be used at any level of the routing tree::
-        
-            >>> engine = Engine('myfw')
-            >>> print(engine.routing.as_tree())
-            Routing(name=myfw,level=engine_cluster)
-            --Routing(name=Interface 0,level=interface)
-            ----Routing(name=network-1.1.1.0/24,level=network)
-            ------Routing(name=router-1.1.1.1,level=gateway)
-            --------Routing(name=foonet,level=any)
-            ------Routing(name=mypeering,level=gateway)
-            ------Routing(name=mystatic,level=gateway)
-            --Routing(name=Interface 1,level=interface)
-            ----Routing(name=network-10.10.10.0/24,level=network)
-            ------Routing(name=anotherpeering,level=gateway)
-            --Routing(name=Tunnel Interface 1000,level=interface)
-            ----Routing(name=network-2.2.2.0/24,level=network)
-            --Routing(name=Tunnel Interface 1001,level=interface)
-        
-        :rtype: str
-        """
-        ret = '--' * level + repr(self) + '\n'
-        for routing_node in self:
-            ret += routing_node.as_tree(level+1)
-        return ret
+                    type=self.__class__.__name__,
+                    data=node,
+                    parent=self))
     
     @property
     def name(self):
@@ -156,7 +167,8 @@ class Routing(SubElement):
         """
         NIC id for this interface
 
-        :return str nic identifier
+        :return: nic identifier
+        :rtype: str
         """
         return self.data.get('nic_id')
 
@@ -165,7 +177,8 @@ class Routing(SubElement):
         """
         NIC id for this dynamic interface
         
-        :return str nic identifier
+        :return: nic identifier, if this is a DHCP interface
+        :rtype: str or None
         """
         return self.data.get('dynamic_nicid')
     
@@ -191,7 +204,32 @@ class Routing(SubElement):
         :rtype: str
         """
         return self.data.get('level')
+    
+    @property
+    def related_element_type(self):
+        """
+        .. versionadded:: 0.6.0
+            Requires SMC version >= 6.4
+            
+        Related element type defines the 'type' of element at this
+        routing or antispoofing node level.
         
+        :rtype: str
+        """
+        return self.data.get('related_element_type')
+
+    def as_tree(self, level=0):
+        """
+        Display the routing tree representation in string
+        format
+        
+        :rtype: str
+        """
+        ret = '--' * level + repr(self) + '\n'
+        for routing_node in self:
+            ret += routing_node.as_tree(level+1)
+        return ret
+    
     def get(self, interface_id):
         """
         Obtain routing configuration for a specific interface by
@@ -213,6 +251,42 @@ class Routing(SubElement):
         raise InterfaceNotFound('Specified interface {} does not exist on '
             'this engine.'.format(interface_id))
     
+    def delete(self):
+        super(RoutingTree, self).delete()
+        flush_parent_cache(self._parent)
+        
+    def update(self):
+        super(RoutingTree, self).update()
+        flush_parent_cache(self._parent)
+    
+    def all(self):
+        """
+        Return all routes for this engine.
+
+        :return: current route entries as :class:`.Routing` element
+        :rtype: list
+        """
+        return [node for node in self]
+
+    def __str__(self):
+        return '{}(name={},level={},type={})'.format(
+            self.__class__.__name__, self.name, self.level, self.related_element_type)
+
+    def __repr__(self):
+        return str(self)
+
+
+class Routing(RoutingTree):
+    """
+    Routing represents the Engine routing configuration and provides the
+    ability to view and add features to routing nodes such as OSPF.
+    """
+    typeof = 'routing_node'
+        
+    def __init__(self, data=None, **meta):
+        self._parent = meta.pop('parent', None)
+        super(Routing, self).__init__(data, **meta)
+    
     @property
     def routing_node_element(self):
         """
@@ -233,8 +307,77 @@ class Routing(SubElement):
             BGPPeering(name=mypeering)
             >>> 
         """
-        if 'href' in self.data:
-            return from_meta(self)
+        return from_meta(self)
+    
+    @property
+    def bgp_peerings(self):
+        """
+        BGP Peerings applied to a routing node. This can be called from
+        the engine, interface or network level. Return is a tuple
+        of (interface, network, bgp_peering). This simplifies viewing
+        and removing BGP Peers from the routing table::
+        
+            >>> for bgp in engine.routing.bgp_peerings:
+            ...   bgp
+            ... 
+            (Routing(name=Interface 0,level=interface,type=physical_interface),
+             Routing(name=network-1.1.1.0/24,level=network,type=network),
+             Routing(name=mypeering,level=gateway,type=bgp_peering))
+            (Routing(name=Interface 1,level=interface,type=physical_interface),
+             Routing(name=network-2.2.2.0/24,level=network,type=network),
+             Routing(name=mypeering,level=gateway,type=bgp_peering))
+        
+        .. seealso:: :meth:`~netlinks` and :meth:`~ospf_areas` for obtaining
+            other routing element types
+        
+        :rtype: tuple(Routing)
+        """
+        return gateway_by_type(self, 'bgp_peering')
+    
+    @property
+    def netlinks(self):
+        """
+        Netlinks applied to a routing node. This can be called
+        from the engine, interface or network level. Return is a
+        tuple of (interface, network, netlink). This simplifies
+        viewing and removing Netlinks from the routing table::
+        
+            >>> interface = engine.routing.get(1)
+            >>> for static_netlink in interface.netlinks:
+            ...   interface, network, netlink = static_netlink
+            ...   netlink
+            ...   netlink.delete()
+            ... 
+            Routing(name=mylink,level=gateway,type=netlink)
+            
+        .. seealso:: :meth:`~bgp_peerings` and :meth:`~ospf_areas` for obtaining
+            other routing element types
+        
+        :rtype: tuple(Routing)
+        """
+        return gateway_by_type(self, 'netlink')
+    
+    @property
+    def ospf_areas(self):
+        """
+        OSPFv2 areas applied to a routing node. This can be called from
+        the engine, interface or network level. Return is a tuple
+        of (interface, network, bgp_peering). This simplifies viewing
+        and removing BGP Peers from the routing table::
+        
+            >>> for ospf in engine.routing.ospf_areas:
+            ...   ospf
+            ... 
+            (Routing(name=Interface 0,level=interface,type=physical_interface),
+             Routing(name=network-1.1.1.0/24,level=network,type=network),
+             Routing(name=area10,level=gateway,type=ospfv2_area))
+        
+        .. seealso:: :meth:`~bgp_peerings` and :meth:`~netlinks` for obtaining
+            other routing element types
+        
+        :rtype: tuple(Routing)
+        """
+        return gateway_by_type(self, 'ospfv2_area')
             
     def add_traffic_handler(self, netlink, netlink_gw=None, network=None):
         """
@@ -282,9 +425,8 @@ class Routing(SubElement):
         
             netlink['routing_node'].append(netlink_gateway)
     
-        self._bind_to_ipv4_network(netlink, network)
-        self.update()
-        
+        self._add_gateway_node(netlink, network)
+
     def add_ospf_area(self, ospf_area,
                       communication_mode='NOT_FORCED',
                       unicast_ref=None,
@@ -336,8 +478,7 @@ class Routing(SubElement):
                 'level': 'any',
                 'name': unicast_ref.name})
 
-        self._bind_to_ipv4_network(node, network)
-        self.update()
+        self._add_gateway_node(node, network)
 
     def add_bgp_peering(self, bgp_peering, external_bgp_peer,
                         network=None):
@@ -375,8 +516,7 @@ class Routing(SubElement):
         
         bgp['routing_node'].append(external_peer)
         
-        self._bind_to_ipv4_network(bgp, network)
-        self.update()
+        self._add_gateway_node(bgp, network)
 
     def add_static_route(self, gateway, destination,
                          network=None):
@@ -410,8 +550,7 @@ class Routing(SubElement):
                 'level': 'any',
                 'name': dest.name})            
         
-        self._bind_to_ipv4_network(route, network)
-        self.update()
+        self._add_gateway_node(route, network)
     
     def add_dynamic_gateway(self, networks):
         """
@@ -441,10 +580,9 @@ class Routing(SubElement):
                 'level': 'any',
                 'name': network.name})
 
-        self._bind_to_ipv4_network(route)
-        self.update()
-            
-    def _bind_to_ipv4_network(self, element, network=None):
+        self._add_gateway_node(route)
+    
+    def _add_gateway_node(self, element, network=None):
         """
         Bind the pre-configured element to the interface level
         routing node. It will be saved back at the interface. This
@@ -453,17 +591,24 @@ class Routing(SubElement):
         if self.level != 'interface':
             raise ModificationAborted('You must make this change from the '
                 'interface routing level. Current node: {}'.format(self))
+        
+        node_added = False    
         for networks in self:
             if networks.dynamic_nicid: # DHCP interface
                 networks.data['routing_node'].append(element)
-                return
+                node_added = True
+                break
             if len(networks.ip.split(':')) == 1:  # Skip IPv6
                 if network is not None:  # Only place on specific network
                     if networks.ip == network:
                         networks.data['routing_node'].append(element)
-                else:
+                        node_added = True
+                else: # Place on all networks
                     networks.data['routing_node'].append(element)
-                        
+                    node_added = True
+        if node_added:
+            self.update()
+                    
     def remove_route_gateway(self, element, network=None):
         """
         Remove a route element by href or Element. Use this if you want to
@@ -490,112 +635,15 @@ class Routing(SubElement):
         if self.level != 'interface':
             raise ModificationAborted('You must make this change from the '
                 'interface routing level. Current node: {}'.format(self))
-            
+                
         element = element_resolver(element)
-        routing_node = []
-        for networks in self:
-            if network is not None:
-                if networks.ip != network:
-                    routing_node.append(networks.data)
-                else:
-                    rnode = [gw for gw in networks.data['routing_node']
-                             if gw.get('href') != element]
-                    networks.data['routing_node'] = rnode
-                    routing_node.append(networks.data)          
-            else:
-                rnode = [gw for gw in networks.data['routing_node']
-                         if gw.get('href') != element]
-                networks.data['routing_node'] = rnode
-                routing_node.append(networks.data)
-            
-        self.data['routing_node'] = routing_node
-        self.update()
-                    
-    def all(self):
-        """
-        Return all routes for this engine.
-
-        :return: current route entries as :class:`.Routing` element
-        :rtype: list
-        """
-        return [node for node in self]
-
-    def __str__(self):
-        return '{0}(name={1},level={2})'.format(
-            self.__class__.__name__, self.name, self.level)
-
-    def __repr__(self):
-        return str(self)
-
-
-def from_meta(node):
-    """
-    Helper method that reolves a routing node to element. Rather than doing
-    a lookup and fetch, the routing node provides most of the information to
-    build the element from meta alone (at least in the case of unique element
-    types such as dynamic routing and netlinks). Build from meta when we
-    can, otherwise perform the lookup / SMC fetch to get the element data.
+        for network in self:
+            for gateway in network:
+                if gateway.data.get('href') == element:
+                    gateway.delete()
     
-    :rtype: Element
-    """
-    href = node.data.get('href')
-    if '/bgp_peering/' in href:
-        typeof = 'bgp_peering'
-    elif '/external_bgp_peer/' in href:
-        typeof = 'external_bgp_peer'
-    elif '/ospfv2_area/' in href:
-        typeof = 'ospfv2_area'
-    elif '/netlink/' in href:
-        typeof = 'netlink'
-    else:
-        return Element.from_href(href)
-    
-    return Element.from_meta(
-        name=node.data.get('name'),
-        type=typeof,
-        href=href)
 
-
-def routetuple(d):
-    d.pop('cluster_ref', None)
-    routes = collections.namedtuple('Route', d.keys())
-    return routes(**d)
-
-
-class Routes(object):
-    """
-    Routes are represented by a query to the SMC for the
-    specified engine. This represents the current routing
-    table.
-    Route are obtained through the following method::
-
-        for routes in engine.routing_monitoring.all():
-            print(routes)
-
-    Routes have the following attributes:
-
-    :ivar int src_if: The source IF of the routing entry
-    :ivar int dst_if: The destination IF of the routing entry
-    :ivar str route_type: Route type specifies status (Static, Connected, etc)
-    :ivar str route_network: The route network address
-    :ivar int route_netmask: Network mask
-    :ivar str route_gateway: The route gateway address
-
-    .. note:: Not all attributes may be present.
-    """
-
-    def __init__(self, data):
-        self._data = data
-
-    def __iter__(self):
-        for route in self._data['routing_monitoring_entry']:
-            yield routetuple(route)
-
-    def all(self):
-        return [r for r in iter(self)]
-
-
-class Antispoofing(SubElement):
+class Antispoofing(RoutingTree):
     """
     Anti-spoofing is configured by default based on
     interface networks directly attached. It is possible
@@ -609,48 +657,21 @@ class Antispoofing(SubElement):
         for entry in engine.antispoofing.all():
             print(entry)
     """
-
+    typeof = 'antispoofing_node'
+    
     def __init__(self, data=None, **meta):
-        super(Antispoofing, self).__init__(**meta)
-        if data is not None:
-            self.data = ElementCache(**data)
-
-    def __iter__(self):
-        for node in self.data['antispoofing_node']:
-            data = ElementCache(**node)
-            yield(Antispoofing(
-                    href=data.get_link('self'),
-                    data=node))
-            
-    @property
-    def name(self):
-        """
-        Name on this node level
-        """
-        return self.data.get('name')
+        self._parent = meta.pop('parent', None)
+        super(Antispoofing, self).__init__(data, **meta)
 
     @property
-    def ip(self):
+    def autogenerated(self):
         """
-        IP network / address / host of this antispoofing entry
-
-        :return: IP Address of this antispoofing node
-        :rtype: str
+        Was the entry auto generated by a route entry or
+        added manually as an override
+        
+        :rtype: bool
         """
-        return self.data.get('ip')
-
-    @property
-    def level(self):
-        """
-        Routing nodes have multiple 'levels' where routes can
-        be nested. Most routes are placed at the interface level.
-        This setting can mostly be ignored, but provides an
-        informative view of how the route is nested.
-
-        :return: routing node level (interface,network,gateway,any)
-        :rtype: str
-        """
-        return self.data.get('level')
+        return self.data.get('auto_generated') == 'true'
 
     @property
     def validity(self):
@@ -661,15 +682,6 @@ class Antispoofing(SubElement):
         :rtype: str
         """
         return self.data.get('validity')
-
-    @property
-    def nicid(self):
-        """
-        NIC id for this interface
-
-        :return str nic identifier
-        """
-        return self.data.get('nic_id')
 
     def add(self, entry):
         """
@@ -698,83 +710,165 @@ class Antispoofing(SubElement):
         self.data['antispoofing_node'].append(node)
         self.update()
 
-    def all(self):
-        return [node for node in iter(self)]
 
-    def __str__(self):
-        return '{0}(name={1},level={2})'.format(
-            self.__class__.__name__, self.name, self.level)
-
-    def __repr__(self):
-        return str(self)
-
-
-class PolicyRoute(object):
+def from_meta(node):
     """
-    .. versionadded:: 0.5.7
-            Add ipv4 or ipv6 policy routes to engine, requires SMC 6.3
+    Helper method that reolves a routing node to element. Rather than doing
+    a lookup and fetch, the routing node provides the information to
+    build the element from meta alone.
     
-    Policy routing entries are applied before the regular routes defined
-    in the Routing tree (overriding those configurations if matches are found).
-    The first matching policy routing entry is applied to a connection and any
-    further entries are ignored.
+    :rtype: Element
+    """
+    # Version SMC < 6.4
+    if not node.related_element_type:
+        return Element.from_href(
+            node.data.get('href'))
+    
+    # SMC Version >= 6.4 - more efficient because it builds the
+    # element by meta versus requiring a query
+    return Element.from_meta(
+        name=node.data.get('name'),
+        type=node.related_element_type,
+        href=node.data.get('href'))
 
-    Policy routing entries are not automatically added to Antispoofing rules,
-    so you might need to update the antispoofing as well. This class is 
-    iterable and will yield `.PolicyRouteEntry` namedtuples.
-    Example of adding a policy route::
+
+def route_level(root, level):
+    """
+    Helper method to recurse the current node and return
+    the specified routing node level.
+    """
+    def recurse(nodes):
+        for node in nodes:
+            if node.level == level:
+                routing_node.append(node)
+            else:
+                recurse(node)
+
+    routing_node = []
+    recurse(root)
+    return routing_node
+
+
+def gateway_by_type(self, type=None):  # @ReservedAssignment
+    """
+    Return gateways for the specified node. You can also
+    specify type to find only gateways of a specific type.
+    Valid types are: bgp_peering, netlink, ospfv2_area.
+    """
+    gateways = route_level(self, 'gateway')
+    if not type:
+        for gw in gateways:
+            yield gw
+    else:
+        for node in gateways:
+            #TODO: Change to type == node.related_element_type when
+            # only supporting SMC >= 6.4
+            if type == node.routing_node_element.typeof:
+                network = node._parent
+                interface = network._parent
+                yield (interface, network, node)
+                    
+
+
+route = collections.namedtuple('Route',
+        'route_network route_netmask route_gateway route_type dst_if src_if')
+route.__new__.__defaults__ = (None,) * len(route._fields)
+
+   
+class Route(SerializedIterable):
+    """
+    Active routes obtained from a running engine.
+    Obtain routes from an engine reference::
     
-        >>> list(engine.policy_routing)
-        [PolicyRouteEntry(source=u'172.18.1.150/32', destination=u'8.8.8.8/32', gateway_ip=u'10.0.0.1', comment=u'foo')]
-        >>> engine.policy_routing.create(source='172.18.1.254/32', destination='192.168.4.0/24', gateway_ip='10.0.0.1')
+        >>> engine = Engine('sg_vm')
+        >>> for route in engine.routing_monitoring:
+        ...    route
+    
+    :ivar str route_network: network for this route
+    :ivar int route_netmask: netmask for the route
+    :ivar str route_gateway: route gateway, may be None if it's a local network only
+    :ivar str route_type: status of the route
+    :ivar int dst_if: destination interface index
+    :ivar int src_if: source interface index
+    """
+
+    def __init__(self, data):
+        routes = data.get('routing_monitoring_entry', [])
+        data = [{k: v for k, v in d.items()
+                 if k != 'cluster_ref'} for d in routes]
+        super(Route, self).__init__(data, route)
+            
+
+policy_route = collections.namedtuple('PolicyRoute',
+        'source destination gateway_ip comment')
+policy_route.__new__.__defaults__ = (None,) * len(policy_route._fields)
+    
+
+class PolicyRoute(SerializedIterable):
+    """
+    An iterable providing an interface to policy based routing on the
+    engine. 
+    You must call engine.udpate() after performing an add or delete::
+    
+        >>> engine = Engine('myfw')
+        >>> engine.policy_route
+        PolicyRoute(items: 1)
+        >>> for rt in engine.policy_route:
+        ...   rt
+        ... 
+        PolicyRoute(source=u'172.18.1.0/24', destination=u'172.18.1.0/24', gateway_ip=u'172.18.1.1', comment=None)
+        >>> engine.policy_route.create(source='172.18.2.0/24', destination='192.168.3.0/24', gateway_ip='172.18.2.1')
         >>> engine.update()
-        'http://172.18.1.151:8082/6.4/elements/single_fw/948'
-        >>> list(engine.policy_routing)
-        [PolicyRouteEntry(source=u'172.18.1.150/32', destination=u'8.8.8.8/32', gateway_ip=u'10.0.0.1', comment=u'foo'),
-         PolicyRouteEntry(source=u'172.18.1.254/32', destination=u'192.168.4.0/24', gateway_ip=u'10.0.0.1', comment=None)]
-        
-    .. note:: You must call engine.update() to commit any changes.    
+        'http://172.18.1.151:8082/6.4/elements/single_fw/746'
+        >>> for rt in engine.policy_route:
+        ...   rt
+        ... 
+        PolicyRoute(source=u'172.18.1.0/24', destination=u'172.18.1.0/24', gateway_ip=u'172.18.1.1', comment=None)
+        PolicyRoute(source=u'172.18.2.0/24', destination=u'192.168.3.0/24', gateway_ip=u'172.18.2.1', comment=None)
+        >>> engine.policy_route.delete(source='172.18.2.0/24')
+        >>> engine.update()
+        'http://172.18.1.151:8082/6.4/elements/single_fw/746'
+        >>> for rt in engine.policy_route:
+        ...   rt
+        ... 
+        PolicyRoute(source=u'172.18.1.0/24', destination=u'172.18.1.0/24', gateway_ip=u'172.18.1.1', comment=None)
+
+    :ivar str source: source network/cidr for the route
+    :ivar str destination: destination network/cidr for the route
+    :ivar str gateway_ip: gateway IP address, must be on source network
+    :ivar str comment: optional comment
     """
     def __init__(self, engine):
-        self.engine = engine
-    
+        data = engine.data.get('policy_route')
+        super(PolicyRoute, self).__init__(data, policy_route)
+
     def create(self, source, destination, gateway_ip, comment=None):
         """
-        Each added entry is placed at the bottom of the existing set of rules if
-        any exist.
+        Add a new policy route to the engine.
         
-        :param str source: source address with /netmask, i.e. 1.1.1.1/32
-        :param str destination: destination address with netmask: i.e. 2.2.2.0/24
-        :param str gateway_ip: gateway address: i.e. 1.1.1.254
+        :param str source: network address with /cidr
+        :param str destination: network address with /cidr
+        :param str gateway: IP address, must be on source network
         :param str comment: optional comment
         """
-        self.engine.policy_route.append(
-            {'source': source,
-             'destination': destination,
-             'gateway_ip': gateway_ip,
-             'comment': comment})
+        self.items.append(dict(
+            source=source, destination=destination,
+            gateway_ip=gateway_ip, comment=comment))
     
-    def __iter__(self):
-        for pr in self.engine.policy_route:
-            yield PolicyRouteEntry(**pr)
-                
-    
-class PolicyRouteEntry(collections.namedtuple(
-        'PolicyRouteEntry', 'source destination gateway_ip comment')):
-    """
-    Policy Route for an engine.
-    
-    :param str source: source address with /netmask, i.e. 1.1.1.1/32
-    :param str destination: destination address with netmask: i.e. 2.2.2.0/24
-    :param str gateway: gateway address: i.e. 1.1.1.254
-    :param str comment: optional comment
-    """
-    __slots__ = ()
-    def __new__(cls, source, destination, gateway_ip, comment=None):  # @ReservedAssignment
-        return super(PolicyRouteEntry, cls).__new__(
-            cls, source, destination, gateway_ip, comment)
-    
-    #@property
-    #def delete(self):
-    #    return Element.from_href(self.rule_ref)
-    
+    def delete(self, **kw):
+        """
+        Delete a policy route from the engine. You can delete using a
+        single field or multiple fields for a more exact match.
+        Use a keyword argument to delete a route by any valid attribute.
+        
+        :param kw: use valid Route keyword values to delete by exact match
+        """
+        delete_by = []
+        for field, val in kw.items():
+            if val is not None:
+                delete_by.append(field)
+        
+        self.items[:] = [route for route in self.items
+                         if not all(route.get(field) == kw.get(field)
+                                    for field in delete_by)]
+

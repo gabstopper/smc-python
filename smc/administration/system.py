@@ -18,8 +18,8 @@ To load the configuration for system, do::
     UpdatePackage(name=Update Package 887)
 
 """
-import smc.actions.search as search
 from smc.elements.other import prepare_blacklist
+from smc.api.entry_point import Resource
 from smc.base.model import SubElement, Element, ElementCreator
 from smc.administration.updates import EngineUpgrade, UpdatePackage
 from smc.administration.license import Licenses
@@ -35,7 +35,7 @@ class System(SubElement):
     """
 
     def __init__(self):
-        entry = search.element_entry_point('system')
+        entry = Resource.entry_point.get('system')
         super(System, self).__init__(href=entry)
 
     @property

@@ -12,6 +12,8 @@ The interface hierarchy resembles:
 
 ::
 
+        Interface
+            |
     Physical/Tunnel Interface
             |
             | - PhysicalVlanInterface (is a PhysicalInterface)
@@ -37,7 +39,7 @@ from smc.core.sub_interfaces import (
 from smc.base.util import bytes_to_unicode
 from smc.base.decorators import deprecated
 from smc.elements.helpers import zone_helper, logical_intf_helper
-from smc.base.collection import IndexedIterable
+from smc.base.structs import BaseIterable
 
 
 def dispatch(instance, builder, interface=None):
@@ -338,7 +340,7 @@ class Interface(SubElement):
             >>> assigned.get(vlan_id='2')
             SingleNodeInterface(address=36.35.35.37, vlan_id=2)
         
-        :rtype: IndexedIterable(AllInterfaces)
+        :rtype: BaseIterable(AllInterfaces)
         """
         return AllInterfaces([
             self.vlan_interface, self.interfaces])
@@ -357,7 +359,7 @@ class Interface(SubElement):
             >>> assigned.get(address='20.20.20.20')
             SingleNodeInterface(address=20.20.20.20)
             
-        :rtype: IndexedIterable(SubInterfaceCollection)
+        :rtype: BaseIterable(SubInterfaceCollection)
         """
         return SubInterfaceCollection(self)
 
@@ -380,7 +382,7 @@ class Interface(SubElement):
             >>> assigned.get(vlan_id='2')
             SingleNodeInterface(address=36.35.35.37, vlan_id=2)
 
-        :rtype: IndexedIterable(PhysicalVlanInterface)
+        :rtype: BaseIterable(PhysicalVlanInterface)
         """
         return VlanCollection(self)
         
@@ -688,6 +690,7 @@ class Interface(SubElement):
                 
                 if interface.has_interfaces:
                     for sub_interface in interface.interfaces:
+                        
                         if isinstance(sub_interface, InlineInterface):
                             sub_interface.change_interface_id(interface_id)
                         else:
@@ -707,7 +710,8 @@ class Interface(SubElement):
         """
         Read only name tag
         """
-        return self.data.get('name')
+        name = super(Interface, self).name
+        return name if name else self.data.get('name')
     
     @property
     def zone_ref(self):
@@ -1845,7 +1849,7 @@ class VirtualPhysicalInterface(PhysicalInterface):
     typeof = 'virtual_physical_interface'
 
 
-class AllInterfaces(IndexedIterable):
+class AllInterfaces(BaseIterable):
     """
     Iterable for obtaining all Sub Interfaces for PhysicalInterface
     types. This is a iterable over a VPNCollection and SubInterfaceCollection.
@@ -1894,7 +1898,7 @@ class AllInterfaces(IndexedIterable):
         return None
 
 
-class VlanCollection(IndexedIterable):
+class VlanCollection(BaseIterable):
     """
     A collection of VLAN interfaces. This will return
     PhysicalVlanInterface types that will inherit from PhysicalInterface.

@@ -4,8 +4,10 @@ Module that represents server based configurations
 from smc.base.model import SubElement, ElementCreator
 from smc.elements.helpers import location_helper
 from smc.base.model import Element
+from smc.base.structs import SerializedIterable
 
-
+    
+    
 class ContactAddress(object):
     """
     A ContactAddress for server elements such as Management Server and
@@ -17,7 +19,7 @@ class ContactAddress(object):
     @property
     def addresses(self):
         """
-        Address for contact address
+        List of addresses set as contact address
         
         :rtype: list
         """
@@ -34,7 +36,7 @@ class ContactAddress(object):
         
         :rtype: str
         """
-        return Element.from_href(self.data['location_ref']).name
+        return Element.from_href(self.location_ref).name
     
     def __repr__(self):
         return '{}(location={},addresses={})'.format(
@@ -42,40 +44,35 @@ class ContactAddress(object):
             self.addresses)
 
 
-class ServerContactAddress(SubElement):
+class MultiContactAddress(SubElement):
+    def __len__(self):
+        return len(self.data.get('multi_contact_addresses', []))
+    
     def __iter__(self):
-        if self.data:
-            for contact in self.data['multi_contact_addresses']:
-                yield ContactAddress(**contact)
-        
+        for ca in SerializedIterable(
+            self.data.get('multi_contact_addresses', []), ContactAddress):
+            yield ca
+    
     def add(self, contact_address, location):
         location = location_helper(location)
-        if self.data:
-            seen = False
-            for address in self.data['multi_contact_addresses']:
-                if address['location_ref'] == location:
-                    if contact_address not in address['addresses']:
-                        address['addresses'].append(contact_address)
-                    seen = True
-                    break
-            if not seen:
-                self.data['multi_contact_addresses'].append(
-                    {'addresses': [contact_address],
-                     'location_ref': location})       
-        else:
-            self.data['multi_contact_addresses'] = \
-                [{'addresses': [contact_address],
-                  'location_ref': location}]
+        updated = False
+        for loc in self:
+            if loc.location_ref == location:
+                if contact_address not in loc.addresses:
+                    loc.data['addresses'].append(contact_address)
+                updated = True
+        if not updated:
+            self.data.setdefault('multi_contact_addresses', []).append(
+                dict(addresses=[contact_address],
+                     location_ref=location))
         self.update()
 
     def remove_by_location(self, location):
         if len(self.data):
             location = location_helper(location)
-            contact = self.data['multi_contact_addresses']
-            addresses = [locations for locations in contact
-                         if locations['location_ref'] != location]
-            contact = addresses
-            self.data['multi_contact_addresses'] = addresses
+            data = [loc.data for loc in self
+                    if loc.location_ref != location]
+            self.data['multi_contact_addresses'] = data
             self.update()
 
         
@@ -88,10 +85,9 @@ class ServerCommon(object):
         :return: contact addresses
         :rtype: list(ContactAddress)
         """
-        contact = ServerContactAddress(
+        return MultiContactAddress(
             href=self.get_relation('contact_addresses'))
-        return [c for c in contact]
-
+        
     def add_contact_address(self, contact_address, location):
         """
         Add a contact address to the Log Server::
@@ -105,10 +101,9 @@ class ServerCommon(object):
         :raises ModificationFailed: failed adding contact address
         :return: None
         """
-        contact = ServerContactAddress(
-            href=self.get_relation('contact_addresses'))
+        contact = self.contact_addresses()
         contact.add(contact_address, location)
-    
+
     def remove_contact_address(self, location):
         """
         Remove contact address by name of location. You can obtain all contact
@@ -119,8 +114,7 @@ class ServerCommon(object):
         :raises ModificationFailed: failed removing contact address
         :return: None
         """
-        contact = ServerContactAddress(
-            href=self.get_relation('contact_addresses'))
+        contact = self.contact_addresses()
         contact.remove_by_location(location)
 
        
@@ -136,7 +130,9 @@ class ManagementServer(ServerCommon, Element):
         >>> ManagementServer.objects.first()
         ManagementServer(name=Management Server)
 
-    :param name: name of management server
+    :ivar name: name of management server
+    :ivar address: address of Management Server
+    
     """
     typeof = 'mgt_server'
 

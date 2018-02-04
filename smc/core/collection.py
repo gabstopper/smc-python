@@ -5,7 +5,7 @@ Collections classes for core based functionality like interfaces.
 from smc.core.interfaces import PhysicalInterface, TunnelInterface, \
     VirtualPhysicalInterface, InterfaceModifier
 from smc.core.sub_interfaces import LoopbackClusterInterface, LoopbackInterface
-from smc.base.collection import IndexedIterable
+from smc.base.structs import BaseIterable
 from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound
 
 
@@ -24,7 +24,7 @@ def get_all_loopbacks(engine):
     return data
 
 
-class LoopbackCollection(IndexedIterable):
+class LoopbackCollection(BaseIterable):
     """
     An loopback collection provides top level search capabilities
     to iterate or get loopback interfaces from a given engine.
@@ -81,7 +81,7 @@ class LoopbackCollection(IndexedIterable):
             'following engine type: %s' % (key, self._engine.type))
         
 
-class InterfaceCollection(IndexedIterable):
+class InterfaceCollection(BaseIterable):
     """
     An interface collection provides top level search capabilities
     to iterate or get interfaces of the specified type. This also

@@ -1,4 +1,3 @@
-from smc.compat import min_smc_version
 from smc.elements.helpers import domain_helper, location_helper
 from smc.base.model import Element, \
     SubElement, lookup_class, SubElementCreator
@@ -14,7 +13,7 @@ from smc.elements.network import Alias
 from smc.vpn.elements import VPNSite
 from smc.routing.bgp import BGP
 from smc.routing.ospf import OSPF, OSPFProfile
-from smc.core.route import Antispoofing, Routing, Routes, PolicyRoute
+from smc.core.route import Antispoofing, Routing, Route, PolicyRoute
 from smc.core.contact_address import ContactAddressCollection
 from smc.core.properties import AntiVirus, Layer2Settings, FileReputation,\
     SidewinderProxy, UrlFiltering, Sandbox, TLSInspection, DNSAddress,\
@@ -25,6 +24,7 @@ from smc.base.util import element_resolver
 from smc.administration.access_rights import AccessControlList
 from smc.base.decorators import cacheable_resource
 from smc.administration.certificates.vpn import GatewayCertificate
+from smc.base.structs import BaseIterable
 
 
 class Engine(Element):
@@ -122,9 +122,8 @@ class Engine(Element):
                 'file_reputation_context': 'gti_cloud_only'}}
             base_cfg.update(gti)
 
-        if min_smc_version(6.1):
-            if sidewinder_proxy_enabled:
-                base_cfg.update(sidewinder_proxy_enabled=True)
+        if sidewinder_proxy_enabled:
+            base_cfg.update(sidewinder_proxy_enabled=True)
 
         if default_nat:
             base_cfg.update(default_nat=True)
@@ -592,19 +591,16 @@ class Engine(Element):
                     'network': network})
 
     @property
-    def policy_routing(self):
+    def policy_route(self):
         """
-        Configure policy based routes on the engine. The
-        policy_routing node is also iterable and yields
-        instances of :class:`smc.core.route.PolicyRouteEntry`.
+        Configure policy based routes on the engine.
         ::
             
-            engine.policy_routing.create(
-                source='172.18.1.150/32', 
-                destination='8.8.8.8/32',
-                gateway_ip='10.0.0.1')
+            engine.policy_route.create(
+                source='172.18.2.0/24', destination='192.168.3.0/24',
+                gateway_ip='172.18.2.1')
         
-        :rtype: PolicyRoute  
+        :rtype: PolicyRoute
         """
         if 'policy_route' in self.data:
             return PolicyRoute(self)
@@ -640,20 +636,23 @@ class Engine(Element):
 
         Find all routes for engine resource::
 
-            engine = Engine('myengine')
-            for route in engine.routing_monitoring.all():
-                print route
+            >>> engine = Engine('sg_vm')
+            >>> for route in engine.routing_monitoring:
+            ...   route
+            ... 
+            Route(route_network=u'0.0.0.0', route_netmask=0, route_gateway=u'10.0.0.1', route_type=u'Static', dst_if=1, src_if=-1)
+            ...
 
         :raises EngineCommandFailed: routes cannot be retrieved
         :return: list of route elements
-        :rtype: Routes
+        :rtype: SerializedIterable(Route)
         """
         try:
             result = self.make_request(
                 EngineCommandFailed,
                 resource='routing_monitoring')
             
-            return Routes(result)
+            return Route(result)
         except SMCConnectionError:
             raise EngineCommandFailed('Timed out waiting for routes')
 
@@ -718,6 +717,24 @@ class Engine(Element):
         """
         return self.vpn.internal_endpoint
 
+    @property
+    def vpn_mappings(self):
+        """
+        .. versionadded:: 0.6.0
+            Requires SMC version >= 6.3.4
+        
+        VPN policy mappings (by name) for this engine. This is a shortcut
+        method to determine which VPN policies are used by the firewall.
+        
+        :raises UnsupportedEngineFeature: requires a layer 3 firewall and
+            SMC version >= 6.3.4.
+        :rtype: BaseIterable(PolicyVPN)
+        """
+        return VPNMapping(
+            self.make_request(
+                UnsupportedEngineFeature,
+                resource='vpn_mapping'))
+            
     @property
     def virtual_resource(self):
         """
@@ -1000,6 +1017,17 @@ class Engine(Element):
             lookup_class(self.type).__name__, self.name)
 
 
+class VPNMapping(BaseIterable):
+    def __init__(self, vpns):
+        mappings = vpns.get('vpnMappings')
+        super(VPNMapping, self).__init__(mappings)
+    
+    def __iter__(self):
+        for entry in self.items:
+            vpn_mapping = entry.get('vpn_mapping_entry')
+            yield Element.from_href(vpn_mapping.get('vpn_ref'))
+                
+    
 class VPN(object):
     """
     VPN is the top level interface to all engine based VPN settings.
