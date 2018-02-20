@@ -337,7 +337,7 @@ def multilink_member(netlink, nat_range, netlink_network=None,
     :param StaticNetlink netlink: netlink element for multilink member
     :param str nat_range: ip address range to use for NAT. This needs
         to be a range in the same network defined in the netlink
-    :param str,Element: netlink_network: netlink network when multiple
+    :param str,Element netlink_network: netlink network when multiple
         networks are defined within a netlink. Only one network can be
         defined for each multilink member.
     :param str netlink_role: role for this netlink member. Values can

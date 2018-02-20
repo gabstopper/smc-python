@@ -9,7 +9,7 @@ with open('HISTORY.rst') as f:
 
     
 setup(name='smc-python',
-      version='0.6.0',
+      version='0.6.1-dev.201802192256',
       description='Python based API to Stonesoft Security Management Center',
       long_description=readme + '\n\n' + history,
       url='http://github.com/gabstopper/smc-python',
@@ -18,8 +18,7 @@ setup(name='smc-python',
       license='Apache 2.0',
       packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
       install_requires=[
-        'requests>=2.12.0',
-	    'ipaddress'
+        'requests>=2.12.0'
       ],
       include_package_data=True,
       classifiers=[

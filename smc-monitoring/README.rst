@@ -17,6 +17,7 @@ The smc-python-monitoring API makes it possible to obtain real time monitoring i
 * Users
 * SSL VPN Users
 * VPNs
+* Alerts
 
 This correlates to the area of the SMC under "Monitoring".
 
@@ -181,6 +182,14 @@ Obtain all SSL VPN connections for a given engine, output in table format:
 	for record in query.fetch_batch(TableFormat):
 	    print(record)
 
+Obtain all active alerts from the Shared Domain:
+
+.. code:: python
+
+	query = ActiveAlertQuery('Shared Domain', timezone='America/Chicago')
+	for record in query.fetch_batch():
+        print(record)
+ 	
 	    
 Subscribing to Events
 +++++++++++++++++++++

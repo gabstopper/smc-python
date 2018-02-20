@@ -43,13 +43,15 @@ class TCPService(ProtocolAgentMixin, Element):
 
     @classmethod
     def create(cls, name, min_dst_port, max_dst_port=None,
-               comment=None):
+               min_src_port=None, max_src_port=None, comment=None):
         """
         Create the TCP service
 
         :param str name: name of tcp service
         :param int min_dst_port: minimum destination port value
         :param int max_dst_port: maximum destination port value
+        :param int min_src_port: minimum source port value
+        :param int max_src_port: maximum source port value
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
         :rtype: TCPService
@@ -58,6 +60,8 @@ class TCPService(ProtocolAgentMixin, Element):
         json = {'name': name,
                 'min_dst_port': min_dst_port,
                 'max_dst_port': max_dst_port,
+                'min_src_port': min_src_port,
+                'max_src_port': max_src_port,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -79,19 +83,21 @@ class UDPService(ProtocolAgentMixin, Element):
     :ivar int min_dst_port: starting destination port for this service. If the
         service is a single port service, use only this field
     :ivar int max_dst_port: used in conjunction with min_dst_port for creating a
-        port range service.
+        port range service
     """
     typeof = 'udp_service'
 
     @classmethod
     def create(cls, name, min_dst_port, max_dst_port=None,
-               comment=None):
+               min_src_port=None, max_src_port=None, comment=None):
         """
         Create the UDP Service
 
         :param str name: name of udp service
         :param int min_dst_port: minimum destination port value
         :param int max_dst_port: maximum destination port value
+        :param int min_src_port: minimum source port value
+        :param int max_src_port: maximum source port value
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
         :rtype: UDPService
@@ -100,6 +106,8 @@ class UDPService(ProtocolAgentMixin, Element):
         json = {'name': name,
                 'min_dst_port': min_dst_port,
                 'max_dst_port': max_dst_port,
+                'min_src_port': min_src_port,
+                'max_src_port': max_src_port,
                 'comment': comment}
 
         return ElementCreator(cls, json)

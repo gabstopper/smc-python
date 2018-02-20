@@ -123,4 +123,18 @@ Release History
 - TLS Server Credential elements support valid_from, valid_to
 - current_user property added to session to derive the logged on user from the API client key
   
+0.6.1
+-----
 
+**Tested SMC Version**
+
+- Support for SMC 6.3.4, 6.4.0
+- ReportDesign.generate takes new arguments for start_time, end_time and senders to specify the timeframe
+  to run the report and any filters
+- Improved readability of debug logging
+- Fetch by VLAN id in format '1.10' for interface 1, vlan 10. Using engine.interface.get('1.10')
+- Removed dependency on third party ipaddress module
+- Layer3Firewall and FirewallCluster can now take an additional `interfaces` argument to define additional
+  interfaces to create when creating a single or cluster FW. VLANs definitions are also supported.
+- Create rule sections in all supported rule types, comments for rules
+ 

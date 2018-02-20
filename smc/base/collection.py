@@ -243,7 +243,7 @@ def sub_collection(href, cls):
     using the SubElement constructor.
     """
     return type(
-        cls.__name__, (SubElementCollection,), {})(href, cls)
+        cls.__name__, (CreateCollection,), {})(href, cls)
 
 
 def create_collection(href, cls):
@@ -262,9 +262,27 @@ def create_collection(href, cls):
     instance = cls(href=href)
     meth = getattr(instance, 'create')
     return type(
-         cls.__name__, (CreateCollection,), {'create': meth})(href, cls)
+         cls.__name__, (SubElementCollection,), {'create': meth})(href, cls)
 
 
+def rule_collection(href, cls):
+    """
+    Rule collections insert a ``create`` and ``create_rule_section`` method
+    into the collection.
+    
+    Create method is inserted dynamically for the collection class type.
+    See the class types documentation, or use help().
+
+    :rtype: SubElementCollection
+    """
+    instance = cls(href=href)
+    meth = getattr(instance, 'create')
+    return type( 
+        cls.__name__, (SubElementCollection,), {
+            'create': meth,
+            'create_rule_section': instance.create_rule_section})(href, cls)
+
+                
 def _strip_metachars(val):
     """
     When a filter uses a / or - in the search, only the elements

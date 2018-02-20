@@ -449,7 +449,8 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
     def create(self, name, sources=None, destinations=None, services=None,
                dynamic_src_nat=None, dynamic_src_nat_ports=(1024, 65535),
                static_src_nat=None, static_dst_nat=None,
-               static_dst_nat_ports=None, is_disabled=False, used_on=None):
+               static_dst_nat_ports=None, is_disabled=False, used_on=None,
+               add_pos=None, after=None, before=None, comment=None):
         """
         Create a NAT rule.
 
@@ -477,6 +478,15 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         :param str used_on: href or Element (of security engine) where this
             NAT rule applies, Default: Any
         :type used_on: str,Element
+        :param int add_pos: position to insert the rule, starting with position 1. If
+            the position value is greater than the number of rules, the rule is inserted at
+            the bottom. If add_pos is not provided, rule is inserted in position 1. Mutually
+            exclusive with ``after`` and ``before`` params.
+        :param str after: Rule tag to add this rule after. Mutually exclusive with ``add_pos``
+            and ``before`` params.
+        :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
+            and ``after`` params.
+        :param str comment: optional comment for the NAT rule
         :raises InvalidRuleValue: if rule requirements are not met
         :raises CreateRuleFailed: rule creation failure
         :return: newly created NAT rule
@@ -518,12 +528,20 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         if 'options' not in rule_values:  # No NAT
             rule_values.update(options=options.data)
 
-        rule_values.update(used_on=used_on)
+        rule_values.update(used_on=used_on, comment=comment)
         
+        params = None
+        href = self.href
+        if add_pos is not None:
+            href = self.add_at_position(add_pos)
+        elif before or after:
+            params = self.add_before_after(before, after)
+            
         return SubElementCreator(
             self.__class__,
             CreateRuleFailed,
-            href=self.href,
+            href=href,
+            params=params,
             json=rule_values)
 
 

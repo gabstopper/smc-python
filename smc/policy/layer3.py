@@ -42,9 +42,9 @@ from smc.api.exceptions import CreatePolicyFailed, ElementNotFound, LoadPolicyFa
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Rule, IPv6Rule
 from smc.policy.rule_nat import IPv4NATRule, IPv6NATRule
-from smc.base.collection import create_collection
+from smc.base.collection import rule_collection
 
-
+                
 class FirewallRule(object):
     """
     Encapsulates all references to firewall rule related entry
@@ -56,9 +56,9 @@ class FirewallRule(object):
         """
         IPv4 rule entry point
 
-        :rtype: CreateCollection(IPv4Rule)
+        :rtype: SubElementCollection(IPv4Rule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('fw_ipv4_access_rules'),
             IPv4Rule)
 
@@ -67,9 +67,9 @@ class FirewallRule(object):
         """
         IPv4NAT Rule entry point
 
-        :rtype: CreateCollection(IPv4NATRule)
+        :rtype: SubElementCollection(IPv4NATRule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('fw_ipv4_nat_rules'),
             IPv4NATRule)
 
@@ -78,9 +78,9 @@ class FirewallRule(object):
         """
         IPv6 Rule entry point
 
-        :rtype: CreateCollection(IPv6Rule)
+        :rtype: SubElementCollection(IPv6Rule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('fw_ipv6_access_rules'),
             IPv6Rule)
 
@@ -89,9 +89,9 @@ class FirewallRule(object):
         """
         IPv6NAT Rule entry point
 
-        :rtype: CreateCollection(IPv6NATRule)
+        :rtype: SubElementCollection(IPv6NATRule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('fw_ipv6_nat_rules'),
             IPv6NATRule)
 
@@ -191,9 +191,9 @@ class FirewallSubPolicy(Policy):
         """
         IPv4 rule entry point
 
-        :rtype: CreateCollection(IPv4Rule)
+        :rtype: SubElementCollection(IPv4Rule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('fw_ipv4_access_rules'),
             IPv4Rule)
 

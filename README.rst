@@ -54,10 +54,6 @@ Specific version:
 
 ``pip install smc-python>=0.5.8``
 
-If you are installing directly from git or tarball, you will be installing
-the latest dev branch. The dev branch does undergo unittest prior to push,
-however it is likely coverage will not be as complete as a released version.
-
 From git:
 
 ``pip install git+https://github.com/gabstopper/smc-python.git``

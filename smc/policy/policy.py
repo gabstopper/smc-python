@@ -57,32 +57,6 @@ class Policy(Element):
         return Task.execute(self, 'upload', params={'filter': engine},
             timeout=timeout, wait_for_finish=wait_for_finish, **kw)
 
-    def open(self):
-        """
-        Open policy locks the current policy, Use when making multiple
-        edits that may require more time. Simple create or deleting elements
-        generally can be done without locking via open.
-        This is only used in SMC API 6.0 and below
-
-        :raises PolicyCommandFailed: Cannot open policy
-        :return: None
-        """
-        self.make_request(
-            PolicyCommandFailed,
-            method='create',
-            resource='open')
-
-    def save(self):
-        """ Save policy that was modified
-        This is only used in SMC API v6.0 and below.
-
-        :return: None
-        """
-        self.make_request(
-            PolicyCommandFailed,
-            method='create',
-            resource='save')
-
     def force_unlock(self):
         """
         Forcibly unlock a locked policy
@@ -115,13 +89,14 @@ class Policy(Element):
         if result:
             results = []
             for data in result:
-                if 'ethernet' in data.get('type'):
+                typeof = data.get('type')
+                if 'ethernet' in typeof:
                     klazz = lookup_class('ethernet_rule')
-                elif data.get('type') in [
+                elif typeof in [
                     'ips_ipv4_access_rule', 'l2_interface_ipv4_access_rule']:
                     klazz = lookup_class('layer2_ipv4_access_rule')
                 else:
-                    klazz = lookup_class(data.get('type'))
+                    klazz = lookup_class(typeof)
                 results.append(klazz(**data))
             return results
         return []
@@ -156,8 +131,7 @@ class Policy(Element):
         
         :return :class:`smc.policy.file_filtering.FileFilteringPolicy`
         """
-        if 'file_filtering_policy' in self.data: # Workaround for SMC 6.3
-            return Element.from_href(self.data['file_filtering_policy'])
+        return Element.from_href(self.data.get('file_filtering_policy'))
     
     def rule_counters(self, engine, duration_type='one_week',
             duration=0, start_time=0):
@@ -210,14 +184,20 @@ class RuleCounter(collections.namedtuple(
     
     :param int hits: hits for this given rule
     :param rule_ref: rule reference to obtain the rule
+    :param Rule rule: resolved rule_ref to element
     :param total_hits: total number of hits over the duration
     """
     __slots__ = ()
-    
     def __new__(cls, rule_ref, hits=0, total_hits=0):  # @ReservedAssignment
         return super(RuleCounter, cls).__new__(cls, hits, rule_ref, total_hits)
     
     @property
     def rule(self):
+        """
+        Return the Rule element for this rule counter. A rule may be from
+        the policy or the policy template.
+        
+        :rtype: Rule
+        """
         return Element.from_href(self.rule_ref)
 

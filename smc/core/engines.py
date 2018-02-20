@@ -28,10 +28,29 @@ class Layer3Firewall(Engine):
                enable_antivirus=False, enable_gti=False,
                location_ref=None, enable_ospf=False,
                sidewinder_proxy_enabled=False,
-               ospf_profile=None):
+               ospf_profile=None, **kw):
         """ 
-        Create a single layer 3 firewall with management interface and DNS
-
+        Create a single layer 3 firewall with management interface and DNS. 
+        Provide the `interfaces` keyword argument if adding multiple additional interfaces.
+        Interfaces can be one of any valid interface for a layer 3 firewall. Unless the
+        interface type is specified, physical_interface is assumed.
+        
+        Valid interface types:
+            - physical_interface (default if not specified)
+            - tunnel_interface
+    
+        Example interfaces format::
+        
+            {'interface_id': 1},
+            {'interface_id': 2, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'zone_ref': 'myzone'},
+            {'interface_id': 1000, 'address': '10.10.10.1', 'network_value': '10.10.10.0/24', 'type': 'tunnel_interface'}
+        
+         It is also possible to add VLAN interfaces in the following format::
+         
+            {'interface_id': 2, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'vlan_id': 10},
+            {'interface_id': 2, 'address':'3.3.3.3', 'network_value': '3.3.3.0/24', 'vlan_id': 11, 'zone_ref': 'myzone'},
+            {'interface_id': 3, 'vlan_id': 12, 'zone_ref': 'myzone'}
+                  
         :param str name: name of firewall engine
         :param str mgmt_ip: ip address of management interface
         :param str mgmt_network: management network in cidr format
@@ -47,7 +66,8 @@ class Layer3Firewall(Engine):
         :param bool sidewinder_proxy_enabled: Enable Sidewinder proxy functionality
         :param str location_ref: location href for engine if needed to contact SMC behind NAT
         :param bool enable_ospf: whether to turn OSPF on within engine
-        :param str ospf_profile: optional OSPF profile to use on engine, by ref   
+        :param str ospf_profile: optional OSPF profile to use on engine, by ref
+        :param kw: optional keyword arguments specifying additional interfaces  
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -60,107 +80,63 @@ class Layer3Firewall(Engine):
             reverse_connection=reverse_connection)
         builder.zone = zone_ref
 
-        engine = super(Layer3Firewall, cls)._create(
-            name=name,
-            node_type='firewall_node',
-            physical_interfaces=[{'physical_interface': builder.data}],
-            domain_server_address=domain_server_address,
-            log_server_ref=log_server_ref,
-            nodes=1, enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
-            sidewinder_proxy_enabled=sidewinder_proxy_enabled,
-            default_nat=default_nat,
-            location_ref=location_ref,
-            enable_ospf=enable_ospf,
-            ospf_profile=ospf_profile)
-
-        try:
-            return ElementCreator(cls, json=engine)
-        
-        except CreateElementFailed as e:
-            raise CreateEngineFailed(e)
-    
-    @classmethod
-    def create_with_many(cls, name, interfaces, mgmt_interface=0,
-                         log_server_ref=None,
-                         default_nat=False,
-                         domain_server_address=None,
-                         enable_antivirus=False, enable_gti=False,
-                         location_ref=None, enable_ospf=False,
-                         sidewinder_proxy_enabled=False,
-                         ospf_profile=None):
-        """
-        Create a firewall with multiple interfaces. Provide the interfaces as a list
-        of interfaces. Interfaces can be one of any valid interface for a layer 3
-        firewall. Unless the interface type is specified, physical_interface is assumed.
-        
-        Valid interface types:
-            - physical_interface (default if not specified)
-            - tunnel_interface
-    
-        Example interfaces format::
-        
-            {'interface_id': 1},
-            {'interface_id': 2, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'zone_ref': 'myzone'},
-            {'interface_id': 1000, 'address': '10.10.10.1', 'network_value': '10.10.10.0/24', 'type': 'tunnel_interface'}
-        
-        Create a single layer 3 firewall with management interface and DNS
-
-        :param str name: name of firewall engine
-        :param int mgmt_interface: management interface id (default: 0)
-        :param list interfaces: list of interface definitions
-        :param str log_server_ref: (optional) href to log_server instance for fw
-        :param list domain_server_address: (optional) DNS server addresses
-        :param str zone_ref: zone name, str href or Zone for management interface
-            (created if not found)
-        :param bool default_nat: (optional) Whether to enable default NAT for outbound
-        :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param bool enable_gti: (optional) Enable GTI
-        :param bool sidewinder_proxy_enabled: Enable Sidewinder proxy functionality
-        :param str location_ref: location href for engine if needed to contact SMC behind NAT
-        :param bool enable_ospf: whether to turn OSPF on within engine
-        :param str ospf_profile: optional OSPF profile to use on engine, by ref
-        :raises ValueError: Failed to provide required parameters  
-        :raises CreateEngineFailed: Failure to create with reason
-        :return: :py:class:`smc.core.engine.Engine`    
-        """
-        interface_list = []                
-        for interface in interfaces:
-            if 'interface_id' not in interface:
-                raise ValueError('Interface_id is a required field when defining interfaces.')
-            if interface.get('type', None) == 'tunnel_interface':
-                if 'address' not in interface or 'network_value' not in interface:
-                    raise ValueError('Tunnel interfaces require an address and network_value')
-                
-                builder = InterfaceBuilder(None)
-                builder.interface_id = interface['interface_id']
-                builder.zone = interface.get('zone_ref', None)
-                builder.add_sni_only(
-                    address=interface['address'],
-                    network_value=interface['network_value'])
-    
-                interface_list.append({'tunnel_interface': builder.data})
-            else:
-                if 'address' in interface and 'network_value' in interface:
-                    builder = InterfaceBuilder()
-                    builder.interface_id = interface['interface_id']
-                    builder.zone = interface.get('zone_ref', None)
-                    builder.add_sni_only(
-                        address=interface['address'],
-                        network_value=interface['network_value'],
-                        is_mgmt=True if interface['interface_id'] == mgmt_interface else False,
-                        reverse_connection=interface.get('reverse_connection', False))
-                else:
-                    builder = InterfaceBuilder() 
-                    builder.interface_id = interface['interface_id']
-                    builder.zone = interface.get('zone_ref', None)
+        physical_interfaces = [{'physical_interface': builder.data}]
             
-                interface_list.append({'physical_interface': builder.data})
-        
+        if 'interfaces' in kw:
+            vlans = {} # Store VLAN interface builders in case multiple VLANs are added
+            for interface in kw['interfaces']:
+                interface_id = interface.get('interface_id')
+                if interface_id is None:
+                    raise ValueError('Interface_id is a required field when defining interfaces.')
+                
+                # Build interface
+                if interface.get('type', None) is 'tunnel_interface':
+                    if 'address' not in interface or 'network_value' not in interface:
+                        raise ValueError('Tunnel interfaces require an address and network_value')
+                    builder = InterfaceBuilder(None) # TunnelInterface
+                else:
+                    builder = InterfaceBuilder()
+            
+                builder.interface_id = interface_id
+                if 'vlan_id' in interface:
+                    # Grab the stored VLAN builder if any
+                    if interface_id in vlans:
+                        builder = vlans.get(interface_id)
+                    
+                    if 'address' in interface and 'network_value' in interface:
+                        builder.add_sni_to_vlan(
+                            address=interface.get('address'),
+                            network_value=interface.get('network_value'),
+                            vlan_id=interface.get('vlan_id'),
+                            nodeid=1,
+                            zone_ref=interface.get('zone_ref'))
+                    else:  # VLAN only
+                        builder.add_vlan_only(
+                            vlan_id=interface.get('vlan_id'),
+                            zone_ref=interface.get('zone_ref'))
+                    # Save builder
+                    vlans[interface_id] = builder
+                else:
+                    builder.zone = interface.get('zone_ref', None)
+                    if 'address' in interface and 'network_value' in interface:
+                        builder.add_sni_only(
+                            address=interface['address'],
+                            network_value=interface['network_value'])
+                    # else Blank interface, no IP addresses
+                       
+                    if interface.get('type', None) is 'tunnel_interface':
+                        physical_interfaces.append({'tunnel_interface': builder.data})
+                    else:
+                        physical_interfaces.append({'physical_interface': builder.data})
+            
+            if vlans:
+                for _, builder in vlans.items():
+                    physical_interfaces.append({'physical_interface': builder.data})        
+
         engine = super(Layer3Firewall, cls)._create(
             name=name,
             node_type='firewall_node',
-            physical_interfaces=interface_list,
+            physical_interfaces=physical_interfaces,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=1, enable_gti=enable_gti,
@@ -170,13 +146,13 @@ class Layer3Firewall(Engine):
             location_ref=location_ref,
             enable_ospf=enable_ospf,
             ospf_profile=ospf_profile)
-
+    
         try:
             return ElementCreator(cls, json=engine)
         
         except CreateElementFailed as e:
             raise CreateEngineFailed(e)
-        
+    
     @classmethod
     def create_dynamic(cls, name, interface_id,
                        dynamic_index=1,
@@ -457,22 +433,26 @@ class FirewallCluster(Engine):
     typeof = 'fw_cluster'
 
     @classmethod
-    def create(cls, name, cluster_virtual, cluster_mask,
-               macaddress, cluster_nic, nodes,
+    def create(cls, name, cluster_virtual, network_value,
+               macaddress, interface_id, nodes,
                cluster_mode='balancing',
                log_server_ref=None,
                domain_server_address=None,
                zone_ref=None, default_nat=False,
-               enable_antivirus=False, enable_gti=False):
+               enable_antivirus=False, enable_gti=False, **kw):
         """
          Create a layer 3 firewall cluster with management interface and any number
-         of nodes
-
+         of nodes. If providing keyword arguments to create additional interfaces,
+         the constructor created interface will represent the management interface.
+        
+        .. versionchanged:: 0.6.1
+            Chgnged `cluster_nic` to `interface_id`, and `cluster_mask` to `network_value`
+        
         :param str name: name of firewall engine
         :param cluster_virtual: ip of cluster CVI
-        :param cluster_mask: ip netmask of cluster CVI
+        :param network_value: ip netmask of cluster CVI
         :param macaddress: macaddress for packet dispatch clustering
-        :param cluster_nic: nic id to use for primary interface
+        :param interface_id: nic id to use for primary interface
         :param list nodes: address/network_value/nodeid combination for cluster nodes
         :param str cluster_mode: 'balancing' or 'standby' mode (default: balancing)
         :param str log_server_ref: (optional) href to log_server instance 
@@ -481,6 +461,7 @@ class FirewallCluster(Engine):
             (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
         :param bool enable_gti: (optional) Enable GTI
+        :param list interfaces: optional keyword to supply additional interfaces
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
 
@@ -489,22 +470,99 @@ class FirewallCluster(Engine):
             [{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
              {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2},
              {'address':'5.5.5.4', 'network_value':'5.5.5.0/24', 'nodeid':3}]
-
+        
+        You can also create additional CVI+NDI, or NDI only interfaces by providing
+        the keyword argument interfaces using the same keyword values from the
+        constructor::
+        
+            interfaces=[
+               {'cluster_virtual': '2.2.2.1',
+                'network_value': '2.2.2.0/24',
+                'macaddress': '02:02:02:02:02:03',
+                'interface_id': 1,
+                'nodes':[{'address': '2.2.2.2', 'network_value': '2.2.2.0/24', 'nodeid': 1},
+                         {'address': '2.2.2.3', 'network_value': '2.2.2.0/24', 'nodeid': 2}]
+                },
+               {'interface_id': 2,
+                'nodes':[{'address': '3.3.3.2', 'network_value': '3.3.3.0/24', 'nodeid': 1},
+                         {'address': '3.3.3.3', 'network_value': '3.3.3.0/24', 'nodeid': 2}]
+                }]
+        
+        It is also possible to define VLAN interfaces by providing the `vlan_id` keyword.
+        Example VLAN with NDI only interfaces::
+        
+            interfaces=[
+               {'interface_id': 2,
+                'nodes':[{'address': '3.3.3.2', 'network_value': '3.3.3.0/24', 'nodeid': 1},
+                         {'address': '3.3.3.3', 'network_value': '3.3.3.0/24', 'nodeid': 2}],
+                'vlan_id': 22,
+                'zone_ref': 'private-network'
+                }]
+            
+        .. note:: If creating additional interfaces, you must at minimum
+            `interface_id` and `nodes` to create an NDI only interface.
+                                
         """
         builder = InterfaceBuilder()
-        builder.interface_id = cluster_nic
+        builder.interface_id = interface_id
         builder.macaddress = macaddress
         builder.cvi_mode = 'packetdispatch'
         builder.zone = zone_ref
-        builder.add_cvi_only(cluster_virtual, cluster_mask, is_mgmt=True)
+        builder.add_cvi_only(cluster_virtual, network_value, is_mgmt=True)
         for node in nodes:
             node.update(is_mgmt=True)
             builder.add_ndi_only(**node)
-
+        
+        physical_interfaces = [{'physical_interface': builder.data}]
+        
+        # Optional additional interfaces
+        if 'interfaces' in kw:
+            vlans = {} # Store VLAN interface builders in case multiple VLANs are added
+            for interface in kw['interfaces']:
+                interface_id = interface.get('interface_id')
+    
+                if 'vlan_id' in interface and interface_id in vlans:
+                    builder = vlans.get(interface_id)
+                else:
+                    builder = InterfaceBuilder()
+                    builder.interface_id = interface_id
+                
+                if interface.get('cluster_virtual') and interface.get('network_value'):
+                    # You must provide a macaddress for a CVI or this will fail
+                    builder.macaddress = interface.get('macaddress')
+                    builder.cvi_mode = 'packetdispatch'
+                    if 'vlan_id' in interface:
+                        builder.add_cvi_to_vlan(
+                            address=interface['cluster_virtual'],
+                            network_value=interface['network_value'],
+                            vlan_id=interface['vlan_id'],
+                            zone_ref=interface.get('zone_ref', None))
+                    else:
+                        builder.zone = interface.get('zone_ref', None)
+                        builder.add_cvi_only(
+                            address=interface.get('cluster_virtual'),
+                            network_value=interface.get('network_value'))
+    
+                for node in interface.get('nodes'):
+                    if 'vlan_id' in interface:
+                        node.update(vlan_id=interface['vlan_id'])
+                        builder.add_ndi_to_vlan(**node)
+                    else:
+                        builder.add_ndi_only(**node)
+                
+                if 'vlan_id' in interface:
+                    vlans[interface_id] = builder
+                else:
+                    physical_interfaces.append({'physical_interface': builder.data})
+            
+            if vlans:
+                for _, builder in vlans.items(): 
+                    physical_interfaces.append({'physical_interface': builder.data})
+    
         engine = super(FirewallCluster, cls)._create(
             name=name,
             node_type='firewall_node',
-            physical_interfaces=[{'physical_interface': builder.data}],
+            physical_interfaces=physical_interfaces,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=len(nodes), enable_gti=enable_gti,

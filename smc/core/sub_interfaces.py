@@ -25,6 +25,8 @@ class SubInterfaceCollection(BaseIterable):
                 for intf in interface.data.get('interfaces', [])
                 for kind, data in intf.items()]
         super(SubInterfaceCollection, self).__init__(data)
+        
+    
 
     
 class SubInterface(NestedDict):

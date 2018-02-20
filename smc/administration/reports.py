@@ -46,7 +46,7 @@ Generate a report based on an existing or created report design::
 """
 from smc.base.model import Element
 from smc.administration.tasks import Task
-from smc.base.util import datetime_from_ms
+from smc.base.util import datetime_from_ms, element_resolver
 from smc.api.exceptions import CreateElementFailed
 
 
@@ -75,15 +75,33 @@ class ReportDesign(Element):
     """
     typeof = 'report_design'
     
-    def generate(self, timeout=5, wait_for_finish=False, **kw):
+    def generate(self, start_time=0, end_time=0, 
+            senders=None, wait_for_finish=False, timeout=5, **kw):  # @ReservedAssignment
         """
         Generate the report and optionally wait for results.
+        You can optionally add filters to the report by providing the senders
+        argument as a list of type Element::
         
-        :param int timeout: timeout between queries
+            report = ReportDesign('Firewall Weekly Summary')
+            begin = datetime_to_ms(datetime.strptime("2018-02-03T00:00:00", "%Y-%m-%dT%H:%M:%S"))
+            end = datetime_to_ms(datetime.strptime("2018-02-04T00:00:00", "%Y-%m-%dT%H:%M:%S"))
+            report.generate(start_time=begin, end_time=end, senders=[Engine('vm')])
+        
+        :param int period_begin: milliseconds time defining start time for report
+        :param int period_end: milliseconds time defining end time for report
+        :param senders: filter targets to use when generating report
+        :type senders: list(Element)
         :param bool wait_for_finish: enable polling for results
+        :param int timeout: timeout between polling
         :raises TaskRunFailed: refresh failed, possibly locked policy
         :rtype: TaskOperationPoller
         """
+        if start_time and end_time:
+            kw.setdefault('params', {}).update(
+                {'start_time': start_time,
+                 'end_time': end_time})
+        if senders:
+            kw.setdefault('json', {}).update({'senders': element_resolver(senders)})
         return Task.execute(self, 'generate',
             timeout=timeout, wait_for_finish=wait_for_finish, **kw)
     
@@ -156,7 +174,12 @@ class Report(Element):
     
     @property
     def period_begin(self):
-        pass
+        """
+        Period when this report was specified to start.
+        
+        :rtype: datetime.datetime
+        """
+        return datetime_from_ms(self.data.get('period_begin'))
     
     @property
     def period_end(self):

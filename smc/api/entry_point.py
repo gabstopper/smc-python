@@ -22,7 +22,8 @@ class _EntryPoint(SerializedIterable):
             "parameter during session.login() if necessary.".format(rel))
 
 
-EntryPoint = collections.namedtuple('EntryPoint', 'href rel')
+EntryPoint = collections.namedtuple('EntryPoint', 'href rel method')
+EntryPoint.__new__.__defaults__ = (None,) * len(EntryPoint._fields) # Version 5.10 compat
 
 
 class Resource(object):

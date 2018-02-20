@@ -51,7 +51,7 @@ class SMCAPIConnection(object):
         if self.session:
             try:
                 method = method.upper() if method else ''
-
+                
                 if method == SMCAPIConnection.GET:
                     if request.filename:  # File download request
                         return self.file_download(request)
@@ -63,10 +63,12 @@ class SMCAPIConnection(object):
                         timeout=self.timeout)
                     
                     response.encoding = 'utf-8'
-
-                    logger.debug('GET %s: %s', request.href, vars(response))
+                    
                     counters.update(read=1)
 
+                    if logger.isEnabledFor(logging.DEBUG):
+                        debug(response)
+                    
                     if response.status_code not in (200, 204, 304):
                         raise SMCOperationFailure(response)
 
@@ -82,9 +84,10 @@ class SMCAPIConnection(object):
                     
                     response.encoding = 'utf-8'
 
-                    logger.debug('POST %s: %s', request.href, vars(response))
                     counters.update(create=1)
-
+                    if logger.isEnabledFor(logging.DEBUG):
+                        debug(response)
+                    
                     if response.status_code not in (200, 201, 202):
                         # 202 is asynchronous response with follower link
                         raise SMCOperationFailure(response)
@@ -95,7 +98,6 @@ class SMCAPIConnection(object):
                     
                     # Etag should be set in request object
                     request.headers.update(Etag=request.etag)
-                    logger.debug('PUT: %s', request)
                     
                     response = self.session.put(
                         request.href,
@@ -103,8 +105,10 @@ class SMCAPIConnection(object):
                         params=request.params,
                         headers=request.headers)
 
-                    logger.debug(vars(response))
                     counters.update(update=1)
+                    
+                    if logger.isEnabledFor(logging.DEBUG):
+                        debug(response)
 
                     if response.status_code != 200:
                         raise SMCOperationFailure(response)
@@ -126,7 +130,9 @@ class SMCAPIConnection(object):
 
                     response.encoding = 'utf-8'
 
-                    logger.debug('DELETE %s: %s', request.href, vars(response))
+                    if logger.isEnabledFor(logging.DEBUG):
+                        debug(response)
+                    
                     if response.status_code not in (200, 204):
                         raise SMCOperationFailure(response)
 
@@ -248,11 +254,10 @@ class SMCResult(object):
                 else:
                     self.json = result  # Empty dict
                 return self.json
-            elif response.headers.get('content-type') == 'application/octet-stream':
+            elif response.headers.get('content-type') in \
+                ('application/octet-stream', 'text/plain'):
                 self.content = response.text if response.text else None
-            elif response.headers.get('content-type') == 'text/plain':
-                self.content = response.text if response.text else None
-
+            
     def __str__(self):
         sb = []
         for key in self.__dict__:
@@ -263,5 +268,21 @@ class SMCResult(object):
         return ', '.join(sb)
 
 
+def debug(response):
+    logger.debug('Request method: %s', response.request.method)
+    logger.debug('Request URL: %s', response.url)
+    logger.debug('Request headers:')
+    for k, v in response.request.headers.items():
+        logger.debug('\t%r: %r', k, v)
+    logger.debug('Request body:')
+    logger.debug('%s', response.request.body)
+    logger.debug('Response status: %s', response.status_code)
+    logger.debug('Response headers:')
+    for k, v in response.headers.items():
+        logger.debug('\t%r: %r', k, v)
+    logger.debug('Response content:')
+    logger.debug('%s', response.text)
+
+                    
 counters = collections.Counter(
     {'read': 0, 'create': 0, 'update': 0, 'delete': 0, 'cache': 0})

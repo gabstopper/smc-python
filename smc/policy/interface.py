@@ -7,7 +7,7 @@ FW's or cluster layer 3 FW's have layer 2 interfaces. The configuration
 is identical to creating Layer 2 Rules for layer 2 or IPS engines.
 
 """
-from smc.base.collection import create_collection
+from smc.base.collection import rule_collection
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
@@ -24,9 +24,9 @@ class InterfaceRule(object):
         """ 
         Layer2 IPv4 access rule
 
-        :rtype: CreateCollection(IPv4Layer2Rule)
+        :rtype: SubElementCollection(IPv4Layer2Rule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('l2_interface_ipv4_access_rules'),
             IPv4Layer2Rule)
 
@@ -45,9 +45,9 @@ class InterfaceRule(object):
         """
         Layer 2 Ethernet access rule
 
-        :rtype: CreateCollection(EthernetRule)
+        :rtype: SubElementCollection(EthernetRule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('l2_interface_ethernet_rules'),
             EthernetRule)
 

@@ -95,7 +95,8 @@ class Rule(object):
         """
         Name attribute of rule element
         """
-        return self._meta.name
+        return self._meta.name if self._meta.name else \
+            'Rule @%s' % self.tag
 
     def add_after(self):
         pass
@@ -241,10 +242,52 @@ class Rule(object):
     #        return TimeRange(self.data.get('time_range'))
 
 
-class RulePosition(object):
+class RuleCommon(object):
     """
-    Mixin to add a specific position for the rule.
+    Functionality common to all rules
     """
+    def create_rule_section(self, name, add_pos=None, after=None, before=None):
+        """
+        Create a rule section in a Firewall Policy. To specify a specific numbering
+        position for the rule section, use the `add_pos` field. If no position or
+        before/after is specified, the rule section will be placed at the top which
+        will encapsulate all rules below.
+        Create a rule section for the relavant policy::
+        
+            policy = FirewallPolicy('mypolicy')
+            policy.fw_ipv4_access_rules.create_rule_section(name='attop')
+            # For NAT rules
+            policy.fw_ipv4_nat_rules.create_rule_section(name='mysection', add_pos=5)
+        
+        :param str name: create a rule section by name
+        :param int add_pos: position to insert the rule, starting with position 1.
+            If the position value is greater than the number of rules, the rule is
+            inserted at the bottom. If add_pos is not provided, rule is inserted in
+            position 1. Mutually exclusive with ``after`` and ``before`` params. 
+        :param str after: Rule tag to add this rule after. Mutually exclusive with
+            ``add_pos`` and ``before`` params. 
+        :param str before: Rule tag to add this rule before. Mutually exclusive with
+            ``add_pos`` and ``after`` params. 
+        :raises MissingRequiredInput: when options are specified the need additional  
+            setting, i.e. use_vpn action requires a vpn policy be specified. 
+        :raises CreateRuleFailed: rule creation failure 
+        :return: the created ipv4 rule 
+        :rtype: IPv4Rule 
+        """
+        href = self.href
+        params = None
+        if add_pos is not None:
+            href = self.add_at_position(add_pos)
+        elif before or after: 
+            params = self.add_before_after(before, after) 
+    
+        return SubElementCreator( 
+            self.__class__, 
+            CreateRuleFailed, 
+            href=href, 
+            params=params, 
+            json={'comment': name})
+    
     def add_at_position(self, pos):
         if pos <= 0:
             pos = 1
@@ -267,8 +310,6 @@ class RulePosition(object):
             params = {'before': before}
         return params
     
-
-class RuleCommon(object):
     def update_targets(self, sources, destinations, services):
         source = Source()
         destination = Destination()
@@ -324,8 +365,7 @@ class RuleCommon(object):
         return e
         
 
-
-class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
+class IPv4Rule(RuleCommon, Rule, SubElement):
     """ 
     Represents an IPv4 Rule for a layer 3 engine.
 
@@ -386,7 +426,8 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
                is_disabled=False, vpn_policy=None, add_pos=None,
-               after=None, before=None, sub_policy=None, **kw):
+               after=None, before=None, sub_policy=None, comment=None,
+               **kw):
         """ 
         Create a layer 3 firewall rule
 
@@ -413,6 +454,7 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
             and ``before`` params.
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
+        :param str comment: optional comment for this rule
         :raises MissingRequiredInput: when options are specified the need additional 
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -420,7 +462,7 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
         :rtype: IPv4Rule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name)
+        rule_values.update(name=name, comment=comment)
 
         if isinstance(action, Action):
             rule_action = action
@@ -462,11 +504,10 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
         rule_values.update(is_disabled=is_disabled)
 
         params = None
-        
         href = self.href
         if add_pos is not None:
             href = self.add_at_position(add_pos)
-        else:
+        elif before or after:
             params = self.add_before_after(before, after)
     
         return SubElementCreator(
@@ -476,8 +517,8 @@ class IPv4Rule(RulePosition, RuleCommon, Rule, SubElement):
             params=params,
             json=rule_values)
 
-
-class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
+    
+class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
     """
     Create IPv4 rules for Layer 2 Firewalls
 
@@ -496,7 +537,7 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
-               after=None, before=None):
+               after=None, before=None, comment=None):
         """
         Create an IPv4 Layer 2 FW rule
 
@@ -518,6 +559,7 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
             and ``before`` params.
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
+        :param str comment: optional comment for this rule
         :raises MissingRequiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -547,7 +589,7 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
         href = self.href
         if add_pos is not None:
             href = self.add_at_position(add_pos)
-        else:
+        elif before or after:
             params = self.add_before_after(before, after)
  
         return SubElementCreator(
@@ -558,7 +600,7 @@ class IPv4Layer2Rule(RulePosition, RuleCommon, Rule, SubElement):
             json=rule_values)
 
 
-class EthernetRule(RulePosition, RuleCommon, Rule, SubElement):
+class EthernetRule(RuleCommon, Rule, SubElement):
     """
     Ethernet Rule represents a policy on a layer 2 or IPS engine.
 

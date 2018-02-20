@@ -874,8 +874,8 @@ MasterEngineCluster
 .. autoclass:: MasterEngineCluster
 	:members:
 
-Policy
-------
+Policies
+--------
 
 .. automodule:: smc.policy.policy
    :members: Policy
@@ -926,8 +926,8 @@ FileFilteringPolicy
    :show-inheritance:
 
 
-Sub Policy
-----------
+Sub Policies
+------------
 
 Sub Policies are referenced from within a normal policy as a parameter to
 a 'jump' action. They provide rule encapsulation for similar rules and can
@@ -940,44 +940,42 @@ FirewallSubPolicy
    :members:
    :show-inheritance:
 
-Policy Rules
-------------
+Rules
+-----
 Represents classes responsible for configuring rule types.
-
-.. automodule:: smc.policy.rule
 
 Rule
 ++++
 
-.. autoclass:: Rule
+.. autoclass:: smc.policy.rule.Rule
 	:members:
 	:show-inheritance:
 
 IPv4Rule
 ********
 
-.. autoclass:: IPv4Rule
-   :members:
+.. autoclass:: smc.policy.rule.IPv4Rule
+   :members: create_rule_section, create
    :show-inheritance:
 
 IPv4Layer2Rule
 **************
 
-.. autoclass:: IPv4Layer2Rule
-   :members:
+.. autoclass:: smc.policy.rule.IPv4Layer2Rule
+   :members: create_rule_section, create
    :show-inheritance:
 
 EthernetRule
 ************
 
-.. autoclass:: EthernetRule
-   :members:
+.. autoclass:: smc.policy.rule.EthernetRule
+   :members: create_rule_section, create
    :show-inheritance:
 
 IPv6Rule
 ********
 
-.. autoclass:: IPv6Rule
+.. autoclass:: smc.policy.rule.IPv6Rule
    :members:
    :show-inheritance:
 
@@ -992,7 +990,7 @@ IPv4NATRule
 ***********
 
 .. autoclass:: smc.policy.rule_nat.IPv4NATRule
-   :members:
+   :members: create_rule_section, create
    :show-inheritance:
 
 IPv6NATRule
@@ -1104,7 +1102,7 @@ RouteVPN and all associated configurations.
 PolicyVPN
 +++++++++
 
-.. automodule:: smc.vpn.policy
+.. autoclass:: smc.vpn.policy.PolicyVPN
    :members:
    :show-inheritance:
 

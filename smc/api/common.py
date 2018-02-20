@@ -19,7 +19,7 @@ def _get_default_session():
 class _RequestHandler(object):
     def __init__(self, **kwargs):
         self.files = None
-        self.headers = {'content-type': 'application/json'}
+        self.headers = {'Content-Type': 'application/json'}
 
     def _make_request(self, method):
         err = None

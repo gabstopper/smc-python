@@ -53,7 +53,7 @@ from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
 from smc.policy.policy import Policy
 from smc.policy.rule import IPv4Layer2Rule, EthernetRule
-from smc.base.collection import create_collection
+from smc.base.collection import rule_collection
 
 
 class Layer2Rule(object):
@@ -67,9 +67,9 @@ class Layer2Rule(object):
         """ 
         Layer2 Firewall access rule
 
-        :rtype: CreateCollection(IPv4Layer2Rule)
+        :rtype: SubElementCollection(IPv4Layer2Rule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('layer2_ipv4_access_rules'),
             IPv4Layer2Rule)
 
@@ -87,9 +87,9 @@ class Layer2Rule(object):
         """
         Layer 2 Ethernet access rule
 
-        :rtype: CreateCollection(EthernetRule)
+        :rtype: SubElementCollection(EthernetRule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('layer2_ethernet_rules'),
             EthernetRule)
 

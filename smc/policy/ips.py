@@ -39,7 +39,7 @@ from smc.policy.rule import IPv4Layer2Rule, EthernetRule
 from smc.base.model import ElementCreator
 from smc.api.exceptions import ElementNotFound, LoadPolicyFailed,\
     CreatePolicyFailed, CreateElementFailed
-from smc.base.collection import create_collection
+from smc.base.collection import rule_collection
 
 
 class IPSRule(object):
@@ -53,9 +53,9 @@ class IPSRule(object):
         """ 
         IPS ipv4 access rules
 
-        :rtype: CreateCollection(IPv4Layer2Rule)
+        :rtype: SubElementCollection(IPv4Layer2Rule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('ips_ipv4_access_rules'),
             IPv4Layer2Rule)
 
@@ -70,9 +70,9 @@ class IPSRule(object):
         """
         IPS Ethernet access rule
 
-        :rtype: CreateCollection(EthernetRule)
+        :rtype: SubElementCollection(EthernetRule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('ips_ethernet_rules'),
             EthernetRule)
 

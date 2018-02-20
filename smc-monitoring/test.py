@@ -136,6 +136,7 @@ if __name__ == '__main__':
     #query = VPNSAQuery('sg_vm')
     #pprint(query.get_field_schema())    
     
+    #query = ActiveAlertQuery('Shared Domain')
     #query = SSLVPNQuery('sg_vm')
     #query = RoutingQuery('sg_vm')
     query = BlacklistQuery('sg_vm', timezone='CST')
@@ -146,7 +147,7 @@ if __name__ == '__main__':
     #for record in query.fetch_batch():
     #    print(record)
     
-    #query = ActiveAlertQuery('Shared Domain')
+    #query = ActiveAlertQuery('Shared Domain', timezone='America/Chicago')
     #pprint(vars(query))
     #pprint(query.get_field_schema())
     '''
@@ -161,9 +162,10 @@ if __name__ == '__main__':
     '''
     
     
+    from smc.elements.network import Host
+    #query.add_in_filter(FieldValue(LogField.NODEID), [IPValue('172.18.1.252')]) #<-- Works!
+    #query.add_in_filter(FieldValue(LogField.NODEID), [ElementValue(Host('Sidewinder v8'))]) #<-- Doesnt work!
     
-    #query.add_in_filter(FieldValue(LogField.NODEID), [IPValue('172.18.1.254')]) <-- Works!
-    #query.add_in_filter(FieldValue(LogField.COMPID), [ElementValue(node, node2)]) <-- Doesnt work!
     request = {'format': {'formats': {'bldata': {'field_format': 'name',
                                                  'resolving': {'senders': True,
                                                                'time_show_zone': True,
@@ -185,12 +187,11 @@ if __name__ == '__main__':
                 'query': {'definition': 'BLACKLIST', 'target': 'sg_vm'}}
     
     #pprint(vars(query))
-    query.request = request2
+    #query.request = request2
     #for record in query.fetch_as_element():
     #    print(record, record.vulnerability_refs)
     #for record in query.fetch_raw(max_recv=3):
     for record in query.fetch_batch():
-    #for record in query.fetch_live():
         print(record)
     
     #pprint(query.resolve_field_ids(query.field_ids))
@@ -223,7 +224,5 @@ if __name__ == '__main__':
     #for record in query.fetch_live():
     #    pprint(record)
     
-    #print_fields(100000)
-    #[{u'GtiFileReputation': 5, u'SenderType': 0, u'VpnId': 17, u'Service': 375, u'NatSrc': u'172.18.1.152', u'Dst': u'172.18.1.251', u'FileMd5Hash': u'ff7da1d4c3569a42452677700d7f8720', u'Action': 9, u'AlertSeverity': 8, u'TlsHandshakeDowngraded': False, u'SenderDomain': 1, u'Type': 6, u'TagInfo': u'QeGARgoM', u'NatDport': 443, u'Srczone': 96, u'LogId': 6551, u'TlsDetected': None, u'SitCategory': 40000001, u'TlsDecrypted': None, u'HttpResponseCode': 200, u'RuleId': 8619297190, u'IpAttacker': u'172.18.1.251', u'HttpRequestMethod': u'GET', u'Srcif': 0, u'Alert': 900, u'IpVersion': 4, u'Url': u'https://debian.lepages.local/virussign.com_ff7da1d4c3569a42452677700d7f8720.vir', u'VulnerabilityReferences': [], u'TcpMissingDataSeen': False, u'NatSport': 8132, u'AtdReputation': 100, u'EventId': 1069998600287183300, u'Src': u'172.18.1.152', u'Timestamp': 1517581153876, u'HttpRequestHost': u'debian.lepages.local', u'CompId': 118, u'FileType': 2555912, u'PeerEndPoint': 46, u'NodeId': 118, u'Situation': 76508, u'PortSource': 443, u'IpSource': u'172.18.1.251', u'EndPoint': 26, u'IpTarget': u'172.18.1.152', u'IpDest': u'172.18.1.152', u'Dport': 443, u'ReceptionTime': 1517581153756, u'FileTransferDir': 2, u'ClientApplication': 78016, u'PortDest': 8132, u'ScannerId': 0, u'Protocol': 6, u'Scanner': 0, u'Facility': 51, u'DataType': 3, u'Dstzone': 96, u'VirusId': u'Malicious', u'IpsAppid': 786434, u'DataTags': [1, 100000000, 202000000, 202010000, 205000000, 300000000], u'FileName': u'virussign.com_ff7da1d4c3569a42452677700d7f8720.vir', u'RelatedConnectionRef': u'1517581153429/118/6365196701526978564', u'SenderModuleId': 60200029, u'SrvhelperId': 60200009, u'NatDst': u'192.168.3.101', u'Dstif': 0, u'EthType': 2048, u'SrcIpAddrs': u'172.18.1.152', u'DstIpAddrs': u'172.18.1.251', u'Sport': 8132, u'FileLength': 51712, u'TcpHandshakeSeen': True}]
-
+    
     session.logout()
