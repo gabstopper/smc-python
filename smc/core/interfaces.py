@@ -216,7 +216,7 @@ class InterfaceOptions(object):
             interface.set_auth_request(auth_request)
         else:
             interface.set_auth_request(interface_id, address)
-        
+
         dispatch(self, interface, self._engine)
         
     def set_backup_mgt(self, interface_id):
@@ -1219,7 +1219,7 @@ class PhysicalInterface(Interface):
 
         dispatch(self, builder)
 
-    def add_cluster_virtual_interface(self, interface_id, cluster_virtual=None,
+    def add_layer3_cluster_interface(self, interface_id, cluster_virtual=None,
                                       network_value=None, macaddress=None, 
                                       nodes=None, cvi_mode='packetdispatch',
                                       zone_ref=None, is_mgmt=False,
@@ -1253,6 +1253,9 @@ class PhysicalInterface(Interface):
                 nodes=[{'address':'5.5.5.2', 'network_value':'5.5.5.0/24', 'nodeid':1},
                        {'address':'5.5.5.3', 'network_value':'5.5.5.0/24', 'nodeid':2}])
 
+        .. versionchanged:: 0.6.1
+            Renamed from add_cluster_virtual_interface
+        
         :param str,int interface_id: physical interface identifier
         :param str cluster_virtual: CVI address (VIP) for this interface
         :param str network_value: network value for VIP; format: 10.10.10.0/24
@@ -1286,6 +1289,15 @@ class PhysicalInterface(Interface):
         builder.zone = zone_ref
     
         dispatch(self, builder, interface)
+    
+    @deprecated('add_layer3_cluster_interface')    
+    def add_cluster_virtual_interface(self, interface_id, cluster_virtual=None,
+                                      network_value=None, macaddress=None, 
+                                      nodes=None, cvi_mode='packetdispatch',
+                                      zone_ref=None, is_mgmt=False,
+                                      **kw):
+        return self.add_layer3_cluster_interface(interface_id, cluster_virtual,
+            network_value, macaddress, nodes, cvi_mode, zone_ref, is_mgmt, **kw)
 
     def add_cluster_interface_on_master_engine(self, interface_id,
                                                macaddress, nodes,
@@ -1420,12 +1432,12 @@ class PhysicalInterface(Interface):
             address, network_value,
             zone_ref=zone_ref)
 
-    def add_vlan_to_cluster(self, interface_id, vlan_id,
-                            nodes=None, cluster_virtual=None,
-                            network_value=None,
-                            macaddress=None,
-                            cvi_mode='packetdispatch',
-                            zone_ref=None):
+    def add_layer3_vlan_cluster_interface(self, interface_id, vlan_id,
+                                          nodes=None, cluster_virtual=None,
+                                          network_value=None,
+                                          macaddress=None,
+                                          cvi_mode='packetdispatch',
+                                          zone_ref=None):
         """
         Add IP addresses to VLANs on a firewall cluster. The minimum params
         required are ``interface_id`` and ``vlan_id``.
@@ -1475,14 +1487,14 @@ class PhysicalInterface(Interface):
 
         dispatch(self, builder, interface)
         
-    @deprecated('add_vlan_to_cluster')    
+    @deprecated('add_layer3_vlan_cluster_interface')    
     def add_ipaddress_and_vlan_to_cluster(self, interface_id, vlan_id,
                                           nodes=None, cluster_virtual=None,
                                           network_value=None,
                                           macaddress=None,
                                           cvi_mode='packetdispatch',
                                           zone_ref=None):
-        return self.add_vlan_to_cluster(interface_id,
+        return self.add_layer3_vlan_cluster_interface(interface_id,
             vlan_id, nodes, cluster_virtual, network_value, macaddress,
             cvi_mode, zone_ref)
 
@@ -2178,7 +2190,7 @@ class InterfaceModifier(object):
             all_subs = interface.sub_interfaces()
             for sub_interface in all_subs:
                 # Skip VLAN only interfaces (no addresses)
-                if not isinstance(sub_interface, PhysicalVlanInterface):
+                if not isinstance(sub_interface, (PhysicalVlanInterface, InlineInterface)):
                     if getattr(sub_interface, attribute) is not None:
                         if sub_interface.nicid == str(interface_id):
                             if address is not None:
@@ -2223,7 +2235,7 @@ class InterfaceModifier(object):
                         sub_interface.update(auth_request=False)
             else:
                 for sub_interface in all_subs:
-                    if not isinstance(sub_interface, PhysicalVlanInterface):
+                    if not isinstance(sub_interface, (PhysicalVlanInterface, InlineInterface)):
                         if sub_interface.nicid == str(interface_id):
                             if address is not None: # Specific IP on interface
                                 if sub_interface.address == address:

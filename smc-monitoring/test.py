@@ -47,13 +47,14 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
     #session.login(url='http://172.18.1.151:8082',
     #              api_key='hBC38alwmpsXkQaoRMyLvAUk', timeout=30,
     #              beta=True)
     
-
+    session.login(url='http://172.18.1.36:8082', api_key='kN8CYwTrxB9UNLPyTcnX0001',
+                  api_version='5.10')
     #pprint(session._get_log_schema())
     #if session.session.verify and session.session.verify 
 
@@ -95,6 +96,8 @@ if __name__ == '__main__':
     #myfilter = InFilter(FieldValue(LogField.SRC), [IPValue('192.168.4.82'), IPValue('172.18.1.152')])
    
     query = LogQuery(fetch_size=1)
+    for log in query.fetch_live():
+        print(log)
     #pprint(query.get_field_schema())
         #if 'fields' in fields:
         #    return fields['fields']
@@ -191,8 +194,8 @@ if __name__ == '__main__':
     #for record in query.fetch_as_element():
     #    print(record, record.vulnerability_refs)
     #for record in query.fetch_raw(max_recv=3):
-    for record in query.fetch_batch():
-        print(record)
+    #for record in query.fetch_batch():
+    #    print(record)
     
     #pprint(query.resolve_field_ids(query.field_ids))
     #query.request = {"query": {

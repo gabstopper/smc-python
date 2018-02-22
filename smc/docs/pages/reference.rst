@@ -1063,11 +1063,11 @@ MatchExpression
 	:members:
 	:show-inheritance:
 
-NATRuleElements
-+++++++++++++++
+NATElements
++++++++++++
 
 .. automodule:: smc.policy.rule_nat
-.. autoclass:: NAT
+.. autoclass:: NAT, NATElement
 	:members:
 
 DynamicSourceNAT
@@ -1191,11 +1191,17 @@ SubElementCollection
 	:members:
 
 CreateCollection
-++++++++++++++++
+****************
 
 .. autoclass:: CreateCollection
 	:members:
 	:show-inheritance:
+	
+RuleCollection
+**************
+	
+.. autofunction:: rule_collection
+
 
 Search
 ++++++

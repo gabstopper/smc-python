@@ -53,7 +53,7 @@ class IPSRule(object):
         """ 
         IPS ipv4 access rules
 
-        :rtype: SubElementCollection(IPv4Layer2Rule)
+        :rtype: rule_collection(IPv4Layer2Rule)
         """
         return rule_collection(
             self.get_relation('ips_ipv4_access_rules'),
@@ -70,7 +70,7 @@ class IPSRule(object):
         """
         IPS Ethernet access rule
 
-        :rtype: SubElementCollection(EthernetRule)
+        :rtype: rule_collection(EthernetRule)
         """
         return rule_collection(
             self.get_relation('ips_ethernet_rules'),

@@ -56,7 +56,7 @@ class FirewallRule(object):
         """
         IPv4 rule entry point
 
-        :rtype: SubElementCollection(IPv4Rule)
+        :rtype: rule_collection(IPv4Rule)
         """
         return rule_collection(
             self.get_relation('fw_ipv4_access_rules'),
@@ -67,7 +67,7 @@ class FirewallRule(object):
         """
         IPv4NAT Rule entry point
 
-        :rtype: SubElementCollection(IPv4NATRule)
+        :rtype: rule_collection(IPv4NATRule)
         """
         return rule_collection(
             self.get_relation('fw_ipv4_nat_rules'),
@@ -78,7 +78,7 @@ class FirewallRule(object):
         """
         IPv6 Rule entry point
 
-        :rtype: SubElementCollection(IPv6Rule)
+        :rtype: rule_collection(IPv6Rule)
         """
         return rule_collection(
             self.get_relation('fw_ipv6_access_rules'),
@@ -89,7 +89,7 @@ class FirewallRule(object):
         """
         IPv6NAT Rule entry point
 
-        :rtype: SubElementCollection(IPv6NATRule)
+        :rtype: rule_collection(IPv6NATRule)
         """
         return rule_collection(
             self.get_relation('fw_ipv6_nat_rules'),
@@ -191,7 +191,7 @@ class FirewallSubPolicy(Policy):
         """
         IPv4 rule entry point
 
-        :rtype: SubElementCollection(IPv4Rule)
+        :rtype: rule_collection(IPv4Rule)
         """
         return rule_collection(
             self.get_relation('fw_ipv4_access_rules'),

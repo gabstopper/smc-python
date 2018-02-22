@@ -268,10 +268,16 @@ def create_collection(href, cls):
 def rule_collection(href, cls):
     """
     Rule collections insert a ``create`` and ``create_rule_section`` method
-    into the collection.
+    into the collection. This collection type is returned when accessing rules
+    through a reference, as::
+
+        policy = FirewallPolicy('mypolicy')
+        policy.fw_ipv4_access_rules.create(....)
+        policy.fw_ipv4_access_rules.create_rule_section(...)
     
-    Create method is inserted dynamically for the collection class type.
-    See the class types documentation, or use help().
+    See the class types documentation, or use help()::
+    
+        print(help(policy.fw_ipv4_access_rules))
 
     :rtype: SubElementCollection
     """

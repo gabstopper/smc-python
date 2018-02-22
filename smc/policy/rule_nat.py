@@ -4,6 +4,7 @@ from smc.policy.rule_elements import LogOptions, Destination
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
     CreateRuleFailed
 from smc.base.util import element_resolver
+from smc.base.structs import NestedDict
 
 
 class NATRule(Rule):
@@ -42,7 +43,7 @@ class NATRule(Rule):
 
         :return: :py:class:`~DynamicSourceNAT`: dynamic source nat object
         """
-        return DynamicSourceNAT(self.data.get('options'))
+        return DynamicSourceNAT(self)
 
     @property
     def static_src_nat(self):
@@ -51,7 +52,7 @@ class NATRule(Rule):
 
         :return: :py:class:`~StaticSourceNAT`: static source nat object
         """
-        return StaticSourceNAT(self.data.get('options'))
+        return StaticSourceNAT(self)
 
     @property
     def static_dst_nat(self):
@@ -60,29 +61,18 @@ class NATRule(Rule):
 
         :return: :py:class:`~StaticDestNAT`: static dest nat object
         """
-        return StaticDestNAT(self.data.get('options'))
+        return StaticDestNAT(self)
 
 
-class NAT(object):
-    def __call__(self, data):
-        if self.typeof not in self.data:
-            self.data[self.typeof] = data
-        else:
-            for k, v in data.items():
-                try:
-                    self.data[self.typeof][k].update(v)
-                except KeyError:
-                    self.data[self.typeof][k] = v
-
-    @property
-    def nat_type(self):
-        """    
-        Return type of NAT for this rule, is any.
-
-        :return: str static_src_nat, dynamic_src_nat, static_dst_nat
-        """
-        pass
-
+class NATElement(NestedDict):
+    """
+    Common structure for source and destination NAT
+    configurations.
+    """
+    def __init__(self, rule):
+        options = rule.data.get('options')
+        super(NATElement, self).__init__(data=options)
+        
     @property
     def has_nat(self):
         """
@@ -91,8 +81,8 @@ class NAT(object):
 
         :return: boolean
         """
-        return self.typeof in self.data
-
+        return self.typeof in self
+    
     @property
     def automatic_proxy(self):
         """
@@ -101,26 +91,14 @@ class NAT(object):
         :param bool value: enable/disable proxy arp
         :rtype: bool
         """
-        if self.has_nat:
-            return self.data[self.typeof].get('automatic_proxy')
+        return self.get(self.typeof, {}).get(
+            'automatic_proxy')
 
     @automatic_proxy.setter
     def automatic_proxy(self, value):
-        try:
-            self.data[self.typeof]['automatic_proxy'] = value
-        except KeyError:
-            self.data[self.typeof] = {'automatic_proxy': value}
-
-    @property
-    def _original_value(self):
-        if self.has_nat:
-            return self.data[self.typeof].get('original_value')
-
-    @property
-    def _translated_value(self):
-        if self.has_nat:
-            return self.data[self.typeof].get('translated_value')
-
+        self.setdefault(self.typeof, {}).update(
+            automatic_proxy=value)
+        
     @property
     def original_value(self):
         """
@@ -132,19 +110,20 @@ class NAT(object):
         :param str value: element or href from source or destination field
         :return: str original_value: element location 
         """
-        values = self._original_value
+        values = self.get(self.typeof, {}).get('original_value')
         if values:
             if 'ip_descriptor' in values:
                 return values['ip_descriptor']
             elif 'element' in values:
                 return values['element']
-
+    
     @original_value.setter
     def original_value(self, value):
         src = element_resolver(value, do_raise=False)
         if src and src.startswith('http'):
-            self({'original_value': {'element': src}})
-
+            self.setdefault(self.typeof, {'original_value': {}}).update(
+                original_value={'element':src})
+        
     @property
     def translated_value(self):
         """
@@ -156,7 +135,8 @@ class NAT(object):
         :return: str value: translated value, give preference to IP address if
                             ip address and element are both defined.
         """
-        values = self._translated_value
+        values = self.get(self.typeof, {}).get(
+            'translated_value', {})
         if values:
             if 'ip_descriptor' in values:
                 return values['ip_descriptor']
@@ -165,52 +145,22 @@ class NAT(object):
 
     @translated_value.setter
     def translated_value(self, value):
-        if isinstance(value, Element):
-            try:
-                src = {'element': value.href}
-            except ElementNotFound:
-                src = None
-        else:
+        try:
+            src = {'element': value.href}
+        except AttributeError:
             src = {'ip_descriptor': value}
+        
+        p = self.setdefault(self.typeof, {})
+        p.setdefault('translated_value', {}).update(src)
+        
 
-        if src is not None:
-            self({'translated_value': src})
-
-
-class DynamicSourceNAT(NAT):
-    """
-    Dynamic Source NAT. This is commonly used for outbound NAT/PAT to provide return
-    routable addresses for non-routable source hosts. 
-
-    It is also possible to provide the source port range/s to use, however if not 
-    specified, will default to using 1024-65535.
-
-    Modify a rule to NAT to source '2.2.2.2' and PAT using ports 30000-35000::
-
-        for rule in policy.fw_ipv4_nat_rules.all():
-            if rule.name == 'dynsrcnat':
-                rule.dynamic_src_nat.translated_value = '2.2.2.2'
-                rule.dynamic_src_nat.translated_ports = (30000,35000)
-
-    """
+class DynamicSourceNAT(NATElement):
     typeof = 'dynamic_src_nat'
-
-    def __init__(self, data):
-        self.data = data
-
+    
     @property
     def original_value(self):
         pass
-
-    @original_value.setter
-    def original_value(self, value):
-        pass
-
-    @property
-    def _translated_value(self):
-        if self.has_nat:
-            return self.data[self.typeof].get('translation_values')
-
+    
     @property
     def translated_value(self):
         """
@@ -227,32 +177,26 @@ class DynamicSourceNAT(NAT):
         :param str value: ipaddress or :py:class:`smc.elements.network` object
         :return: str translated address or name
         """
-        values = self._translated_value
-        if values:
-            for value in values:
-                if 'ip_descriptor' in value:
-                    return value['ip_descriptor']
-                elif 'element' in value:
-                    return value['element']
-
+        for value in self.get(self.typeof, {}).get(
+            'translation_values', []):
+            if 'ip_descriptor' in value:
+                return value['ip_descriptor']
+            elif 'element' in value:
+                return value['element']
+    
     @translated_value.setter
     def translated_value(self, value):
-        if isinstance(value, Element):
-            try:
-                src = {'element': value.href}
-            except ElementNotFound:
-                src = None
-        else:
+        try:
+            src = {'element': value.href}
+        except AttributeError:
             src = {'ip_descriptor': value}
-
-        if src is not None:
-            if self._translated_value:
-                self.data[self.typeof]['translation_values'][0].update(src)
-            else:
-                self.data.update({self.typeof: {'translation_values': [src]}})
-                if not self.translated_ports:
-                    self.translated_ports = (1024, 65535)
-
+        
+        values = self.setdefault(self.typeof, {'translation_values': []})
+        if values.get('translation_values'):
+            values['translation_values'][0].update(src)
+        else:
+            values['translation_values'].append(src)
+    
     @property
     def translated_ports(self):
         """
@@ -262,25 +206,28 @@ class DynamicSourceNAT(NAT):
         :param tuple min_port,max_port: starting and ending port for source NAT (PAT)
         :return tuple value: min and max ports defined
         """
-        values = self._translated_value
-        if values:
-            if 'min_port' in values[0]:
-                return (values[0].get('min_port'),
-                        values[0].get('max_port'))
-
+        values = self.get(self.typeof, {}).get(
+                    'translation_values', [])
+        if values and 'min_port' in values[0]:
+            return (values[0].get('min_port'),
+                    values[0].get('max_port'))
+    
     @translated_ports.setter
     def translated_ports(self, value):
-        assert isinstance(value, tuple), "Input must be tuple"
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise ValueError("Input must be tuple and length 2")
         min_port, max_port = value
         ports = {'min_port': min_port,
                  'max_port': max_port}
-        if self.has_nat:
-            self.data[self.typeof]['translation_values'][0].update(ports)
+        
+        values = self.setdefault(self.typeof, {'translation_values': []})
+        if values.get('translation_values'):
+            values['translation_values'][0].update(ports)
         else:
-            self.data.update({self.typeof: {'translation_values': [ports]}})
+            values['translation_values'].append(ports)
 
 
-class StaticSourceNAT(NAT):
+class StaticSourceNAT(NATElement):
     """
     Source NAT defines the available options for configuration. This is
     typically used for outbound traffic where you need to hide the original
@@ -297,11 +244,8 @@ class StaticSourceNAT(NAT):
     """
     typeof = 'static_src_nat'
 
-    def __init__(self, data):
-        self.data = data
 
-
-class StaticDestNAT(NAT):
+class StaticDestNAT(NATElement):
     """
     Destination NAT provides the ability to translate the destination address
     to a specified location. The NAT rules destination field will be the
@@ -311,7 +255,7 @@ class StaticDestNAT(NAT):
     Example of changing an existing NAT rule to use a different NAT destination
     and map port 80 to 8080::
 
-        for rule in policy.fw_ipv4_nat_rules.all():
+        for rule in policy.fw_ipv4_nat_rules:
             if rule.name == 'destnat':
                 rule.static_dst_nat.translated_value = '30.30.30.30'
                 rule.static_dst_nat.translated_ports = (80, 8080)
@@ -320,72 +264,71 @@ class StaticDestNAT(NAT):
     """
     typeof = 'static_dst_nat'
 
-    def __init__(self, data):
-        self.data = data
-
     @property
     def translated_ports(self):
         """
         Translated ports for destination NAT can be either single source
         to single destination port, or ranges of ports to translate.
         The format for single ports is: (source_port, destination_port),
-        or (80, 443) - translate source port 80 to 443.
+        or (80, 443) - translate source port 80 to 443 (single ports can
+        also be in string format, i.e. ('80', '443').
         You can also use a range format although port range sizes much
         then match in size. The format for range of ports is:
         ('80-100', '6000-6020') - port 80 translates to 6000, etc.
 
         :param tuple value: (source_port/s, destination_port/s)
+        :raises ValueError: Invalid tuple format for port definition
         :return tuple value: ports used for destination PAT
         """
-        o_values = self._original_value
-        t_values = self._translated_value
-
-        if o_values is None or t_values is None:
+        orig_value = self.get(self.typeof, {}).get('original_value')
+        tran_value = self.get(self.typeof, {}).get('translated_value')
+        
+        if not orig_value or not tran_value:
             return None
-
-        o_min_port = o_values['min_port']
-        o_max_port = o_values['max_port']
-
-        if o_min_port == o_max_port:
-            o_values = o_min_port
-        else:
-            o_values = '{}-{}'.format(o_min_port, o_max_port)
-
-        t_min_port = t_values['min_port']
-        t_max_port = t_values['max_port']
-
-        if t_min_port == t_max_port:
-            t_values = t_min_port
-        else:
-            t_values = '{}-{}'.format(t_min_port, t_max_port)
-
-        return (o_values, t_values)
+        
+        sport = extract_ports(orig_value)
+        dport = extract_ports(tran_value)
+        return ('-'.join(sport), '-'.join(dport))
 
     @translated_ports.setter
     def translated_ports(self, value):
-        assert isinstance(value, tuple), "Input must be tuple"
-        orig_port, trans_port = value
+        if not isinstance(value, tuple) or len(value) != 2:
+            raise ValueError("Input must be tuple and length 2")
+        
+        sport, dport = map(str, value)
+        
+        p = self.setdefault(self.typeof, {})
+        p.setdefault('original_value', {}).update(add_ports(sport))
+        p.setdefault('translated_value', {}).update(add_ports(dport))
+        
 
-        if isinstance(orig_port, int):
-            o_ports = {'min_port': orig_port,
-                       'max_port': orig_port}
-            t_ports = {'min_port': trans_port,
-                       'max_port': trans_port}
-        elif isinstance(orig_port, str):
-            psplit = orig_port.split('-')
-            o_ports = {'min_port': psplit[0],
-                       'max_port': psplit[1]}
-            psplit = trans_port.split('-')
-            t_ports = {'min_port': psplit[0],
-                       'max_port': psplit[1]}
-
-        # TODO: Return if wrong type given
-        # Raise instead?
-
-        self({'original_value': o_ports})
-        self({'translated_value': t_ports})
+def extract_ports(value_dict):
+    """
+    Extract min/max ports from NAT config
+    """
+    seen = []
+    keys = ('min_port', 'max_port')
+    for key in keys:
+        if value_dict.get(key) not in seen:
+            seen.append(value_dict[key])
+    return map(str, seen)
 
 
+def add_ports(value_str):
+    """        
+    Add min/max ports to NAT config
+    """
+    if '-' in value_str:
+        port_min, port_max = value_str.split('-')
+        return {'min_port': port_min,
+                'max_port': port_max}
+        
+    else:
+        return {'min_port': value_str,
+                'max_port': value_str}
+
+    
+    
 class IPv4NATRule(RuleCommon, NATRule, SubElement):
     """
     Create NAT Rules for relevant policy types. Rule requirements are 
@@ -493,22 +436,24 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         :rtype: IPv4NATRule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name)
+        rule_values.update(name=name, comment=comment)
         rule_values.update(is_disabled=is_disabled)
 
         options = LogOptions()
 
         if dynamic_src_nat:
-            nat = DynamicSourceNAT(options.data)
+            nat = DynamicSourceNAT(options)
             nat.translated_value = dynamic_src_nat
             nat.translated_ports = (dynamic_src_nat_ports)
-            rule_values.update(options=nat.data)
-
+            options.update(nat.data)
+            rule_values.update(options=options.data)
+        
         elif static_src_nat:
-            nat = StaticSourceNAT(options.data)
+            nat = StaticSourceNAT(options)
             nat.translated_value = static_src_nat
             nat.original_value = sources[0].href
-            rule_values.update(options=nat.data)
+            options.update(nat.data)
+            rule_values.update(options=options.data)
 
         if static_dst_nat:
             destinations = rule_values['destinations']
@@ -518,17 +463,18 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
             destination = Destination()
             destination.add_many(destinations.get('dst'))
             
-            nat = StaticDestNAT(options.data)
+            nat = StaticDestNAT(options)
             nat.translated_value = static_dst_nat
             nat.original_value = destination.all_as_href()[0]
             if static_dst_nat_ports:
                 nat.translated_ports = static_dst_nat_ports
-            rule_values.update(options=nat.data)
-
+            options.update(nat.data)
+            rule_values.update(options=options.data)
+        
         if 'options' not in rule_values:  # No NAT
             rule_values.update(options=options.data)
 
-        rule_values.update(used_on=used_on, comment=comment)
+        rule_values.update(used_on=used_on)
         
         params = None
         href = self.href

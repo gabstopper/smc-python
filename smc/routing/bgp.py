@@ -257,6 +257,31 @@ class BGP(object):
             entry.get('announced_ne_ref') != network.href]
         
 
+def as_dotted(dotted_str):
+    """
+    Implement RFC 5396 to support 'asdotted' notation for BGP AS numbers.
+    Provide a string in format of '1.10', '65000.65015' and this will return
+    a 4-byte decimal representation of the AS number.
+    Get the binary values for the int's and pad to 16 bits if necessary
+    (values <255). Concatenate the first 2 bytes with second 2 bytes then
+    convert back to decimal. The maximum for low and high order values is
+    65535 (i.e. 65535.65535).
+    
+    :param str dotted_str: asdotted notation for BGP ASN
+    :rtype: int
+    """
+    #max_asn = 4294967295 (65535 * 65535)
+    max_byte = 65535
+    left, right = map(int, dotted_str.split('.'))
+    if left > max_byte or right > max_byte:
+        raise ValueError('The max low and high order value for '
+            'a 32-bit ASN is 65535')
+    binval = "{0:016b}".format(left)
+    binval += "{0:016b}".format(right)
+    print(len(binval), binval)
+    return int(binval, 2)
+
+
 class AutonomousSystem(Element):
     """
     Autonomous System for BGP routing. AS is a required setting when
@@ -269,14 +294,22 @@ class AutonomousSystem(Element):
     def create(cls, name, as_number, comment=None):
         """
         Create an AS to be applied on the engine BGP configuration. An
-        AS is a required parameter when creating an ExternalBGPPeer.
+        AS is a required parameter when creating an ExternalBGPPeer. You
+        can also provide an AS number using an as_dot syntax::
+        
+            AutonomousSystem
 
         :param str name: name of this AS
         :param int as_number: AS number preferred
         :param str comment: optional string comment
+        :raises CreateElementFailed: unable to create AS
+        :raises ValueError: If providing AS number in dotted format and
+            low/high order bytes are > 65535.
         :return: instance with meta
         :rtype: AutonomousSystem
         """
+        if '.' in str(as_number):
+            as_number = as_dotted(as_number)
         json = {'name': name,
                 'as_number': as_number,
                 'comment': comment}

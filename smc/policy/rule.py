@@ -309,7 +309,7 @@ class RuleCommon(object):
         elif before is not None:
             params = {'before': before}
         return params
-    
+        
     def update_targets(self, sources, destinations, services):
         source = Source()
         destination = Destination()
@@ -621,7 +621,7 @@ class EthernetRule(RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
-               after=None, before=None):
+               after=None, before=None, comment=None):
         """
         Create an Ethernet rule
 
@@ -650,7 +650,7 @@ class EthernetRule(RuleCommon, Rule, SubElement):
         :rtype: EthernetRule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name)
+        rule_values.update(name=name, comment=comment)
         rule_values.update(is_disabled=is_disabled)
 
         if isinstance(action, Action):

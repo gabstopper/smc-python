@@ -24,7 +24,7 @@ class InterfaceRule(object):
         """ 
         Layer2 IPv4 access rule
 
-        :rtype: SubElementCollection(IPv4Layer2Rule)
+        :rtype: rule_collection(IPv4Layer2Rule)
         """
         return rule_collection(
             self.get_relation('l2_interface_ipv4_access_rules'),
@@ -45,7 +45,7 @@ class InterfaceRule(object):
         """
         Layer 2 Ethernet access rule
 
-        :rtype: SubElementCollection(EthernetRule)
+        :rtype: rule_collection(EthernetRule)
         """
         return rule_collection(
             self.get_relation('l2_interface_ethernet_rules'),

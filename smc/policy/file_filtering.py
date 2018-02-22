@@ -1,9 +1,10 @@
 from smc.policy.policy import Policy
 from smc.base.model import SubElement
-from smc.base.collection import create_collection
+from smc.base.collection import rule_collection
+from smc.policy.rule import RuleCommon
 
 
-class FileFilteringRule(SubElement):
+class FileFilteringRule(RuleCommon, SubElement):
     """
     Represents a file filtering rule
     """
@@ -38,9 +39,9 @@ class FileFilteringPolicy(Policy):
         """
         File filtering rules for this policy.
 
-        :rtype: CreateCollection(FileFilteringRule)
+        :rtype: rule_collection(FileFilteringRule)
         """
-        return create_collection(
+        return rule_collection(
             self.get_relation('file_filtering_rules'),
             FileFilteringRule)
 
