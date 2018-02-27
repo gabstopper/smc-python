@@ -114,17 +114,6 @@ def fetch_entry_point(name):
     return _get_default_session().entry_points.get(name)  # from entry point cache
     
 
-def fetch_no_filter(entry_point, filter=None):  # @ReservedAssignment
-    """
-    Fetch elements with no filter_context filter. This will pull from the
-    entry point base.
-    """
-    return SMCRequest(
-        href=_get_default_session().entry_points.get(entry_point),
-        params={'filter': filter}
-        ).read().json
-    
-
 def fetch_href_by_name(name,
                        filter_context=None,
                        exact_match=True,

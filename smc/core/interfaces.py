@@ -75,12 +75,14 @@ class InterfaceOptions(object):
     * The default IP address for outgoing traffic
 
     You can optionally change which interface is used for each of these purposes,
-    and define a backup Control IP address and backup Heartbeat Interface.
+    and define a backup Control IP address and backup Heartbeat Interface. If
+    calling the `set` methods, using a value of None will unset the option.
     
     .. note:: Setting an interface option will commit the change immediately.
     """
     def __init__(self, engine):
         self._engine = engine
+        self.interface = InterfaceModifier.byEngine(engine)
     
     @property
     def primary_mgt(self):
@@ -89,45 +91,69 @@ class InterfaceOptions(object):
         This will always return a value as you must have at least one
         physical interface specified for management.
         
-        :rtype: PhysicalInterface
+        :return: interface id 
+        :rtype: str
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        for itf in interface:
-            if isinstance(itf, PhysicalInterface):
-                if itf.is_primary_mgt:
-                    return itf
-
+        return self.interface.find_mgmt_interface('primary_mgt')
+        
     @property
     def backup_mgt(self):
         """
+        Obtain the interface specified as the backup management
+        interface. This can return None if no backup has been
+        defined
+        
+        :return: interface id 
+        :rtype: str
         """
-        pass
+        return self.interface.find_mgmt_interface('backup_mgt')
 
     @property
     def primary_heartbeat(self):
         """
+        Obtain the interface specified as the primary heartbeat
+        interface. This will return None if this is not
+        a clustered engine.
+        
+        :return: interface id 
+        :rtype: str
         """
-        pass
-    
+        return self.interface.find_mgmt_interface('primary_heartbeat')
+
     @property
     def backup_heartbeat(self):
         """
+        Obtain the interface specified as the backup heartbeat
+        interface. This may return None if a backup has not been
+        specified or this is not a cluster.
+        
+        :return: interface id 
+        :rtype: str
         """
-        pass
+        return self.interface.find_mgmt_interface('backup_heartbeat')
     
     @property
     def outgoing(self):
         """
         Obtain the interface specified as the "Default IP address for
-        outgoing traffic". This will always return a value. Can be either
-        a PhysicalInterface or LoopbackInterface.
+        outgoing traffic". This will always return a value.
+        
+        :return: interface id 
+        :rtype: str
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        for itf in interface:
-            if isinstance(itf, PhysicalInterface):
-                if itf.is_outgoing:
-                    return itf
-
+        return self.interface.find_mgmt_interface('outgoing')
+    
+    @property
+    def auth_request(self):
+        """
+        Return the interface for authentication requests. Can be either
+        a PhysicalInterface or LoopbackInterface
+        
+        :return: interface id
+        :rtype: str
+        """
+        return self.interface.find_mgmt_interface('auth_request')
+        
     def set_primary_heartbeat(self, interface_id):
         """
         Set this interface as the primary heartbeat for this engine. 
@@ -136,13 +162,12 @@ class InterfaceOptions(object):
         Clusters and Master NGFW Engines only.
         
         :param str,int interface_id: interface specified for primary mgmt
+        :raises InterfaceNotFound: specified interface is not found
         :raises UpdateElementFailed: failed modifying interfaces
         :return: None
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'primary_heartbeat')
-        
-        dispatch(self, interface, self._engine)
+        self.interface.set_unset(interface_id, 'primary_heartbeat')
+        dispatch(self, self.interface, self._engine)
     
     def set_backup_heartbeat(self, interface_id):
         """
@@ -150,13 +175,12 @@ class InterfaceOptions(object):
         Clusters and Master NGFW Engines only.
         
         :param str,int interface_id: interface as backup
+        :raises InterfaceNotFound: specified interface is not found
         :raises UpdateElementFailed: failure to update interface
         :return: None
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'backup_heartbeat')
-        
-        dispatch(self, interface, self._engine)
+        self.interface.set_unset(interface_id, 'backup_heartbeat')
+        dispatch(self, self.interface, self._engine)
             
     def set_primary_mgt(self, interface_id, auth_request=None,
                         address=None):
@@ -195,29 +219,26 @@ class InterfaceOptions(object):
         :param str,int auth_request: if setting primary mgt on a cluster
             interface with no CVI, you must pick another interface to set
             the auth_request field to (default: None)
+        :raises InterfaceNotFound: specified interface is not found
         :raises UpdateElementFailed: updating management fails
-        :raises InterfaceNotFound: raise if specified address does not exist
-            on the specified interface
         :return: None
         
         .. note:: Setting primary management on a cluster interface with no
             CVI requires you to set the interface for auth_request.
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        
         intfattr = ['primary_mgt', 'outgoing']
-        if self._engine.type in ['virtual_fw']:
+        if self.interface.engine.type in ('virtual_fw',):
             intfattr.remove('primary_mgt')
             
         for attribute in intfattr:
-            interface.set_unset(interface_id, attribute, address)
+            self.interface.set_unset(interface_id, attribute, address)
         
         if auth_request is not None:
-            interface.set_auth_request(auth_request)
+            self.interface.set_auth_request(auth_request)
         else:
-            interface.set_auth_request(interface_id, address)
+            self.interface.set_auth_request(interface_id, address)
 
-        dispatch(self, interface, self._engine)
+        dispatch(self, self.interface, self._engine)
         
     def set_backup_mgt(self, interface_id):
         """
@@ -240,13 +261,12 @@ class InterfaceOptions(object):
      
         :param str,int interface_id: interface identifier to make the backup
             management server.
+        :raises InterfaceNotFound: specified interface is not found
         :raises UpdateElementFailed: failure to make modification
         :return: None
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'backup_mgt')
-        
-        dispatch(self, interface, self._engine)
+        self.interface.set_unset(interface_id, 'backup_mgt')
+        dispatch(self, self.interface, self._engine)
     
     def set_outgoing(self, interface_id):
         """
@@ -258,13 +278,12 @@ class InterfaceOptions(object):
         interface.
         
         :param str,int interface_id: interface to set outgoing
+        :raises InterfaceNotFound: specified interface is not found
         :raises UpdateElementFailed: failure to make modification
         :return: None
         """
-        interface = InterfaceModifier.byEngine(self._engine)
-        interface.set_unset(interface_id, 'outgoing')
-        
-        dispatch(self, interface, self._engine)
+        self.interface.set_unset(interface_id, 'outgoing')
+        dispatch(self, self.interface, self._engine)
             
 
 class Interface(SubElement):
@@ -509,14 +528,12 @@ class Interface(SubElement):
                     return True
         return False
 
-    def change_single_ipaddress(self, address, network_value, replace_ip=None):
+    def change_single_interface(self, address, network_value, zone_ref=None,
+                                vlan_id=None):
         """
-        Change an existing single firewall IP address. This can also be called
-        on an interface with multiple assigned IP addresses by specifying
-        the ``replace_ip`` parameter to define which IP to change. If the
-        interface has VLANs you must also use the ``replace_ip`` to
-        identify the correct IP address. In the case of VLANs, it is not
-        required to specify the VLAN id. This will also adjust the routing
+        Change an existing single firewall IP address. If the interface has
+        VLANs you must use the ``vlan_id`` parameter to identify the correct
+        sub interface. In the case of VLANs, This will also adjust the routing
         table network for the new IP address if necessary (i.e. network/mask
         changes will remove the old routing entry that will become obsolete).
         
@@ -525,40 +542,65 @@ class Interface(SubElement):
         :param str replace_ip: required if multiple IP addresses exist on
             an interface. Specify the IP address to change.
         :raises UpdateElementFailed: failed updating IP address
-        :return: None
+        :raises ModificationAborted: Requirements to make change not met
+        :raises InterfaceNotFound: If vlan_id is specified but the VLAN does
+            not exist by ID
+        :return: boolean indicating success or failure
+        :rtype: bool
         
-        .. note:: This method does not apply to changing cluster addresses.
+        .. note:: This method does not apply to changing cluster addresses or
+            interfaces with multiple IP addresses
         """
-        interfaces = self.all_interfaces
-        sub_interface = None
-        if replace_ip:
-            sub_interface = interfaces.get(address=replace_ip)
-        elif len(interfaces) == 1:
-            sub_interface = interfaces.get(0)
+        if self.has_vlan and not vlan_id:
+            raise ModificationAborted(
+                'Interface with VLANs configured require a vlan id be specified to '
+                'change the correct VLAN address.')
+        
+        if vlan_id:
+            # raises InterfaceNotFound
+            itf = self.vlan_interface.get_vlan(vlan_id)
+            nicid = itf.interface_id
+            interfaces = itf.interfaces
+        else:
+            interfaces = self.interfaces
+            nicid = self.interface_id
+        
+        change_made = False
+        
+        if zone_ref:
+            zone = zone_helper(zone_ref)
+            if self.zone_ref != zone:
+                if vlan_id:
+                    itf.zone_ref = zone
+                else:
+                    self.zone_ref = zone
+                change_made = True
 
-        if not sub_interface:
-            raise ModificationAborted('Sub interface was not found, no '
-                'modifications could be made.')
+        original_network = None
+        for interface in interfaces:
+            if interface.address != address:
+                original_network = interface.network_value
+                interface.update(address=address, network_value=network_value)
+                change_made = True
+        
+        if change_made:
+            self.update()
             
-        netmask = sub_interface.network_value
-        sub_interface.update(address=address,
-                             network_value=network_value)
-        # Save here
-        self.update()
-        if netmask != network_value:
-            routes = self._engine.routing.get(sub_interface.nicid)
-            for network in routes:
-                if network.invalid:
-                    network.delete()
-                        
+            if original_network and original_network != network_value:
+                routes = self._engine.routing.get(nicid)
+                for route in routes:
+                    if route.invalid:
+                        route.delete()
+        return change_made
+       
     def change_cluster_interface(self, cluster_virtual=None, network_value=None,
                                  nodes=None, macaddress=None, vlan_id=None,
                                  zone_ref=None):
         """
         Change cluster interface settings. If the cluster interface only has a
-        CVI, provide only ``cvi`` param. If only NDI's are on the interface,
-        provide only ``nodes`` param. Provide both if using CVI and NDI's.
-        If the cluster interface is on a VLAN, you must provide the VLAN id.
+        CVI, provide only ``cluster_virtual`` param. If only NDI's are on the
+        interface, provide only ``nodes`` param. Provide both if using CVI and
+        NDI's. If the cluster interface is on a VLAN, you must provide the VLAN id.
         The cluster interface will update only if there are differences in
         the the provided configuration.
         
@@ -637,7 +679,10 @@ class Interface(SubElement):
         if zone_ref:
             zone = zone_helper(zone_ref)
             if self.zone_ref != zone:
-                self.zone_ref = zone
+                if vlan_id:
+                    itf.zone_ref = zone
+                else:
+                    self.zone_ref = zone
                 change_made = True
         
         # It would not be common to only provide a new cluster mask as you
@@ -663,7 +708,6 @@ class Interface(SubElement):
                                     address=node.get('address'),
                                     network_value=node.get('network_value'))
                                 change_made = True
-        
         if change_made:
             self.update()
             
@@ -678,7 +722,6 @@ class Interface(SubElement):
                         if route.invalid:
                             route.delete()
         return change_made
-        
 
     def reset_interface(self):
         """
@@ -884,6 +927,10 @@ class TunnelInterface(Interface):
                 builder.add_ndi_only(**node)
 
         dispatch(self, builder, interface)
+
+    @property
+    def ndi_interfaces(self):
+        return []
 
 
 class PhysicalInterface(Interface):
@@ -1553,6 +1600,22 @@ class PhysicalInterface(Interface):
         """
         return self.get_boolean('outgoing')
     
+    @property
+    def ndi_interfaces(self):
+        """
+        Return a formatted dict list of NDI interfaces on this engine.
+        This will ignore CVI or any inline or layer 2 interface types.
+        This can be used to identify  to indicate available IP addresses
+        for a given interface which can be used to run services such as
+        SNMP or DNS Relay.
+        
+        :return: list of dict items [{'address':x, 'nicid':y}]
+        :rtype: list(dict)
+        """
+        return [{'address': interface.address, 'nicid': interface.nicid}
+                for interface in self.interfaces
+                if isinstance(interface, (NodeInterface, SingleNodeInterface))]
+                    
     def change_vlan_id(self, original, new):
         """
         Change VLAN ID for a single VLAN, cluster VLAN or inline
@@ -2123,6 +2186,8 @@ class InterfaceModifier(object):
     
     def get(self, interface_id):
         """
+        Get the interface from engine json
+        
         :param str interface_id: interface ID to find
         :raises InterfaceNotFound: Cannot find interface
         """
@@ -2166,7 +2231,27 @@ class InterfaceModifier(object):
     def __iter__(self):
         for interface in self._data:
             yield interface
+    
+    def find_mgmt_interface(self, mgmt):
+        """
+        Find the management interface specified and return
+        either the string representation of the interface_id.
         
+        Valid options: primary_mgt, backup_mgt, primary_heartbeat,
+            backup_heartbeat, outgoing, auth_request
+        
+        :return: str interface_id
+        """
+        for intf in self:
+            for allitf in intf.all_interfaces:
+                if isinstance(allitf, PhysicalVlanInterface):
+                    for vlan in allitf.interfaces:
+                        if getattr(vlan, mgmt, None):
+                            return allitf.interface_id
+                else:
+                    if getattr(allitf, mgmt, None):
+                        return intf.interface_id
+                            
     def set_unset(self, interface_id, attribute, address=None):
         """
         Set attribute to True and unset the same attribute for all other
@@ -2175,8 +2260,8 @@ class InterfaceModifier(object):
         
         :raises InterfaceNotFound: raise if specified address does not exist
         """
+        interface = self.get(interface_id) if interface_id is not None else None
         if address is not None:
-            interface = self.get(interface_id)
             target_network = None
             sub_interface = interface.all_interfaces.get(address=address)
             if sub_interface:
@@ -2185,7 +2270,7 @@ class InterfaceModifier(object):
             if not target_network:
                 raise InterfaceNotFound('Address specified: %s was not found on interface '
                     '%s' % (address, interface_id))
-        
+
         for interface in self:
             all_subs = interface.sub_interfaces()
             for sub_interface in all_subs:
@@ -2447,20 +2532,22 @@ class InterfaceBuilder(object):
         self.interfaces.append({intf.typeof: intf.data})
 
     def add_sni_to_vlan(self, address, network_value, vlan_id,
-                        nodeid=1, zone_ref=None, cls=SingleNodeInterface):
+                        nodeid=1, zone_ref=None, cls=SingleNodeInterface, **kw):
         """
         Helper method to call add_ndi_to_vlan. This is only for single
-        node interfaces.
+        node interfaces. Keyword arguments can be passed for any node field
+        that is valid (i.e. backup_mgt, etc).
         """
         self.add_ndi_to_vlan(
-            address, network_value, vlan_id, nodeid, zone_ref, cls)
+            address, network_value, vlan_id, nodeid, zone_ref, cls, **kw)
     
     def add_ndi_to_vlan(self, address, network_value, vlan_id,
-                        nodeid=1, zone_ref=None, cls=NodeInterface):
+                        nodeid=1, zone_ref=None, cls=NodeInterface, **kw):
         """
         Add IP address to an ndi/sni. If the VLAN doesn't exist,
         create it. Interface class is passed in to create the
-        proper sub-interface (SingleNode or Node)
+        proper sub-interface (SingleNode or Node). Keyword arguments can
+        be passed for any node field that is valid (i.e. backup_mgt, etc).
         """
         vlan_str = '{}.{}'.format(self.interface_id, vlan_id)
         found = False
@@ -2471,7 +2558,8 @@ class InterfaceBuilder(object):
                     address,
                     network_value,
                     nodeid=nodeid,
-                    nicid=vlan_str)
+                    nicid=vlan_str,
+                    **kw)
                 if vlan.get('interfaces'):
                     vlan['interfaces'].append({intf.typeof: intf.data})
                 else:  # VLAN exists but no interfaces assigned
@@ -2483,7 +2571,8 @@ class InterfaceBuilder(object):
                 self.interface_id,
                 address,
                 network_value,
-                nicid=vlan_str)
+                nicid=vlan_str,
+                **kw)
             vlan = PhysicalVlanInterface.create(
                 self.interface_id,
                 vlan_id,

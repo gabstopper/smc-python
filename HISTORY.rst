@@ -137,4 +137,8 @@ Release History
 - Layer3Firewall and FirewallCluster can now take an additional `interfaces` argument to define additional
   interfaces to create when creating a single or cluster FW. VLANs definitions are also supported.
 - Create rule sections in all supported rule types, comments for rules
+- Firewall Clusters can be fully created with additional interfaces and primary_heartbeat, backup_mgt fields
+  can be customized during creation
+- Renamed module smc.core.properties to smc.core.addon
+
  

@@ -152,6 +152,16 @@ unless `logout` has been called.
 
 .. note:: The SMC will automatically purge idle sessions after a configurable amount of time.
 
+Handling proxies
+++++++++++++++++
+
+To disable the use of an intermediate proxy and force the connection to go direct, you can add the following
+environment variable:
+
+.. code-block:: python
+
+	os.environ['no_proxy'] = 'my.smc.at.domain'
+
 Logging helper
 ++++++++++++++
 		  

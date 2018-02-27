@@ -6,7 +6,6 @@ from smc.elements.network import Zone
 from smc.administration.system import AdminDomain
 from smc.elements.other import LogicalInterface, Location
 from smc.api.exceptions import ElementNotFound
-from smc.api.common import fetch_no_filter
 
 
 def location_helper(name):
@@ -14,25 +13,25 @@ def location_helper(name):
     Location finder by name. If location doesn't exist, create it
     and return the href
 
-    :param name: location to resolve. If the location is by name,
-        it will be retrieved or created, if href, returned and if
-        Location, href returned. If None, settings an elements location
-        to None will set it to the Default location.
+    :param str,Element name: location to resolve. If the location is
+        by name, it will be retrieved or created, if href, returned
+        and if Location, href returned. If None, settings an elements
+        location to None will set it to the Default location.
     :return str href: href of location
     """ 
     try:
         return name.href
     except AttributeError:
-        pass
+        if name and name.startswith('http'):
+            return name
     except ElementNotFound:
         return Location.get_or_create(name=name.name).href
-    
+        
     # Get all locations; tmp to support earlier 6.x versions
     if name is not None:
-        if name.startswith('http'):
-            return name
-        locations = [Location(**location) 
-                     for location in fetch_no_filter('location', name)]
+        locations = [location 
+                     for location in Location.objects.all()
+                     if location.name == name]
         if not locations:
             return Location.create(name=name).href
 

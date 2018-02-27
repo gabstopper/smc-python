@@ -222,6 +222,35 @@ class DNSRelayProfile(Element):
         return DNSAnswerTranslation(self)
         
 
+class SNMPAgent(Element):
+    """
+    Minimal implementation of SNMPAgent
+    """
+    typeof = 'snmp_agent'
+    
+    @classmethod
+    def create(cls, name, snmp_monitoring_contact=None,
+               snmp_monitoring_listening_port=161, snmp_version='v3',
+               comment=None):
+        
+        json = {'boot': False,
+                'go_offline': False,
+                'go_online': False,
+                'hardware_alerts': False,
+                'name': name,
+                'policy_applied': False,
+                'shutdown': False,
+                'snmp_monitoring_contact': snmp_monitoring_contact,
+                'snmp_monitoring_listening_port': snmp_monitoring_listening_port,
+                'snmp_monitoring_user_name': [],
+                'snmp_trap_destination': [],
+                'snmp_user_name': [],
+                'snmp_version': snmp_version,
+                'user_login': False}
+    
+        return ElementCreator(cls, json)
+    
+
 class SandboxService(Element):
     typeof = 'sandbox_service'
 

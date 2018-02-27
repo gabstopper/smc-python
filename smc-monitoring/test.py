@@ -47,14 +47,14 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
     #session.login(url='http://172.18.1.151:8082',
     #              api_key='hBC38alwmpsXkQaoRMyLvAUk', timeout=30,
     #              beta=True)
     
-    session.login(url='http://172.18.1.36:8082', api_key='kN8CYwTrxB9UNLPyTcnX0001',
-                  api_version='5.10')
+    #session.login(url='http://172.18.1.36:8082', api_key='kN8CYwTrxB9UNLPyTcnX0001',
+    #              api_version='5.10')
     #pprint(session._get_log_schema())
     #if session.session.verify and session.session.verify 
 
@@ -64,7 +64,9 @@ if __name__ == '__main__':
   
     #https://stackoverflow.com/questions/38501531/forcing-requests-library-to-use-tlsv1-1-or-tlsv1-2-in-python
     from smc_monitoring.models.query import Query
-    #query = ConnectionQuery('lynn')
+    query = ConnectionQuery('sg_vm')
+    for log in query.fetch_live():
+        print(log)
     #pprint(query.request)
     #query = BlacklistQuery('sg_vm')
     #query.add_in_filter(

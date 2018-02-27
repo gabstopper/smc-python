@@ -310,6 +310,91 @@ class MacAddress(Element):
         return ElementCreator(cls, json)
 
 
+class Blacklist(object):
+    """
+    Blacklist provides a simple container to add multiple blacklist
+    entries. Pass this to :class:`smc.core.engine.blacklist_bulk` to
+    upload to the engine.
+    
+    """
+    def __init__(self):
+        self.entries = {}
+    
+    def prepare_blacklist(self, src, dst, duration=3600, src_port1=None,
+                  src_port2=None, src_proto='predefined_tcp',
+                  dst_port1=None, dst_port2=None,
+                  dst_proto='predefined_tcp'):
+        """ 
+        Create a blacklist entry.
+        
+        A blacklist can be added directly from the engine node, or from
+        the system context. If submitting from the system context, it becomes
+        a global blacklist. This will return the properly formatted json
+        to submit.
+        
+        :param src: source address, with cidr, i.e. 10.10.10.10/32 or 'any'
+        :param dst: destination address with cidr, i.e. 1.1.1.1/32 or 'any'
+        :param int duration: length of time to blacklist
+        
+        Both the system and engine context blacklist allow kw to be passed
+        to provide additional functionality such as adding source and destination
+        ports or port ranges and specifying the protocol. The following parameters
+        define the ``kw`` that can be passed.
+        
+        The following example shows creating an engine context blacklist
+        using additional kw::
+        
+            engine.blacklist('1.1.1.1/32', '2.2.2.2/32', duration=3600,
+                src_port1=1000, src_port2=1500, src_proto='predefined_udp',
+                dst_port1=3, dst_port2=3000, dst_proto='predefined_udp')
+        
+        :param int src_port1: start source port to limit blacklist
+        :param int src_port2: end source port to limit blacklist
+        :param str src_proto: source protocol. Either 'predefined_tcp'
+            or 'predefined_udp'. (default: 'predefined_tcp')
+        :param int dst_port1: start dst port to limit blacklist
+        :param int dst_port2: end dst port to limit blacklist
+        :param str dst_proto: dst protocol. Either 'predefined_tcp'
+            or 'predefined_udp'. (default: 'predefined_tcp')
+        
+        .. note:: if blocking a range of ports, use both src_port1 and
+            src_port2, otherwise providing only src_port1 is adequate. The
+            same applies to dst_port1 / dst_port2. In addition, if you provide
+            src_portX but not dst_portX (or vice versa), the undefined port
+            side definition will default to all ports.
+        """
+    
+        json = {}
+        end_point1 = {'address_mode': 'address', 'ip_network': src} if 'any' not in \
+            src.lower() else {'address_mode': 'any'}
+
+        if src_port1:
+            if not src_port2:
+                src_port2 = src_port1
+            
+            end_point1.update(
+                port1=src_port1,
+                port2=src_port2,
+                port_mode=src_proto)
+        
+        end_point2 = {'address_mode': 'address', 'ip_network': dst} if 'any' not in \
+            dst.lower() else {'address_mode': 'any'} 
+        
+        if dst_port1:
+            if not dst_port2:
+                dst_port2 = dst_port1
+            
+            end_point2.update(
+                port1=dst_port1,
+                port2=dst_port2,
+                port_mode=dst_proto)
+        
+        json.update(
+            duration=duration, end_point1=end_point1,
+            end_point2=end_point2)
+        self.entries.setdefault('entries', []).append(json)
+
+
 def prepare_blacklist(src, dst, duration=3600, src_port1=None,
                       src_port2=None, src_proto='predefined_tcp',
                       dst_port1=None, dst_port2=None,

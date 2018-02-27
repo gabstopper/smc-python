@@ -86,10 +86,14 @@ class BGP(object):
         return self.data.get('enabled')
     
     def enable(self, autonomous_system, announced_networks,
-               router_id=None, bgp_profile=None):
+               antispoofing_networks=None, router_id=None, bgp_profile=None):
         """
         Enable BGP on this engine. On master engine, enable BGP on the
-        virtual firewall.
+        virtual firewall. When adding networks to `announced_networks` or
+        `antispoofing_networks`, the element types can be of type
+        :class:`smc.elements.network.Host`, :class:`smc.elements.network.Network`
+        or :class:`smc.elements.group.Group`. If passing a Group, it must have
+        element types of host or network.
         ::
 
             engine.bgp.enable(
@@ -102,7 +106,9 @@ class BGP(object):
         :param str,BGPProfile bgp_profile: provide the BGPProfile element or
             str href for the element; if None, use system default
         :param list announced_networks: list of networks to advertise via BGP
-        :type announced_networks: list(str,Network)
+        :type announced_networks: list(str,Element). 
+        :param list antispoofing_networks: list of networks to advertise via BGP
+        :type antispoofing_networks: list(str, Element)
         :param str router_id: router id for BGP, should be an IP address. If not
             set, automatic discovery will use default bound interface as ID.
         :raises ElementNotFound: OSPF, AS or Networks not found
@@ -278,7 +284,6 @@ def as_dotted(dotted_str):
             'a 32-bit ASN is 65535')
     binval = "{0:016b}".format(left)
     binval += "{0:016b}".format(right)
-    print(len(binval), binval)
     return int(binval, 2)
 
 
@@ -295,9 +300,9 @@ class AutonomousSystem(Element):
         """
         Create an AS to be applied on the engine BGP configuration. An
         AS is a required parameter when creating an ExternalBGPPeer. You
-        can also provide an AS number using an as_dot syntax::
+        can also provide an AS number using an 'asdot' syntax::
         
-            AutonomousSystem
+            AutonomousSystem.create(name='myas', as_number='200.600')
 
         :param str name: name of this AS
         :param int as_number: AS number preferred

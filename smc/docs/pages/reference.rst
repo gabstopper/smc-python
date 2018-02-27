@@ -392,7 +392,7 @@ Other
 +++++
 
 .. automodule:: smc.elements.other
-	:members: prepare_blacklist
+	:members: Blacklist
 
 Category
 ********
@@ -449,6 +449,12 @@ DNSRelayProfile
 	:members: DNSRelayProfile, FixedDomainAnswer, HostnameMapping, DomainSpecificDNSServer, DNSAnswerTranslation, DNSRule
 	:show-inheritance:
 
+SNMPAgent
+*********
+
+	.. autoclass:: SNMPAgent
+		:members:
+		:show-inheritance:
 
 Engine
 ------
@@ -458,45 +464,45 @@ Engine
    :exclude-members: create, VirtualResource, InternalEndpoint, InternalGateway
    :show-inheritance:
 
-AddOns
-++++++
+AddOn
++++++
 
-.. automodule:: smc.core.properties
+.. automodule:: smc.core.addon
 
 AntiVirus
 *********
 
-.. autoclass:: smc.core.properties.AntiVirus
+.. autoclass:: smc.core.addon.AntiVirus
 	:members:
 	
 FileReputation
 **************
 
-.. autoclass:: smc.core.properties.FileReputation
+.. autoclass:: smc.core.addon.FileReputation
 	:members:
 
 SidewinderProxy
 ***************
 
-.. autoclass:: smc.core.properties.SidewinderProxy
+.. autoclass:: smc.core.addon.SidewinderProxy
 	:members:
 
 UrlFiltering
 ************
 
-.. autoclass:: smc.core.properties.UrlFiltering
+.. autoclass:: smc.core.addon.UrlFiltering
 	:members:
 
 Sandbox
 *******
 
-.. autoclass:: smc.core.properties.Sandbox
+.. autoclass:: smc.core.addon.Sandbox
 	:members:
 
 TLSInspection
 *************
 
-.. autoclass:: smc.core.properties.TLSInspection
+.. autoclass:: smc.core.addon.TLSInspection
 	:members:
 
 Dynamic Routing
@@ -534,28 +540,34 @@ General
 DefaultNAT
 **********
 
-.. autoclass:: smc.core.properties.DefaultNAT
+.. autoclass:: smc.core.general.DefaultNAT
 	:members:
 
 DNSAddress
 **********
 
-.. autoclass:: smc.core.properties.DNSAddress
+.. autoclass:: smc.core.general.DNSAddress
 	:members:
 
-.. autoclass:: smc.core.properties.DNSEntry
+.. autoclass:: smc.core.general.DNSEntry
 	:members:
 
 DNS Relay
 *********
 
-.. autoclass:: smc.core.properties.DNSRelay
+.. autoclass:: smc.core.general.DNSRelay
 	:members:
-	
+
+SNMP
+****
+
+.. autoclass:: smc.core.general.SNMP
+	:members:
+
 Layer2Settings
 **************
 
-.. autoclass:: smc.core.properties.Layer2Settings
+.. autoclass:: smc.core.general.Layer2Settings
 	:members:
 
 VPN
@@ -1067,8 +1079,7 @@ NATElements
 +++++++++++
 
 .. automodule:: smc.policy.rule_nat
-.. autoclass:: NAT, NATElement
-	:members:
+	:members: NATElement
 
 DynamicSourceNAT
 ****************

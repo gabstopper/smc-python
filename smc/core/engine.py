@@ -15,9 +15,10 @@ from smc.routing.bgp import BGP
 from smc.routing.ospf import OSPF, OSPFProfile
 from smc.core.route import Antispoofing, Routing, Route, PolicyRoute
 from smc.core.contact_address import ContactAddressCollection
-from smc.core.properties import AntiVirus, Layer2Settings, FileReputation,\
-    SidewinderProxy, UrlFiltering, Sandbox, TLSInspection, DNSAddress,\
-    DefaultNAT, DNSRelay
+from smc.core.general import DNSRelay, Layer2Settings, DNSAddress,\
+    DefaultNAT, SNMP
+from smc.core.addon import AntiVirus, FileReputation,\
+    SidewinderProxy, UrlFiltering, Sandbox, TLSInspection
 from smc.elements.servers import LogServer
 from smc.base.collection import create_collection, sub_collection
 from smc.base.util import element_resolver
@@ -25,6 +26,7 @@ from smc.administration.access_rights import AccessControlList
 from smc.base.decorators import cacheable_resource
 from smc.administration.certificates.vpn import GatewayCertificate
 from smc.base.structs import BaseIterable
+from smc.elements.profiles import SNMPAgent
 
 
 class Engine(Element):
@@ -65,7 +67,8 @@ class Engine(Element):
                 enable_antivirus=False, enable_gti=False,
                 sidewinder_proxy_enabled=False,
                 default_nat=False, location_ref=None,
-                enable_ospf=None, ospf_profile=None):
+                enable_ospf=None, ospf_profile=None, snmp_agent=None,
+                comment=None):
         """
         Create will return the engine configuration as a dict that is a
         representation of the engine. The creating class will also add
@@ -129,8 +132,15 @@ class Engine(Element):
             base_cfg.update(default_nat=True)
 
         if location_ref:
-            base_cfg.update(location_ref=location_ref)
-
+            base_cfg.update(location_ref=location_helper(location_ref) \
+                            if location_ref else None)
+        
+        if snmp_agent:
+            snmp_agent_ref = SNMPAgent(snmp_agent.pop('snmp_agent_ref')).href
+            base_cfg.update(
+                snmp_agent_ref=snmp_agent_ref,
+                **snmp_agent)
+            
         if enable_ospf:
             if not ospf_profile:  # get default profile
                 ospf_profile = OSPFProfile('Default OSPFv2 Profile').href
@@ -140,7 +150,8 @@ class Engine(Element):
                     'ospfv2_profile_ref': ospf_profile}
             }}
             base_cfg.update(ospf)
-
+        
+        base_cfg.update(comment=comment)
         return base_cfg
     
     @property
@@ -157,7 +168,7 @@ class Engine(Element):
 
         :rtype: str or None
         """
-        return self.data.get('engine_version')
+        return getattr(self, 'engine_version', None)
 
     @property
     def installed_policy(self):
@@ -194,16 +205,20 @@ class Engine(Element):
     @property
     def location(self):
         """
-        The location for this engine (may be Default).
+        The location for this engine. May be None if no specific
+        location has been assigned.
 
         :param value: location to assign engine. Can be name, str href,
             or Location element. If name, it will be automatically created
             if a Location with the same name doesn't exist.
         :raises UpdateElementFailed: failure to update element
-        :return: :class:`smc.elements.other.Location` or None
+        :return: Location element or None
         """
-        return Element.from_href(self.location_ref)
-    
+        location = Element.from_href(self.location_ref)
+        if location and location.name == 'Default':
+            return None
+        return location
+
     @location.setter
     def location(self, value):
         self.data.update(location_ref=location_helper(value))
@@ -228,7 +243,7 @@ class Engine(Element):
         """
         Current DNS entries for the engine. Add and remove DNS entries.
         This resource is iterable and yields instances of
-        :class:`smc.core.properties.DNSEntry`.
+        :class:`smc.core.addon.DNSEntry`.
         Example of adding entries::
         
             >>> from smc.elements.servers import DNSServer
@@ -243,7 +258,22 @@ class Engine(Element):
         :rtype: DNSAddress
         """
         return DNSAddress(self)
-
+    
+    @property
+    def snmp(self):
+        """
+        SNMP engine settings. SNMP is supported on all engine types,
+        however can be enabled only on NDI interfaces (interfaces that
+        have assigned addresses).
+        
+        :rtype: SNMP
+        """
+        if not self.type.startswith('virtual'):
+            return SNMP(self)
+        raise UnsupportedEngineFeature(
+            'SNMP is not supported directly on this engine type. If this '
+            'is a virtual engine, SNMP is configured on the master engine.')
+        
     @property
     def antivirus(self):
         """
@@ -511,16 +541,32 @@ class Engine(Element):
         :raises EngineCommandFailed: blacklist failed during apply
         :return: None
         
-        .. note:: If more advanced blacklist is required using source/destination
-            ports and protocols (udp/tcp), use kw to provide these arguments. See
-            :py:func:`smc.elements.other.prepare_blacklist` for more details.
+        .. note:: This method is only valid for SMC version < 6.4. Use
+            :meth: `~blacklist_bulk` to add entries.
         """
         self.make_request(
             EngineCommandFailed,
             method='create',
             resource='blacklist',
             json=prepare_blacklist(src, dst, duration, **kw))
-
+    
+    def blacklist_bulk(self, blacklist):
+        """
+        Add blacklist entries to the engine node in bulk. For blacklist to work,
+        you must also create a rule with action "Apply Blacklist".
+        First create your blacklist entries using :class:`smc.elements.other.Blacklist`
+        then provide the blacklist to this method.
+        
+        :param blacklist Blacklist: pre-configured blacklist entries
+        
+        .. note:: This method requires SMC version >= 6.4
+        """
+        self.make_request(
+            EngineCommandFailed,
+            method='create',
+            resource='blacklist',
+            json=blacklist.entries)
+    
     def blacklist_flush(self):
         """
         Flush entire blacklist for engine
