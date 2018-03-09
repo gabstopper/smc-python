@@ -4,8 +4,8 @@ enabled and run on either single/cluster layer 3 firewalls or virtual FW's.
 
 For adding BGP configurations, several steps are required:
 
-* Enable BGP on the engine and specific the BGP Profile
-* Create or locate an existing OSPFArea to be used
+* Enable BGP on the engine and specify the BGP Profile
+* Create or use an existing OSPFArea to be used
 * Modify the routing interface and add the BGP Peering
 
 Enable BGP on an existing engine using the default BGP system profile::
@@ -44,8 +44,8 @@ The BGP relationship can be represented as::
 
 Only Layer3Firewall and Layer3VirtualEngine types can support running BGP.
 
-.. seealso:: :py:class:`smc.core.engines.Layer3Firewall` and 
-             :py:class:`smc.core.engines.Layer3VirtualEngine`
+.. seealso:: :class:`smc.core.engines.Layer3Firewall` and 
+             :class:`smc.core.engines.Layer3VirtualEngine`
              
 """
 from smc.base.model import Element, ElementCreator
@@ -71,10 +71,20 @@ class BGP(object):
     
         engine.bgp.advertise_network(Network('foo'))
         engine.update()
+
     """
     def __init__(self, engine):
         self._engine = engine
-        self.data = self._engine.data['dynamic_routing']['bgp']
+        self.data = self._engine.data.get('dynamic_routing', {})
+    
+    @property
+    def status(self):
+        """
+        Is BGP enabled on this engine.
+        
+        :rtype: bool
+        """
+        return self.data.get('bgp', False).get('enabled')
     
     @property
     def is_enabled(self):
@@ -83,7 +93,7 @@ class BGP(object):
         
         :rtype: bool
         """
-        return self.data.get('enabled')
+        return self.status
     
     def enable(self, autonomous_system, announced_networks,
                antispoofing_networks=None, router_id=None, bgp_profile=None):
@@ -126,13 +136,17 @@ class BGP(object):
 
         announced = [{'announced_ne_ref': network}
                      for network in element_resolver(announced_networks)]
-
-        self.data.update(
+        
+        self.data.setdefault('bgp', {}).update(
             enabled=True,
             bgp_as_ref=autonomous_system,
             bgp_profile_ref=bgp_profile,
             announced_ne_setting=announced,
             router_id=router_id)
+        
+        if antispoofing_networks:
+            self.data.setdefault('antispoofing_ne_ref', []).extend(
+                [element_resolver(net) for net in antispoofing_networks])
 
     def disable(self):
         """
@@ -140,9 +154,10 @@ class BGP(object):
 
         :return: None
         """
-        self.data.update(
+        self.data.setdefault('bgp', {}).update(    
             enabled=False,
             announced_ne_setting=[])
+        self.data.update(antispoofing_ne_ref=[])
     
     def reset_router_id(self, router_id):
         """
@@ -153,7 +168,8 @@ class BGP(object):
         :param str router_id: router id to use. Typically the
             IP address. If not set, interface IP will be used.
         """
-        self.data['router_id'] = router_id
+        self.data.setdefault('bgp', {}).update(
+            router_id=router_id)
     
     @property
     def router_id(self):
@@ -163,7 +179,7 @@ class BGP(object):
         
         :return: str or None
         """
-        return self.data.get('router_id')
+        return self.data.get('bgp', None).get('router_id')
     
     @property
     def autonomous_system(self):
@@ -172,20 +188,22 @@ class BGP(object):
         
         :rtype: AutonomousSystem
         """
-        return AutonomousSystem.from_href(self.data.get('bgp_as_ref'))
+        return AutonomousSystem.from_href(
+            self.data.get('bgp', None).get('bgp_as_ref'))
     
     def reset_autonomous_system(self, as_element):
         """
         Modify an existing autonomous system reference for this BGP
         configuration.
         
-        :param str, AutonomousSystem as_element: instance of AS
+        :param str,AutonomousSystem as_element: instance of AS
         :return: None
         
         .. note:: If str is provided for the AS, the str value
             should be the href for the element.
         """ 
-        self.data.update(bgp_as_ref=element_resolver(as_element))
+        self.data.setdefault('bgp', {}).update(
+            bgp_as_ref=element_resolver(as_element))
     
     @property
     def profile(self):
@@ -194,37 +212,40 @@ class BGP(object):
         
         :rtype: BGPProfile
         """
-        return BGPProfile.from_href(self.data.get('bgp_profile_ref'))
+        return BGPProfile.from_href(
+            self.data.get('bgp', None).get('bgp_profile_ref'))
     
     def reset_profile(self, profile):
         """
         Reset the BGPProfile used for this configuration.
         
-        :param str, BGPProfile profile: profile to use
+        :param str,BGPProfile profile: profile to use
         :raises ElementNotFound: BGPProfile specified is invalid
         :return: None
         
         .. note:: If str is provided for the profile, the str value
             should be the href for the element.
         """
-        self.data.update(bgp_profile_ref=element_resolver(profile))
+        self.data.setdefault('bgp', {}).update(
+            bgp_profile_ref=element_resolver(profile))
         
     @property
     def advertisements(self):
         """
         Show all advertised networks for the BGP configuration.
+        Returns tuple of advertised network, routemap. Route
+        map may be None.
         ::
         
             for advertised in engine.bgp.advertisements:
                 net, route_map = advertised
         
-        :return: list of tuples (advertised_network, route_map). Tuple
-            may be (None, None) if advertised networks not set.
+        :return: list of tuples (advertised_network, route_map).
         """
         return [(Element.from_href(ne.get('announced_ne_ref')),
                  Element.from_href(ne.get('announced_rm_ref')))
-                 for ne in self.data.get('announced_ne_setting')]
-    
+                 for ne in self.data.get('bgp', []).get('announced_ne_setting')]
+        
     def advertise_network(self, network, route_map=None):
         """
         Advertise a network through BGP. An advertised network can be
@@ -244,11 +265,14 @@ class BGP(object):
             should be the href for the element.
         """
         resolved = element_resolver(network)
-        existing = [ref.get('announced_ne_ref') for ref in self.data['announced_ne_setting']]
+        announced_ne_setting = self.data.get('bgp', {}).get('announced_ne_setting')
+        
+        existing = [ref.get('announced_ne_ref') for ref in announced_ne_setting]
+    
         if resolved not in existing:
-            self.data['announced_ne_setting'].append({
-                'announced_ne_ref': element_resolver(network),
-                'announced_rm_ref': element_resolver(route_map)})
+            announced_ne_setting.append(
+                {'announced_ne_ref': resolved,
+                 'announced_rm_ref': element_resolver(route_map)})
         
     def remove_advertisement(self, network):
         """
@@ -258,10 +282,49 @@ class BGP(object):
         :type networks: list(Element)
         :return: None
         """ 
-        self.data['announced_ne_setting'][:] = [entry
-            for entry in self.data['announced_ne_setting'] if
+        announced_ne_setting = self.data.get('bgp', {}).get(
+            'announced_ne_setting')
+        announced_ne_setting[:] = [
+            entry for entry in announced_ne_setting if
             entry.get('announced_ne_ref') != network.href]
+
+    @property
+    def antispoofing_networks(self):
+        """
+        Show all networks which will also be placed into the antispoofing
+        routing table.
         
+        :rtype: list(Element)
+        """
+        return [Element.from_href(net) 
+            for net in self.data.get('antispoofing_ne_ref', [])]
+    
+    def add_to_antispoofing(self, element):
+        """
+        Add a Host, Network or Group or host/networks to the networks list
+        to be added into the antispoofing table.
+        
+        :param str,Element element: any of the supported element types
+        :return: None
+        """
+        existing = self.data.get('antispoofing_ne_ref', [])
+        element = element_resolver(element)
+        if element not in existing:
+            existing.append(element)
+    
+    def remove_from_antispoofing(self, element):
+        """
+        Remove an Host, Network or Group element from the networks added
+        into the antispoofing table.
+        
+        :param str,Element element: any of the supported element types.
+        :return: None
+        """
+        antispoofing_ne_ref = self.data.get('antispoofing_ne_ref', [])
+        antispoofing_ne_ref[:] = [elem for elem in antispoofing_ne_ref
+            if elem != element.href]
+        
+    
 
 def as_dotted(dotted_str):
     """
@@ -433,7 +496,7 @@ class BGPProfile(Element):
         """
         Specific subnet administrative distances
 
-        :return list of tuple (subnet, distance)
+        :return: list of tuple (subnet, distance)
         """
         return [(Element.from_href(entry.get('subnet')), entry.get('distance'))
                 for entry in self.data.get('distance_entry')]
@@ -453,7 +516,7 @@ class ExternalBGPPeer(Element):
     typeof = 'external_bgp_peer'
 
     @classmethod
-    def create(cls, name, neighbor_as_ref, neighbor_ip,
+    def create(cls, name, neighbor_as, neighbor_ip,
                neighbor_port=179):
         """
         Create an external BGP Peer. 
@@ -471,8 +534,7 @@ class ExternalBGPPeer(Element):
                 'neighbor_ip': neighbor_ip,
                 'neighbor_port': neighbor_port}
 
-        neighbor_as_ref = element_resolver(neighbor_as_ref)
-
+        neighbor_as_ref = element_resolver(neighbor_as)
         json.update(neighbor_as=neighbor_as_ref)
 
         return ElementCreator(cls, json)

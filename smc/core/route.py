@@ -115,6 +115,7 @@ from smc.base.model import SubElement, Element, ElementCache
 from smc.base.util import element_resolver
 from smc.api.exceptions import InterfaceNotFound, ModificationAborted
 from smc.base.structs import SerializedIterable
+from __builtin__ import True
 
 
 def flush_parent_cache(node):
@@ -409,7 +410,8 @@ class Routing(RoutingTree):
         :raises UpdateElementFailed: failure updating routing
         :raises ModificationAborted: Change must be made at the interface level
         :raises ElementNotFound: ospf area not found
-        :return: None
+        :return: Status of whether the route table was updated
+        :rtype: bool
         """
         netlink = {
             'href': netlink.href,
@@ -418,14 +420,12 @@ class Routing(RoutingTree):
             'name': netlink.name}
         
         if netlink_gw:
-            netlink_gateway = {
-                'level': 'any',
-                'href': netlink_gw.href,
-                'name': netlink_gw.name}
-        
-            netlink['routing_node'].append(netlink_gateway)
-    
-        self._add_gateway_node(netlink, network)
+            netlink['routing_node'].append(
+                {'level': 'any',
+                 'href': netlink_gw.href,
+                 'name': netlink_gw.name})
+
+        return self._add_gateway_node(netlink, network)
 
     def add_ospf_area(self, ospf_area,
                       communication_mode='NOT_FORCED',
@@ -461,7 +461,8 @@ class Routing(RoutingTree):
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure updating routing
         :raises ElementNotFound: ospf area not found
-        :return: None
+        :return: Status of whether the route table was updated
+        :rtype: bool
         """
         communication_mode = communication_mode.upper()
         node = {
@@ -478,13 +479,13 @@ class Routing(RoutingTree):
                 'level': 'any',
                 'name': unicast_ref.name})
 
-        self._add_gateway_node(node, network)
+        return self._add_gateway_node(node, network)
 
     def add_bgp_peering(self, bgp_peering, external_bgp_peer,
                         network=None):
         """
         Add a BGP configuration to this routing interface. 
-        If the interface has multiple ipaddresses, all networks will receive
+        If the interface has multiple ip addresses, all networks will receive
         the BGP peering by default unless the ``network`` parameter is
         specified.
         
@@ -496,33 +497,33 @@ class Routing(RoutingTree):
                 ExternalBGPPeer('neighbor'))
 
         :param BGPPeering bgp_peering: BGP Peer element
-        :param ExternalBGPPeer external_bgp_peer: peer element or href
+        :param ExternalBGPPeer,Engine external_bgp_peer: peer element or href
         :param str network: if network specified, only add OSPF to this network
             on interface
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failed to add BGP
-        :return: None
+        :return: Status of whether the route table was updated
+        :rtype: bool
         """
         bgp = {
             'href': bgp_peering.href,
             'level': 'gateway',
-            'routing_node': [],
+            'routing_node': [{
+                'href': external_bgp_peer.href,
+                'level': 'any',
+                'name': external_bgp_peer.name}],
             'name': bgp_peering.name}
-
-        external_peer = {
-            'href': external_bgp_peer.href,
-            'level': 'any',
-            'name': external_bgp_peer.name}
         
-        bgp['routing_node'].append(external_peer)
-        
-        self._add_gateway_node(bgp, network)
+        return self._add_gateway_node(bgp, network)
 
     def add_static_route(self, gateway, destination,
                          network=None):
         """
         Add a static route to this route table. Destination can be any element
         type supported in the routing table such as a Group of network members.
+        Since a static route gateway needs to be on the same network as the
+        interface, provide a value for `network` if an interface has multiple
+        addresses on different networks.
         ::
 
             >>> engine = Engine('ve-1')
@@ -536,7 +537,8 @@ class Routing(RoutingTree):
         :type destination: list(Host, Router, ..)
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure to update routing table
-        :return: None
+        :return: Status of whether the route table was updated
+        :rtype: bool
         """
         route = {
             'href': gateway.href,
@@ -550,7 +552,7 @@ class Routing(RoutingTree):
                 'level': 'any',
                 'name': dest.name})            
         
-        self._add_gateway_node(route, network)
+        return self._add_gateway_node(route, network)
     
     def add_dynamic_gateway(self, networks):
         """
@@ -567,7 +569,8 @@ class Routing(RoutingTree):
             this DHCP gateway
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure to update routing table
-        :return: None
+        :return: Status of whether the route table was updated
+        :rtype: bool
         """
         route = {
             'dynamic_classid': 'gateway',
@@ -580,34 +583,43 @@ class Routing(RoutingTree):
                 'level': 'any',
                 'name': network.name})
 
-        self._add_gateway_node(route)
+        return self._add_gateway_node(route)
     
     def _add_gateway_node(self, element, network=None):
         """
         Bind the pre-configured element to the interface level
         routing node. It will be saved back at the interface. This
         should be called when level == 'interface'.
+        
+        :return: boolean indicating whether the node was updated
         """
         if self.level != 'interface':
             raise ModificationAborted('You must make this change from the '
                 'interface routing level. Current node: {}'.format(self))
         
-        node_added = False    
-        for networks in self:
-            if networks.dynamic_nicid: # DHCP interface
-                networks.data['routing_node'].append(element)
-                node_added = True
-                break
-            if len(networks.ip.split(':')) == 1:  # Skip IPv6
-                if network is not None:  # Only place on specific network
-                    if networks.ip == network:
-                        networks.data['routing_node'].append(element)
-                        node_added = True
-                else: # Place on all networks
+        node_added = False
+        # Tunnel interface bindings happen at the interface, not the nested
+        # network
+        if self.related_element_type == 'tunnel_interface':
+            self.data['routing_node'].append(element)
+            node_added = True
+        else:
+            for networks in self:
+                if networks.dynamic_nicid: # DHCP interface
                     networks.data['routing_node'].append(element)
                     node_added = True
+                    break
+                if len(networks.ip.split(':')) == 1:  # Skip IPv6
+                    if network is not None:  # Only place on specific network
+                        if networks.ip == network:
+                            networks.data['routing_node'].append(element)
+                            node_added = True
+                    else: # Place on all networks
+                        networks.data['routing_node'].append(element)
+                        node_added = True
         if node_added:
             self.update()
+        return node_added
                     
     def remove_route_gateway(self, element, network=None):
         """
@@ -630,17 +642,26 @@ class Routing(RoutingTree):
             network on interface
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure to update routing table
-        :return: None
+        :return: Status of whether the entry was removed (i.e. or not found)
+        :rtype: bool
         """
-        if self.level != 'interface':
+        if self.level not in ('interface'):
             raise ModificationAborted('You must make this change from the '
                 'interface routing level. Current node: {}'.format(self))
-                
+        
+        node_changed = False
         element = element_resolver(element)
         for network in self:
+            # Tunnel Interface binds gateways to the interface
+            if network.level == 'gateway' and network.data.get('href') == element:
+                network.delete()
+                node_changed = True
+                break
             for gateway in network:
                 if gateway.data.get('href') == element:
                     gateway.delete()
+                    node_changed = True
+        return node_changed
     
 
 class Antispoofing(RoutingTree):
@@ -763,9 +784,17 @@ def gateway_by_type(self, type=None):  # @ReservedAssignment
         for node in gateways:
             #TODO: Change to type == node.related_element_type when
             # only supporting SMC >= 6.4
+            
             if type == node.routing_node_element.typeof:
-                network = node._parent
-                interface = network._parent
+                # If the parent is level interface, this is a tunnel interface
+                # where the gateway is bound to interface versus network
+                parent = node._parent
+                if parent.level == 'interface':
+                    interface = parent
+                    network = None
+                else:
+                    network = parent
+                    interface = network._parent
                 yield (interface, network, node)
                     
 

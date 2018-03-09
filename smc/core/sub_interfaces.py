@@ -89,7 +89,7 @@ class ClusterVirtualInterface(SubInterface):
         """
         data = {'address': address,
                 'network_value': network_value,
-                'nicid': interface_id,
+                'nicid': str(interface_id),
                 'auth_request': False}
 
         for k, v in kwargs.items():
@@ -152,7 +152,7 @@ class InlineInterface(SubInterface):
         :rtype: dict
         """
         data = {'inspect_unspecified_vlans': True,
-                'nicid': interface_id,
+                'nicid': str(interface_id),
                 'logical_interface_ref': logical_interface_ref,
                 'zone_ref': zone_ref}
 
@@ -283,7 +283,7 @@ class CaptureInterface(SubInterface):
         """
         data = {'inspect_unspecified_vlans': True,
                 'logical_interface_ref': logical_interface_ref,
-                'nicid': interface_id}
+                'nicid': str(interface_id)}
 
         for k, v in kwargs.items():
             data.update({k: v})
@@ -363,7 +363,7 @@ class NodeInterface(SubInterface):
         """
         data = {'address': address,
                 'network_value': network_value,
-                'nicid': interface_id,
+                'nicid': str(interface_id),
                 'auth_request': False,
                 'backup_heartbeat': False,
                 'nodeid': nodeid,
@@ -431,7 +431,7 @@ class SingleNodeInterface(NodeInterface):
                 'backup_mgt': False,
                 'dynamic': False,
                 'network_value': network_value,
-                'nicid': interface_id,
+                'nicid': str(interface_id),
                 'nodeid': nodeid,
                 'outgoing': False,
                 'primary_mgt': False}
@@ -459,7 +459,7 @@ class SingleNodeInterface(NodeInterface):
                 'outgoing': False,
                 'dynamic': True,
                 'dynamic_index': dynamic_index,
-                'nicid': interface_id,
+                'nicid': str(interface_id),
                 'nodeid': nodeid,
                 'primary_mgt': False,
                 'automatic_default_route': False,

@@ -47,26 +47,29 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
-    #session.login(url='http://172.18.1.151:8082',
-    #              api_key='hBC38alwmpsXkQaoRMyLvAUk', timeout=30,
-    #              beta=True)
+    session.login(url='https://smc-standby:8082',
+                  api_key='AF7Rggmn6XgmrZMCKKpgiYhp', timeout=30,
+                  verify='/Users/davidlepage/Downloads/smc_api.crt', beta=True)
+    
     
     #session.login(url='http://172.18.1.36:8082', api_key='kN8CYwTrxB9UNLPyTcnX0001',
     #              api_version='5.10')
     #pprint(session._get_log_schema())
     #if session.session.verify and session.session.verify 
 
+
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
     #import websocket
     websocket.enableTrace(True)
   
     #https://stackoverflow.com/questions/38501531/forcing-requests-library-to-use-tlsv1-1-or-tlsv1-2-in-python
-    from smc_monitoring.models.query import Query
-    query = ConnectionQuery('sg_vm')
-    for log in query.fetch_live():
-        print(log)
+    #from smc_monitoring.models.query import Query
+    #query = ConnectionQuery('sg_vm')
+    #for log in query.fetch_live():
+    #    print(log)
+    
     #pprint(query.request)
     #query = BlacklistQuery('sg_vm')
     #query.add_in_filter(
@@ -88,7 +91,7 @@ if __name__ == '__main__':
            
     #query.request = {"query":{"definition":"BLACKLIST","target":"sg_vm"}, "fetch":{}, "format":{"type":"texts", "field_format": "name"}}
     #query = UserQuery('lynn', check_hostname=False)
-    #query = VPNSAQuery('sg_vm')
+    
     #query = SSLVPNQuery('lynn', check_hostname=False)
     #query = RoutingQuery('lynn')
     
@@ -97,9 +100,10 @@ if __name__ == '__main__':
     
     #myfilter = InFilter(FieldValue(LogField.SRC), [IPValue('192.168.4.82'), IPValue('172.18.1.152')])
    
-    query = LogQuery(fetch_size=1)
-    for log in query.fetch_live():
-        print(log)
+    #query = LogQuery(fetch_size=1)
+    #for log in query.fetch_live():
+    #    print(log)
+    
     #pprint(query.get_field_schema())
         #if 'fields' in fields:
         #    return fields['fields']
@@ -141,16 +145,17 @@ if __name__ == '__main__':
     #query = VPNSAQuery('sg_vm')
     #pprint(query.get_field_schema())    
     
-    #query = ActiveAlertQuery('Shared Domain')
+    #query = VPNSAQuery('sg_vm')
+    query = ActiveAlertQuery('Shared Domain')
     #query = SSLVPNQuery('sg_vm')
     #query = RoutingQuery('sg_vm')
-    query = BlacklistQuery('sg_vm', timezone='CST')
+    #query = BlacklistQuery('sg_vm', timezone='CST')
     #pprint(query._get_field_schema())
     #query.format.timezone('CST')  
     #pprint(query.get_field_schema())
     #query.get_field_schema()
-    #for record in query.fetch_batch():
-    #    print(record)
+    for record in query.fetch_raw():
+        print(record)
     
     #query = ActiveAlertQuery('Shared Domain', timezone='America/Chicago')
     #pprint(vars(query))

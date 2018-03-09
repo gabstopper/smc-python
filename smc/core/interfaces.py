@@ -2356,7 +2356,7 @@ class InterfaceBuilder(object):
             if cls is PhysicalInterface:
                 setattr(self, 'vlanInterfaces', [])
                 setattr(self, 'zone_ref', None)
-
+    
     @property
     def zone(self):
         pass
@@ -2560,6 +2560,7 @@ class InterfaceBuilder(object):
                     nodeid=nodeid,
                     nicid=vlan_str,
                     **kw)
+                
                 if vlan.get('interfaces'):
                     vlan['interfaces'].append({intf.typeof: intf.data})
                 else:  # VLAN exists but no interfaces assigned
@@ -2572,6 +2573,7 @@ class InterfaceBuilder(object):
                 address,
                 network_value,
                 nicid=vlan_str,
+                nodeid=nodeid,
                 **kw)
             vlan = PhysicalVlanInterface.create(
                 self.interface_id,

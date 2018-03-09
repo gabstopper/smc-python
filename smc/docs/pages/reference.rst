@@ -81,6 +81,7 @@ TLSCommon
 
 .. automodule:: smc.administration.certificates.tls_common
 	:members:
+	:exclude-members: load_cert_chain, pem_as_string
 
 TLSServerCredential
 *******************
@@ -392,7 +393,13 @@ Other
 +++++
 
 .. automodule:: smc.elements.other
-	:members: Blacklist
+	:members:
+
+Blacklist
+*********
+
+.. autoclass:: Blacklist
+	:members:
 
 Category
 ********
@@ -512,27 +519,19 @@ Represents classes responsible for configuring dynamic routing protocols
 OSPF
 ****
 
-.. automodule:: smc.routing.ospf
-	:members:
+For more information on creating OSPF elements and enabling on a layer 3
+engine:
+
+.. seealso:: :py:mod:`smc.routing.ospf`
 
 BGP
 ***
 
-.. automodule:: smc.routing.bgp
-	:members:
+For more information on creating BGP elements and enabling on a layer 3
+engine:
 
-AccessList
-**********
+.. seealso:: :py:mod:`smc.routing.bgp`
 
-.. automodule:: smc.routing.access_list
-	:members:
-
-PrefixList
-**********
-
-.. automodule:: smc.routing.prefix_list
-	:members:
-	:show-inheritance:
 
 General
 +++++++
@@ -734,13 +733,12 @@ Sub-Interfaces
 	:members:
 	:exclude-members: create
 
-
 Node
 ++++
 
 .. automodule:: smc.core.node
    :members: Node, NodeCollection
-   :exclude-members: create
+   :exclude-members: create, update
    :show-inheritance:
 
 Appliance Info
@@ -885,6 +883,161 @@ MasterEngineCluster
 
 .. autoclass:: MasterEngineCluster
 	:members:
+
+Dynamic Routing Elements
+------------------------
+
+RouteMap
+++++++++
+
+.. automodule:: smc.routing.route_map
+	:members:
+	:exclude-members: Metric, Condition
+	:show-inheritance:
+
+.. autoclass:: smc.routing.route_map.Metric
+	:show-inheritance:
+	
+.. autoclass:: smc.routing.route_map.Condition
+	:show-inheritance:
+
+IPAccessList
+++++++++++++
+
+.. automodule:: smc.routing.access_list
+	:members:
+	:exclude-members: AccessListEntry
+	:show-inheritance:
+
+.. autoclass:: smc.routing.access_list.AccessListEntry
+	:show-inheritance:
+
+IPPrefixList
+++++++++++++
+
+.. automodule:: smc.routing.prefix_list
+	:members:
+	:exclude-members: PrefixListEntry
+	:show-inheritance:
+
+.. autoclass:: smc.routing.prefix_list.PrefixListEntry
+	:show-inheritance:
+
+BGP Elements
+++++++++++++
+
+.. automodule:: smc.routing.bgp
+	:members: BGP
+
+AutonomousSystem
+****************
+
+.. autoclass:: AutonomousSystem
+	:members:
+	:show-inheritance:
+	
+ExternalBGPPeer
+***************
+
+.. autoclass:: ExternalBGPPeer
+	:members:
+	:show-inheritance:
+
+BGPPeering
+**********
+
+.. autoclass:: BGPPeering
+	:members:
+	:show-inheritance:
+
+BGPProfile
+**********
+
+.. autoclass:: BGPProfile
+	:members:
+	:show-inheritance:
+
+BGPConnectionProfile
+********************
+
+.. autoclass:: BGPConnectionProfile
+	:members:
+	:show-inheritance:
+
+ASPathAccessList
+****************
+
+.. autoclass:: smc.routing.bgp_access_list.ASPathAccessList
+	:members:
+	:show-inheritance:
+	
+.. autoclass:: smc.routing.bgp_access_list.ASPathListEntry
+	:show-inheritance:
+
+CommunityAccessList
+*******************
+
+.. autoclass:: smc.routing.bgp_access_list.CommunityAccessList
+	:members:
+	:show-inheritance:
+	
+.. autoclass:: smc.routing.bgp_access_list.CommunityListEntry
+	:show-inheritance:
+	
+ExtendedCommunityAccessList
+***************************
+
+.. autoclass:: smc.routing.bgp_access_list.ExtendedCommunityAccessList
+	:members:
+	:show-inheritance:
+	
+.. autoclass:: smc.routing.bgp_access_list.ExtCommunityListEntry
+	:show-inheritance:
+
+
+OSPF Elements
++++++++++++++
+
+.. automodule:: smc.routing.ospf
+	:members: OSPF
+
+OSPFArea
+********
+
+.. autoclass:: OSPFArea
+	:members:
+	:show-inheritance:
+
+OSPFKeyChain
+************
+
+.. autoclass:: OSPFKeyChain
+	:members:
+	:show-inheritance:
+
+OSPFProfile
+***********
+
+.. autoclass:: OSPFProfile
+	:members:
+	:show-inheritance:
+	
+OSPFDomainSetting
+*****************
+
+.. autoclass:: OSPFDomainSetting
+	:members:
+	:show-inheritance:
+
+OSPFInterfaceSetting
+********************
+
+.. autoclass:: OSPFInterfaceSetting
+	:members:
+	:show-inheritance:
+
+
+
 
 Policies
 --------

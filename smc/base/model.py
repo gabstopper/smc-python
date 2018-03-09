@@ -515,7 +515,7 @@ class Element(ElementBase):
         return element 
         
     @classmethod
-    def get_or_create(cls, filter_key=None, **kwargs):
+    def get_or_create(cls, filter_key=None, with_status=False, **kwargs):
         """
         Convenience method to retrieve an Element or create if it does not
         exist. If an element does not have a `create` classmethod, then it
@@ -543,32 +543,45 @@ class Element(ElementBase):
             field will be used.
         :param kwargs: keyword arguments mapping to the elements ``create``
             method.
+        :param bool with_status: if set to True, a tuple is returned with
+            (Element, True/False), where the second tuple item indicates if
+            the element has been created or not.
         :raises CreateElementFailed: could not create element with reason
         :raises ElementNotFound: if read-only element does not exist
         :return: element instance by type
         :rtype: Element
         """
+        was_created = False
         if not hasattr(cls, 'create'):
             return cls.get(kwargs.get('name'))
         elif 'name' not in kwargs:
             raise ElementNotFound('Name field is a required parameter '
                 'for all create type operations on an element')
-
+        
         if filter_key:
             elements = cls.objects.filter(**filter_key)
             element = elements.first()
-            if not element:
-                element = cls.create(**kwargs)
         else:
             try:
                 element = cls.get(kwargs.get('name'))
             except ElementNotFound:
-                element = cls.create(**kwargs)
+                element = None
         
+        if not element:
+            try:
+                element = cls.create(**kwargs)
+                was_created = True
+            except TypeError:
+                raise CreateElementFailed('%s: %r not found and missing '
+                    'constructor arguments to properly create.' %
+                    (cls.__name__, kwargs['name']))
+
+        if with_status:
+            return element, was_created
         return element
 
     @classmethod
-    def update_or_create(cls, filter_key=None, **kwargs):
+    def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
         """
         Update or create the element. If the element exists, update
         it using the kwargs provided if the provided kwargs are new. Note
@@ -594,11 +607,15 @@ class Element(ElementBase):
             field will be used.
         :param kwargs: keyword arguments mapping to the elements ``create``
             method.
+        :param bool with_status: if set to True, a tuple is returned with
+            (Element, True/False), where the second tuple item indicates if
+            the element has been created or not.
         :raises CreateElementFailed: could not create element with reason
         :raises ElementNotFound: if read-only element does not exist
         :return: element instance by type
         :rtype: Element
         """
+        was_created = False
         if not hasattr(cls, 'create'):
             return cls.get(kwargs.get('name'))
         elif 'name' not in kwargs:
@@ -633,7 +650,10 @@ class Element(ElementBase):
             params = {k: v() if callable(v) else v
                       for k, v in kwargs.items()}
             element = cls.create(**params)
-
+            was_created = True
+        
+        if with_status:
+            return element, was_created
         return element
 
     @property

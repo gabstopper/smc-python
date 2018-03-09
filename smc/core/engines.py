@@ -640,15 +640,16 @@ class FirewallCluster(Engine):
                                     str(interface['vlan_id']) == hb_vlan:
                                     node.update(primary_heartbeat=True)
                             
-                            node.update(zone_ref=interface.get('zone_ref'))        
+                            node.update(zone_ref=interface.get('zone_ref'))  
                             builder.add_ndi_to_vlan(**node)
-                            
+
                         else:
                             # Assign primary backup and heartbeat if specified
                             if backup_mgt is not None and str(_interface_id) == bkup_interface:
                                 node.update(backup_mgt=True)
                             if primary_heartbeat is not None and str(_interface_id) == hb_interface:
                                 node.update(primary_heartbeat=True)
+                            builder.zone = interface.get('zone_ref')
                             builder.add_ndi_only(**node)
                 
                 elif 'cluster_virtual' not in interface or \
@@ -670,7 +671,7 @@ class FirewallCluster(Engine):
                     physical_interfaces.append({interface_type: builder.data})
             
             if vlans:
-                for _, builder in vlans.items(): 
+                for _, builder in vlans.items():
                     physical_interfaces.append({'physical_interface': builder.data})
 
         if snmp_agent:
@@ -700,7 +701,7 @@ class FirewallCluster(Engine):
                 snmp_agent=snmp_agent if snmp_agent else None,
                 comment=comment)
             engine.update(cluster_mode=cluster_mode)
-        
+            
             return ElementCreator(cls, json=engine)
     
         except (ElementNotFound, CreateElementFailed) as e:

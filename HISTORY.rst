@@ -140,5 +140,10 @@ Release History
 - Firewall Clusters can be fully created with additional interfaces and primary_heartbeat, backup_mgt fields
   can be customized during creation
 - Renamed module smc.core.properties to smc.core.addon
+- Added keyword argument to get_or_create and update_or_create `with_status` which takes a boolean value.
+  If set, will return a 2 tuple (Element, was_created), were was_created indicates whether the element
+  has to be created or whether it was fetched.
+- Add BGP Peerings to Tunnel Interface fixed to set on top level interface versus network level.
+ 
 
  

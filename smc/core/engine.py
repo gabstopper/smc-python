@@ -542,7 +542,7 @@ class Engine(Element):
         :return: None
         
         .. note:: This method is only valid for SMC version < 6.4. Use
-            :meth: `~blacklist_bulk` to add entries.
+            :meth:`~blacklist_bulk` to add entries.
         """
         self.make_request(
             EngineCommandFailed,
