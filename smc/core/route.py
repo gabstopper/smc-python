@@ -115,7 +115,6 @@ from smc.base.model import SubElement, Element, ElementCache
 from smc.base.util import element_resolver
 from smc.api.exceptions import InterfaceNotFound, ModificationAborted
 from smc.base.structs import SerializedIterable
-from __builtin__ import True
 
 
 def flush_parent_cache(node):

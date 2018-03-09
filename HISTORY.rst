@@ -142,7 +142,7 @@ Release History
 - Renamed module smc.core.properties to smc.core.addon
 - Added keyword argument to get_or_create and update_or_create `with_status` which takes a boolean value.
   If set, will return a 2 tuple (Element, was_created), were was_created indicates whether the element
-  has to be created or whether it was fetched.
+  had to be created or whether it was fetched.
 - Add BGP Peerings to Tunnel Interface fixed to set on top level interface versus network level.
  
 

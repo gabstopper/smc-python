@@ -51,15 +51,15 @@ class GroupMixin(object):
         :return: None
         """
         if members:
+            elements = [element_resolver(element) for element in members]
             if append_lists:
-                element = [element for element in members
-                           if element_resolver(element) not in self.members]
+                element = [e for e in elements if e not in self.members]
             else:
-                element = element_resolver(members)
+                element = list(set(elements))
             
             if element:
                 self.update(
-                    element=element_resolver(members),
+                    element=element,
                     append_lists=append_lists)
 
     def obtain_members(self):
