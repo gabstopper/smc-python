@@ -294,6 +294,47 @@ class Interface(SubElement):
         self._engine = meta.pop('engine', None)  # Engine reference
         super(Interface, self).__init__(**meta)
     
+    '''
+    def __eq__(self, other):
+        other_addr = other.addresses
+        print("Other: %s" % other_addr)
+        print("Self: %s" % self.addresses)
+        if len(other_addr) == len(self.addresses):
+            if all(i in other_addr for i in self.addresses):
+                return True
+        return False
+    
+    def update_or_create(self, interface):
+        updated = False
+        if self == interface:
+            for key, value in interface.data.items():
+                if not isinstance(value, list):
+                    if getattr(self, key) != value:
+                        self.data[key] = value
+                        updated = True
+        else:
+            sub_interfaces = self.all_interfaces
+            for itf in interface.interfaces:
+                sub = sub_interfaces.get(nodeid=itf.nodeid)
+                if sub:
+                    sub.update(itf.data)
+            if interface.has_vlan:
+                if interface.vlan_id == self.vlan_id:
+                    for vlan_interface in interface.vlan_interface:
+                        if getattr(self, key) != value:
+                            print("Updating VLAN field: %s" % key)
+                            self.data[key] = value
+                            updated = True
+            for key, value in interface.data.items():
+                print("Setting key: %s" % key)
+                if not isinstance(value, list):
+                    self.data[key] = value
+            updated = True
+        from pprint import pprint
+        pprint(self.data)
+        return updated
+    '''
+                            
     def delete(self):
         """
         Override delete in parent class, this will also delete
@@ -2179,7 +2220,7 @@ class InterfaceModifier(object):
                     name=name,
                     type=typeof,
                     href=InterfaceModifier.href_from_link(data.get('link')))
-                clazz.data = ElementCache(**data)
+                clazz.data = ElementCache(data)
                 clazz._engine = engine
                 interfaces.append(clazz)
         return cls(interfaces, engine=engine)
@@ -2644,7 +2685,7 @@ class InterfaceBuilder(object):
 
 
 def extract_sub_interface(data):
-    for intf in data['interfaces']:
+    for intf in data.get('interfaces', []):
         for if_type, values in intf.items():
             return get_sub_interface(if_type)(values)
 

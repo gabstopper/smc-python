@@ -1,3 +1,49 @@
+"""
+VPN Elements are used in conjunction with Policy or Route Based VPN configurations.
+VPN elements consist of external gateway and VPN site settings that identify 3rd party
+gateways to be used as a VPN termination endpoint.
+
+There are several ways to create an external gateway configuration.
+A step by step process which first creates a network element to be used in a 
+VPN site, then creates the ExternalGatway, an ExternalEndpoint for the gateway,
+and inserts the VPN site into the configuration::
+
+    Network.create(name='mynetwork', ipv4_network='172.18.1.0/24')
+    gw = ExternalGateway.create(name='mygw')
+    gw.external_endpoint.create(name='myendpoint', address='10.10.10.10')
+    gw.vpn_site.create(name='mysite', site_element=[Network('mynetwork')])
+
+You can also use the convenience method `update_or_create` on the ExternalGateway
+to fully provision in a single step. Note that the ExternalEndpoint and VPNSite also
+have an `update_or_create` method to limit the update to those respective
+configurations::
+
+    >>> from smc.elements.network import Network
+    >>> from smc.vpn.elements import ExternalGateway
+    >>> network = Network.get_or_create(name='network-172.18.1.0/24', ipv4_network='172.18.1.0/24')
+    >>> 
+    >>> g = ExternalGateway.update_or_create(name='newgw',
+        external_endpoint=[
+            {'name': 'endpoint1', 'address': '1.1.1.1', 'enabled': True},
+            {'name': 'endpoint2', 'address': '2.2.2.2', 'enabled': True}],
+        vpn_site=[{'name': 'sitea', 'site_element':[network]}])
+    >>> g
+    ExternalGateway(name=newgw)
+    >>> for endpoint in g.external_endpoint:
+    ...   endpoint
+    ... 
+    ExternalEndpoint(name=endpoint1 (1.1.1.1))
+    ExternalEndpoint(name=endpoint2 (2.2.2.2))
+    >>> for site in g.vpn_site:
+    ...   site, site.site_element
+    ... 
+    (VPNSite(name=sitea), [Network(name=network-172.18.1.0/24)])
+
+.. note:: When calling `update_or_create` from the ExternalGateway, providing the
+    parameters for external_endpoints and vpn_site is optional.
+"""
+
+from smc.api.exceptions import ElementNotFound
 from smc.base.model import SubElement, SubElementCreator
 from smc.base.model import Element, ElementCreator
 from smc.base.collection import create_collection
@@ -74,7 +120,7 @@ class ExternalGateway(Element):
     """
     External Gateway defines an VPN Gateway for a non-SMC managed device. 
     This will specify details such as the endpoint IP, and VPN site
-    protected networks. Example of full provisioning::
+    protected networks. Example of manually provisioning each step::
 
         Network.create(name='mynetwork', ipv4_network='172.18.1.0/24')
         gw = ExternalGateway.create(name='mygw')
@@ -100,6 +146,70 @@ class ExternalGateway(Element):
 
         return ElementCreator(cls, json)
 
+    @classmethod
+    def update_or_create(cls, name, external_endpoint=None, vpn_site=None,
+        trust_all_cas=True, with_status=False):
+        """
+        Update or create an ExternalGateway. The ``external_endpoint`` and
+        ``vpn_site`` parameters are expected to be a list of dicts with key/value
+        pairs to satisfy the respective elements create constructor. VPN Sites will
+        represent the final state of the VPN site list. ExternalEndpoint that are
+        pre-existing will not be deleted if not provided in the ``external_endpoint``
+        parameter, however existing elements will be updated as specified.
+        
+        :param str name: name of external gateway
+        :param list(dict) external_endpoint: list of dict items with key/value
+            to satisfy ExternalEndpoint.create constructor
+        :param list(dict) vpn_site: list of dict items with key/value to satisfy
+            VPNSite.create constructor
+        :param bool with_status: If set to True, returns a tuple of (ExternalGateway, created),
+            where created is the boolean status as to whether the configuration was
+            created or updated.
+        :raises ValueError: missing required argument/s for constructor argument
+        :rtype: ExternalGateway
+        """
+        if external_endpoint:
+            for endpoint in external_endpoint:
+                if 'name' not in endpoint:
+                    raise ValueError('External endpoints are configured '
+                        'but missing the name parameter.')
+        
+        if vpn_site:
+            for site in vpn_site:
+                if 'name' not in site:
+                    raise ValueError('VPN sites are configured but missing '
+                        'the name parameter.')
+                # Make sure VPN sites are resolvable before continuing
+                sites = [element_resolver(element, do_raise=True)
+                    for element in site.get('site_element', [])]
+                site.update(site_element=sites)
+        
+        updated = False
+        try:
+            extgw = ExternalGateway.get(name)
+        except ElementNotFound:
+            extgw = ExternalGateway.create(name, trust_all_cas)
+            updated = True
+        
+        if external_endpoint:
+            for endpoint in external_endpoint:
+                _, created = ExternalEndpoint.update_or_create(
+                    extgw, with_status=True, **endpoint)
+                if created:
+                    updated = True
+        
+        if vpn_site:
+            for site in vpn_site:
+                _, created = VPNSite.update_or_create(extgw,
+                    name=site['name'], site_element=site.get('site_element'),
+                    with_status=True)
+                if created:
+                    updated = True
+
+        if with_status:
+            return extgw, updated
+        return extgw
+
     @property
     def vpn_site(self):
         """
@@ -116,10 +226,9 @@ class ExternalGateway(Element):
     @property
     def external_endpoint(self):
         """
-        An External Endpoint is the IP based definition for the
-        destination VPN peers. There may be multiple per External
-        Gateway. 
-        Add a new endpoint to an existing test_external gateway::
+        An External Endpoint is the IP based definition for the destination
+        VPN peers. There may be multiple per External Gateway.  Add a new
+        endpoint to an existing test_external gateway::
 
             >>> list(ExternalGateway.objects.all())
             [ExternalGateway(name=cisco-remote-side), ExternalGateway(name=remoteside)]
@@ -213,6 +322,52 @@ class ExternalEndpoint(SubElement):
             href=self.href,
             json=json)
 
+    @classmethod
+    def update_or_create(cls, external_gateway, name, with_status=False, **kw):
+        """
+        Update or create external endpoints for the specified external gateway.
+        An ExternalEndpoint is considered unique based on the IP address for the
+        endpoint (you cannot add two external endpoints with the same IP). If the
+        external endpoint is dynamic, then the name is the unique identifier.
+        
+        :param ExternalGateway external_gateway: external gateway reference
+        :param str name: name of the ExternalEndpoint. This is only used as
+            a direct match if the endpoint is dynamic. Otherwise the address
+            field in the keyword arguments will be used as you cannot add
+            multiple external endpoints with the same IP address.
+        :param bool with_status: If set to True, returns a tuple of (ExternalEndpoint, created),
+            where created is the boolean status as to whether the configuration was
+            created or updated.
+        :param dict kw: keyword arguments to satisfy ExternalEndpoint.create
+            constructor
+        :raises CreateElementFailed: Failed to create external endpoint with reason
+        :raises ElementNotFound: If specified ExternalGateway is not valid
+        :return: if with_status=True, return tuple(ExternalEndpoint, created). Otherwise
+            return only ExternalEndpoint.
+        """
+        if 'address' in kw:
+            external_endpoint = external_gateway.external_endpoint.get_contains(
+                '({})'.format(kw['address']))
+        else:
+            external_endpoint = external_gateway.external_endpoint.get_contains(name)
+        
+        updated = False
+        if external_endpoint:  # Check for changes
+            for name, value in kw.items(): # Check for differences before updating
+                if getattr(external_endpoint, name, None) != value:
+                    external_endpoint.data[name] = value
+                    updated = True
+            if updated:
+                external_endpoint.update()
+        else:
+            external_endpoint = external_gateway.external_endpoint.create(
+                name, **kw)
+            updated = True
+        
+        if with_status:
+            return external_endpoint, updated
+        return external_endpoint
+
     @property
     def force_nat_t(self):
         """
@@ -270,6 +425,11 @@ class VPNSite(SubElement):
         network = Network('network-192.168.5.0/25') #get resource
         engine.vpn.sites.create('newsite', [network.href])
 
+    Sites can also be added to ExternalGateway's as well::
+    
+        extgw = ExternalGateway('mygw')
+        extgw.vpn_site.create('newsite', [Network('foo')])
+
     This class is a property of :py:class:`smc.core.engine.InternalGateway`
     or :py:class:`smc.vpn.elements.ExternalGateway` and should not be accessed
     directly.
@@ -296,7 +456,42 @@ class VPNSite(SubElement):
             self.__class__,
             href=self.href,
             json=json)
-
+    
+    @classmethod
+    def update_or_create(cls, external_gateway, name, site_element=None,
+            with_status=False):
+        """
+        Update or create a VPN Site elements or modify an existing VPN
+        site based on value of provided site_element list. The resultant
+        VPN site end result will be what is provided in the site_element
+        argument (can also be an empty list to clear existing).
+        
+        :param ExternalGateway external_gateway: The external gateway for
+            this VPN site
+        :param str name: name of the VPN site
+        :param list(str,Element) site_element: list of resolved Elements to
+            add to the VPN site
+        :raises ElementNotFound: ExternalGateway or unresolved site_element
+        """
+        site_element = [] if not site_element else site_element
+        site_elements = [element_resolver(element) for element in site_element]
+        vpn_site = external_gateway.vpn_site.get_exact(name)
+        updated = False
+        if vpn_site: # If difference, reset
+            if set(site_elements) != set(vpn_site.data.get('site_element', [])):
+                vpn_site.data['site_element'] = site_elements
+                vpn_site.update()
+                updated = True
+            
+        else:
+            vpn_site = external_gateway.vpn_site.create(
+                name=name, site_element=site_elements)
+            updated = True
+        
+        if with_status:
+            return vpn_site, updated
+        return vpn_site
+                
     @property
     def name(self):
         name = super(VPNSite, self).name

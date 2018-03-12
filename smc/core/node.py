@@ -103,7 +103,7 @@ class Node(SubElement):
         nodes = []
         for node in engine.data.get('nodes', []):
             for typeof, data in node.items():
-                cache = ElementCache(**data)
+                cache = ElementCache(data)
                 node = Node(name=cache.get('name'),
                             href=cache.get_link('self'),
                             type=typeof)

@@ -141,11 +141,11 @@ class RoutingTree(SubElement):
     def __init__(self, data=None, **meta):
         super(RoutingTree, self).__init__(**meta)
         if data is not None:
-            self.data = ElementCache(**data)
+            self.data = ElementCache(data)
     
     def __iter__(self):
         for node in self.data[self.typeof]:
-            data = ElementCache(**node)
+            data = ElementCache(node)
             yield(self.__class__(
                     href=data.get_link('self'),
                     type=self.__class__.__name__,

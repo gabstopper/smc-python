@@ -53,6 +53,7 @@ container functionality may inherit from object.
 import collections
 import smc.base.collection
 from smc.compat import string_types
+from smc.base.structs import NestedDict
 from smc.base.decorators import cached_property, classproperty, exception,\
     create_hook, with_metaclass
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
@@ -88,8 +89,8 @@ def LoadElement(href, only_etag=False):
     if only_etag:
         return result.etag
     return ElementCache(
-        etag=result.etag, **result.json)
-
+        result.json, etag=result.etag)
+    
 
 @create_hook
 def ElementCreator(cls, json):
@@ -153,19 +154,15 @@ def ElementFactory(href):
                    href=href,
                    type=istype)
         e.data = ElementCache(
-            etag=element.etag, **element.json)
+            element.json, etag=element.etag)
         return e
 
 
-class ElementCache(dict):
-    """
-    Basic container for retrieved element. Can be inserted
-    where a cached copy is needed. Also provides methods to
-    retrieve element links and json by link name
-    """
-    def __init__(self, *arg, **kw):
+class ElementCache(NestedDict):
+    def __init__(self, data=None, **kw):
         self._etag = kw.pop('etag', None)
-        super(ElementCache, self).__init__(*arg, **kw)
+        super(ElementCache, self).__init__(data=
+            data if data else {})
 
     def etag(self, href):
         """
@@ -310,11 +307,15 @@ class ElementBase(RequestAction, UnicodeMixin):
     
     def __getstate__(self):
         state = self.__dict__.copy()
+        state.update(data=self.data.data)
         if '_cache' in state:
             del state['_cache']
         return state
 
     def __setstate__(self, state):
+        if 'data' in state:
+            cache = state.pop('data')
+            state.update(data=ElementCache(cache))
         self.__dict__.update(state)
     
     def __getattr__(self, key):
@@ -387,7 +388,7 @@ class ElementBase(RequestAction, UnicodeMixin):
             params.update(etag=kwargs.pop('etag'))
 
         name = kwargs.get('name', None)
-        
+
         json = kwargs.pop('json') if 'json' in kwargs else self.data
         del self.data       # Delete the cache before processing attributes
         
@@ -858,5 +859,5 @@ class Meta(collections.namedtuple('Meta', 'name href type')):
     Meta has the same data structure returned from
     :py:func:`smc.actions.search.element_info_as_json`
     """
-    def __new__(cls, href, name=None, type=None):  # @ReservedAssignment
+    def __new__(cls, name=None, href=None, type=None):  # @ReservedAssignment
         return super(Meta, cls).__new__(cls, name, href, type)

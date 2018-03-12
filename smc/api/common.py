@@ -38,9 +38,9 @@ class _RequestHandler(object):
                 pass
         except SMCConnectionError as e:
             err = e
-        except TypeError as e:
-            err = e
         except IOError as e:
+            err = e
+        except TypeError as e:
             err = e
         finally:
             if err:

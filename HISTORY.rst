@@ -144,6 +144,8 @@ Release History
   If set, will return a 2 tuple (Element, was_created), were was_created indicates whether the element
   had to be created or whether it was fetched.
 - Add BGP Peerings to Tunnel Interface fixed to set on top level interface versus network level.
+- update_or_create methods for ExternalGateway, ExternalEndpoint and VPNSite. Allows for full provisioning
+  of an external gateway and update after creation.
  
 
  

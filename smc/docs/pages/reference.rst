@@ -1255,8 +1255,8 @@ DynamicSourceNAT
 	:members:
 	:show-inheritance:
 
-VPN Configuration
------------------
+VPN
+---
 Represents classes responsible for configuring VPN settings such as PolicyVPN,
 RouteVPN and all associated configurations.
 
@@ -1277,17 +1277,24 @@ RouteVPN
 	:members:
 	:show-inheritance:
 
-ExternalGateway
-+++++++++++++++
+Gateways
+++++++++
 
-.. autoclass:: smc.vpn.elements.ExternalGateway
-   :members:
-   :show-inheritance:
+ExternalGateway
+***************
+
+.. automodule:: smc.vpn.elements
+	:exclude-members: VPNSite
+
+.. autoclass:: ExternalGateway
+	:members:
+	:show-inheritance:
+	
 
 ExternalEndpoint
-++++++++++++++++
+****************
 
-.. autoclass:: smc.vpn.elements.ExternalEndpoint
+.. autoclass:: ExternalEndpoint
    :members:
    :show-inheritance:
 
@@ -1298,36 +1305,40 @@ VPNSite
    :members:
    :show-inheritance:
 
+Other Elements
+++++++++++++++
+Other elements associated with VPN configurations
+
 GatewaySettings
-+++++++++++++++
+***************
 
 .. autoclass:: smc.vpn.elements.GatewaySettings
 	:members:
 	:show-inheritance:
 
 GatewayNode
-+++++++++++
+***********
 
 .. autoclass:: smc.vpn.policy.GatewayNode
 	:members:
 	:show-inheritance:
 
 GatewayProfile
-++++++++++++++
+**************
 
 .. autoclass:: smc.vpn.elements.GatewayProfile
 	:members:
 	:show-inheritance:
 
 GatewayTreeNode
-+++++++++++++++
+***************
 
 .. autoclass:: smc.vpn.policy.GatewayTreeNode
 	:members:
 	:show-inheritance:
 
 GatewayTunnel
-+++++++++++++
+*************
 
 .. autoclass:: smc.vpn.policy.GatewayTunnel
 	:members:

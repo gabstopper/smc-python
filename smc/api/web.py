@@ -8,6 +8,7 @@ SSL certificates are not verified to the CA authority, need to implement for
 urllib3:
 https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
 """
+import json
 import os.path
 import collections
 import requests
@@ -15,6 +16,14 @@ import logging
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError
 
 logger = logging.getLogger(__name__)
+
+
+class CacheEncoder(json.JSONEncoder):
+    def default(self, o):
+        try:
+            return o.data
+        except AttributeError:
+            json.JSONEncoder.default(self, o)
 
 
 class SMCAPIConnection(object):
@@ -78,7 +87,7 @@ class SMCAPIConnection(object):
                     
                     response = self.session.post(
                         request.href,
-                        json=request.json if request.json else None,
+                        data=json.dumps(request.json, cls=CacheEncoder),
                         headers=request.headers,
                         params=request.params)
                     
@@ -101,7 +110,7 @@ class SMCAPIConnection(object):
                     
                     response = self.session.put(
                         request.href,
-                        json=request.json,
+                        data=json.dumps(request.json, cls=CacheEncoder),
                         params=request.params,
                         headers=request.headers)
 

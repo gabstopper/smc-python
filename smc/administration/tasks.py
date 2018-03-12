@@ -74,7 +74,7 @@ class Task(SubElement):
         super(Task, self).__init__(
             href=task.get('follower', None),
             name=task.get('type', None))
-        self.data = ElementCache(**task)
+        self.data = ElementCache(task)
 
     @property
     def resource(self):
