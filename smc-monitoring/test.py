@@ -100,9 +100,9 @@ if __name__ == '__main__':
     
     #myfilter = InFilter(FieldValue(LogField.SRC), [IPValue('192.168.4.82'), IPValue('172.18.1.152')])
    
-    #query = LogQuery(fetch_size=1)
-    #for log in query.fetch_live():
-    #    print(log)
+    query = LogQuery(fetch_size=1)
+    for log in query.fetch_live():
+        print(log)
     
     #pprint(query.get_field_schema())
         #if 'fields' in fields:
@@ -155,7 +155,8 @@ if __name__ == '__main__':
     #pprint(query.get_field_schema())
     #query.get_field_schema()
     for record in query.fetch_raw():
-        print(record)
+        for individual in record:
+            print(individual)
     
     #query = ActiveAlertQuery('Shared Domain', timezone='America/Chicago')
     #pprint(vars(query))

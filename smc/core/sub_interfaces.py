@@ -20,7 +20,7 @@ class SubInterfaceCollection(BaseIterable):
     """
     A Sub Interface collection for non-VLAN interfaces.
     """
-    def __init__(self, interface): 
+    def __init__(self, interface):
         data = [clsmembers.get(kind)(data)
                 for intf in interface.data.get('interfaces', [])
                 for kind, data in intf.items()]
