@@ -55,7 +55,6 @@ smc = {'HostConfig': {
         '8917/tcp': [{'HostPort': '8917'}],
         '8918/tcp': [{'HostPort': '8918'}]}, },
        'Image': 'dwlepage70/smc:v6.3.4',
-
        'Labels': {},
        'Mounts': [],
        'NetworkingConfig': {

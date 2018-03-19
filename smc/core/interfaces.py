@@ -2641,16 +2641,19 @@ class InterfaceBuilder(object):
             self.vlanInterfaces.append(vlan)
 
     def add_cvi_to_vlan(self, address, network_value, vlan_id, zone_ref=None,
-                        comment=None):
+                        comment=None, **kw):
         """
-        Add a CVI into a vlan
+        Add a CVI into a vlan.
+        If this CVI needs to be a management interface, pass auth_request=True
+        as keyword
         """
         vlan_str = '{}.{}'.format(self.interface_id, vlan_id)
         cvi = ClusterVirtualInterface.create(
             self.interface_id,
             address,
             network_value,
-            nicid=vlan_str)
+            nicid=vlan_str,
+            **kw)
 
         vlan = PhysicalVlanInterface.create(
             self.interface_id,

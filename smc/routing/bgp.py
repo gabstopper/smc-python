@@ -517,7 +517,7 @@ class ExternalBGPPeer(Element):
 
     @classmethod
     def create(cls, name, neighbor_as, neighbor_ip,
-               neighbor_port=179):
+               neighbor_port=179, comment=None):
         """
         Create an external BGP Peer. 
 
@@ -532,7 +532,8 @@ class ExternalBGPPeer(Element):
         """
         json = {'name': name,
                 'neighbor_ip': neighbor_ip,
-                'neighbor_port': neighbor_port}
+                'neighbor_port': neighbor_port,
+                'comment': comment}
 
         neighbor_as_ref = element_resolver(neighbor_as)
         json.update(neighbor_as=neighbor_as_ref)
@@ -592,7 +593,7 @@ class BGPPeering(Element):
                next_hop_self=True, override_capability=False,
                dont_capability_negotiate=False, remote_private_as=False,
                route_reflector_client=False, soft_reconfiguration=True,
-               ttl_option='disabled'):
+               ttl_option='disabled', comment=None):
         """
         Create a new BGPPeering configuration.
 
@@ -634,7 +635,8 @@ class BGPPeering(Element):
                 'soft_reconfiguration': soft_reconfiguration,
                 'remove_private_as': remote_private_as,
                 'route_reflector_client': route_reflector_client,
-                'ttl_option': ttl_option}
+                'ttl_option': ttl_option,
+                'comment': comment}
 
         if md5_password:
             json.update(md5_password=md5_password)

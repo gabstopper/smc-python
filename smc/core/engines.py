@@ -446,7 +446,7 @@ class FirewallCluster(Engine):
 
     @classmethod
     def create(cls, name, cluster_virtual, network_value,
-               macaddress, interface_id, nodes,
+               macaddress, interface_id, nodes, vlan_id=None,
                cluster_mode='balancing',
                backup_mgt=None, primary_heartbeat=None, 
                log_server_ref=None,
@@ -471,6 +471,7 @@ class FirewallCluster(Engine):
         :param str macaddress: macaddress for packet dispatch clustering
         :param str interface_id: nic id to use for primary interface
         :param list nodes: address/network_value/nodeid combination for cluster nodes
+        :param str vlan_id: optional VLAN id for the management interface, i.e. '15'.
         :param str cluster_mode: 'balancing' or 'standby' mode (default: balancing)
         :param str,int primary_heartbeat: optionally set the primary_heartbeat. This is
             automatically set to the management interface but can be overridden to use
@@ -556,15 +557,29 @@ class FirewallCluster(Engine):
         builder.interface_id = interface_id
         builder.macaddress = macaddress
         builder.cvi_mode = 'packetdispatch'
-        builder.zone = zone_ref
-        builder.add_cvi_only(cluster_virtual, network_value, is_mgmt=True)
-        for node in nodes:
-            if primary_heartbeat is not None:
-                node.update(primary_mgt=True, outgoing=True)
-            else:
-                node.update(is_mgmt=True)
-            builder.add_ndi_only(**node)
-        
+        if vlan_id is not None:
+            builder.add_cvi_to_vlan(
+                address=cluster_virtual,
+                network_value=network_value,
+                vlan_id=vlan_id,
+                zone_ref=zone_ref,
+                auth_request=True)
+            for node in nodes:
+                node.update(vlan_id=vlan_id,
+                            primary_mgt=True, outgoing=True)
+                if primary_heartbeat is None:
+                    node.update(primary_heartbeat=True)    
+                builder.add_ndi_to_vlan(**node)
+        else:
+            builder.zone = zone_ref
+            builder.add_cvi_only(cluster_virtual, network_value, is_mgmt=True)
+            for node in nodes:
+                if primary_heartbeat is not None:
+                    node.update(primary_mgt=True, outgoing=True)
+                else:
+                    node.update(is_mgmt=True)
+                builder.add_ndi_only(**node)
+
         physical_interfaces = [{'physical_interface': builder.data}]
         
         # Optional additional interfaces
