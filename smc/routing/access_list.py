@@ -126,9 +126,7 @@ class AccessList(object):
                 modified = True
             else:
                 for entry in kw.get('entries', []):
-                    print("Entry: %s" % entry)
                     if cls._view(**entry) not in element:
-                        print("Class view: %s not in: %s" % cls._view(**entry))
                         element.add_entry(**entry)
                         modified = True
 
