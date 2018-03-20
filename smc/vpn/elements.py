@@ -162,9 +162,9 @@ class ExternalGateway(Element):
             to satisfy ExternalEndpoint.create constructor
         :param list(dict) vpn_site: list of dict items with key/value to satisfy
             VPNSite.create constructor
-        :param bool with_status: If set to True, returns a tuple of (ExternalGateway, created),
-            where created is the boolean status as to whether the configuration was
-            created or updated.
+        :param bool with_status: If set to True, returns a 3-tuple of
+            (ExternalGateway, modified, created), where modified and created
+            is the boolean status for operations performed.
         :raises ValueError: missing required argument/s for constructor argument
         :rtype: ExternalGateway
         """
@@ -185,29 +185,30 @@ class ExternalGateway(Element):
                 site.update(site_element=sites)
         
         updated = False
+        created = False
         try:
             extgw = ExternalGateway.get(name)
         except ElementNotFound:
             extgw = ExternalGateway.create(name, trust_all_cas)
-            updated = True
+            created = True
         
         if external_endpoint:
             for endpoint in external_endpoint:
-                _, created = ExternalEndpoint.update_or_create(
+                _, modified, was_created = ExternalEndpoint.update_or_create(
                     extgw, with_status=True, **endpoint)
-                if created:
+                if was_created or modified:
                     updated = True
         
         if vpn_site:
             for site in vpn_site:
-                _, created = VPNSite.update_or_create(extgw,
+                _, modified, was_created = VPNSite.update_or_create(extgw,
                     name=site['name'], site_element=site.get('site_element'),
                     with_status=True)
-                if created:
+                if was_created or modified:
                     updated = True
 
         if with_status:
-            return extgw, updated
+            return extgw, updated, created
         return extgw
 
     @property
@@ -335,9 +336,9 @@ class ExternalEndpoint(SubElement):
             a direct match if the endpoint is dynamic. Otherwise the address
             field in the keyword arguments will be used as you cannot add
             multiple external endpoints with the same IP address.
-        :param bool with_status: If set to True, returns a tuple of (ExternalEndpoint, created),
-            where created is the boolean status as to whether the configuration was
-            created or updated.
+        :param bool with_status: If set to True, returns a 3-tuple of
+            (ExternalEndpoint, modified, created), where modified and created
+            is the boolean status for operations performed.
         :param dict kw: keyword arguments to satisfy ExternalEndpoint.create
             constructor
         :raises CreateElementFailed: Failed to create external endpoint with reason
@@ -352,6 +353,7 @@ class ExternalEndpoint(SubElement):
             external_endpoint = external_gateway.external_endpoint.get_contains(name)
         
         updated = False
+        created = False
         if external_endpoint:  # Check for changes
             for name, value in kw.items(): # Check for differences before updating
                 if getattr(external_endpoint, name, None) != value:
@@ -362,10 +364,10 @@ class ExternalEndpoint(SubElement):
         else:
             external_endpoint = external_gateway.external_endpoint.create(
                 name, **kw)
-            updated = True
+            created = True
         
         if with_status:
-            return external_endpoint, updated
+            return external_endpoint, updated, created
         return external_endpoint
 
     @property
@@ -471,12 +473,16 @@ class VPNSite(SubElement):
         :param str name: name of the VPN site
         :param list(str,Element) site_element: list of resolved Elements to
             add to the VPN site
+        :param bool with_status: If set to True, returns a 3-tuple of
+            (VPNSite, modified, created), where modified and created
+            is the boolean status for operations performed.
         :raises ElementNotFound: ExternalGateway or unresolved site_element
         """
         site_element = [] if not site_element else site_element
         site_elements = [element_resolver(element) for element in site_element]
         vpn_site = external_gateway.vpn_site.get_exact(name)
         updated = False
+        created = False
         if vpn_site: # If difference, reset
             if set(site_elements) != set(vpn_site.data.get('site_element', [])):
                 vpn_site.data['site_element'] = site_elements
@@ -486,10 +492,10 @@ class VPNSite(SubElement):
         else:
             vpn_site = external_gateway.vpn_site.create(
                 name=name, site_element=site_elements)
-            updated = True
+            created = True
         
         if with_status:
-            return vpn_site, updated
+            return vpn_site, updated, created
         return vpn_site
                 
     @property

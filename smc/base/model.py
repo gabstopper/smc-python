@@ -545,7 +545,7 @@ class Element(ElementBase):
         :param kwargs: keyword arguments mapping to the elements ``create``
             method.
         :param bool with_status: if set to True, a tuple is returned with
-            (Element, True/False), where the second tuple item indicates if
+            (Element, created), where the second tuple item indicates if
             the element has been created or not.
         :raises CreateElementFailed: could not create element with reason
         :raises ElementNotFound: if read-only element does not exist
@@ -608,15 +608,16 @@ class Element(ElementBase):
             field will be used.
         :param kwargs: keyword arguments mapping to the elements ``create``
             method.
-        :param bool with_status: if set to True, a tuple is returned with
-            (Element, True/False), where the second tuple item indicates if
-            the element has been created or not.
+        :param bool with_status: if set to True, a 3-tuple is returned with
+            (Element, modified, created), where the second and third tuple
+            items are booleans indicating the status
         :raises CreateElementFailed: could not create element with reason
         :raises ElementNotFound: if read-only element does not exist
         :return: element instance by type
         :rtype: Element
         """
         was_created = False
+        was_modified = False
         if not hasattr(cls, 'create'):
             return cls.get(kwargs.get('name'))
         elif 'name' not in kwargs:
@@ -637,16 +638,25 @@ class Element(ElementBase):
         if element: 
             params = {}
             for key, value in kwargs.items():
-                value = value() if callable(value) else value
+                # Callable, Element or string
+                if callable(value):
+                    value = value()
+                elif isinstance(value, Element):
+                    value = value.href
+                # Get value from element
                 val = getattr(element, key, None)
                 if isinstance(val, (string_types, int)):
                     if val != value:
+                        params[key] = value
+                elif isinstance(val, Element):
+                    if val.href != value:
                         params[key] = value
                 else:
                     params[key] = value
             
             if params:
                 element.update(**params)
+                was_modified = True
         else:
             params = {k: v() if callable(v) else v
                       for k, v in kwargs.items()}
@@ -654,7 +664,7 @@ class Element(ElementBase):
             was_created = True
         
         if with_status:
-            return element, was_created
+            return element, was_modified, was_created
         return element
 
     @property

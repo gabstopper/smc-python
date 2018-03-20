@@ -50,6 +50,7 @@ Only Layer3Firewall and Layer3VirtualEngine types can support running BGP.
 """
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
+from smc.api.exceptions import ElementNotFound
 
 
 class BGP(object):
@@ -340,6 +341,8 @@ def as_dotted(dotted_str):
     :rtype: int
     """
     #max_asn = 4294967295 (65535 * 65535)
+    if '.' not in dotted_str:
+        return dotted_str
     max_byte = 65535
     left, right = map(int, dotted_str.split('.'))
     if left > max_byte or right > max_byte:
@@ -376,8 +379,7 @@ class AutonomousSystem(Element):
         :return: instance with meta
         :rtype: AutonomousSystem
         """
-        if '.' in str(as_number):
-            as_number = as_dotted(as_number)
+        as_number = as_dotted(str(as_number))
         json = {'name': name,
                 'as_number': as_number,
                 'comment': comment}
@@ -393,7 +395,14 @@ class AutonomousSystem(Element):
         :rtype: int
         """
         return int(self.data.get('as_number'))
-
+    
+    @classmethod
+    def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
+        if '.' in kwargs.get('as_number'):
+            kwargs.update(as_number=int(as_dotted(kwargs['as_number'])))
+        return super(AutonomousSystem, cls).update_or_create(
+            filter_key=filter_key, with_status=with_status, **kwargs)
+    
 
 class BGPProfile(Element):
     """

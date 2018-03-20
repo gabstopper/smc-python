@@ -19,6 +19,7 @@ routing configurations.
 :ivar int max_prefix_length: maximum mask bits
 :ivar str comment: optional comment for the entry
 """
+PrefixListEntry.__new__.__defaults__ = (None,) * len(PrefixListEntry._fields)
 
 
 class IPPrefixList(AccessList, Element):

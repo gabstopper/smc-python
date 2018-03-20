@@ -4,6 +4,7 @@ filters based on IPv4 or IPv6 access lists such as OSPF and BGP.
 """
 import collections
 from smc.base.model import Element, ElementCreator
+from smc.api.exceptions import ElementNotFound
 
 
 AccessListEntry = collections.namedtuple('AccessListEntry', 'subnet action comment')
@@ -15,6 +16,7 @@ routing configurations.
 :ivar str action: action for the entry
 :ivar str comment: optional comment for the entry
 """
+AccessListEntry.__new__.__defaults__ = (None,) * len(AccessListEntry._fields)
 
 
 class AccessList(object):
@@ -94,8 +96,51 @@ class AccessList(object):
             for entry in self.data.get('entries')
             if entry.get('{}_entry'.format(self.typeof))
             .get(field) != str(value)]
+    
+    @classmethod
+    def update_or_create(cls, with_status=False, overwrite_all=False, **kw):
+        """
+        Update or create the Access List. This method will not attempt to 
+        evaluate whether the access list has differences, instead it will
+        update with the contents of the payload entirely. If the intent is
+        to only add or remove a single entry, use `~add_entry` and `~remove_entry`
+        methods.
+        
+        :param bool with_status: return with 3-tuple of (Element, modified, created)
+            holding status
+        :return: Element or 3-tuple with element and status
+        """
+        created = False
+        modified = False
+        try:
+            element = cls.get(kw.get('name'))
+        except ElementNotFound:
+            element = cls.create(**kw)
+            created = True
+        
+        if not created:
+            if overwrite_all:
+                element.data['entries'] = [
+                {'{}_entry'.format(element.typeof): entry}
+                for entry in kw.get('entries')]
+                modified = True
+            else:
+                for entry in kw.get('entries', []):
+                    print("Entry: %s" % entry)
+                    if cls._view(**entry) not in element:
+                        print("Class view: %s not in: %s" % cls._view(**entry))
+                        element.add_entry(**entry)
+                        modified = True
 
-
+        if modified:
+            element.update()
+            
+        if with_status:
+            return element, modified, created
+        return element
+        
+        
+        
 class IPAccessList(AccessList, Element):
     """
     IPAccessList is used by dynamic routing protocols to allow filtering of

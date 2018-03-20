@@ -13,6 +13,8 @@ instances of :class:`~ASPathListEntry`.
 :ivar str action: 'permit' or 'deny'
 :ivar str comment: optional comment
 """
+ASPathListEntry.__new__.__defaults__ = (None,) * len(ASPathListEntry._fields)
+
 
 class ASPathAccessList(AccessList, Element):
     """
@@ -58,6 +60,7 @@ access lists.
 :ivar str action: 'permit' or 'deny'
 :ivar str comment: optional comment
 """
+CommunityListEntry.__new__.__defaults__ = (None,) * len(CommunityListEntry._fields)
 
 
 class CommunityAccessList(AccessList, Element):
@@ -120,7 +123,8 @@ access lists.
 :ivar str type: 'rt' (Route Target) or 'soo' (Site of Origin) (required)
 :ivar str comment: optional comment
 """
-    
+ExtCommunityListEntry.__new__.__defaults__ = (None,) * len(ExtCommunityListEntry._fields)
+
     
 class ExtendedCommunityAccessList(AccessList, Element):
     """
