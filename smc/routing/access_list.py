@@ -64,6 +64,9 @@ class AccessList(object):
         
         return ElementCreator(cls, json)
 
+    def __len__(self):
+        return len(self.data.get('entries', []))
+    
     def __iter__(self):
         for entry in self.data.get('entries', []):
             value = entry.get('{}_entry'.format(self.typeof))
@@ -98,7 +101,7 @@ class AccessList(object):
             .get(field) != str(value)]
     
     @classmethod
-    def update_or_create(cls, with_status=False, overwrite_all=False, **kw):
+    def update_or_create(cls, with_status=False, overwrite_existing=False, **kw):
         """
         Update or create the Access List. This method will not attempt to 
         evaluate whether the access list has differences, instead it will
@@ -108,6 +111,9 @@ class AccessList(object):
         
         :param bool with_status: return with 3-tuple of (Element, modified, created)
             holding status
+        :param bool overwrite_existing: if the access list exists but instead of an
+            incremental update you want to overwrite with the newly defined entries,
+            set this to True (default: False)
         :return: Element or 3-tuple with element and status
         """
         created = False
@@ -119,12 +125,15 @@ class AccessList(object):
             created = True
         
         if not created:
-            if overwrite_all:
+            if overwrite_existing:
                 element.data['entries'] = [
-                {'{}_entry'.format(element.typeof): entry}
-                for entry in kw.get('entries')]
+                    {'{}_entry'.format(element.typeof): entry}
+                    for entry in kw.get('entries')]
                 modified = True
             else:
+                if 'comment' in kw and kw['comment'] != element.comment:
+                    element.comment = kw['comment']
+                    modified = True
                 for entry in kw.get('entries', []):
                     if cls._view(**entry) not in element:
                         element.add_entry(**entry)

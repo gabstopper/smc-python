@@ -375,8 +375,28 @@ class LogField:
     VULNERABILITYREFERENCES=20000 #: Generated from situation and original situation.
     SRCADDRS = 20007 #: Source addresses
     DSTADDRS = 20008 #: Destination addresses
-    
 
+
+class DataType:
+    """   
+    Query by type of logs. This identifies which log types you are interested in
+    filtering by, i.e. Audit, FW Logs, Third_Party, etc. Equivalent to the Query
+    dropdown in SMC Log Viewer
+    """
+    IPS_LOGS = 0
+    FW_LOGS = 1
+    ALERTS = 3
+    ALERT_EVENTS = 4
+    IPS_RECORDINGS = 5
+    COUNTERS = 8
+    AUDIT = 9
+    SSL_VPN = 28
+    THIRD_PARTY = 29
+    BLACKLIST_LOG = 35
+    L2FW_LOGS = 36
+    SSL_VPN_SESSION_MONITORING = 38
+
+    
 class Actions:
     """
     Rule Actions

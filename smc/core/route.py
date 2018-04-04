@@ -797,6 +797,27 @@ def gateway_by_type(self, type=None):  # @ReservedAssignment
                 yield (interface, network, node)
                     
 
+def del_invalid_routes(engine, nicids):
+    """
+    Helper method to run through and delete any routes that are tagged
+    as invalid or to_delete by a list of nicids. Since we could have a
+    list of routes, iterate from top level engine routing node to avoid
+    fetch exceptions. Route list should be a list of nicids as str.
+    
+    :param list nicids: list of nicids
+    :raises DeleteElementFailed: delete element failed with reason
+    """
+    nicids = map(str, nicids)
+    for interface in engine.routing:
+        if interface.nicid in nicids:
+            if getattr(interface, 'to_delete', False): # Delete the invalid interface
+                interface.delete()
+                continue
+        for network in interface:
+            if getattr(network, 'invalid', False) or \
+                getattr(network, 'to_delete', False):
+                network.delete()
+
 
 route = collections.namedtuple('Route',
         'route_network route_netmask route_gateway route_type dst_if src_if')

@@ -1,4 +1,5 @@
-from smc.core.interfaces import extract_sub_interface, InterfaceBuilder
+from smc.core.interfaces import extract_sub_interface, InterfaceBuilder,\
+    ClusterPhysicalInterface, TunnelInterface
 from smc.core.sub_interfaces import LoopbackInterface
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed,\
@@ -19,6 +20,16 @@ class Layer3Firewall(Engine):
     """
     typeof = 'single_fw'
 
+    @classmethod
+    def create_bulk(cls, name, interfaces=None,
+                   primary_mgt=None, backup_mgt=None,
+                   log_server_ref=None,
+                   domain_server_address=None,
+                   location_ref=None, default_nat=False,
+                   enable_antivirus=False, enable_gti=False,
+                   comment=None, snmp_agent=None, **kw):
+        pass
+    
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network,
                mgmt_interface=0,
@@ -443,7 +454,72 @@ class FirewallCluster(Engine):
     .. seealso::  :func:`smc.core.interfaces.PhysicalInterface.add_layer3_cluster_interface`
     """
     typeof = 'fw_cluster'
+    
+    @classmethod
+    def create_bulk(cls, name, interfaces=None, nodes=2,
+                   cluster_mode='balancing', primary_mgt=None,
+                   backup_mgt=None, primary_heartbeat=None, 
+                   log_server_ref=None,
+                   domain_server_address=None,
+                   location_ref=None, default_nat=False,
+                   enable_antivirus=False, enable_gti=False,
+                   comment=None, snmp=None, **kw):
+        """
+        
+        :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
+            `snmp_interface` which is a list of interface IDs, and optionally `snmp_location` which
+            is a string with the SNMP location name.
+        
+        """
+        primary_heartbeat = primary_mgt if not primary_heartbeat else primary_heartbeat
+        
+        physical_interfaces = []
+        for interface in interfaces:
+            if 'interface_id' not in interface:
+                raise CreateEngineFailed('Interface definitions must contain the interface_id '
+                    'field. Failed to create engine: %s' % name)
+            if interface.get('type', None) == 'tunnel_interface':
+                tunnel_interface = TunnelInterface(interface=interface)
+                physical_interfaces.append(
+                    {'tunnel_interface': tunnel_interface})
+            else:
+                cluster_interface = ClusterPhysicalInterface(
+                    primary_mgt=primary_mgt, backup_mgt=backup_mgt,
+                    primary_heartbeat=primary_heartbeat, **interface)
+                physical_interfaces.append(
+                    {'physical_interface': cluster_interface})
 
+        if snmp:
+            snmp_agent = dict(
+                snmp_agent_ref=snmp.get('snmp_agent', ''),
+                snmp_location=snmp.get('snmp_location', ''))
+            
+            snmp_agent.update(
+                snmp_interface=add_snmp(
+                    interfaces,
+                    snmp.get('snmp_interface', [])))
+    
+        try:
+            engine = super(FirewallCluster, cls)._create(
+                name=name,
+                node_type='firewall_node',
+                physical_interfaces=physical_interfaces,
+                domain_server_address=domain_server_address,
+                log_server_ref=log_server_ref,
+                location_ref=location_ref,
+                nodes=nodes, enable_gti=enable_gti,
+                enable_antivirus=enable_antivirus,
+                default_nat=default_nat,
+                snmp_agent=snmp_agent if snmp else None,
+                comment=comment)
+            engine.update(cluster_mode=cluster_mode)
+            
+            return ElementCreator(cls, json=engine)
+    
+        except (ElementNotFound, CreateElementFailed) as e:
+            raise CreateEngineFailed(e)
+    
+        
     @classmethod
     def create(cls, name, cluster_virtual, network_value,
                macaddress, interface_id, nodes, vlan_id=None,
@@ -454,13 +530,14 @@ class FirewallCluster(Engine):
                location_ref=None,
                zone_ref=None, default_nat=False,
                enable_antivirus=False, enable_gti=False,
-               comment=None, snmp_agent=None, **kw):
+               comment=None, snmp=None, **kw):
         """
         Create a layer 3 firewall cluster with management interface and any number
         of nodes. If providing keyword arguments to create additional interfaces,
         use the same constructor arguments and pass an `interfaces` keyword argument.
         The constructor defined interface will be assigned as the primary
-        management interface by default.
+        management interface by default. Otherwise the engine will be created with a
+        single interface and interfaces can be added after.
         
         .. versionchanged:: 0.6.1
             Chgnged `cluster_nic` to `interface_id`, and `cluster_mask` to `network_value`
@@ -487,11 +564,9 @@ class FirewallCluster(Engine):
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
         :param bool enable_gti: (optional) Enable GTI
         :param list interfaces: optional keyword to supply additional interfaces
-        :param str snmp_agent: the name of the SNMPAgent element to enable for this engine
-        :param str snmp_location: provide as kw, defines optional snmp location string
-        :param list snmp_interface: provide as kw, defines a list of interface id's to
-            enable SNMP (i.e. [1, '2.3', etc]. Otherwise SNMP is enabled on all NDI
-            interfaces with exception of tunnel interfaces
+        :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
+            `snmp_interface` which is a list of interface IDs, and optionally `snmp_location` which
+            is a string with the SNMP location name.
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
 
@@ -506,28 +581,37 @@ class FirewallCluster(Engine):
         constructor::
         
             interfaces=[
-               {'cluster_virtual': '2.2.2.1',
-                'network_value': '2.2.2.0/24',
+               {'interface_id': 1,
                 'macaddress': '02:02:02:02:02:03',
-                'interface_id': 1,
-                'nodes':[{'address': '2.2.2.2', 'network_value': '2.2.2.0/24', 'nodeid': 1},
-                         {'address': '2.2.2.3', 'network_value': '2.2.2.0/24', 'nodeid': 2}]
+                'interfaces': [{'cluster_virtual': '2.2.2.1',
+                                'network_value': '2.2.2.0/24',
+                                'nodes':[{'address': '2.2.2.2', 'network_value': '2.2.2.0/24', 'nodeid': 1},
+                                         {'address': '2.2.2.3', 'network_value': '2.2.2.0/24', 'nodeid': 2}]
+                              }]
                 },
                {'interface_id': 2,
-                'nodes':[{'address': '3.3.3.2', 'network_value': '3.3.3.0/24', 'nodeid': 1},
-                         {'address': '3.3.3.3', 'network_value': '3.3.3.0/24', 'nodeid': 2}]
+                'interfaces': [{'nodes':[{'address': '3.3.3.2', 'network_value': '3.3.3.0/24', 'nodeid': 1},
+                                         {'address': '3.3.3.3', 'network_value': '3.3.3.0/24', 'nodeid': 2}]
+                              }]
                 }]
         
         It is also possible to define VLAN interfaces by providing the `vlan_id` keyword.
-        Example VLAN with NDI only interfaces::
+        Example VLAN with NDI only interfaces. If nesting the zone_ref within the interfaces
+        list, the zone will be applied to the VLAN versus the top level interface::
         
             interfaces=[
                {'interface_id': 2,
-                'nodes':[{'address': '3.3.3.2', 'network_value': '3.3.3.0/24', 'nodeid': 1},
-                         {'address': '3.3.3.3', 'network_value': '3.3.3.0/24', 'nodeid': 2}],
-                'vlan_id': 22,
-                'zone_ref': 'private-network'
-                }]
+                'interfaces': [{'nodes':[{'address': '3.3.3.2', 'network_value': '3.3.3.0/24', 'nodeid': 1},
+                                         {'address': '3.3.3.3', 'network_value': '3.3.3.0/24', 'nodeid': 2}],
+                                'vlan_id': 22,
+                                'zone_ref': 'private-network'
+                              },
+                              {'nodes': [{'address': '4.4.4.1', 'network_value': '4.4.4.0/24', 'nodeid': 1},
+                                         {'address': '4.4.4.2', 'network_value': '4.4.4.0/24', 'nodeid': 2}],
+                               'vlan_id': 23,
+                               'zone_ref': 'other_vlan'
+                            }]
+            }]
         
         Tunnel interfaces can also be created. As all interfaces defined are assumed to be
         a physical interface type, you must specify the `type` parameter to indicate the
@@ -537,10 +621,11 @@ class FirewallCluster(Engine):
         
             interfaces=[
                 {'interface_id': 1000,
-                 'cluster_virtual': '100.100.100.1',
-                 'network_value': '100.100.100.0/24',
-                 'nodes':[{'address': '100.100.100.2', 'network_value': '100.100.100.0/24', 'nodeid': 1},
-                          {'address': '100.100.100.3', 'network_value': '100.100.100.0/24', 'nodeid': 2}],
+                 'interfaces': [{'cluster_virtual': '100.100.100.1',
+                                 'network_value': '100.100.100.0/24',
+                                 'nodes':[{'address': '100.100.100.2', 'network_value': '100.100.100.0/24', 'nodeid': 1},
+                                          {'address': '100.100.100.3', 'network_value': '100.100.100.0/24', 'nodeid': 2}]
+                               }],
                  'zone_ref': 'AWStunnel',
                  'type': 'tunnel_interface'
                 }]
@@ -553,176 +638,33 @@ class FirewallCluster(Engine):
             `interface_id` and `nodes` to create an NDI only interface.
                                 
         """
-        builder = InterfaceBuilder()
-        builder.interface_id = interface_id
-        builder.macaddress = macaddress
-        builder.cvi_mode = 'packetdispatch'
-        if vlan_id is not None:
-            builder.add_cvi_to_vlan(
-                address=cluster_virtual,
-                network_value=network_value,
-                vlan_id=vlan_id,
-                zone_ref=zone_ref,
-                auth_request=True)
-            for node in nodes:
-                node.update(vlan_id=vlan_id,
-                            primary_mgt=True, outgoing=True)
-                if primary_heartbeat is None:
-                    node.update(primary_heartbeat=True)    
-                builder.add_ndi_to_vlan(**node)
-        else:
-            builder.zone = zone_ref
-            builder.add_cvi_only(cluster_virtual, network_value, is_mgmt=True)
-            for node in nodes:
-                if primary_heartbeat is not None:
-                    node.update(primary_mgt=True, outgoing=True)
-                else:
-                    node.update(is_mgmt=True)
-                builder.add_ndi_only(**node)
-
-        physical_interfaces = [{'physical_interface': builder.data}]
+        interfaces = kw.pop('interfaces', [])
+        # Add the primary interface to the interface list
+        interface = {'cluster_virtual': cluster_virtual,
+                     'network_value': network_value,
+                     'nodes': nodes}
+        if vlan_id:
+            interface.update(vlan_id=vlan_id)
         
-        # Optional additional interfaces
-        if 'interfaces' in kw:
-            vlans = {} # Store VLAN interface builders in case multiple VLANs are added
-            
-            # Custom backup management
-            if backup_mgt is not None:
-                if '.' in str(backup_mgt):
-                    bkup_interface, bkup_vlan = backup_mgt.split('.')
-                else:
-                    bkup_interface, bkup_vlan = str(backup_mgt), None
-            
-            # Custom primary heartbeat
-            if primary_heartbeat is not None:
-                if '.' in str(primary_heartbeat):
-                    hb_interface, hb_vlan = primary_heartbeat.split('.')
-                else:
-                    hb_interface, hb_vlan = str(primary_heartbeat), None
-            
-            for interface in kw['interfaces']:
-                _interface_id = interface.get('interface_id')
-                interface_type = interface.get('type', 'physical_interface')
-                
-                if _interface_id is None:
-                    raise CreateEngineFailed('Interface_id is a required field when '
-                        'defining interfaces.')
-                
-                if interface_type == 'tunnel_interface':
-                    builder = InterfaceBuilder(None) # TunnelInterface
-                    builder.interface_id = _interface_id
-                elif 'vlan_id' in interface and _interface_id in vlans:
-                    builder = vlans.get(_interface_id)
-                else:
-                    builder = InterfaceBuilder()
-                    builder.interface_id = _interface_id
-
-                # Check for CVI configuration
-                if all(cvi in interface and interface[cvi] is not None \
-                       for cvi in ('cluster_virtual', 'network_value', 'macaddress')):
-                
-                    # Tunnel interfaces do not have macaddress or cvi mode
-                    if interface_type != 'tunnel_interface':
-                        builder.macaddress = interface.get('macaddress')
-                        builder.cvi_mode = 'packetdispatch'
-
-                    if 'vlan_id' in interface:
-                        builder.add_cvi_to_vlan(
-                            address=interface['cluster_virtual'],
-                            network_value=interface['network_value'],
-                            vlan_id=interface['vlan_id'],
-                            zone_ref=interface.get('zone_ref'))
-                    else:
-                        builder.zone = interface.get('zone_ref')
-                        builder.add_cvi_only(
-                            address=interface.get('cluster_virtual'),
-                            network_value=interface.get('network_value'))
-                
-                # If nodes are specified
-                if interface.get('nodes', []):
-                    for node in interface.get('nodes', []):
-                        if 'vlan_id' in interface:
-                            node.update(vlan_id=interface['vlan_id'])
-                            # If backup management is set, identify the correct
-                            # VLAN nodes to assign
-                            if backup_mgt is not None:
-                                if str(_interface_id) == bkup_interface and \
-                                    str(interface['vlan_id']) == bkup_vlan:
-                                    node.update(backup_mgt=True)
-                            
-                            if primary_heartbeat is not None:
-                                if str(_interface_id) == hb_interface and \
-                                    str(interface['vlan_id']) == hb_vlan:
-                                    node.update(primary_heartbeat=True)
-                            
-                            node.update(zone_ref=interface.get('zone_ref'))  
-                            builder.add_ndi_to_vlan(**node)
-
-                        else:
-                            # Assign primary backup and heartbeat if specified
-                            if backup_mgt is not None and str(_interface_id) == bkup_interface:
-                                node.update(backup_mgt=True)
-                            if primary_heartbeat is not None and str(_interface_id) == hb_interface:
-                                node.update(primary_heartbeat=True)
-                            builder.zone = interface.get('zone_ref')
-                            builder.add_ndi_only(**node)
-                
-                elif 'cluster_virtual' not in interface or \
-                    interface['cluster_virtual'] is None:
-                    # No nodes were specified and this is not a cluster virtual which
-                    # means it's an empty interface but may still have a VLAN id or
-                    # zone.
-                    zone = interface.get('zone_ref')
-                    if 'vlan_id' in interface:
-                        builder.add_vlan_only(
-                            vlan_id=interface['vlan_id'],
-                            zone_ref=zone)
-                    else:
-                        builder.zone = zone
-                
-                if 'vlan_id' in interface:
-                    vlans[_interface_id] = builder
-                else:
-                    physical_interfaces.append({interface_type: builder.data})
-            
-            if vlans:
-                for _, builder in vlans.items():
-                    physical_interfaces.append({'physical_interface': builder.data})
-
-        if snmp_agent:
-            snmp_agent = dict(
-                snmp_agent_ref=snmp_agent,
-                snmp_location=kw.get('snmp_location', ''))
-            
-            kw.setdefault('interfaces', []).append(
-                {'interface_id': interface_id, 'nodes': nodes})
-            
-            snmp_agent.update(
-                snmp_interface=add_snmp(
-                    kw.get('interfaces'),
-                    kw.get('snmp_interface', [])))
-
-        try:
-            engine = super(FirewallCluster, cls)._create(
-                name=name,
-                node_type='firewall_node',
-                physical_interfaces=physical_interfaces,
-                domain_server_address=domain_server_address,
-                log_server_ref=log_server_ref,
-                location_ref=location_ref,
-                nodes=len(nodes), enable_gti=enable_gti,
-                enable_antivirus=enable_antivirus,
-                default_nat=default_nat,
-                snmp_agent=snmp_agent if snmp_agent else None,
-                comment=comment)
-            engine.update(cluster_mode=cluster_mode)
-            
-            return ElementCreator(cls, json=engine)
-    
-        except (ElementNotFound, CreateElementFailed) as e:
-            raise CreateEngineFailed(e)
+        interfaces.append(dict(
+            interface_id=interface_id,
+            macaddress=macaddress,
+            zone_ref=zone_ref,
+            interfaces=[interface]))
         
-
+        primary_mgt = interface_id if not vlan_id else '{}.{}'.format(interface_id, vlan_id)
+        
+        return FirewallCluster.create_bulk(
+            name, interfaces=interfaces, nodes=len(nodes),
+            cluster_mode=cluster_mode, primary_mgt=primary_mgt,
+            backup_mgt=backup_mgt, primary_heartbeat=primary_heartbeat, 
+            log_server_ref=log_server_ref,
+            domain_server_address=domain_server_address,
+            location_ref=location_ref, default_nat=default_nat,
+            enable_antivirus=enable_antivirus, enable_gti=enable_gti,
+            comment=comment, snmp=snmp, **kw)
+ 
+       
 class MasterEngine(Engine):
     """
     Creates a master engine in a firewall role. Layer3VirtualEngine should be used
@@ -859,17 +801,16 @@ def add_snmp(data, interfaces):
         interfaces = map(str, interfaces)
         for interface in data:
             interface_id = str(interface.get('interface_id'))
-            if 'vlan_id' in interface:
-                interface_id = '{}.{}'.format(
-                    interface.get('interface_id'),
-                    interface.get('vlan_id'))
-            
-            # If 'type' is specified, it is something other than a
-            # physical interface (tunnel, inline, etc). Ignore.
-            if interface_id in interfaces and 'type' not in interface:
-                if 'nodes' in interface and interface['nodes'] is not None:
-                    for node in interface.get('nodes', []):
+            for if_def in interface.get('interfaces', []):
+                _interface_id = None
+                if 'vlan_id' in if_def:
+                    _interface_id = '{}.{}'.format(
+                        interface_id, if_def['vlan_id'])
+                else:
+                    _interface_id = interface_id
+                if _interface_id in interfaces and 'type' not in interface:
+                    for node in if_def.get('nodes', []):
                         snmp_interface.append(
                             {'address': node.get('address'),
-                             'nicid': interface_id})
+                             'nicid': _interface_id})
     return snmp_interface

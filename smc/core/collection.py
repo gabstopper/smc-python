@@ -3,7 +3,7 @@ Collections classes for core based functionality like interfaces.
 
 """
 from smc.core.interfaces import PhysicalInterface, TunnelInterface, \
-    VirtualPhysicalInterface, InterfaceModifier
+    VirtualPhysicalInterface, InterfaceEditor
 from smc.core.sub_interfaces import LoopbackClusterInterface, LoopbackInterface
 from smc.base.structs import BaseIterable
 from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound
@@ -129,8 +129,8 @@ class InterfaceCollection(BaseIterable):
         self._rel = rel
         self.href = engine.get_relation(rel, UnsupportedInterfaceType)
         # Pass the interface iterator to the top level iterator
-        super(InterfaceCollection, self).__init__(InterfaceModifier.byEngine(engine))
-
+        super(InterfaceCollection, self).__init__(InterfaceEditor(engine))
+        
     def get(self, interface_id):
         """
         Get the interface by id, if known. The interface is retrieved from
@@ -166,13 +166,44 @@ class InterfaceCollection(BaseIterable):
             else:
                 yield interface
     
+    def update_or_create(self, interface):
+        """
+        Collections class update or create method that can be used as a
+        shortcut to updating or creating an interface. The interface must
+        first be defined and provided as the argument. The interface method
+        must have an `update_interface` method which resolves differences and
+        adds as necessary.
+        
+        :param Interface interface: an instance of an interface type, either
+            PhysicalInterface or TunnelInterface
+        :raises EngineCommandFailed: Failed to create new interface
+        :raises UpdateElementFailed: Failure to update element with reason
+        :rtype: tuple
+        :return: A tuple with (Interface, modified, created), where created and
+            modified are booleans indicating the operations performed
+        """
+        created, modified = (False, False)
+        try:
+            intf = self._engine.interface.get(
+                interface.interface_id)
+            interface, updated = intf.update_interface(interface)
+            if updated:
+                modified = True
+        except InterfaceNotFound:
+            self._engine.physical_interface.add_interface(
+                interface)
+            interface = self._engine.interface.get(interface.interface_id)
+            created = True
+        
+        return interface, modified, created
+    
     def __getattr__(self, key):
         # Dispatch to instance methods but only for adding interfaces.
         # Makes this work: engine.physical_interface.add_xxxx
         if key.startswith('add') and self.class_map.get(self._rel):
             if hasattr(self.class_map[self._rel], key):
                 return getattr(self.class_map[self._rel](
-                    href=self.href, engine=self._engine), key)
+                    engine=self._engine), key)
         raise AttributeError('Cannot proxy to given method: %s for the '
             'following type: %s' % (key, self._rel))
 

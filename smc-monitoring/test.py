@@ -24,19 +24,25 @@ import smc_monitoring
 from smc_monitoring.models.calendar import datetime_from_ms
 from smc.core.engines import Layer3Firewall
 from smc.core.engine import Engine
-
+from smc_monitoring.models.query import Query
 
 def print_fields(number):
     ids = Query.resolve_field_ids(list(range(number)))
     for x in ids:
         pprint(x)
-    for x in reversed(ids):
-        print('{}={} #: {}'.format(
-            x.get('name').upper(),
-            x.get('id'),
-            x.get('comment')))
+    #for x in reversed(ids):
+    #    print('{}={} #: {}'.format(
+    #        x.get('name').upper(),
+    #        x.get('id'),
+    #        x.get('comment')))
 
-       
+def get_field_schema_by_name(fields, max_ids=2000):
+    # List of fields, expecting the value to match 'pretty' (what is shown in SMC UI)
+    ids = Query.resolve_field_ids(list(range(max_ids)))
+    for id in ids:
+        yield id
+
+
 if __name__ == '__main__':
     import logging
     from pprint import pprint
@@ -99,15 +105,27 @@ if __name__ == '__main__':
     #query.request = {"query":{"definition":"BLACKLIST","target":"lynn"}, "fetch":{}, "format":{"type":"texts"}}
     
     #myfilter = InFilter(FieldValue(LogField.SRC), [IPValue('192.168.4.82'), IPValue('172.18.1.152')])
-   
-    query = LogQuery(fetch_size=1)
-    for log in query.fetch_live():
-        print(log)
     
-    #pprint(query.get_field_schema())
+    
+    
+    
+    #Use case to pull specific filter logs from Audit
+    query = LogQuery()
+    query.format.timezone('CET')        
+    default_audit_fields_ids = [LogField.TIMESTAMP, LogField.DATATYPE, LogField.USERORIGINATOR, LogField.TYPEDESCRIPTION, LogField.RESULT, LogField.OBJECTNAME, LogField.OBJECTID, LogField.OBJECTTYPE, LogField.INFOMSG]
+    query.format.field_ids(default_audit_fields_ids)
+    # Show only Audit log entries
+    query.add_in_filter( FieldValue(LogField.DATATYPE), [ConstantValue(9)]) #HINT: it could be nice to have the Audit Data Type as constant in the LogField
+    
+    
+    #OBJECTNAME
+    #for log in query.fetch_live():
+    #    print(log)
+    
+    #pprint(query._get_field_schema())
         #if 'fields' in fields:
         #    return fields['fields']
-    
+    #from smc_monitoring.models.query import Query
     #for fields in Query.resolve_field_ids(LogQuery.field_ids):
     #    print(fields)
     #query.update_filter(myfilter)
@@ -123,6 +141,13 @@ if __name__ == '__main__':
         #record.delete()
     #print(session.url)
     
+    #pprint(print_fields(200))
+    #for field in get_field_schema_by_name(['Sender', 'Operation Type', 'Element'], max_ids=1000):
+    #    print("Printing field...")
+    #    pprint(field)
+    
+    
+    #print_fields(1536)
     
     from smc_monitoring.pubsub.subscribers import Notification, Event
                     
@@ -146,7 +171,7 @@ if __name__ == '__main__':
     #pprint(query.get_field_schema())    
     
     #query = VPNSAQuery('sg_vm')
-    query = ActiveAlertQuery('Shared Domain')
+    #query = ActiveAlertQuery('Shared Domain')
     #query = SSLVPNQuery('sg_vm')
     #query = RoutingQuery('sg_vm')
     #query = BlacklistQuery('sg_vm', timezone='CST')
@@ -154,9 +179,9 @@ if __name__ == '__main__':
     #query.format.timezone('CST')  
     #pprint(query.get_field_schema())
     #query.get_field_schema()
-    for record in query.fetch_raw():
-        for individual in record:
-            print(individual)
+    #for record in query.fetch_raw():
+    #    for individual in record:
+    #        print(individual)
     
     #query = ActiveAlertQuery('Shared Domain', timezone='America/Chicago')
     #pprint(vars(query))

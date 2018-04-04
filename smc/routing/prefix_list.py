@@ -48,6 +48,12 @@ class IPPrefixList(AccessList, Element):
         ... 
         PrefixListEntry(subnet=u'10.0.0.0/8', action=u'deny', min_prefix_length=16, max_prefix_length=32, comment=None)
         PrefixListEntry(subnet=u'192.17.1.0/24', action=u'deny', min_prefix_length=25, max_prefix_length=32, comment=None)
+        
+    You can also create a PrefixList without using the min_prefix_length and max_prefix_length fields::
+    
+        >>> prefix = IPPrefixList.create(name='mylist', entries=[
+        ...   {'subnet': '10.0.0.0/8', 'action': 'deny'},
+        ...   {'subnet': '192.16.1.0/24', 'action': 'permit'}])
 
     This is an iterable container yielding :class:`~PrefixListEntry`
     
@@ -74,6 +80,11 @@ class IPv6PrefixList(AccessList, Element):
         ... 
         PrefixListEntry(subnet=u'ab00::/64', action=u'deny', min_prefix_length=65, max_prefix_length=128, comment=None)
     
+    You can also create a PrefixList without using the min_prefix_length and max_prefix_length fields::
+    
+        >>> prefix = IPPrefixList.create(name='mylist', entries=[
+        ...   {'subnet': 'ab00::/64', 'action': 'deny'}
+        
     This is an iterable container yielding :class:`~PrefixListEntry`
     
     .. seealso:: :class:`~IPPrefixList` for other common operations

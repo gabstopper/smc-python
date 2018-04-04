@@ -20,7 +20,7 @@ party remote GW::
     engine.physical_interface.add_layer3_interface(
         interface_id=1, address='10.10.10.10', network_value='10.10.10.0/24', zone_ref='vpn')
     
-    engine.tunnel_interface.add_single_node_interface(
+    engine.tunnel_interface.add_layer3_interface(
         tunnel_id=1000, 
         address='2.2.2.2', 
         network_value='2.2.2.0/24')
@@ -74,7 +74,7 @@ Create a GRE Tunnel Mode RBVPN with a remote gateway (non-SMC managed)::
             break
      
     # Create a new Tunnel Interface for the engine 
-    engine.tunnel_interface.add_single_node_interface( 
+    engine.tunnel_interface.add_layer3_interface( 
         tunnel_id=3000, address='30.30.30.30', network_value='30.30.30.0/24') 
     
     tunnel_interface =  engine.tunnel_interface.get(3000)

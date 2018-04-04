@@ -1272,6 +1272,17 @@ class InternalGateway(SubElement):
         self._del_cache() # Engine update changes this ETag
         self.update(name='{} Primary'.format(name))
     
+    @property
+    def internal_endpoint(self):
+        """
+        Internal endpoints to enable VPN for the engine.
+        
+        :rtype: SubElementCollection(InternalEndpoint)
+        """
+        return sub_collection( 
+            self.get_relation('internal_endpoint'), 
+            InternalEndpoint) 
+    
 
 class InternalEndpoint(SubElement):
     """
