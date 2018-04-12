@@ -97,7 +97,7 @@ Create a GRE Tunnel Mode RBVPN with a remote gateway (non-SMC managed)::
 Create a no-encryption GRE route based VPN between two managed NGFWs::
 
     engine1 = Layer3Firewall.create(name='engine1', mgmt_ip='1.1.1.1', mgmt_network='1.1.1.0/24')
-    engine1.tunnel_interface.add_single_node_interface( 
+    engine1.tunnel_interface.add_layer3_interface( 
         tunnel_id=1000, 
         address='2.2.2.2', 
         network_value='2.2.2.0/24')
@@ -112,7 +112,7 @@ Create a no-encryption GRE route based VPN between two managed NGFWs::
         internal_endpoint, tunnel_if)
     
     engine2 = Layer3Firewall.create(name='engine2', mgmt_ip='1.1.1.1', mgmt_network='1.1.1.0/24')
-    engine2.tunnel_interface.add_single_node_interface( 
+    engine2.tunnel_interface.add_layer3_interface( 
         tunnel_id=1000, 
         address='2.2.2.2', 
         network_value='2.2.2.0/24')
@@ -136,6 +136,7 @@ from smc.base.model import Element, ElementCreator
 from smc.core.engine import InternalEndpoint
 from smc.vpn.elements import VPNProfile
 from smc.api.exceptions import CreateElementFailed, CreateVPNFailed
+from smc.core.interfaces import TunnelInterface
 
 
 class RouteVPN(Element):
@@ -496,7 +497,7 @@ class TunnelEndpoint(object):
         :rtype: TunnelInterface
         """
         if self.tunnel_interface_ref:
-            return Element.from_href(self.tunnel_interface_ref)
+            return TunnelInterface(href=self.tunnel_interface_ref)
    
     @property
     def endpoint(self):

@@ -5,8 +5,9 @@ from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, EngineCommandFailed, SMCConnectionError
 from smc.core.node import Node, NodeCollection
 from smc.core.resource import Snapshot, PendingChanges
-from smc.core.interfaces import InterfaceOptions
-from smc.core.collection import InterfaceCollection, LoopbackCollection
+from smc.core.interfaces import InterfaceOptions, PhysicalInterface
+from smc.core.collection import InterfaceCollection, LoopbackCollection,\
+    PhysicalInterfaceCollection, TunnelInterfaceCollection
 from smc.administration.tasks import Task
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
@@ -863,7 +864,7 @@ class Engine(Element):
 
         See :class:`smc.core.interfaces.Interface` for more info
         """
-        return InterfaceCollection(engine=self)
+        return InterfaceCollection(self)
 
     @property
     def physical_interface(self):
@@ -875,10 +876,9 @@ class Engine(Element):
             engine.physical_interface.add_layer3_interface(....)
 
         :raises UnsupportedInterfaceType: engine doesn't support this type
-        :rtype: InterfaceCollection
+        :rtype: PhysicalInterfaceCollection
         """
-        return InterfaceCollection(
-            engine=self, rel='physical_interface')
+        return PhysicalInterfaceCollection(self)
 
     @property
     def virtual_physical_interface(self):
@@ -906,10 +906,9 @@ class Engine(Element):
         Get only tunnel interfaces for this engine node.
 
         :raises UnsupportedInterfaceType: supported on layer 3 engine only
-        :rtype: InterfaceCollection
+        :rtype: TunnelInterfaceCollection
         """
-        return InterfaceCollection(
-            engine=self, rel='tunnel_interface')
+        return TunnelInterfaceCollection(self)
 
     @property
     def loopback_interface(self):
@@ -1333,7 +1332,7 @@ class InternalEndpoint(SubElement):
         
         :rtype: PhysicalInterface
         """
-        return Element.from_href(self.data.get('physical_interface'))
+        return PhysicalInterface(href=self.data.get('physical_interface'))
     
     
 class VirtualResource(SubElement):

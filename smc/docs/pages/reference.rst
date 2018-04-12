@@ -14,11 +14,11 @@ Element
 -------
 
 .. automodule:: smc.base.model
-	:exclude-members: from_meta, from_href
+	:members:
 
 .. autoclass:: ElementBase
 	:members:
-	:exclude-members: get_relation
+	:exclude-members: get_relation, from_meta, from_href
 
 .. autoclass:: Element
 	:members:
@@ -512,6 +512,13 @@ TLSInspection
 .. autoclass:: smc.core.addon.TLSInspection
 	:members:
 
+ContactAddress
+++++++++++++++
+
+.. automodule:: smc.core.contact_address
+	:members:
+	:show-inheritance:
+
 Dynamic Routing
 +++++++++++++++
 Represents classes responsible for configuring dynamic routing protocols
@@ -696,12 +703,25 @@ PhysicalInterface
     :members:
     :show-inheritance:
 
-PhysicalVlanInterface
-*********************
+Layer3PhysicalInterface
+***********************
 
-.. autoclass:: PhysicalVlanInterface
+.. autoclass:: Layer3PhysicalInterface
 	:members:
-	:exclude-members: create
+	:show-inheritance:
+
+Layer2PhysicalInterface
+***********************
+
+.. autoclass:: Layer3PhysicalInterface
+	:members:
+	:show-inheritance:
+
+ClusterPhysicalInterface
+************************
+
+.. autoclass:: ClusterPhysicalInterface
+	:members:
 	:show-inheritance:
 
 VirtualPhysicalInterface
@@ -717,14 +737,6 @@ TunnelInterface
 .. autoclass:: TunnelInterface
     :members:
     :show-inheritance:
-
-ContactAddress
-**************
-
-.. automodule:: smc.core.contact_address
-	:members:
-	:show-inheritance:
-
 
 Sub-Interfaces
 **************

@@ -278,7 +278,26 @@ class ElementBase(RequestAction, UnicodeMixin):
             self._meta = Meta(**meta_as_kw)
         else:
             self._meta = Meta(**meta) if meta else None
+    
+    @classmethod
+    def from_href(cls, href):
+        """
+        Return an instance of an Element based on the href
 
+        :rtype: Element
+        """
+        return ElementFactory(href) if href else None
+
+    @classmethod
+    def from_meta(cls, **meta):
+        """
+        Return an instance of an Element based on meta
+
+        :param dict meta: raw dict meta from smc
+        :rtype: Element
+        """
+        return lookup_class(meta.get('type'))(**meta)
+    
     @cached_property
     def data(self):
         return LoadElement(self.href)
@@ -480,25 +499,6 @@ class Element(ElementBase):
         return smc.base.collection.CollectionManager(self)
 
     @classmethod
-    def from_href(cls, href):
-        """
-        Return an instance of an Element based on the href
-
-        :rtype: Element
-        """
-        return ElementFactory(href) if href else None
-
-    @classmethod
-    def from_meta(cls, **meta):
-        """
-        Return an instance of an Element based on meta
-
-        :param dict meta: raw dict meta from smc
-        :rtype: Element
-        """
-        return lookup_class(meta.get('type'))(**meta)
-
-    @classmethod
     def get(cls, name, raise_exc=True):
         """
         Get the element by name. Does an exact match by element type.
@@ -616,8 +616,7 @@ class Element(ElementBase):
         :return: element instance by type
         :rtype: Element
         """
-        was_created = False
-        was_modified = False
+        was_created, was_modified = False, False
         if not hasattr(cls, 'create'):
             return cls.get(kwargs.get('name'))
         elif 'name' not in kwargs:

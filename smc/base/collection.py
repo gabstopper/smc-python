@@ -493,9 +493,11 @@ class ElementCollection(object):
             _filter = value
             iexact = kw
         
-        if not exact_match:
-            _filter = _strip_metachars(_filter)
-        
+        # Only strip metachars from network and address range
+        if not exact_match and self._params.get('filter_context', {})\
+            in ('network', 'address_range', 'network_elements'):
+                _filter = _strip_metachars(_filter)
+            
         return self._clone(
             filter=_filter,
             iexact=iexact,
@@ -667,7 +669,7 @@ class CollectionManager(object):
         iexact = None
         if filter:
             _filter = filter[0]
-          
+        
         exact_match = kw.pop('exact_match', False)
         case_sensitive = kw.pop('case_sensitive', True)
         
@@ -676,7 +678,9 @@ class CollectionManager(object):
             _filter = value
             iexact = kw
         
-        if not exact_match:
+        # Only strip metachars from network and address range
+        if not exact_match and hasattr(self, '_cls') and \
+            self._cls.typeof in ('network', 'address_range'):
             _filter = _strip_metachars(_filter)
 
         return self.iterator(

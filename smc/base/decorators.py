@@ -38,6 +38,15 @@ class classproperty(object):
         return self.fget(owner_cls)
 
 
+def memoize(f):
+    memo = {}
+    def helper(x):
+        if x not in memo:            
+            memo[x] = f(x)
+        return memo[x]
+    return helper
+
+
 def cacheable_resource(func):
     @functools.wraps(func)
     def get(self):

@@ -1,5 +1,5 @@
-from smc.core.interfaces import extract_sub_interface, InterfaceBuilder,\
-    ClusterPhysicalInterface, TunnelInterface
+from smc.core.interfaces import ClusterPhysicalInterface, TunnelInterface,\
+    Layer3PhysicalInterface, Layer2PhysicalInterface
 from smc.core.sub_interfaces import LoopbackInterface
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed,\
@@ -10,13 +10,10 @@ from smc.base.model import ElementCreator
 class Layer3Firewall(Engine):
     """
     Represents a Layer 3 Firewall configuration.
-    To instantiate and create, call 'create' classmethod as follows::
-
-        engine = Layer3Firewall.create(name='mylayer3', 
-                                       mgmt_ip='1.1.1.1', 
-                                       mgmt_network='1.1.1.0/24')
-
-    Set additional constructor values as necessary.       
+    A layer 3 single FW is a standalone FW instance (not a cluster). You can
+    use the `create` constructor and add interfaces after the engine exists,
+    or use `create_bulk` to fully create the engine and interfaces in a single
+    operation.
     """
     typeof = 'single_fw'
 
@@ -27,9 +24,86 @@ class Layer3Firewall(Engine):
                    domain_server_address=None,
                    location_ref=None, default_nat=False,
                    enable_antivirus=False, enable_gti=False,
-                   comment=None, snmp_agent=None, **kw):
-        pass
-    
+                   sidewinder_proxy_enabled=False, enable_ospf=False,
+                   ospf_profile=None, comment=None, snmp=None, **kw):
+        """
+        Create a Layer 3 Firewall providing all of the interface configuration.
+        This method provides a way to fully create the engine and all interfaces
+        at once versus using :py:meth:`~create` and creating each individual
+        interface after the engine exists.
+        
+        Example interfaces format::
+        
+            interfaces=[
+                {'interface_id': 1},
+                {'interface_id': 2, 
+                 'interfaces':[{'nodes': [{'address': '2.2.2.2', 'network_value': '2.2.2.0/24'}]}],
+                 'zone_ref': 'myzone'},
+                {'interface_id': 3,
+                 'interfaces': [{'nodes': [{'address': '3.3.3.3', 'network_value': '3.3.3.0/24'}],
+                                 'vlan_id': 3,
+                                 'zone_ref': 'myzone'},
+                                 {'nodes': [{'address': '4.4.4.4', 'network_value': '4.4.4.0/24'}],
+                                  'vlan_id': 4}]},
+                {'interface_id': 4,
+                 'interfaces': [{'vlan_id': 4,
+                                 'zone_ref': 'myzone'}]},
+                {'interface_id': 5,
+                 'interfaces': [{'vlan_id': 5}]},
+                {'interface_id': 1000,
+                 'interfaces': [{'nodes': [{'address': '10.10.10.1', 'network_value': '10.10.10.0/24'}]}],
+                 'type': 'tunnel_interface'}]
+        
+        """
+        physical_interfaces = []
+        for interface in interfaces:
+            if 'interface_id' not in interface:
+                raise CreateEngineFailed('Interface definitions must contain the interface_id '
+                    'field. Failed to create engine: %s' % name)
+            if interface.get('type', None) == 'tunnel_interface':
+                tunnel_interface = TunnelInterface(**interface)
+                physical_interfaces.append(
+                    {'tunnel_interface': tunnel_interface})
+            else:
+                interface.update(interface='single_node_interface')
+                interface = Layer3PhysicalInterface(primary_mgt=primary_mgt,
+                    backup_mgt=backup_mgt, **interface)
+                physical_interfaces.append(
+                    {'physical_interface': interface})
+
+        if snmp:
+            snmp_agent = dict(
+                snmp_agent_ref=snmp.get('snmp_agent', ''),
+                snmp_location=snmp.get('snmp_location', ''))
+            
+            snmp_agent.update(
+                snmp_interface=add_snmp(
+                    interfaces,
+                    snmp.get('snmp_interface', [])))
+        
+        try:
+            engine = super(Layer3Firewall, cls)._create(
+                name=name,
+                node_type='firewall_node',
+                physical_interfaces=physical_interfaces,
+                loopback_ndi=kw.get('loopback_ndi', []),
+                domain_server_address=domain_server_address,
+                log_server_ref=log_server_ref,
+                nodes=1, enable_gti=enable_gti,
+                enable_antivirus=enable_antivirus,
+                sidewinder_proxy_enabled=sidewinder_proxy_enabled,
+                default_nat=default_nat,
+                location_ref=location_ref,
+                enable_ospf=enable_ospf,
+                ospf_profile=ospf_profile,
+                snmp_agent=snmp_agent if snmp else None,
+                comment=comment)
+            
+            return ElementCreator(cls, json=engine)
+        
+        except (ElementNotFound, CreateElementFailed) as e:
+            raise CreateEngineFailed(e)
+
     @classmethod
     def create(cls, name, mgmt_ip, mgmt_network,
                mgmt_interface=0,
@@ -40,7 +114,7 @@ class Layer3Firewall(Engine):
                enable_antivirus=False, enable_gti=False,
                location_ref=None, enable_ospf=False,
                sidewinder_proxy_enabled=False,
-               ospf_profile=None, comment=None, **kw):
+               ospf_profile=None, snmp=None, comment=None, **kw):
         """ 
         Create a single layer 3 firewall with management interface and DNS. 
         Provide the `interfaces` keyword argument if adding multiple additional interfaces.
@@ -51,17 +125,8 @@ class Layer3Firewall(Engine):
             - physical_interface (default if not specified)
             - tunnel_interface
     
-        Example interfaces format::
-        
-            {'interface_id': 1},
-            {'interface_id': 2, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'zone_ref': 'myzone'},
-            {'interface_id': 1000, 'address': '10.10.10.1', 'network_value': '10.10.10.0/24', 'type': 'tunnel_interface'}
-        
-         It is also possible to add VLAN interfaces in the following format::
-         
-            {'interface_id': 2, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'vlan_id': 10},
-            {'interface_id': 2, 'address':'3.3.3.3', 'network_value': '3.3.3.0/24', 'vlan_id': 11, 'zone_ref': 'myzone'},
-            {'interface_id': 3, 'vlan_id': 12, 'zone_ref': 'myzone'}
+        If providing all engine interfaces in a single operation, see :py:meth:`~create_bulk`
+        for the proper format.
                   
         :param str name: name of firewall engine
         :param str mgmt_ip: ip address of management interface
@@ -84,76 +149,23 @@ class Layer3Firewall(Engine):
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
-        builder = InterfaceBuilder()
-        builder.interface_id = mgmt_interface
-        builder.add_sni_only(
-            mgmt_ip,
-            mgmt_network,
-            is_mgmt=True,
-            reverse_connection=reverse_connection)
-        builder.zone = zone_ref
-
-        physical_interfaces = [{'physical_interface': builder.data}]
-            
-        if 'interfaces' in kw:
-            vlans = {} # Store VLAN interface builders in case multiple VLANs are added
-            for interface in kw['interfaces']:
-                interface_id = interface.get('interface_id')
-
-                if interface_id is None:
-                    raise CreateEngineFailed('Interface_id is a required field when '
-                        'defining interfaces.')
-                
-                # Build interface
-                if interface.get('type', None) == 'tunnel_interface':
-                    if 'address' not in interface or 'network_value' not in interface:
-                        raise CreateEngineFailed('Tunnel interfaces require an address '
-                            'and network_value')
-
-                    builder = InterfaceBuilder(None) # TunnelInterface
-                else:
-                    builder = InterfaceBuilder()
-            
-                builder.interface_id = interface_id
-                if 'vlan_id' in interface:
-                    # Grab the stored VLAN builder if any
-                    if interface_id in vlans:
-                        builder = vlans.get(interface_id)
-                    
-                    if 'address' in interface and 'network_value' in interface:
-                        builder.add_sni_to_vlan(
-                            address=interface.get('address'),
-                            network_value=interface.get('network_value'),
-                            vlan_id=interface.get('vlan_id'),
-                            nodeid=1,
-                            zone_ref=interface.get('zone_ref'))
-                    else:  # VLAN only
-                        builder.add_vlan_only(
-                            vlan_id=interface.get('vlan_id'),
-                            zone_ref=interface.get('zone_ref'))
-                    # Save builder
-                    vlans[interface_id] = builder
-                else:
-                    builder.zone = interface.get('zone_ref', None)
-                    if 'address' in interface and 'network_value' in interface:
-                        builder.add_sni_only(
-                            address=interface['address'],
-                            network_value=interface['network_value'])
-                    # else Blank interface, no IP addresses
-                       
-                    if interface.get('type', None) == 'tunnel_interface':
-                        physical_interfaces.append({'tunnel_interface': builder.data})
-                    else:
-                        physical_interfaces.append({'physical_interface': builder.data})
-            
-            if vlans:
-                for _, builder in vlans.items():
-                    physical_interfaces.append({'physical_interface': builder.data})        
-
-        engine = super(Layer3Firewall, cls)._create(
+        interfaces = kw.pop('interfaces', [])
+        # Add the primary interface to the interface list
+        interface = {'interface_id': mgmt_interface,
+                     'interface': 'single_node_interface',
+                     'zone_ref': zone_ref,
+                     'interfaces': [{
+                         'nodes': [{'address': mgmt_ip, 'network_value': mgmt_network, 'nodeid': 1,
+                                    'reverse_connection': reverse_connection}]
+                         }]
+                     }
+        interfaces.append(interface)
+        
+        return Layer3Firewall.create_bulk(
             name=name,
             node_type='firewall_node',
-            physical_interfaces=physical_interfaces,
+            interfaces=interfaces,
+            primary_mgt=mgmt_interface,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=1, enable_gti=enable_gti,
@@ -162,39 +174,52 @@ class Layer3Firewall(Engine):
             default_nat=default_nat,
             location_ref=location_ref,
             enable_ospf=enable_ospf,
-            ospf_profile=ospf_profile,
-            comment=comment)
-    
-        try:
-            return ElementCreator(cls, json=engine)
-        
-        except CreateElementFailed as e:
-            raise CreateEngineFailed(e)
-    
+            ospf_profile=ospf_profile, snmp=snmp,
+            comment=comment, **kw)  
+      
     @classmethod
     def create_dynamic(cls, name, interface_id,
                        dynamic_index=1,
-                       primary_mgt=True,
                        reverse_connection=True,
                        automatic_default_route=True,
                        domain_server_address=None,
                        loopback_ndi='127.0.0.1',
-                       loopback_ndi_network='127.0.0.1/32',
                        location_ref=None,
                        log_server_ref=None,
                        zone_ref=None,
                        enable_gti=False,
                        enable_antivirus=False,
                        sidewinder_proxy_enabled=False,
-                       default_nat=False, comment=None):
+                       default_nat=False, comment=None, **kw):
         """
         Create a single layer 3 firewall with only a single DHCP interface. Useful
         when creating virtualized FW's such as in Microsoft Azure.
+        
+        :param str name: name of engine
+        :param str,int interface_id: interface ID used for dynamic interface and management
+        :param bool reverse_connection: specifies the dynamic interface should initiate connections
+            to management (default: True)
+        :param bool automatic_default_route: allow SMC to create a dynamic netlink for the default
+            route (default: True)
+        :param list domain_server_address: list of IP addresses for engine DNS
+        :param str loopback_ndi: IP address for a loopback NDI. When creating a dynamic engine, the
+            `auth_request` must be set to a different interface, so loopback is created
+        :param str location_ref: location by name for the engine
+        :param str log_server_ref: log server reference, will use the 
+        
         """
-        builder = InterfaceBuilder()
-        builder.interface_id = interface_id
-        builder.add_dhcp(dynamic_index, is_mgmt=primary_mgt)
-        builder.zone = zone_ref
+        interfaces = kw.pop('interfaces', [])
+        # Add the primary interface to the interface list
+        interface = {'interface_id': interface_id,
+                     'interface': 'single_node_interface',
+                     'zone_ref': zone_ref,
+                     'interfaces': [{
+                         'nodes': [{'dynamic': True, 'dynamic_index': dynamic_index, 'nodeid': 1,
+                                    'reverse_connection': reverse_connection,
+                                    'automatic_default_route': automatic_default_route}]
+                         }]
+                     }
+        interfaces.append(interface)
         
         loopback = LoopbackInterface.create(
             address=loopback_ndi, 
@@ -202,11 +227,12 @@ class Layer3Firewall(Engine):
             auth_request=True, 
             rank=1)
         
-        engine = super(Layer3Firewall, cls)._create(
+        return Layer3Firewall.create_bulk(
             name=name,
             node_type='firewall_node',
+            primary_mgt=interface_id,
+            interfaces=interfaces,
             loopback_ndi=[loopback.data],
-            physical_interfaces=[{'physical_interface': builder.data}],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=1, enable_gti=enable_gti,
@@ -214,13 +240,7 @@ class Layer3Firewall(Engine):
             sidewinder_proxy_enabled=sidewinder_proxy_enabled,
             default_nat=default_nat,
             location_ref=location_ref,
-            comment=comment)
-    
-        try:
-            return ElementCreator(cls, json=engine)
-        
-        except CreateElementFailed as e:
-            raise CreateEngineFailed(e)
+            comment=comment, **kw)
 
         
 class Layer2Firewall(Engine):
@@ -262,19 +282,24 @@ class Layer2Firewall(Engine):
         :return: :py:class:`smc.core.engine.Engine`
         """
         interfaces = []
-
-        mgmt = InterfaceBuilder()
-        mgmt.interface_id = mgmt_interface
-        mgmt.add_ndi_only(mgmt_ip, mgmt_network, is_mgmt=True)
-        mgmt.zone = zone_ref
-
-        inline = InterfaceBuilder()
-        inline.interface_id = inline_interface.split('-')[0]
-        inline.add_inline(inline_interface, logical_interface_ref=logical_interface)
-
-        interfaces.append({'physical_interface': mgmt.data})
-        interfaces.append({'physical_interface': inline.data})
-
+        interface_id, second_interface_id = inline_interface.split('-')
+        l2 = {'interface_id': interface_id,
+              'interface': 'inline_interface',
+              'second_interface_id': second_interface_id,
+              'logical_interface_ref': logical_interface}
+        
+        interfaces.append(
+            {'physical_interface': Layer2PhysicalInterface(**l2)})
+        
+        layer3 = {'interface_id': mgmt_interface,
+                  'zone_ref': zone_ref,
+             'interfaces': [{'nodes': [
+                 {'address': mgmt_ip, 'network_value': mgmt_network, 'nodeid': 1}]}]
+             }
+        
+        interfaces.append(
+            {'physical_interface': Layer3PhysicalInterface(primary_mgt=mgmt_interface, **layer3)})
+            
         engine = super(Layer2Firewall, cls)._create(
             name=name,
             node_type='fwlayer2_node',
@@ -284,7 +309,7 @@ class Layer2Firewall(Engine):
             nodes=1, enable_gti=enable_gti,
             enable_antivirus=enable_antivirus,
             comment=comment)
-
+        
         try:
             return ElementCreator(cls, json=engine)
         
@@ -299,14 +324,10 @@ class IPS(Engine):
     typeof = 'single_ips'
 
     @classmethod
-    def create(cls, name, mgmt_ip, mgmt_network,
-               mgmt_interface=0,
-               inline_interface='1-2',
-               logical_interface='default_eth',
-               log_server_ref=None,
-               domain_server_address=None, zone_ref=None,
-               enable_antivirus=False, enable_gti=False,
-               comment=None):
+    def create(cls, name, mgmt_ip, mgmt_network, mgmt_interface=0,
+               inline_interface='1-2', logical_interface='default_eth',
+               log_server_ref=None, domain_server_address=None, zone_ref=None,
+               enable_antivirus=False, enable_gti=False, comment=None):
         """ 
         Create a single IPS engine with management interface and inline pair
 
@@ -327,18 +348,23 @@ class IPS(Engine):
         :return: :py:class:`smc.core.engine.Engine`
         """
         interfaces = []
-
-        mgmt = InterfaceBuilder()
-        mgmt.interface_id = mgmt_interface
-        mgmt.add_ndi_only(mgmt_ip, mgmt_network, is_mgmt=True)
-        mgmt.zone = zone_ref
-
-        inline = InterfaceBuilder()
-        inline.interface_id = inline_interface.split('-')[0]
-        inline.add_inline(inline_interface, logical_interface_ref=logical_interface)
-
-        interfaces.append({'physical_interface': mgmt.data})
-        interfaces.append({'physical_interface': inline.data})
+        interface_id, second_interface_id = inline_interface.split('-')
+        l2 = {'interface_id': interface_id,
+              'interface': 'inline_interface',
+              'second_interface_id': second_interface_id,
+              'logical_interface_ref': logical_interface}
+        
+        interfaces.append(
+            {'physical_interface': Layer2PhysicalInterface(**l2)})
+        
+        layer3 = {'interface_id': mgmt_interface,
+                  'zone_ref': zone_ref,
+             'interfaces': [{'nodes': [
+                 {'address': mgmt_ip, 'network_value': mgmt_network, 'nodeid': 1}]}]
+             }
+        
+        interfaces.append(
+            {'physical_interface': Layer3PhysicalInterface(primary_mgt=mgmt_interface, **layer3)})
 
         engine = super(IPS, cls)._create(
             name=name,
@@ -380,8 +406,14 @@ class Layer3VirtualEngine(Engine):
     def create(cls, name, master_engine, virtual_resource,
                interfaces, default_nat=False, outgoing_intf=0,
                domain_server_address=None, enable_ospf=False,
-               ospf_profile=None, comment=None, **kwargs):
+               ospf_profile=None, comment=None, **kw):
         """
+        Create a Layer3Virtual engine for a Master Engine. Provide interfaces
+        as a list of dict items specifying the interface details in format::
+        
+            {'interface_id': 1, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24',
+             'zone_ref': zone_by_name,href}
+        
         :param str name: Name of this layer 3 virtual engine
         :param str master_engine: Name of existing master engine
         :param str virtual_resource: name of pre-created virtual resource
@@ -404,28 +436,31 @@ class Layer3VirtualEngine(Engine):
                 break
         if not virt_resource_href:
             raise CreateEngineFailed('Cannot find associated virtual resource for '
-                                     'VE named: {}. You must first create a virtual '
-                                     'resource for the master engine before you can associate '
-                                     'a virtual engine. Cannot add VE'.format(name))
-        new_interfaces = []
+                'VE named: {}. You must first create a virtual resource for the '
+                'master engine before you can associate a virtual engine. Cannot '
+                'add VE'.format(name))
+        
+        virtual_interfaces = []
         for interface in interfaces:
-            builder = InterfaceBuilder()
-            builder.interface_id = interface.get('interface_id')
-            builder.add_sni_only(interface.get('address'),
-                                 interface.get('network_value'))
-            builder.zone_ref = interface.get('zone_ref')
-
-            # set auth request and outgoing on one of the interfaces
+            nodes = {'address': interface.get('address'),
+                     'network_value': interface.get('network_value')}
+            
+            layer3 = {'interface_id': interface.get('interface_id'),
+                      'interface': 'single_node_interface',
+                      'zone_ref': interface.get('zone_ref')}
+            
             if interface.get('interface_id') == outgoing_intf:
-                intf = extract_sub_interface(builder.data)
-                intf.update(outgoing=True, auth_request=True)
-                
-            new_interfaces.append({'virtual_physical_interface': builder.data})
-
+                nodes.update(outgoing=True, auth_request=True)
+            
+            layer3['interfaces'] = [{'nodes': [nodes]}]
+            
+            virtual_interfaces.append(
+                {'virtual_physical_interface': Layer3PhysicalInterface(**layer3).data.data})
+            
             engine = super(Layer3VirtualEngine, cls)._create(
                 name=name,
                 node_type='virtual_fw_node',
-                physical_interfaces=new_interfaces,
+                physical_interfaces=virtual_interfaces,
                 domain_server_address=domain_server_address,
                 log_server_ref=None,  # Isn't used in VE
                 nodes=1, default_nat=default_nat,
@@ -436,7 +471,7 @@ class Layer3VirtualEngine(Engine):
             engine.update(virtual_resource=virt_resource_href)
             # Master Engine provides this service
             engine.pop('log_server_ref', None)
-            
+        
         try:
             return ElementCreator(cls, json=engine)
     
@@ -451,19 +486,16 @@ class FirewallCluster(Engine):
     created, you can later add additional interfaces using the `engine.physical_interface`
     reference.
     
-    .. seealso::  :func:`smc.core.interfaces.PhysicalInterface.add_layer3_cluster_interface`
+    .. seealso::  :func:`smc.core.physical_interface.add_layer3_cluster_interface`
     """
     typeof = 'fw_cluster'
     
     @classmethod
-    def create_bulk(cls, name, interfaces=None, nodes=2,
-                   cluster_mode='balancing', primary_mgt=None,
-                   backup_mgt=None, primary_heartbeat=None, 
-                   log_server_ref=None,
-                   domain_server_address=None,
-                   location_ref=None, default_nat=False,
-                   enable_antivirus=False, enable_gti=False,
-                   comment=None, snmp=None, **kw):
+    def create_bulk(cls, name, interfaces=None, nodes=2, cluster_mode='balancing',
+            primary_mgt=None, backup_mgt=None, primary_heartbeat=None,
+            log_server_ref=None, domain_server_address=None, location_ref=None,
+            default_nat=False, enable_antivirus=False, enable_gti=False, comment=None,
+            snmp=None, **kw):
         """
         
         :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
@@ -479,7 +511,7 @@ class FirewallCluster(Engine):
                 raise CreateEngineFailed('Interface definitions must contain the interface_id '
                     'field. Failed to create engine: %s' % name)
             if interface.get('type', None) == 'tunnel_interface':
-                tunnel_interface = TunnelInterface(interface=interface)
+                tunnel_interface = TunnelInterface(**interface)
                 physical_interfaces.append(
                     {'tunnel_interface': tunnel_interface})
             else:
@@ -521,15 +553,11 @@ class FirewallCluster(Engine):
     
         
     @classmethod
-    def create(cls, name, cluster_virtual, network_value,
-               macaddress, interface_id, nodes, vlan_id=None,
-               cluster_mode='balancing',
-               backup_mgt=None, primary_heartbeat=None, 
-               log_server_ref=None,
-               domain_server_address=None,
-               location_ref=None,
-               zone_ref=None, default_nat=False,
-               enable_antivirus=False, enable_gti=False,
+    def create(cls, name, cluster_virtual, network_value, macaddress,
+               interface_id, nodes, vlan_id=None, cluster_mode='balancing',
+               backup_mgt=None, primary_heartbeat=None, log_server_ref=None,
+               domain_server_address=None, location_ref=None, zone_ref=None,
+               default_nat=False, enable_antivirus=False, enable_gti=False,
                comment=None, snmp=None, **kw):
         """
         Create a layer 3 firewall cluster with management interface and any number
@@ -675,7 +703,7 @@ class MasterEngine(Engine):
     @classmethod
     def create(cls, name, master_type, mgmt_ip, mgmt_network,
                mgmt_interface=0,
-               log_server_ref=None,
+               log_server_ref=None, zone_ref=None,
                domain_server_address=None, enable_gti=False,
                enable_antivirus=False, comment=None):
         """
@@ -693,17 +721,17 @@ class MasterEngine(Engine):
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
-        builder = InterfaceBuilder()
-        builder.interface_id = mgmt_interface
-        builder.add_ndi_only(mgmt_ip, mgmt_network,
-                             is_mgmt=True,
-                             primary_heartbeat=True,
-                             outgoing=True)
-
+        interface = {'interface_id': mgmt_interface,
+                     'interfaces': [{'nodes': [{'address': mgmt_ip, 'network_value': mgmt_network}]}],
+                     'zone_ref': zone_ref, 'comment': comment}
+        
+        interface = Layer3PhysicalInterface(primary_mgt=mgmt_interface,
+            primary_heartbeat=mgmt_interface, **interface)
+        
         engine = super(MasterEngine, cls)._create(
             name=name,
             node_type='master_node',
-            physical_interfaces=[{'physical_interface': builder.data}],
+            physical_interfaces=[{'physical_interface':interface}],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=1, enable_gti=enable_gti,
@@ -729,11 +757,9 @@ class MasterEngineCluster(Engine):
     typeof = 'master_engine'
     
     @classmethod
-    def create(cls, name, master_type, macaddress,
-               nodes, mgmt_interface=0, log_server_ref=None,
-               domain_server_address=None,
-               enable_gti=False,
-               enable_antivirus=False, comment=None):
+    def create(cls, name, master_type, macaddress, nodes, mgmt_interface=0,
+        log_server_ref=None, domain_server_address=None, enable_gti=False,
+        enable_antivirus=False, comment=None, **kw):
         """
         Create Master Engine Cluster
 
@@ -762,17 +788,22 @@ class MasterEngineCluster(Engine):
               'network_value':'5.5.5.0/24', 
               'nodeid':3}]
         """
-        builder = InterfaceBuilder()
-        builder.interface_id = mgmt_interface
-        builder.macaddress = macaddress
-        for node in nodes:
-            node.update(is_mgmt=True)
-            builder.add_ndi_only(**node)
+        primary_mgt = primary_heartbeat = mgmt_interface
+        
+        interface = {'interface_id': mgmt_interface,
+                     'interfaces': [{
+                         'nodes': nodes
+                         }],
+                     'macaddress': macaddress,
+                     }
+        
+        interface = Layer3PhysicalInterface(primary_mgt=primary_mgt,
+            primary_heartbeat=primary_heartbeat, **interface)
 
         engine = super(MasterEngineCluster, cls)._create(
             name=name,
             node_type='master_node',
-            physical_interfaces=[{'physical_interface': builder.data}],
+            physical_interfaces=[{'physical_interface': interface}],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
             nodes=len(nodes), enable_gti=enable_gti,

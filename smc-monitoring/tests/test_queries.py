@@ -146,8 +146,6 @@ class Test(unittest.TestCase):
         ms = datetime_to_ms(dt)
         self.assertTrue(dt == datetime_from_ms(ms))
     
-        from pprint import pprint
-        
         tf = TimeFormat()
         
         def get_time_diff():

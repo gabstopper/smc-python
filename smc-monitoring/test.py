@@ -5,7 +5,7 @@ Created on Aug 26, 2017
 '''
 from smc_monitoring.monitors.blacklist import BlacklistQuery
 from smc_monitoring.models.filters import InFilter
-from smc_monitoring.models.constants import LogField, Actions, Alerts
+from smc_monitoring.models.constants import LogField, Actions, Alerts, DataType
 from smc_monitoring.models.values import FieldValue, IPValue, ServiceValue,\
     ElementValue, StringValue, ConstantValue
 from smc import session
@@ -30,11 +30,7 @@ def print_fields(number):
     ids = Query.resolve_field_ids(list(range(number)))
     for x in ids:
         pprint(x)
-    #for x in reversed(ids):
-    #    print('{}={} #: {}'.format(
-    #        x.get('name').upper(),
-    #        x.get('id'),
-    #        x.get('comment')))
+
 
 def get_field_schema_by_name(fields, max_ids=2000):
     # List of fields, expecting the value to match 'pretty' (what is shown in SMC UI)
@@ -65,7 +61,7 @@ if __name__ == '__main__':
     #pprint(session._get_log_schema())
     #if session.session.verify and session.session.verify 
 
-
+    pprint(session._get_log_schema())
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
     #import websocket
     websocket.enableTrace(True)
@@ -110,12 +106,15 @@ if __name__ == '__main__':
     
     
     #Use case to pull specific filter logs from Audit
-    query = LogQuery()
+    query = LogQuery(backwards=False)
     query.format.timezone('CET')        
     default_audit_fields_ids = [LogField.TIMESTAMP, LogField.DATATYPE, LogField.USERORIGINATOR, LogField.TYPEDESCRIPTION, LogField.RESULT, LogField.OBJECTNAME, LogField.OBJECTID, LogField.OBJECTTYPE, LogField.INFOMSG]
     query.format.field_ids(default_audit_fields_ids)
     # Show only Audit log entries
-    query.add_in_filter( FieldValue(LogField.DATATYPE), [ConstantValue(9)]) #HINT: it could be nice to have the Audit Data Type as constant in the LogField
+    query.add_in_filter( FieldValue(LogField.DATATYPE), [ConstantValue(DataType.AUDIT)]) #HINT: it could be nice to have the Audit Data Type as constant in the LogField
+    
+    for log in query.fetch_batch(CSVFormat):
+        print(log)
     
     
     #OBJECTNAME

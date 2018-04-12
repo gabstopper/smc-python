@@ -238,7 +238,6 @@ class Session(object):
             verify=verify)
         
         r = s.post(**req)
-        
         logger.info('Using SMC API version: %s', self.api_version)
         
         if r.status_code == 200:
@@ -257,6 +256,11 @@ class Session(object):
             logger.debug(
                 'Login succeeded and session retrieved: %s, domain: %s',
                     self.session_id, self.domain)
+            
+            # Reload entry points
+            self.entry_points.clear()
+            self._resource.add(reload_entry_points(self))
+            
         else:
             raise SMCConnectionError(
                 'Login failed, HTTP status code: %s and reason: %s' % (
@@ -282,7 +286,7 @@ class Session(object):
                         logger.debug('Call counters: %s' % smc.api.web.counters)
                     else:
                         logger.error('Logout status was unexpected. Received response '
-                                     'was status code: %s', (r.status_code))
+                                     'with status code: %s', (r.status_code))
 
                 except requests.exceptions.SSLError as e:
                     logger.error('SSL exception thrown during logout: %s', e)
@@ -461,7 +465,14 @@ class Credential(object):
                     pwd=self._pwd)
         return {}
 
-                                
+
+def reload_entry_points(session):
+    logger.debug("Reloading entry points with obtained session.")
+    req = session.session.get('{url}/{api_version}/api'.format(
+        url=session.url, api_version=session.api_version))
+    return req.json().get('entry_point', [])
+
+                               
 def get_entry_points(base_url, timeout=10, verify=True):
     """
     Return the entry points in iterable class

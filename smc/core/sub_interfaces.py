@@ -26,9 +26,7 @@ class SubInterfaceCollection(BaseIterable):
                 for kind, data in intf.items()]
         super(SubInterfaceCollection, self).__init__(data)
         
-    
 
-    
 class SubInterface(NestedDict):
     def __init__(self, data):
         super(SubInterface, self).__init__(data=data)
@@ -144,7 +142,7 @@ class InlineInterface(SubInterface):
 
     @classmethod
     def create(cls, interface_id, logical_interface_ref,
-               zone_ref=None, **kwargs):
+            second_interface_id=None, zone_ref=None, **kwargs):
         """
         :param str interface_id: two interfaces, i.e. '1-2', '4-5', '7-10', etc
         :param str logical_ref: logical interface reference
@@ -152,7 +150,8 @@ class InlineInterface(SubInterface):
         :rtype: dict
         """
         data = {'inspect_unspecified_vlans': True,
-                'nicid': str(interface_id),
+                'nicid': '{}-{}'.format(str(interface_id), str(second_interface_id)) if 
+                    second_interface_id else str(interface_id),
                 'logical_interface_ref': logical_interface_ref,
                 'zone_ref': zone_ref}
 
@@ -254,6 +253,14 @@ class InlineL2FWInterface(InlineInterface):
     
     def __init__(self, data):
         super(InlineL2FWInterface, self).__init__(data)
+    
+    @classmethod
+    def create(cls, interface_id, logical_interface_ref,
+            second_interface_id=None, zone_ref=None, **kwargs):
+        kwargs.pop('failure_mode', None)
+        return super(InlineL2FWInterface, cls).create(
+            interface_id, logical_interface_ref, second_interface_id,
+            zone_ref=zone_ref, **kwargs)
         
 
 class CaptureInterface(SubInterface):
@@ -274,7 +281,7 @@ class CaptureInterface(SubInterface):
         super(CaptureInterface, self).__init__(data)
         
     @classmethod
-    def create(cls, interface_id, logical_interface_ref, **kwargs):
+    def create(cls, interface_id, logical_interface_ref, **kw):
         """
         :param int interface_id: the interface id
         :param str logical_ref: logical interface reference, must be unique from
@@ -284,9 +291,9 @@ class CaptureInterface(SubInterface):
         data = {'inspect_unspecified_vlans': True,
                 'logical_interface_ref': logical_interface_ref,
                 'nicid': str(interface_id)}
-
-        for k, v in kwargs.items():
-            data.update({k: v})
+        
+        if 'reset_interface_nicid' in kw:
+            data.update(reset_interface_nicid=kw.get('reset_interface_nicid'))
 
         return cls(data)
 
@@ -405,8 +412,10 @@ class SingleNodeInterface(NodeInterface):
     This interface is used by single node Layer 3 Firewalls. This type of interface
     can be a management interface as well as a non-management routed interface.
 
-    :ivar boolean automatic_default_route: Flag to know if the dynamic default route will be automatically
-        created for this dynamic interface. Used in DHCP interfaces only
+    :ivar bool dynamic: is this interface a dynamic DHCP interface
+    :ivar int dynamic_index: dynamic interfaces index value
+    :ivar boolean automatic_default_route: Flag to know if the dynamic default route will
+        be automatically created for this dynamic interface. Used in DHCP interfaces only
     """
     typeof = 'single_node_interface'
 
@@ -414,8 +423,8 @@ class SingleNodeInterface(NodeInterface):
         super(SingleNodeInterface, self).__init__(data)
 
     @classmethod
-    def create(cls, interface_id, address, network_value,
-               nodeid=1, **kwargs):
+    def create(cls, interface_id, address=None, network_value=None,
+               nodeid=1, **kw):
         """
         :param int interface_id: interface id
         :param str address: address of this interface
@@ -435,39 +444,21 @@ class SingleNodeInterface(NodeInterface):
                 'nodeid': nodeid,
                 'outgoing': False,
                 'primary_mgt': False}
-
-        for k, v in kwargs.items():
-            data.update({k: v})
-
-        return cls(data)
         
-    @classmethod
-    def create_dhcp(cls, interface_id, dynamic_index=1, nodeid=1,
-                    **kwargs):
-        """
-        The dynamic index specifies which interface index is used
-        for the DHCP interface. This would be important if you had
-        multiple DHCP interfaces on a single engine.
-        The interface ID identifies which physical interface DHCP will
-        be associated with.
-
-        :param interface_id: interface to use for DHCP
-        :param dynamic_index: DHCP index (when using multiple DHCP interfaces)
-        :rtype: dict
-        """
-        data = {'auth_request': False,
-                'outgoing': False,
-                'dynamic': True,
-                'dynamic_index': dynamic_index,
-                'nicid': str(interface_id),
-                'nodeid': nodeid,
-                'primary_mgt': False,
-                'automatic_default_route': False,
-                'reverse_connection': False}
-
-        for k, v in kwargs.items():
+        for k, v in kw.items():
             data.update({k: v})
-
+        
+        if 'dynamic' in kw and kw['dynamic'] is not None:
+            for key in ('address', 'network_value'):
+                data.pop(key, None)
+            if data['primary_mgt']: # Have to set auth_request to a different interface for DHCP
+                data['auth_request'] = False
+            
+            if data.get('dynamic_index', None) is None:
+                data['dynamic_index'] = 1
+            elif data.get('automatic_default_route') is None:
+                data.update(automatic_default_route=True)
+        
         return cls(data)
 
 
@@ -633,30 +624,6 @@ class LoopbackInterface(NodeInterface):
     def __repr__(self):
         return 'LoopbackInterface(address={}, nodeid={}, rank={})'.format(
             self.address, self.nodeid, self.rank)   
-
-
-def _add_vlan_to_inline(inline_intf, vlan_id, vlan_id2=None):
-    """
-    Modify InlineInterface to add VLAN by ID
-
-    :param inline_intf: InlineInterface dict
-    :param str vlan_id: VLAN id
-    :return: InlineInterface with VLAN configuration
-    """
-    for _, vals in inline_intf.items():
-        nicid = vals.get('nicid')
-        try:
-            first, last = nicid.split('-')
-            if vlan_id2 is None:
-                nicid = '{}.{}-{}.{}'.format(first,
-                                             str(vlan_id), last, str(vlan_id))
-            else:
-                nicid = '{}.{}-{}.{}'.format(first,
-                                             str(vlan_id), last, str(vlan_id2))
-        except ValueError:
-            pass
-    vals.update(nicid=nicid)
-    return inline_intf
 
 
 def inheritors(klass):
