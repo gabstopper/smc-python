@@ -412,7 +412,7 @@ class Layer3VirtualEngine(Engine):
         as a list of dict items specifying the interface details in format::
         
             {'interface_id': 1, 'address': '1.1.1.1', 'network_value': '1.1.1.0/24',
-             'zone_ref': zone_by_name,href}
+             'zone_ref': zone_by_name,href, 'comment': 'my interface comment'}
         
         :param str name: Name of this layer 3 virtual engine
         :param str master_engine: Name of existing master engine
@@ -447,6 +447,7 @@ class Layer3VirtualEngine(Engine):
             
             layer3 = {'interface_id': interface.get('interface_id'),
                       'interface': 'single_node_interface',
+                      'comment': interface.get('comment', None),
                       'zone_ref': interface.get('zone_ref')}
             
             if interface.get('interface_id') == outgoing_intf:

@@ -398,13 +398,13 @@ class Routing(RoutingTree):
             rnode = engine.routing.get(0)
             rnode.add_traffic_handler(
                 StaticNetlink('mynetlink'),
-                netlink_gw=Router('myrtr'),
+                netlink_gw=[Router('myrtr'), Host('myhost')],
                 network='172.18.1.0/24')
             
         :param StaticNetlink,Multilink netlink: netlink element
-        :param Element netlink_gw: gateway for the netlink element. Can be
-            None if no gateway is needed. Element type is typically of type
-            :class:`smc.elements.network.Router`.
+        :param list(Element) netlink_gw: list of elements that should be destinations
+            for this netlink. Typically these may be of type host, router, group, servers,
+            networks or engine. 
         :param str network: if network specified, only add OSPF to this network on interface
         :raises UpdateElementFailed: failure updating routing
         :raises ModificationAborted: Change must be made at the interface level
@@ -412,24 +412,12 @@ class Routing(RoutingTree):
         :return: Status of whether the route table was updated
         :rtype: bool
         """
-        netlink = {
-            'href': netlink.href,
-            'level': 'gateway',
-            'routing_node': [],
-            'name': netlink.name}
-        
-        if netlink_gw:
-            netlink['routing_node'].append(
-                {'level': 'any',
-                 'href': netlink_gw.href,
-                 'name': netlink_gw.name})
+        routing_node_gateway = RoutingNodeGateway(netlink,
+            destinations=[] if not netlink_gw else netlink_gw)
+        return self._add_gateway_node('netlink', routing_node_gateway, network)
 
-        return self._add_gateway_node(netlink, network)
-
-    def add_ospf_area(self, ospf_area,
-                      communication_mode='NOT_FORCED',
-                      unicast_ref=None,
-                      network=None):
+    def add_ospf_area(self, ospf_area, communication_mode='NOT_FORCED',
+                      unicast_ref=None, network=None):
         """
         Add OSPF Area to this routing node.
 
@@ -464,23 +452,12 @@ class Routing(RoutingTree):
         :rtype: bool
         """
         communication_mode = communication_mode.upper()
-        node = {
-            'href': ospf_area.href,
-            'communication_mode': communication_mode,
-            'level': 'gateway',
-            'routing_node': [],
-            'name': ospf_area.name}
-        
-        if communication_mode == 'UNICAST':
-            # Need a destination ref, add to sub routing_node
-            node['routing_node'].append({
-                'href': unicast_ref.href,
-                'level': 'any',
-                'name': unicast_ref.name})
+        routing_node_gateway = RoutingNodeGateway(
+            ospf_area, communication_mode=communication_mode,
+            destinations=[] if not unicast_ref else [unicast_ref])
+        return self._add_gateway_node('ospfv2_area', routing_node_gateway, network)
 
-        return self._add_gateway_node(node, network)
-
-    def add_bgp_peering(self, bgp_peering, external_bgp_peer,
+    def add_bgp_peering(self, bgp_peering, external_bgp_peer=None,
                         network=None):
         """
         Add a BGP configuration to this routing interface. 
@@ -504,19 +481,12 @@ class Routing(RoutingTree):
         :return: Status of whether the route table was updated
         :rtype: bool
         """
-        bgp = {
-            'href': bgp_peering.href,
-            'level': 'gateway',
-            'routing_node': [{
-                'href': external_bgp_peer.href,
-                'level': 'any',
-                'name': external_bgp_peer.name}],
-            'name': bgp_peering.name}
-        
-        return self._add_gateway_node(bgp, network)
+        destination = [external_bgp_peer] if external_bgp_peer else []
+        routing_node_gateway = RoutingNodeGateway(bgp_peering,
+            destinations=destination)
+        return self._add_gateway_node('bgp_peering', routing_node_gateway, network)
 
-    def add_static_route(self, gateway, destination,
-                         network=None):
+    def add_static_route(self, gateway, destination, network=None):
         """
         Add a static route to this route table. Destination can be any element
         type supported in the routing table such as a Group of network members.
@@ -539,20 +509,10 @@ class Routing(RoutingTree):
         :return: Status of whether the route table was updated
         :rtype: bool
         """
-        route = {
-            'href': gateway.href,
-            'level': 'gateway',
-            'routing_node': [],
-            'name': gateway.name}
-        
-        for dest in destination:
-            route['routing_node'].append({
-                'href': dest.href,
-                'level': 'any',
-                'name': dest.name})            
-        
-        return self._add_gateway_node(route, network)
-    
+        routing_node_gateway = RoutingNodeGateway(gateway,
+            destinations=destination)     
+        return self._add_gateway_node('router', routing_node_gateway, network)
+
     def add_dynamic_gateway(self, networks):
         """
         A dynamic gateway object creates a router object that is 
@@ -571,54 +531,100 @@ class Routing(RoutingTree):
         :return: Status of whether the route table was updated
         :rtype: bool
         """
-        route = {
-            'dynamic_classid': 'gateway',
-            'level': 'gateway',
-            'routing_node': []}
-        
-        for network in networks:
-            route['routing_node'].append({
-                'href': network.href,
-                'level': 'any',
-                'name': network.name})
-
-        return self._add_gateway_node(route)
+        routing_node_gateway = RoutingNodeGateway(dynamic_classid='gateway',
+            destinations=[] if not networks else networks)
+        return self._add_gateway_node('dynamic_netlink', routing_node_gateway)
     
-    def _add_gateway_node(self, element, network=None):
+    def _add_gateway_node_on_tunnel(self, routing_node_gateway):
         """
-        Bind the pre-configured element to the interface level
-        routing node. It will be saved back at the interface. This
-        should be called when level == 'interface'.
+        Add a gateway node on a tunnel interface. Tunnel interface elements
+        are attached to the interface level and not directly nested under
+        the networks node.
         
-        :return: boolean indicating whether the node was updated
+        :param RouteNodeGateway routing_node_gateway: routing node gateway instance
+        :return: Whether a change was made or not
+        :rtype: bool
+        """
+        modified = False
+        peering = [next_hop for next_hop in self
+            if next_hop.routing_node_element == routing_node_gateway.routing_node_element]
+        if not peering:
+            self.data.setdefault('routing_node', []).append( 
+                routing_node_gateway)
+            modified = True
+        # Have peering
+        else:
+            peers = [node.routing_node_element for peer in peering
+                for node in peer]
+            for destination in routing_node_gateway.destinations:
+                if destination not in peers:
+                    peering[0].data.setdefault('routing_node', []).append(
+                        {'level': 'any', 'href': destination.href,
+                         'name': destination.name})
+                    modified = True
+        if modified:
+            self.update()
+        return modified
+    
+    def _add_gateway_node(self, gw_type, routing_node_gateway, network=None):
+        """
+        Add a gateway node to existing routing tree. Only add if the gateway does
+        not exist.
+        
+        :param Routing self: the routing node, should be the interface routing node
+        :param str gw_type: type of gateway, i.e. netlink, ospfv2_area, etc
+        :param list(Element) destinations: list of destinations if any
+        :param str network: network to bind to. If none, all networks
+        :return: Whether a change was made or not
+        :rtype: bool
         """
         if self.level != 'interface':
             raise ModificationAborted('You must make this change from the '
                 'interface routing level. Current node: {}'.format(self))
         
-        node_added = False
-        # Tunnel interface bindings happen at the interface, not the nested
-        # network
         if self.related_element_type == 'tunnel_interface':
-            self.data['routing_node'].append(element)
-            node_added = True
-        else:
+            return self._add_gateway_node_on_tunnel(routing_node_gateway)
+
+        # Check for existing gateway using specific network if specified
+        routing_node = list(gateway_by_type(self, type=gw_type, on_network=network))
+        modified = False
+        if not routing_node:
             for networks in self:
-                if networks.dynamic_nicid: # DHCP interface
-                    networks.data['routing_node'].append(element)
-                    node_added = True
-                    break
-                if len(networks.ip.split(':')) == 1:  # Skip IPv6
-                    if network is not None:  # Only place on specific network
+                if len(networks.ip.split(':')) == 1:  # Skip IPv6 
+                    if network is not None:  # Only place on specific network 
                         if networks.ip == network:
-                            networks.data['routing_node'].append(element)
-                            node_added = True
-                    else: # Place on all networks
-                        networks.data['routing_node'].append(element)
-                        node_added = True
-        if node_added:
+                            networks.data.setdefault('routing_node', []).append(
+                                routing_node_gateway) 
+                            modified = True 
+                    else: # Place on all networks 
+                        networks.data.setdefault('routing_node', []).append(
+                            routing_node_gateway)
+                        modified = True 
+        
+        else: # Gateways already exist on this node
+            for _, subnet, gw in routing_node:
+                if subnet.dynamic_nicid: # Dynamic interface
+                    subnet.data.setdefault('routing_node', []).append(
+                        routing_node_gateway)
+                    modified = True
+                    break
+                if gw.routing_node_element == routing_node_gateway.routing_node_element:
+                    if not network or network == subnet.ip:
+                        existing_dests = [node.routing_node_element for node in gw]
+                        for destination in routing_node_gateway.destinations:
+                            if destination not in existing_dests:
+                                gw.data.setdefault('routing_node', []).append(
+                                    {'level': 'any', 'href': destination.href,
+                                     'name': destination.name})
+                                modified = True
+                else: # Gateway doesn't exist
+                    if not network or network == subnet.ip:
+                        subnet.data.setdefault('routing_node', []).append(
+                            routing_node_gateway)
+                    modified = True
+        if modified:
             self.update()
-        return node_added
+        return modified
                     
     def remove_route_gateway(self, element, network=None):
         """
@@ -661,7 +667,28 @@ class Routing(RoutingTree):
                     gateway.delete()
                     node_changed = True
         return node_changed
-    
+
+
+class RoutingNodeGateway(Routing):
+    def __init__(self, element=None, level='gateway', **kwargs):
+        self.destinations = kwargs.pop('destinations', [])
+        self.data = ElementCache(kwargs)
+        self.data.update(
+            level=level,
+            routing_node=[])
+
+        if element:
+            self.data.update(
+                href=element.href,
+                name=element.name,
+                related_element_type=element.typeof)
+        
+        for destination in self.destinations:
+            self.data['routing_node'].append(
+                {'href': destination.href,
+                 'name': destination.name,
+                 'level': 'any'})
+
 
 class Antispoofing(RoutingTree):
     """
@@ -769,11 +796,19 @@ def route_level(root, level):
     return routing_node
 
 
-def gateway_by_type(self, type=None):  # @ReservedAssignment
+def gateway_by_type(self, type=None, on_network=None):  # @ReservedAssignment
     """
     Return gateways for the specified node. You can also
     specify type to find only gateways of a specific type.
     Valid types are: bgp_peering, netlink, ospfv2_area.
+    
+    :param RoutingNode self: the routing node to check
+    :param str type: bgp_peering, netlink, ospfv2_area
+    :param str on_network: if network is specified, should be CIDR and
+        specifies a filter to only return gateways on that network when
+        an interface has multiple
+    :return: tuple of RoutingNode(interface,network,gateway)
+    :rtype: list
     """
     gateways = route_level(self, 'gateway')
     if not type:
@@ -783,7 +818,6 @@ def gateway_by_type(self, type=None):  # @ReservedAssignment
         for node in gateways:
             #TODO: Change to type == node.related_element_type when
             # only supporting SMC >= 6.4
-            
             if type == node.routing_node_element.typeof:
                 # If the parent is level interface, this is a tunnel interface
                 # where the gateway is bound to interface versus network
@@ -794,8 +828,13 @@ def gateway_by_type(self, type=None):  # @ReservedAssignment
                 else:
                     network = parent
                     interface = network._parent
-                yield (interface, network, node)
-                    
+                
+                if on_network is not None:
+                    if network and network.ip == on_network:
+                        yield (interface, network, node)
+                else:
+                    yield (interface, network, node)
+                  
 
 def del_invalid_routes(engine, nicids):
     """

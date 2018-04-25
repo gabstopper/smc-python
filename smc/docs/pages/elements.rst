@@ -92,59 +92,10 @@ explicitly documented otherwise.
 .. note:: There are some edge cases where .update() is called automatically like when modifying
 	interfaces where multiple areas are updated. These will be documented on the method.
 
-In addition to making modifications through method calls, any element can be updated by setting
-attributes on the class itlsef. The attributes should be a supported attribute for the respective
-element type.
-
-Once the element is set on the class instance and attributes are set, you must call
-update() on the instance to submit the change to the SMC. 
-
-For example, updating a host element::
-        
-	>>> host = Host.create(name='grace', address='1.1.1.1')
-	>>> host
-	Host(name=grace)
-	>>> host.address
-	'1.1.1.1'
-	>>> host.secondary
-	[]
-	>>> host.address = '3.3.3.3'
-	>>> host.secondary = ['3.3.3.4']
-	>>> host.comment = 'test comment'
-	>>> host.update()
-	'http://172.18.1.150:8082/6.2/elements/host/117046'
-	>>> host.address
-	'3.3.3.3'
-	>>> host.comment
-	'test comment'
-
-An attribute value can also be a callable and will be evaluated during update::
-
-	>>> class Address:
-	...   def __call__(self):
-	...     return '10.10.10.10'
-	... 
-	>>> host = Host('kali')
-	>>> host.address
-	'22.22.22.22'
-	>>> host.address = Address()
-	...
-	>>> pprint(vars(host))
-	{'_meta': Meta(name=u'kali', href=u'http://172.18.1.150:8082/6.2/elements/host/978', type=u'host'),
-	 '_name': 'kali',
-	 'address': <__main__.Address instance at 0x105444b48>}
-	>>> host.update()
-	'http://172.18.1.150:8082/6.2/elements/host/978'
-	>>> host.address
-	'10.10.10.10'
-	
-.. note:: When updating attributes on an instance, you should prefix any custom attributes
-	with '_'. Attributes without this prefix will merge into the cache and could cause
-	the update to fail.
-
 Another way to update an element is by providing the kwarg values in the update() call directly.
 
-Taking the example above, this could be done the following way::
+For example, setting the address, secondary address and comment for a host element can be
+done in update by providing kwargs::
 
 	host = Host('kali')
 	host.update(
@@ -152,16 +103,9 @@ Taking the example above, this could be done the following way::
 		secondary=['12.12.12.12'],
 		comment='something about this host')
 
-This also results in a single call to the SMC and allows the same functionality as the
-first example.
-
-.. note:: If providing an element update by modifying instance attributes and providing kwargs,
-	kwargs will take precendence and overwrite any instance attributes. It is recommended to use
-	one or the other.
 
 There is also a generic modify_attribute on :class:`smc.base.model.Element` which is
-essentially the same as calling .update(kwargs) above with the exception that it does not
-look at instance attributes, only the attributes provided in the constructor::
+essentially the same as calling .update(kwargs) above::
 
 	host = Host('kali')
 	host.modify_attribute(

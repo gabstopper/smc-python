@@ -338,13 +338,10 @@ class ElementBase(RequestAction, UnicodeMixin):
         self.__dict__.update(state)
     
     def __getattr__(self, key):
-        if key not in ('typeof',):
-            try:
-                return self.data[key]
-            except KeyError:
-                pass
+        if 'typeof' not in key and key in self.data:
+            return self.data[key]
         raise AttributeError("%r object has no attribute %r"
-                % (self.__class__, key))
+            % (self.__class__, key))
     
     def delete(self):
         """
@@ -364,10 +361,6 @@ class ElementBase(RequestAction, UnicodeMixin):
         Update the existing element and clear the instance cache.
         Removing the cache will ensure subsequent calls requiring element
         attributes will force a new fetch to obtain the latest copy.
-
-        If attributes are set via kwargs and instance attributes are also
-        set, instance attributes are updated first, then kwargs. Typically
-        you will want to use either instance attributes OR kwargs, not both.
         
         Calling update() with no args will assume the element has already
         been modified directly and the data cache will be used to update.
@@ -378,9 +371,6 @@ class ElementBase(RequestAction, UnicodeMixin):
         For kwargs, if attribute values are a list, you can pass
         'append_lists=True' to add to an existing list, otherwise overwrite
         (default: overwrite)
-
-        If using instance attributes, the attribute value can be a callable
-        and it will be evaluated and merged.
 
         .. seealso:: To see different ways to utilize this method for updating,
             see: :ref:`update-elements-label`.
@@ -410,13 +400,13 @@ class ElementBase(RequestAction, UnicodeMixin):
 
         json = kwargs.pop('json') if 'json' in kwargs else self.data
         del self.data       # Delete the cache before processing attributes
-        
-        instance_attr = {k: v() if callable(v) else v
-                         for k, v in vars(self).items()
-                         if not k.startswith('_')}
-        
-        if instance_attr:
-            json.update(**instance_attr)
+
+#          instance_attr = {k: v() if callable(v) else v
+#                          for k, v in vars(self).items()
+#                          if not k.startswith('_')}
+#         
+#         if instance_attr:
+#             json.update(**instance_attr)
 
         # If kwarg settings are provided AND instance variables, kwargs
         # will overwrite collected instance attributes with the same name.
@@ -426,10 +416,11 @@ class ElementBase(RequestAction, UnicodeMixin):
 
         params.update(json=json)
         
-        # Remove attributes from instance if previously set
-        if instance_attr:
-            for attr in instance_attr:
-                delattr(self, attr)
+#         # Remove attributes from instance if previously set
+#         if instance_attr:
+#             for attr in instance_attr:
+#                 delattr(self, attr)
+#         
         
         request = SMCRequest(**params) 
         request.exception = exception
@@ -487,7 +478,7 @@ class Element(ElementBase):
             meta.update(name=name)
         super(Element, self).__init__(**meta)
         self._name = name  # <str>
-
+    
     @classproperty
     def objects(self):
         """
@@ -693,7 +684,7 @@ class Element(ElementBase):
         :return: None
         """
         self.update(name=name)
-
+    
     def add_category(self, category):
         """
         Category Tags are used to characterize an element by a type
@@ -811,6 +802,15 @@ class Element(ElementBase):
             resource='duplicate',
             params={'name': name})
         return type(self)(name=name, href=dup.href, type=type(self).typeof)
+    
+    def __eq__(self, other):
+        return self.name == other.name and self.typeof == other.typeof
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash((self.name, self.typeof))
        
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)

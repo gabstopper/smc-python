@@ -33,14 +33,28 @@ Add the netlink to the desired routing interface::
     rnode = engine.routing.get(0) #interface 0
     rnode.add_traffic_handler(
         netlink=StaticNetlink('mynetlink'),
-        netlink_gw=Router('myrtr'))
+        netlink_gw=[Router('myrtr')])
 
 .. seealso:: :class:`smc.core.route.Routing.add_traffic_handler`
 
 """
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
-from smc.api.exceptions import MissingRequiredInput
+from smc.api.exceptions import MissingRequiredInput, ElementNotFound
+
+
+def rank_dns(dns, existing_dns=None):
+    start_rank = 0
+    dns_with_rank = []
+    if existing_dns:
+        start_rank = existing_dns[-1].get('rank')+1
+        dns_with_rank = existing_dns
+    for num, addr in enumerate(dns, start_rank):
+        try:
+            dns_with_rank.append({'rank': num, 'ne_ref': addr.href})
+        except AttributeError:
+            dns_with_rank.append({'rank': num, 'value': addr})   
+    return dns_with_rank
 
 
 class StaticNetlink(Element):
@@ -108,17 +122,51 @@ class StaticNetlink(Element):
                 'active_mode_timeout': active_mode_timeout}
 
         if domain_server_address:
-            dns = element_resolver(domain_server_address)
-
-            domain_server_address = [{'rank': num, 'value': server}
-                                     if not server.startswith('http')
-                                     else
-                                     {'rank': num, 'ne_ref': server}
-                                     for num, server in enumerate(dns)]
-
-            json.update(domain_server_address=domain_server_address)
-
+            json.update(domain_server_address=rank_dns(
+                domain_server_address))
+        
         return ElementCreator(cls, json)
+    
+    @classmethod
+    def update_or_create(cls, name, gateway, network, with_status=False,
+            **kwargs):
+        """
+        Update or create static netlink. 
+        
+        :param Router,Engine gateway: gateway element for netlink
+        :param list(Network) network: list of networks for netlink
+        :param bool with_status: if set to True, a 3-tuple is returned with
+            (Element, modified, created), where the second and third tuple
+            items are booleans indicating the status
+        :return: element instance by type or 3-tuple if with_status set
+        """
+        updated, created = False, False
+        try:
+            element = cls.get(name)
+            gateway = element_resolver(gateway)
+            if gateway != element.gateway_ref:
+                element.data['gateway_ref'] = gateway
+                updated = True
+            networks = [element_resolver(net) for net in network]
+            for n in networks:
+                if n not in element.ref:
+                    element.ref.append(n)
+                    updated = True
+            #TODO: Fix domain server address updates
+            for name, value in kwargs.items():
+                if getattr(element, name, None) != value:
+                    element.data[name] = value
+                    updated = True
+            if updated:
+                element.update()
+        except ElementNotFound:
+            element = cls.create(
+                name=name, gateway=gateway, network=network, **kwargs)
+            created = True
+        
+        if with_status:
+            return element, updated, created
+        return element
 
     def add_network(self, network):
         """

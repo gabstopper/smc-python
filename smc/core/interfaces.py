@@ -270,14 +270,6 @@ class Interface(SubElement):
         if self._engine and not meta.get('href'):
             meta.update(href=self._engine.get_relation(self.typeof))
         super(Interface, self).__init__(**meta)
-
-    def add_interface(self, interface):
-        self.make_request(
-            EngineCommandFailed,
-            method='create', 
-            href=self._engine.get_relation(interface.typeof),
-            json=interface)
-        self._engine._del_cache()
                                 
     def delete(self):
         """
@@ -524,69 +516,6 @@ class Interface(SubElement):
         except InterfaceNotFound: # Only VLAN identifiers, so no routing
             pass
 
-    def change_single_interface(self, address, network_value, zone_ref=None,
-                                vlan_id=None):
-        """
-        Change an existing single firewall IP address. If the interface has
-        VLANs you must use the ``vlan_id`` parameter to identify the correct
-        sub interface. In the case of VLANs, This will also adjust the routing
-        table network for the new IP address if necessary (i.e. network/mask
-        changes will remove the old routing entry that will become obsolete).
-        
-        :param str address: new IP address to assign
-        :param str network_value: new network in cidr format; 1.1.1.0/24
-        :param str replace_ip: required if multiple IP addresses exist on
-            an interface. Specify the IP address to change.
-        :raises UpdateElementFailed: failed updating IP address
-        :raises ModificationAborted: Requirements to make change not met
-        :raises InterfaceNotFound: If vlan_id is specified but the VLAN does
-            not exist by ID
-        :return: boolean indicating success or failure
-        :rtype: bool
-        
-        .. note:: This method does not apply to changing cluster addresses or
-            interfaces with multiple IP addresses
-        """
-        if self.has_vlan and not vlan_id:
-            raise ModificationAborted(
-                'Interface with VLANs configured require a vlan id be specified to '
-                'change the correct VLAN address.')
-        
-        if vlan_id:
-            # raises InterfaceNotFound
-            itf = self.vlan_interface.get_vlan(vlan_id)
-            nicid = itf.interface_id
-            interfaces = itf.interfaces
-        else:
-            interfaces = self.interfaces
-            nicid = self.interface_id
-        
-        change_made = False
-        
-        if zone_ref:
-            zone = zone_helper(zone_ref)
-            if self.zone_ref != zone:
-                if vlan_id:
-                    itf.zone_ref = zone
-                else:
-                    self.zone_ref = zone
-                change_made = True
-
-        original_network = None
-        for interface in interfaces:
-            if interface.address != address:
-                original_network = interface.network_value
-                interface.update(address=address, network_value=network_value)
-                change_made = True
-
-        if change_made:
-            self.update()
-            
-            if original_network and original_network != network_value:
-                self.delete_invalid_route()
-
-        return change_made
-    
     def reset_interface(self):
         """
         Reset the interface by removing all assigned addresses and VLANs.
@@ -841,7 +770,8 @@ class TunnelInterface(Interface):
     NodeInterface (for cluster's with only NDI's) or ClusterVirtualInterface
     (CVI) for cluster VIP. Tunnel Interfaces are only available under layer
     3 routed interfaces and do not support VLANs.
-    Example tunnel interface format::
+    
+    Example tunnel interface format on cluster FW::
     
         cluster_tunnel_interface = {
             'comment': u'My Tunnel on cluster',
@@ -855,7 +785,9 @@ class TunnelInterface(Interface):
                                        'network_value': u'5.5.5.0/24',
                                        'nodeid': 2}]}],
              'zone_ref': 'foozone'}
-             
+    
+    Tunnel interface on single FW with multiple tunnel IPs::
+    
         single_fw_interface = {
             'comment': u'Tunnel with two addresses on single FW',
             'interface_id': u'1000',
@@ -886,7 +818,7 @@ class TunnelInterface(Interface):
         base_interface = ElementCache()
 
         base_interface.update(
-            interface_id=interface_id,
+            interface_id=str(interface_id),
             interfaces=[])
         
         if 'zone_ref' in kw:
@@ -1458,6 +1390,10 @@ class Layer3PhysicalInterface(PhysicalInterface):
                     'zone_ref': zone_helper(interface.get('zone_ref', None)),
                     'comment': interface.get('comment', None),
                     'interfaces': _interface}
+                if interface.get('virtual_mapping', None) is not None:
+                    vlan_interface.update(
+                        virtual_mapping=interface.get('virtual_mapping'),
+                        virtual_resource_name=interface.get('virtual_resource_name'))
                 self.data.setdefault('vlanInterfaces', []).append(
                     vlan_interface)
             else:

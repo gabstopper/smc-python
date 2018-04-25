@@ -980,7 +980,15 @@ class Engine(Element):
         return self.make_request(
             UnsupportedInterfaceType,
             resource='switch_physical_interface')
-
+    
+    def add_interface(self, interface):
+        self.make_request(
+            EngineCommandFailed,
+            method='create', 
+            href=self.get_relation(interface.typeof),
+            json=interface)
+        self._del_cache()
+        
     def refresh(self, timeout=3, wait_for_finish=False, **kw):
         """
         Refresh existing policy on specified device. This is an asynchronous
@@ -1360,7 +1368,7 @@ class VirtualResource(SubElement):
     typeof = 'virtual_resource'
     
     def create(self, name, vfw_id, domain='Shared Domain',
-               show_master_nic=False, connection_limit=0):
+               show_master_nic=False, connection_limit=0, comment=None):
         """
         Create a new virtual resource. Called through engine
         reference::
@@ -1382,6 +1390,7 @@ class VirtualResource(SubElement):
                 'connection_limit': connection_limit,
                 'show_master_nic': show_master_nic,
                 'vfw_id': vfw_id,
+                'comment': comment,
                 'allocated_domain_ref': allocated_domain}
 
         return SubElementCreator(

@@ -454,7 +454,7 @@ class IPList(Element):
             params=params)
 
     @classmethod
-    def update_or_create(cls, append_lists=True, **kwargs):
+    def update_or_create(cls, append_lists=True, with_status=False, **kwargs):
         """
         Update or create an IPList.
         
@@ -463,6 +463,7 @@ class IPList(Element):
             and optionally match the create constructor values
         :raises FetchElementFailed: Reason for retrieval failure
         """
+        was_created, was_modified = False, False 
         element = None
         try: 
             element = cls.get(kwargs.get('name')) 
@@ -478,13 +479,17 @@ class IPList(Element):
             
             if iplist:
                 element.upload(json={'ip': iplist}, as_type='json')
+                was_modified = True
     
         except ElementNotFound:
             element = cls.create( 
                 kwargs.get('name'), 
                 iplist = kwargs.get('iplist', []))
+            was_created = True
 
-        return element
+        if with_status: 
+            return element, was_modified, was_created 
+        return element 
                 
     @property
     def iplist(self):

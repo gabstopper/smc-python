@@ -15,52 +15,71 @@ class GroupMixin(object):
     """
     
     @classmethod
-    def update_or_create(cls, append_lists=True, **kwargs):
+    def update_or_create(cls, append_lists=True, with_status=False,
+                         remove_members=False, **kwargs):
         """
         Update or create group entries. If the group exists, the members
         will be updated. Set append_lists=True to add new members to
-        the list, or False to reset the list to the provided members.
+        the list, or False to reset the list to the provided members. If
+        setting remove_members, this will override append_lists if set.
         
         :param bool append_lists: add to existing members, if any
+        :param bool remove_members: remove specified members instead of appending
+            or overwriting
         :paran dict kwargs: keyword arguments to satisfy the `create`
             constructor if the group needs to be created.
         :raises CreateElementFailed: could not create element with reason 
         :return: element instance by type 
         :rtype: Element
         """
+        was_created, was_modified = False, False 
         element = None
         try: 
             element = cls.get(kwargs.get('name'))
-            element.update_members(
+            was_modified = element.update_members(
                 kwargs.get('members', []),
-                append_lists=append_lists)
+                append_lists=append_lists,
+                remove_members=remove_members)
         except ElementNotFound: 
             element = cls.create(
                 kwargs.get('name'),
                 members = kwargs.get('members', []))
+            was_created = True
+        
+        if with_status:
+            return element, was_modified, was_created
         return element
     
-    def update_members(self, members, append_lists=False):
+    def update_members(self, members, append_lists=False, remove_members=False):
         """
         Update group members with member list. Set append=True
         to append to existing members, or append=False to overwrite.
 
         :param list members: new members for group by href or Element
         :type members: list[str, Element]
-        :param bool append: whether to append
-        :return: None
+        :param bool append_lists: whether to append
+        :param bool remove_members: remove members from the group
+        :return: bool was modified or not
         """
         if members:
             elements = [element_resolver(element) for element in members]
-            if append_lists:
+            if remove_members:
+                element = [e for e in self.members if e not in elements]
+                if set(element) == set(self.members):
+                    remove_members = element = False
+                append_lists = False
+            elif append_lists:
                 element = [e for e in elements if e not in self.members]
             else:
                 element = list(set(elements))
             
-            if element:
+            if element or remove_members:
                 self.update(
                     element=element,
                     append_lists=append_lists)
+                return True
+        
+        return False
 
     def obtain_members(self):
         """

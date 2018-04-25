@@ -6,10 +6,8 @@ from smc.elements.network import Zone
 from smc.administration.system import AdminDomain
 from smc.elements.other import LogicalInterface, Location
 from smc.api.exceptions import ElementNotFound
-from smc.base.decorators import memoize
     
 
-@memoize
 def location_helper(name):
     """
     Location finder by name. If location doesn't exist, create it
@@ -39,7 +37,6 @@ def location_helper(name):
 
         return locations[0].href
 
-@memoize
 def zone_helper(zone):
     """
     Zone finder by name. If zone doesn't exist, create it and
@@ -57,7 +54,6 @@ def zone_helper(zone):
     return Zone.get_or_create(name=zone).href
     
 
-@memoize
 def logical_intf_helper(interface):
     """
     Logical Interface finder by name. Create if it doesn't exist.

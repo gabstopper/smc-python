@@ -535,7 +535,7 @@ class DeleteLogTask(ScheduledTaskMixin, Element):
     typeof = 'delete_log_task'
         
     @classmethod
-    def create(cls, name, servers, time_range='yesterday', all_logs=False,
+    def create(cls, name, servers=None, time_range='yesterday', all_logs=False,
                filter_for_delete=None, comment=None, **kwargs):
         """
         Create a new delete log task. Provide True to all_logs to delete
@@ -544,8 +544,8 @@ class DeleteLogTask(ScheduledTaskMixin, Element):
         
         :param str name: name for this task
         :param servers: servers to back up. Servers must be instances of
-            management servers or log servers. To backup all, provide 'all'
-            as value.
+            management servers or log servers. If no value is provided, all
+            servers are backed up.
         :type servers: list(ManagementServer or LogServer)
         :param str time_range: specify a time range for the deletion. Valid
             options are 'yesterday', 'last_full_week_sun_sat',
@@ -561,7 +561,7 @@ class DeleteLogTask(ScheduledTaskMixin, Element):
         :return: the task
         :rtype: DeleteLogTask
         """
-        if 'all' in servers:
+        if not servers:
             servers = [svr.href for svr in ManagementServer.objects.all()]
             servers.extend([svr.href for svr in LogServer.objects.all()])
         else:
@@ -604,8 +604,8 @@ class ServerBackupTask(ScheduledTaskMixin, Element):
         
         :param str name: name of task
         :param servers: servers to back up. Servers must be instances of
-            management servers or log servers. To backup all, provide 'all'
-            as value.
+            management servers or log servers. If no value is provided all
+            servers are backed up.
         :type servers: list(ManagementServer or LogServer)
         :param bool backup_log_data: Should the log files be backed up. This
             field is only relevant if a Log Server is backed up.
@@ -617,7 +617,7 @@ class ServerBackupTask(ScheduledTaskMixin, Element):
         :return: the task
         :rtype: ServerBackupTask
         """
-        if 'all' in servers:
+        if not servers:
             servers = [svr.href for svr in ManagementServer.objects.all()]
             servers.extend([svr.href for svr in LogServer.objects.all()])
         else:

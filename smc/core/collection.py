@@ -2,13 +2,12 @@
 Collections classes for core based functionality like interfaces.
 
 """
-from smc.core.interfaces import PhysicalInterface, TunnelInterface, \
-    VirtualPhysicalInterface, InterfaceEditor, Layer3PhysicalInterface,\
+from smc.core.interfaces import TunnelInterface, \
+   InterfaceEditor, Layer3PhysicalInterface,\
     ClusterPhysicalInterface, Layer2PhysicalInterface
 from smc.core.sub_interfaces import LoopbackClusterInterface, LoopbackInterface
 from smc.base.structs import BaseIterable
-from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound,\
-    EngineCommandFailed
+from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound
 
 
 def get_all_loopbacks(engine):
@@ -120,12 +119,6 @@ class InterfaceCollection(BaseIterable):
     .. note:: This can raise UnsupportedInterfaceType for unsupported engine
         types based on the interface context.
     """
-    class_map = {
-        PhysicalInterface.typeof: PhysicalInterface,
-        TunnelInterface.typeof: TunnelInterface,
-        VirtualPhysicalInterface.typeof: VirtualPhysicalInterface
-        }
-    
     def __init__(self, engine, rel='interfaces'):
         self._engine = engine
         self._rel = rel
@@ -168,6 +161,12 @@ class InterfaceCollection(BaseIterable):
             else:
                 yield interface
     
+    def __contains__(self, interface_id):
+        try:
+            return self.get(interface_id)
+        except InterfaceNotFound:
+            return False
+    
     def update_or_create(self, interface):
         """
         Collections class update or create method that can be used as a
@@ -192,22 +191,11 @@ class InterfaceCollection(BaseIterable):
             if updated:
                 modified = True
         except InterfaceNotFound:
-            self._engine.physical_interface.add_interface(
-                interface)
+            self._engine.add_interface(interface)
             interface = self._engine.interface.get(interface.interface_id)
             created = True
         
         return interface, modified, created
-    
-    def __getattr__(self, key):
-        # Dispatch to instance methods but only for adding interfaces.
-        # Makes this work: engine.physical_interface.add_xxxx
-        if key.startswith('add') and self.class_map.get(self._rel):
-            if hasattr(self.class_map[self._rel], key):
-                return getattr(self.class_map[self._rel](
-                    engine=self._engine), key)
-        raise AttributeError('Cannot proxy to given method: %s for the '
-            'following type: %s' % (key, self._rel))
 
 
 class TunnelInterfaceCollection(InterfaceCollection):
@@ -259,8 +247,8 @@ class TunnelInterfaceCollection(InterfaceCollection):
         interface = {'interface_id': interface_id, 'interfaces': interfaces,
             'zone_ref': zone_ref, 'comment': comment}
         
-        tunnel_interface = TunnelInterface(engine=self._engine, **interface)
-        tunnel_interface.add_interface(tunnel_interface)
+        tunnel_interface = TunnelInterface(**interface)
+        self._engine.add_interface(tunnel_interface)
         
     def add_layer3_interface(self, interface_id, address, network_value,
                              zone_ref=None, comment=None):
@@ -278,8 +266,8 @@ class TunnelInterfaceCollection(InterfaceCollection):
         interfaces = [{'nodes': [{'address': address, 'network_value': network_value}]}]
         interface = {'interface_id': interface_id, 'interfaces': interfaces,
             'zone_ref': zone_ref, 'comment': comment}
-        tunnel_interface = TunnelInterface(engine=self._engine, **interface)
-        tunnel_interface.add_interface(tunnel_interface)
+        tunnel_interface = TunnelInterface(**interface)
+        self._engine.add_interface(tunnel_interface)
 
 
 class PhysicalInterfaceCollection(InterfaceCollection):
@@ -310,7 +298,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
             comment=comment, virtual_resource_name=virtual_resource_name,
             virtual_mapping=virtual_mapping)
         
-        interface.add_interface(interface)
+        return self._engine.add_interface(interface)
     
     def add_capture_interface(self, interface_id, logical_interface_ref,
             inspect_unspecified_vlans=True, zone_ref=None, comment=None):
@@ -336,7 +324,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
             inspect_unspecified_vlans, 'zone_ref': zone_ref, 'comment': comment}
         
         interface = Layer2PhysicalInterface(engine=self._engine, **capture)
-        return interface.add_interface(interface)
+        return self._engine.add_interface(interface)
 
     def add_layer3_interface(self, interface_id, address, network_value,
                              zone_ref=None, comment=None, **kw):
@@ -377,8 +365,8 @@ class PhysicalInterfaceCollection(InterfaceCollection):
             return interface.update()
             
         except InterfaceNotFound:
-            interface = Layer3PhysicalInterface(engine=self._engine, **interfaces)
-            return interface.add_interface(interface)
+            interface = Layer3PhysicalInterface(**interfaces)
+            return self._engine.add_interface(interface)
     
     def add_layer3_vlan_interface(self, interface_id, vlan_id, address=None,
         network_value=None, virtual_mapping=None, virtual_resource_name=None,
@@ -405,9 +393,9 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         :return: None
         """
         interfaces = {'nodes': [{'address': address, 'network_value': network_value}] if address
-            and network_value else [], 'zone_ref': zone_ref, 'comment': comment}
-        _interface = {'interface_id': interface_id, 'virtual_mapping': virtual_mapping,
-            'virtual_resource_name': virtual_resource_name, 'interfaces': [interfaces]}
+            and network_value else [], 'zone_ref': zone_ref, 'virtual_mapping': virtual_mapping,
+            'virtual_resource_name': virtual_resource_name, 'comment': comment}
+        _interface = {'interface_id': interface_id, 'interfaces': [interfaces]}
         
         if 'single_fw' in self._engine.type: # L2FW / IPS
             _interface.update(interface='single_node_interface')
@@ -426,8 +414,8 @@ class PhysicalInterfaceCollection(InterfaceCollection):
    
         except InterfaceNotFound:
             interfaces.update(vlan_id=vlan_id)
-            interface = Layer3PhysicalInterface(engine=self._engine, **_interface)
-            return interface.add_interface(interface)
+            interface = Layer3PhysicalInterface(**_interface)
+            return self._engine.add_interface(interface)
             
     def add_layer3_cluster_interface(self, interface_id, cluster_virtual=None,
             network_value=None, macaddress=None, nodes=None, cvi_mode='packetdispatch',
@@ -495,7 +483,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
                 macaddress=macaddress,
                 zone_ref=zone_ref, comment=comment, **kw)
 
-            return interface.add_interface(interface)
+            return self._engine.add_interface(interface)
             
     def add_layer3_vlan_cluster_interface(self, interface_id, vlan_id,
             nodes=None, cluster_virtual=None, network_value=None, macaddress=None,
@@ -556,9 +544,8 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         except InterfaceNotFound:
 
             interfaces.update(vlan_id=vlan_id)
-            interface = ClusterPhysicalInterface(
-                engine=self._engine, **_interface)
-            return interface.add_interface(interface)
+            interface = ClusterPhysicalInterface(**_interface)
+            return self._engine.add_interface(interface)
     
     def add_inline_interface(self, interface_id, second_interface_id,
         logical_interface_ref=None, vlan_id=None, second_vlan_id=None, zone_ref=None,
@@ -600,8 +587,8 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         except InterfaceNotFound:
             _interface.update(interfaces=[vlan])
             interface_spec.update(_interface)
-            interface = Layer2PhysicalInterface(self._engine, **interface_spec)
-            return interface.add_interface(interface)
+            interface = Layer2PhysicalInterface(**interface_spec)
+            return self._engine.add_interface(interface)
                 
     def add_inline_ips_interface(self, interface_id, second_interface_id,
         logical_interface_ref=None, vlan_id=None, failure_mode='normal',
@@ -717,8 +704,8 @@ class PhysicalInterfaceCollection(InterfaceCollection):
                 interface.update()
                 
         except InterfaceNotFound:
-            interface = Layer3PhysicalInterface(self._engine, **_interface)
-            return interface.add_interface(interface)
+            interface = Layer3PhysicalInterface(**_interface)
+            return self._engine.add_interface(interface)
         
     def add_cluster_interface_on_master_engine(self, interface_id, macaddress,
             nodes, zone_ref=None, vlan_id=None, comment=None):
@@ -751,8 +738,8 @@ class PhysicalInterfaceCollection(InterfaceCollection):
                 interface.update()
                 
         except InterfaceNotFound:
-            interface = Layer3PhysicalInterface(self._engine, **_interface)
-            return interface.add_interface(interface)
+            interface = Layer3PhysicalInterface(**_interface)
+            return self._engine.add_interface(interface)
     
             
         
