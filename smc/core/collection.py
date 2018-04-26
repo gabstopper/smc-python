@@ -1,10 +1,104 @@
 """
-Collections classes for core based functionality like interfaces.
+.. versionchanged:: 0.7.0
+
+Collections classes for interfaces provide searching and methods to simplify
+creation based on interface types.
+
+You can iterate any interface type by specifying the type::
+    
+    >>> for interface in engine.tunnel_interface:
+    ...   interface
+    ... 
+    TunnelInterface(name=Tunnel Interface 1008)
+    TunnelInterface(name=Tunnel Interface 1003)
+    TunnelInterface(name=Tunnel Interface 1000)
+
+Or iterate all interfaces which will also return their types::
+    
+    >>> for interface in engine.interface:
+    ...   interface
+    ... 
+    Layer3PhysicalInterface(name=Interface 3)
+    TunnelInterface(name=Tunnel Interface 1000)
+    Layer3PhysicalInterface(name=Interface 61)
+    Layer3PhysicalInterface(name=Interface 56)
+    Layer3PhysicalInterface(name=Interface 15)
+    Layer2PhysicalInterface(name=Interface 7 (Capture))
+    ModemInterfaceDynamic(name=Modem 0)
+    TunnelInterface(name=Tunnel Interface 1030)
+    SwitchPhysicalInterfaceDynamic(name=Switch 0)
+    ...        
+    
+Accessing interface methods for creating interfaces can also be done in multiple
+ways. The simplest is to use an engine reference to use this collection. The engine
+reference specifies the type of interface and indicates how it will be created
+for the engine. 
+
+For example, creating an interface on a virtual engine::
+    
+    engine.virtual_physical_interface.add_layer3_interface(
+        interface_id=1,
+        address='14.14.14.119',
+        network_value='14.14.14.0/24',
+        comment='my comment',
+        zone_ref='myzone')
+    
+The helper methods use the interface API to create the interface that is then
+submitted to the engine.
+You can optionally create the interface manually using the API which provides more
+customization capabilities.
+
+Example of creating a VirtualPhysicalInterface for a virtual engine manually::
+
+    payload = {'comment': 'comment on this interface',
+               'interfaces': [{'nodes': [{'address': '13.13.13.13', 'network_value': '13.13.13.0/24'}]}]}
+     
+    vinterface = VirtualPhysicalInterface(interface_id=1, **payload)
+    
+Pass this to update_or_create in the event that you want to potentially modify an existing
+interface should the same interface ID exist::
+
+    engine.virtual_physical_interface.update_or_create(
+        vinterface)
+
+Or create a new interface (this will fail if the interface exists)::
+
+    engine.add_interface(vinterface)
+
+Collections also provide a simple helper when you want to provide a pre-configured interface
+and apply an update_or_create logic. In the update or create case, if the interface exists
+any fields that have changed will be updated. If the interface does not exist it is created.
+Provide `with_status` to obtain the interface and status of the operation. The update or 
+create will return a tuple of (Interface, modified, created), where created and modified are
+booleans indicating the operations performed::
+
+    >>> from smc.core.engine import Engine
+    >>> from smc.core.interfaces import Layer3PhysicalInterface
+    >>> engine = Engine('myfw')
+    >>> interface = engine.interface.get(0)
+    >>> interface
+    Layer3PhysicalInterface(name=Interface 0)
+    >>> interface.addresses
+    [(u'11.11.11.11', u'11.11.11.0/24', u'0')]
+    >>> myinterface = Layer3PhysicalInterface(interface_id=0,
+    interfaces=[{'nodes': [{'address': '66.66.66.66', 'network_value': '66.66.66.0/24'}]}], comment='changed today')
+    ...
+    >>> interface, modified, created = engine.physical_interface.update_or_create(myinterface)
+    >>> interface
+    Layer3PhysicalInterface(name=Interface 0)
+    >>> modified
+    True
+    >>> created
+    False
+    >>> interface.addresses
+    [(u'66.66.66.66', u'66.66.66.0/24', u'0')]
+    >>> interface.comment
+    u'changed today'
 
 """
 from smc.core.interfaces import TunnelInterface, \
    InterfaceEditor, Layer3PhysicalInterface,\
-    ClusterPhysicalInterface, Layer2PhysicalInterface
+    ClusterPhysicalInterface, Layer2PhysicalInterface, VirtualPhysicalInterface
 from smc.core.sub_interfaces import LoopbackClusterInterface, LoopbackInterface
 from smc.base.structs import BaseIterable
 from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound
@@ -740,8 +834,64 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         except InterfaceNotFound:
             interface = Layer3PhysicalInterface(**_interface)
             return self._engine.add_interface(interface)
-    
-            
         
+
+class VirtualPhysicalInterfaceCollection(InterfaceCollection):
+    """
+    PhysicalInterface Collection provides an interface to retrieving existing
+    interfaces and helper methods to shortcut the creation of an interface.
+    """
+    def __init__(self, engine):
+        super(VirtualPhysicalInterfaceCollection, self).__init__(engine,
+            'virtual_physical_interface')    
     
+    def add_layer3_interface(self, interface_id, address, network_value,
+                             zone_ref=None, comment=None, **kw):
+        """
+        Add a layer 3 interface on a virtual engine.
+
+        :param str,int interface_id: interface identifier
+        :param str address: ip address
+        :param str network_value: network/cidr (12.12.12.0/24)
+        :param str zone_ref: zone reference, can be name, href or Zone
+        :param kw: keyword arguments are passed are any value attribute values of
+            type :class:`smc.core.sub_interfaces.NodeInterface`
+        :raises EngineCommandFailed: failure creating interface
+        :return: None
+
+        .. note::
+            If an existing ip address exists on the interface and zone_ref is
+            provided, this value will overwrite any previous zone definition.
+        """
+        interfaces = {'interface_id': interface_id, 'interfaces':
+            [{'nodes': [{'address': address, 'network_value': network_value}]}],
+            'zone_ref': zone_ref, 'comment': comment}
+        interfaces.update(kw)
+        
+        try:
+            interface = self._engine.interface.get(interface_id)
+            interface._add_interface(**interfaces)
+            return interface.update()
+            
+        except InterfaceNotFound:
+            interface = VirtualPhysicalInterface(**interfaces)
+            return self._engine.add_interface(interface)
+        
+    def add_tunnel_interface(self, interface_id, address, network_value,
+                             zone_ref=None, comment=None):
+        """
+        Creates a tunnel interface for a virtual engine.
+
+        :param str,int tunnel_id: the tunnel id for the interface, used as nicid also
+        :param str address: ip address of interface
+        :param str network_value: network cidr for interface; format: 1.1.1.0/24
+        :param str zone_ref: zone reference for interface can be name, href or Zone
+        :raises EngineCommandFailed: failure during creation
+        :return: None
+        """
+        interfaces = [{'nodes': [{'address': address, 'network_value': network_value}]}]
+        interface = {'interface_id': interface_id, 'interfaces': interfaces,
+            'zone_ref': zone_ref, 'comment': comment}
+        tunnel_interface = TunnelInterface(**interface)
+        self._engine.add_interface(tunnel_interface)
     

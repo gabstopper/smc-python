@@ -29,8 +29,7 @@ first getting the top level interface, and calling :func:`~smc.core.interfaces.I
 to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
 from smc.base.model import SubElement, lookup_class, ElementCache
-from smc.api.exceptions import EngineCommandFailed, ModificationAborted,\
-    InterfaceNotFound
+from smc.api.exceptions import InterfaceNotFound
 from smc.core.route import del_invalid_routes
 from smc.core.sub_interfaces import (
     NodeInterface, SingleNodeInterface, ClusterVirtualInterface,
@@ -128,6 +127,15 @@ class InterfaceOptions(object):
         :rtype: str
         """
         return self.interface.find_mgmt_interface('auth_request')
+    
+    def set_auth_request(self, interface_id, address=None):
+        """
+        Set the authentication request field for the specified
+        engine.
+        
+        """
+        self.interface.set_auth_request(interface_id, address)
+        self._engine.update()
         
     def set_primary_heartbeat(self, interface_id):
         """
@@ -1321,7 +1329,7 @@ class Layer3PhysicalInterface(PhysicalInterface):
             'interface_id': u'67',
             'interfaces': [{'nodes': [{'address': u'5.5.5.2',
                                        'network_value': u'5.5.5.0/24',
-                                        'nodeid': 1},
+                                       'nodeid': 1},
                                       {'address': u'5.5.5.3',
                                        'network_value': u'5.5.5.0/24',
                                        'nodeid': 1}],
@@ -1343,9 +1351,12 @@ class Layer3PhysicalInterface(PhysicalInterface):
     :param str interface: specifies the type of interface to create. The interface
         type defaults to 'node_interface' and applies to all engine types except a
         single FW. For single FW, specify `single_node_interface`
-    :param str comment: comment for interface
-    :param list interfaces: interface attributes, `nodes`, `vlan_id`,
+    :param list interfaces: interface attributes, `cluster_virtual`, `network_value`,
+        `nodes`, etc
+    :param dict nodes: nodes dict should contain keys `address`, `network_value` and
+        `nodeid`. Overridden sub interface settings can also be set here
     :param str zone_ref: zone reference, name or zone
+    :param str comment: comment for interface
     """
     def _add_interface(self, interface_id, interface='node_interface', **kw):
     
@@ -1410,48 +1421,46 @@ class ClusterPhysicalInterface(PhysicalInterface):
     A ClusterPhysicalInterface represents an interface on a cluster that
     is a physical interface type. A cluster interface can have a CVI, NDI's,
     or CVI's and NDI's. 
-    Example interface format::
     
+    Example interface format, with CVI and 2 nodes::
+        
         interface = {
-            'comment': u'CVI with NDI',
-            'cvi_mode': u'packetdispatch',
-            'interface_id': u'67',
-            'interfaces': [{'cluster_virtual': u'77.77.77.70',
-                            'network_value': u'77.77.77.0/24',
-                            'nodes': [{'address': u'5.5.5.2',
-                                       'network_value': u'5.5.5.0/24',
-                                        'nodeid': 1},
-                                      {'address': u'5.5.5.3',
-                                       'network_value': u'5.5.5.0/24',
-                                       'nodeid': 2}]}],
-             'macaddress': u'02:02:04:04:04:04',
-             'zone_ref': 'foozone'}
-            
-        cvi_interface_with_vlans = {
-            'interface_id': 2,
+            'interface_id': '23',
+            'comment': 'my comment',
+            'zone_ref': 'zone1',
             'cvi_mode': 'packetdispatch',
-            'macaddress': '02:02:02:02:02:02',
-            'cluster_virtual': '1.1.1.254',
-            'network_value': '1.1.1.0/24',
-            'zone_ref': 'top level interface zone',
-            'interfaces': [
-                 {'nodes': [{'address': '1.1.1.1', 'network_value': '1.1.1.0/24', 'nodeid': 1},
-                            {'address': '1.1.1.2', 'network_value': '1.1.1.0/24', 'nodeid': 2}],
-                 'vlan_id': 20,
-                 'zone_ref': 'vlan 20 zone'},
-                 {'nodes': [{'address': '2.1.1.1', 'network_value': '2.1.1.0/24', 'nodeid': 1},
-                           {'address': '2.1.1.2', 'network_value': '2.1.1.0/24', 'nodeid': 2}],
-                 'vlan_id': 21,
-                 'zone_ref': 'vlan21 zone'}
-            ]}
+            'macaddress': '02:08:08:02:02:06',
+            'interfaces': [{'cluster_virtual': '241.241.241.250',
+                            'network_value': '241.241.241.0/24',
+                            'nodes': [{'address': '241.241.241.2', 'network_value': '241.241.241.0/24', 'nodeid': 1},
+                                      {'address': '241.241.241.3', 'network_value': '241.241.241.0/24', 'nodeid': 2}]
+                            }]}
+            
+       Example interface with VLAN and CVI / NDI::
+       
+       interface = {
+           'interface_id': '24',
+           'cvi_mode': 'packetdispatch',
+           'macaddress': '02:02:08:08:08:06',
+           'interfaces': [{'cluster_virtual': '242.242.242.250',
+                           'network_value': '242.242.242.0/24',
+                           'nodes': [{'address': '242.242.242.2', 'network_value': '242.242.242.0/24', 'nodeid': 1},
+                                     {'address': '242.242.242.3', 'network_value': '242.242.242.0/24', 'nodeid': 2}],
+                           'vlan_id': 24,
+                           'zone_ref': 'vlanzone',
+                           'comment': 'comment on vlan'}],
+           'zone_ref': zone_helper('myzone'),
+           'comment': 'top level interface'}
     
     :param str interface_id: id for interface
-    :param str comment: comment for interface
-    :param cvi_mode: cvi mode type (i.e. packetdispatch)
+    :param cvi_mode: cvi mode type (i.e. packetdispatch), required when using CVI
+    :param str macaddress: mac address for top level physical interface. Required if CVI set
     :param list interfaces: interface attributes, `cluster_virtual`, `network_value`,
         `nodes`, etc
-    :param str macaddress: mac address for top level physical interface
+    :param dict nodes: nodes dict should contain keys `address`, `network_value` and
+        `nodeid`. Overridden sub interface settings can also be set here
     :param str zone_ref: zone reference, name or zone
+    :param str comment: comment for interface
     
     .. note:: Values for dict match the FirewallCluster.create constructor
     """
@@ -1480,42 +1489,54 @@ class ClusterPhysicalInterface(PhysicalInterface):
 
         interfaces = kw.pop('interfaces', [])
         for interface in interfaces:
-            if 'vlan_id' in interface:
-                _interface_id = '{}.{}'.format(interface_id, interface['vlan_id'])
+            vlan_id = interface.pop('vlan_id', None)
+            if vlan_id:
+                _interface_id = '{}.{}'.format(interface_id, vlan_id)
             else:
                 _interface_id = interface_id
     
             _interface = []
             if_mgt = {k: str(v) == str(_interface_id) for k, v in mgt.items()}
             
-            if interface.get('cluster_virtual') and interface.get('network_value'):
-                cvi = ClusterVirtualInterface.create(
-                    _interface_id, interface['cluster_virtual'], interface['network_value'],
-                    auth_request=True if if_mgt.get('primary_mgt') else False)
-                  
-                _interface.append({cvi.typeof: cvi.data})
+            if 'cluster_virtual' in interface and 'network_value' in interface:
+                cluster_virtual = interface.pop('cluster_virtual')
+                network_value = interface.pop('network_value')
+                if cluster_virtual and network_value:
+                    cvi = ClusterVirtualInterface.create(
+                        _interface_id, cluster_virtual, network_value,
+                        auth_request=True if if_mgt.get('primary_mgt') else False)
+                      
+                    _interface.append({cvi.typeof: cvi.data})
     
-            for node in interface.get('nodes', []):
-                if_mgt.update(
-                    outgoing=True if if_mgt.get('primary_mgt') else False)
-                # Override management setting with node specific
-                if_mgt.update(node)
+            for node in interface.pop('nodes', []):
+                _node = if_mgt.copy()
+                _node.update(outgoing=True if if_mgt.get('primary_mgt') else False)
+                # Add node specific key/value pairs set on the node. This can
+                # also be used to override management settings
+                _node.update(node)
                 ndi = NodeInterface.create(
-                    interface_id=_interface_id, **if_mgt)
+                    interface_id=_interface_id, **_node)
                 _interface.append({ndi.typeof: ndi.data})
 
-            if 'vlan_id' in interface:
+            if vlan_id:
                 vlan_interface = {
                     'interface_id': _interface_id,
-                    'zone_ref': zone_helper(interface.get('zone_ref', None)),
-                    'comment': interface.get('comment', None),
+                    'zone_ref': zone_helper(interface.pop('zone_ref', None)),
+                    'comment': interface.pop('comment', None),
                     'interfaces': _interface}
+                # Add remaining kwargs on vlan level to VLAN physical interface
+                for name, value in interface.items():
+                    vlan_interface[name] = value
                 self.data.setdefault('vlanInterfaces', []).append(
                     vlan_interface)
             else:
                 self.data.setdefault('interfaces', []).extend(
                     _interface)
-    
+
+        # Remaining kw go to base level interface
+        for name, value in kw.items():
+            self.data[name] = value
+        
     @property
     def cvi_mode(self):
         """

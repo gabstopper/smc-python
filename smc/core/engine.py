@@ -7,7 +7,8 @@ from smc.core.node import Node, NodeCollection
 from smc.core.resource import Snapshot, PendingChanges
 from smc.core.interfaces import InterfaceOptions, PhysicalInterface
 from smc.core.collection import InterfaceCollection, LoopbackCollection,\
-    PhysicalInterfaceCollection, TunnelInterfaceCollection
+    PhysicalInterfaceCollection, TunnelInterfaceCollection,\
+    VirtualPhysicalInterfaceCollection
 from smc.administration.tasks import Task
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
@@ -897,8 +898,7 @@ class Engine(Element):
         :raises UnsupportedInterfaceType: supported on virtual engines only
         :rtype: InterfaceCollection
         """
-        return InterfaceCollection(
-            engine=self, rel='virtual_physical_interface')
+        return VirtualPhysicalInterfaceCollection(self)
 
     @property
     def tunnel_interface(self):
