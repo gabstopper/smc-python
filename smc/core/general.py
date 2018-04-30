@@ -142,10 +142,7 @@ class DNSRelay(object):
         
         self.engine.data.update(dns_relay_profile_ref=href)
         self.engine.data.update(dns_relay_interface=intf.ndi_interfaces)
-        #self.engine.data.update(dns_relay_interface=
-        #    ([{'address': ip, 'nicid': nicid}
-        #        for ip, _, nicid in data.addresses]))
-        
+
     def disable(self):
         """
         Disable DNS Relay on this engine
@@ -197,38 +194,81 @@ class DefaultNAT(object):
             self.__class__.__name__, self.status)
 
 
-class DNSAddress(object):
+class RankedDNSAddress(object):
     """
-    DNS Address represents a DNS address entry assigned to the engine.
+    A RankedDNSAddress represents a list of DNS entries used as a ranked list to
+    provide an ordered way to perform DNS queries.
     DNS entries can be added as raw IP addresses, or as elements of type
     :class:`smc.elements.network.Host` or :class:`smc.elements.servers.DNSServer`
     (or combination of both). This is an iterable class yielding namedtuples of
     type :class:`.DNSEntry`.
+    
     Normal access is done through an engine reference::
     
         >>> list(engine.dns)
         [DNSEntry(rank=0,value=8.8.8.8,ne_ref=None),
          DNSEntry(rank=1,value=None,ne_ref=DNSServer(name=mydnsserver))]
          
-        >>> engine.dns.add(['8.8.8.8', '9.9.9.9'])
+        >>> engine.dns.append(['8.8.8.8', '9.9.9.9'])
+        >>> engine.dns.prepend(['1.1.1.1'])
         >>> engine.dns.remove(['8.8.8.8', DNSEntry('mydnsserver')])
     
     .. note:: You must call engine.update() to commit any changes.
     """
-    def __init__(self, engine):
-        self.engine = engine
-
-    def __iter__(self):
-        for server in self.engine.domain_server_address:
-            yield DNSEntry(**server)
-    
-    def add(self, dns_server):
-        """
-        Add a DNS entry to the engine. A DNS entry can be either
-        a raw IP Address, or an element of type :class:`smc.elements.network.Host`
-        or :class:`smc.elements.servers.DNSServer`.
+    def __init__(self, entries):
+        self.entries = entries
         
-        :param list dns_server: list of IP addresses, Host and/or DNSServer elements.
+    def __iter__(self): 
+        for entry in self.entries: 
+            yield DNSEntry(**entry)
+    
+    def __len__(self):
+        return len(self.entries)
+
+    def __contains__(self, entry):
+        for e in self:
+            try:
+                if e.ne_ref == entry.href:
+                    return True
+            except AttributeError:
+                if e.value == entry:
+                    return True
+        return False
+    
+    def _rank_dns(self, entry, prepend=False):
+        if prepend and len(self) or not len(self):
+            start_rank = 0
+        else:
+            start_rank = self.entries[-1].get('rank')+1
+        
+        additions = []
+        for e in entry:
+            if e not in self and e not in additions:
+                additions.append(e)
+        
+        if not additions:
+            return
+        
+        if prepend: # Rerank
+            for e in self.entries:
+                e.update((k, v+1) for k, v in e.items() if k == 'rank')
+        
+        for num, addr in enumerate(additions, start_rank):
+            try:
+                self.entries.append({'rank': num, 'ne_ref': addr.href})
+            except AttributeError:
+                self.entries.append({'rank': num, 'value': addr})   
+    
+    def add(self, values):
+        return self.append(values)
+        
+    def append(self, values):
+        """
+        Add DNS entries to the engine at the end of the existing list (if any).
+        A DNS entry can be either a raw IP Address, or an element of type
+        :class:`smc.elements.network.Host` or :class:`smc.elements.servers.DNSServer`.
+        
+        :param list values: list of IP addresses, Host and/or DNSServer elements.
         :return: None
         
         .. note:: If the DNS entry added already exists, it will not be
@@ -236,70 +276,39 @@ class DNSAddress(object):
             multiple times. This is also true if the element is assigned the
             same address as a raw IP address already defined.
         """
-        rank = self._max_rank
-        uniq = self._unique_addr
-        dns = self.engine.domain_server_address
-        for server in dns_server:
-            if hasattr(server, 'href'):
-                if isinstance(server, (Host, DNSServer)):
-                    if server.address not in uniq:
-                        rank += 1
-                        dns.append({'rank': rank, 'ne_ref': server.href})
-                        uniq.append(server.address)
-                else: # alias?
-                    dns.append({'rank': rank, 'ne_ref': server.href})
-            else: # ip address
-                if server not in uniq:
-                    rank += 1
-                    dns.append({'rank': rank, 'value': server})
-                    uniq.append(server)
+        self._rank_dns(values)
     
-    def remove(self, dns_server):
+    def prepend(self, values):
         """
-        Remove a DNS entry from the engine. Note that when removing, you
-        can provide either an element or a raw IP address. Generally it's
-        best to first iterate the existing DNS entries to identify which
-        one/s should be removed.
+        Prepend DNS entries to the engine at the beginning of the existing list
+        (if any). A DNS entry can be either a raw IP Address, or an element of type
+        :class:`smc.elements.network.Host` or :class:`smc.elements.servers.DNSServer`.
         
-        :param list dns_server: list of DNS server entries to remove
+        :param list values: list of IP addresses, Host and/or DNSServer elements.
         :return: None
         """
-        dns = list(iter(self))
-        for server in dns_server:
-            if hasattr(server, 'href'):
-                dns = [rec for rec in dns if rec.ne_ref != server.href]
-            else:
-                dns = [rec for rec in dns if rec.value != server]
-                
-        self.engine.domain_server_address = self._rank(dns)
-    
-    def _rank(self, tup_lst):
-        # Re-rank after removing to maintain sequential order
-        for i, entry in enumerate(tup_lst):
-            if entry.ne_ref:
-                tup_lst[i] = {'rank': i, 'ne_ref': entry.ne_ref}
-            else:
-                tup_lst[i] = {'rank': i, 'value': entry.value}
-        return tup_lst
-    
-    @property
-    def _unique_addr(self):
-        # All unique IP addresses
-        addr = []
-        for entry in iter(self):
-            if entry.value:
-                addr.append(entry.value)
-            elif entry.ne_ref:
-                elem = entry.element
-                if isinstance(elem, (Host, DNSServer)):
-                    addr.append(elem.address)
-        return addr
-    
-    @property
-    def _max_rank(self):
-        if self.engine.domain_server_address:
-            return max([entry.rank for entry in iter(self)])
-        return -1
+        self._rank_dns(values, prepend=True)
+        
+    def remove(self, values):
+        """
+        Remove DNS entries from this ranked DNS list. A DNS entry can be either
+        a raw IP Address, or an element of type :class:`smc.elements.network.Host`
+        or :class:`smc.elements.servers.DNSServer`.
+        
+        :param list values: list of IP addresses, Host and/or DNSServer elements.
+        :return: None
+        """
+        removables = []
+        for value in values:
+            if value in self:
+                removables.append(value)
+        
+        if removables:
+            self.entries[:] = [entry._asdict() for entry in self
+                if entry.value not in removables and not entry.element in removables]
+            # Rerank to maintain order
+            for i, entry in enumerate(self.entries):
+                entry.update(rank='{}'.format(i))
 
 
 class DNSEntry(collections.namedtuple('DNSEntry', 'value rank ne_ref')):

@@ -28,6 +28,7 @@ VLANs are properties of specific interfaces and can also be retrieved by
 first getting the top level interface, and calling :func:`~smc.core.interfaces.Interface.vlan_interface`
 to view or modify specific aspects of a VLAN, such as addresses, etc.
 """
+import copy
 from smc.base.model import SubElement, lookup_class, ElementCache
 from smc.api.exceptions import InterfaceNotFound
 from smc.core.route import del_invalid_routes
@@ -1302,6 +1303,7 @@ class Layer2PhysicalInterface(PhysicalInterface):
                     vlan_interface)    
     
     def update_interface(self, other_interface, ignore_mgmt=True):
+        #TODO: Not Yet Implemented
         pass
     
 
@@ -1346,6 +1348,11 @@ class Layer3PhysicalInterface(PhysicalInterface):
                                        'nodeid': 1}],
                             'vlan_id': 10}],
              'zone_ref': 'foozone'}
+             
+    When an interface is created, the first key level is applied to the "top" level physical
+    interface. The `interfaces` list specifies the node and addressing information using the
+    `nodes` parameter. If `vlan_id` is specified as a key/value in the interfaces dict, the
+    list dict keys are applied to the nested physical interface VLAN.
     
     :param str interface_id: id for interface
     :param str interface: specifies the type of interface to create. The interface
@@ -1359,12 +1366,13 @@ class Layer3PhysicalInterface(PhysicalInterface):
     :param str comment: comment for interface
     """
     def _add_interface(self, interface_id, interface='node_interface', **kw):
-    
-        mgt = kw.pop('mgt', {})
+        _kw = copy.deepcopy(kw) # Preserve original kw, especially lists
+        mgt = _kw.pop('mgt', {})
+        
         # Only update zone or comment if there are no interfaces defined.
         # Use update_or_create to update existing
-        zone_ref = kw.pop('zone_ref', None)
-        comment = kw.pop('comment', None)
+        zone_ref = _kw.pop('zone_ref', None)
+        comment = _kw.pop('comment', None)
         if not bool(self.interfaces):
             if zone_ref:
                 self.data.update(zone_ref=zone_helper(zone_ref) if zone_ref else None)
@@ -1375,44 +1383,56 @@ class Layer3PhysicalInterface(PhysicalInterface):
         clz = NodeInterface if interface == 'node_interface'\
             else SingleNodeInterface
         
-        interfaces = kw.pop('interfaces', [])
+        interfaces = _kw.pop('interfaces', [])
         for interface in interfaces:
-            if interface.get('vlan_id', None):
-                _interface_id = '{}.{}'.format(interface_id, interface['vlan_id'])
+            vlan_id = interface.pop('vlan_id', None)
+            if vlan_id:
+                _interface_id = '{}.{}'.format(interface_id, vlan_id)
             else:
                 _interface_id = interface_id
     
             _interface = []
             if_mgt = {k: str(v) == str(_interface_id) for k, v in mgt.items()}
             
-            for node in interface.get('nodes', []):
-                if_mgt.update(
-                    auth_request=True if if_mgt.get('primary_mgt') else False,
-                    outgoing=True if if_mgt.get('primary_mgt') else False)
-                # Node specific settings can override mgt logic
-                if_mgt.update(node)
+            for node in interface.pop('nodes', []):
+                _node = if_mgt.copy() # Each node should be treated independently
+                _node.update(
+                    outgoing=True if if_mgt.get('primary_mgt') else False,
+                    auth_request=True if if_mgt.get('primary_mgt') else False)
+                # Add node specific key/value pairs set on the node. This can
+                # also be used to override management settings
+                _node.update(node)
                 ndi = clz.create(
-                    interface_id=_interface_id, **if_mgt)
+                    interface_id=_interface_id, **_node)
                 _interface.append({ndi.typeof: ndi.data})
             
-            if interface.get('vlan_id', None):
+            if vlan_id:
                 vlan_interface = {
                     'interface_id': _interface_id,
-                    'zone_ref': zone_helper(interface.get('zone_ref', None)),
-                    'comment': interface.get('comment', None),
+                    'zone_ref': zone_helper(interface.pop('zone_ref', None)),
+                    'comment': interface.pop('comment', None),
                     'interfaces': _interface}
                 if interface.get('virtual_mapping', None) is not None:
                     vlan_interface.update(
-                        virtual_mapping=interface.get('virtual_mapping'),
-                        virtual_resource_name=interface.get('virtual_resource_name'))
+                        virtual_mapping=interface.pop('virtual_mapping'),
+                        virtual_resource_name=interface.pop('virtual_resource_name', None))
+                # Add any remaining kwargs into the VLAN interface
+                for name, value in interface.items():
+                    vlan_interface[name] = value
                 self.data.setdefault('vlanInterfaces', []).append(
                     vlan_interface)
             else:
+                # Check for virtual mappings embedded on the interface level. If additional
+                # kwargs are specified on a non-VLAN interface they are ignored
+                if interface.get('virtual_mapping', None) is not None:
+                    self.data.update(
+                        virtual_mapping=interface.get('virtual_mapping'),
+                        virtual_resource_name=interface.get('virtual_resource_name', None))
                 self.data.setdefault('interfaces', []).extend(
                     _interface)
         
         # Remaining kw go to base level interface
-        for name, value in kw.items():
+        for name, value in _kw.items():
             self.data[name] = value
 
 
@@ -1420,7 +1440,7 @@ class ClusterPhysicalInterface(PhysicalInterface):
     """
     A ClusterPhysicalInterface represents an interface on a cluster that
     is a physical interface type. A cluster interface can have a CVI, NDI's,
-    or CVI's and NDI's. 
+    or CVI's and NDI's.
     
     Example interface format, with CVI and 2 nodes::
         
@@ -1452,6 +1472,11 @@ class ClusterPhysicalInterface(PhysicalInterface):
            'zone_ref': zone_helper('myzone'),
            'comment': 'top level interface'}
     
+    When an interface is created, the first key level is applied to the "top" level physical
+    interface. The `interfaces` list specifies the node and addressing information using the
+    `nodes` parameter. If `vlan_id` is specified as a key/value in the interfaces dict, the
+    list dict keys are applied to the nested physical interface VLAN.
+    
     :param str interface_id: id for interface
     :param cvi_mode: cvi mode type (i.e. packetdispatch), required when using CVI
     :param str macaddress: mac address for top level physical interface. Required if CVI set
@@ -1459,7 +1484,7 @@ class ClusterPhysicalInterface(PhysicalInterface):
         `nodes`, etc
     :param dict nodes: nodes dict should contain keys `address`, `network_value` and
         `nodeid`. Overridden sub interface settings can also be set here
-    :param str zone_ref: zone reference, name or zone
+    :param str,href zone_ref: zone reference, name or zone. If zone does not exist it will be created
     :param str comment: comment for interface
     
     .. note:: Values for dict match the FirewallCluster.create constructor
@@ -1470,24 +1495,26 @@ class ClusterPhysicalInterface(PhysicalInterface):
         an existing node, retrieve the existing interface and call
         this method. Use the supported format for defining an interface.
         """
+        _kw = copy.deepcopy(kw) # Preserve original kw, especially lists
         mgt = mgt if mgt else {}
-        if 'cvi_mode' in kw:
-            self.data.update(cvi_mode=kw.pop('cvi_mode'))
         
-        if 'macaddress' in kw:
+        if 'cvi_mode' in _kw:
+            self.data.update(cvi_mode=_kw.pop('cvi_mode'))
+        
+        if 'macaddress' in _kw:
             self.data.update(
-                macaddress=kw.pop('macaddress'))
+                macaddress=_kw.pop('macaddress'))
             if 'cvi_mode' not in self.data:
                 self.data.update(cvi_mode='packetdispatch')
         
-        if 'zone_ref' in kw:
-            zone_ref = kw.pop('zone_ref')
+        if 'zone_ref' in _kw:
+            zone_ref = _kw.pop('zone_ref')
             self.data.update(zone_ref=zone_helper(zone_ref) if zone_ref else None)
         
-        if 'comment' in kw:
-            self.data.update(comment=kw.pop('comment'))
+        if 'comment' in _kw:
+            self.data.update(comment=_kw.pop('comment'))
 
-        interfaces = kw.pop('interfaces', [])
+        interfaces = _kw.pop('interfaces', [])
         for interface in interfaces:
             vlan_id = interface.pop('vlan_id', None)
             if vlan_id:
@@ -1534,7 +1561,7 @@ class ClusterPhysicalInterface(PhysicalInterface):
                     _interface)
 
         # Remaining kw go to base level interface
-        for name, value in kw.items():
+        for name, value in _kw.items():
             self.data[name] = value
         
     @property

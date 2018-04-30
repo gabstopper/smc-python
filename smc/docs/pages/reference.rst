@@ -239,6 +239,13 @@ Zone
 .. autoclass:: Zone
    :members:
    :show-inheritance:
+   
+Traffic Handlers (Netlinks)
+***************************
+
+.. automodule:: smc.elements.netlink
+	:members:
+	:show-inheritance:
 
 Services
 ++++++++
@@ -549,10 +556,10 @@ DefaultNAT
 .. autoclass:: smc.core.general.DefaultNAT
 	:members:
 
-DNSAddress
-**********
+RankedDNSAddress
+****************
 
-.. autoclass:: smc.core.general.DNSAddress
+.. autoclass:: smc.core.general.RankedDNSAddress
 	:members:
 
 .. autoclass:: smc.core.general.DNSEntry
@@ -826,14 +833,6 @@ Policy Routing
 
 .. autoclass:: PolicyRoute
 	:members:
-
-
-Traffic Handlers (Netlinks)
-***************************
-
-.. automodule:: smc.elements.netlink
-	:members:
-	:show-inheritance:
 
 Snapshot
 ++++++++

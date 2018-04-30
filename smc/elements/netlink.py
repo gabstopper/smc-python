@@ -10,10 +10,6 @@ to a network through an interface or an aggregated link. If you want to create
 separate routes for traffic to a network through two or more interfaces, you
 must use NetLinks.
 
-Tunnel interfaces for a Route-Based VPN do not use Router or NetLink elements.
-Instead, networks that are reachable through the VPN tunnel are added directly
-to the tunnel interface as if they were directly connected networks.
-
 To use traffic handlers, you must first create the netlink type required, then
 add this to the engine routing node.
 
@@ -40,21 +36,10 @@ Add the netlink to the desired routing interface::
 """
 from smc.base.model import Element, ElementCreator
 from smc.base.util import element_resolver
-from smc.api.exceptions import MissingRequiredInput, ElementNotFound
-
-
-def rank_dns(dns, existing_dns=None):
-    start_rank = 0
-    dns_with_rank = []
-    if existing_dns:
-        start_rank = existing_dns[-1].get('rank')+1
-        dns_with_rank = existing_dns
-    for num, addr in enumerate(dns, start_rank):
-        try:
-            dns_with_rank.append({'rank': num, 'ne_ref': addr.href})
-        except AttributeError:
-            dns_with_rank.append({'rank': num, 'value': addr})   
-    return dns_with_rank
+from smc.api.exceptions import MissingRequiredInput, ElementNotFound,\
+    CreateElementFailed
+from smc.core.general import RankedDNSAddress
+from smc.base.structs import NestedDict
 
 
 class StaticNetlink(Element):
@@ -62,6 +47,19 @@ class StaticNetlink(Element):
     A Static Netlink is applied to an interface to provide an alternate
     route to a destination. It is typically used when you have fixed IP
     interfaces versus using DHCP (use a Dynamic NetLink).
+    
+    :ivar int input_speed: input speed in Kbps, used for ratio-based
+            load-balancing
+    :ivar int output_speed: output speed in Kbps,  used for ratio-based
+        load-balancing
+    :ivar list probe_address: list of IP addresses to use as probing
+        addresses to validate connectivity
+    :ivar int standby_mode_period: Specifies the probe period when
+        standby mode is used (in seconds)
+    :ivar int standby_mode_timeout: probe timeout in seconds
+    :ivar int active_mode_period: Specifies the probe period when active
+        mode is used (in seconds)
+    :ivar int active_mode_timeout: probe timeout in seconds
     """
     typeof = 'netlink'
 
@@ -122,47 +120,58 @@ class StaticNetlink(Element):
                 'active_mode_timeout': active_mode_timeout}
 
         if domain_server_address:
-            json.update(domain_server_address=rank_dns(
-                domain_server_address))
+            r = RankedDNSAddress([])
+            r.add(domain_server_address)
+            json.update(domain_server_address=r.entries)
         
         return ElementCreator(cls, json)
     
     @classmethod
-    def update_or_create(cls, name, gateway, network, with_status=False,
-            **kwargs):
+    def update_or_create(cls, name, with_status=False, **kwargs):
         """
         Update or create static netlink. 
         
-        :param Router,Engine gateway: gateway element for netlink
-        :param list(Network) network: list of networks for netlink
-        :param bool with_status: if set to True, a 3-tuple is returned with
-            (Element, modified, created), where the second and third tuple
-            items are booleans indicating the status
+        :param str name: name of the static netlink to update or create
+        :param dict kwargs: kwargs to satisfy the `create` constructor arguments
+            if the element doesn't exist or attributes to change
         :return: element instance by type or 3-tuple if with_status set
         """
         updated, created = False, False
         try:
             element = cls.get(name)
-            gateway = element_resolver(gateway)
-            if gateway != element.gateway_ref:
-                element.data['gateway_ref'] = gateway
+            gateway = kwargs.pop('gateway', None)
+            if gateway is not None and gateway != element.gateway:
+                element.gateway = gateway
                 updated = True
-            networks = [element_resolver(net) for net in network]
-            for n in networks:
-                if n not in element.ref:
-                    element.ref.append(n)
+            
+            for net in kwargs.pop('network', []):
+                if net not in element.network:
+                    element.data['ref'].append(element_resolver(net))
                     updated = True
-            #TODO: Fix domain server address updates
+            
+            current_dns = len(element.domain_server_address)
+            element.domain_server_address.append(
+                kwargs.pop('domain_server_address', []))
+            if len(element.domain_server_address) != current_dns:
+                updated = True
+
             for name, value in kwargs.items():
                 if getattr(element, name, None) != value:
+                    #setattr(element, name, value)
                     element.data[name] = value
-                    updated = True
+                    updated = True      
+            
             if updated:
                 element.update()
+
         except ElementNotFound:
-            element = cls.create(
-                name=name, gateway=gateway, network=network, **kwargs)
-            created = True
+            try:
+                element = cls.create(name=name, **kwargs)
+                created = True
+            except TypeError:
+                raise CreateElementFailed('%s: %r not found and missing '
+                    'constructor arguments to properly create.' %
+                    (cls.__name__, name))
         
         if with_status:
             return element, updated, created
@@ -184,118 +193,49 @@ class StaticNetlink(Element):
         self.update()
     
     @property
-    def domain_server_address(self):
-        """
-        Configured DNS servers for this netlink
-
-        :return: list of DNS servers; if elements are specifed, they will
-            be returned as type Element
-        :rtype: list(str,Element)
-        """
-        return [address['value']
-                if 'value' in address
-                else
-                Element.from_href(address['ne_ref'])
-                for address in self.data.get('domain_server_address', [])]
-
-    @property
-    def gateway(self):
-        """
-        The gateway (engine) that this netlink is used on.
-
-        :return: Element type for engine
-        :rtype: Element
-        """
-        return Element.from_href(self.data.get('gateway_ref'))
-
-    @property
-    def networks(self):
+    def network(self):
         """
         List of networks this static netlink uses.
 
         :return: networks associated with this netlink, as Element
         :rtype: Element
         """
-        return [Element.from_href(element)
-                for element in self.data.get('ref')]
+        return [self.from_href(elem) for elem in self.data.get('ref')]
 
     @property
-    def input_speed(self):
+    def domain_server_address(self):
         """
-        Used for ratio-based load-balancing method. Value is based on the
-        real-life bandwidth the network connection provides. The values are
-        used to calculate how much traffic each link receives in relation to
-        the other links.
+        Configured DNS servers for this netlink
 
-        :return: input speed in Kbps
-        :rtype: int
+        :return: list of DNS servers; if elements are specifed, they will
+            be returned as type Element
+        :rtype: RankedDNSAddress
         """
-        return self.data.get('input_speed')
-
+        return RankedDNSAddress(self.data.get('domain_server_address'))
+    
     @property
-    def output_speed(self):
+    def gateway(self):
         """
-        Used for ratio-based load-balancing method. Value is based on the
-        real-life bandwidth the network connection provides. The values are
-        used to calculate how much traffic each link receives in relation to
-        the other links.
+        The gateway (engine) that this netlink is used on. You can set
+        the gateway by providing an element of type Engine or Router.
 
-        :return: output speed in Kbps
-        :rtype: int
+        :rtype: Element
         """
-        return self.data.get('output_speed')
-
+        return Element.from_href(self.data.get('gateway_ref'))
+    
+    @gateway.setter
+    def gateway(self, value):
+        self.data.update(gateway_ref=element_resolver(value))
+    
     @property
-    def standby_mode_period(self):
-        """
-        Specifies the probe period when Standby Mode is used.
+    def networks(self):
+        return self.network
 
-        :return: probe period in seconds
-        :rtype: int
-        """
-        return self.data.get('standby_mode_period')
-
-    @property
-    def standby_mode_timeout(self):
-        """
-        Specifies the probe timeout when Standby Mode is used.
-
-        :return: probe timeout in seconds
-        :rtype: int
-        """
-        return self.data.get('standby_mode_timeout')
-
-    @property
-    def active_mode_period(self):
-        """
-        Specifies the probe period when Active Mode is used.
-
-        :return: probe period in seconds
-        :rtype: int
-        """
-        return self.data.get('active_mode_period')
-
-    @property
-    def active_mode_timeout(self):
-        """
-        Specifies the probe timeout when Active Mode is used.
-
-        :return: probe timeout in seconds
-        :rtype: int
-        """
-        return self.data.get('active_mode_timeout')
-
-    @property
-    def probe_address(self):
-        """
-        IP addresses that are probed with ICMP echo requests (ping) to
-        determine if the link is up. It is recommended to add more than
-        one.
-
-        :return: list of probe addresses
-        :rtype: list(str)
-        """
-        return self.data.get('probe_address')
+#     def __setattr__(self, name, value):
+#         if name in ('_meta', '_name') or name in dir(self):
+#             return super(StaticNetlink, self).__setattr__(name, value)
+#         else:
+#             self.data[name] = value
 
 
 class Multilink(Element):
@@ -318,21 +258,22 @@ class Multilink(Element):
             network=[Network('comcast')],  # 10.10.0.0/16
             probe_address=['10.10.0.1'])
     
-    To create multilink, you must first use :func:`.multilink_member`
-    for each netlink to obtain the correct configuration format::
+    Create the multilink members based on the pre-created netlinks. A multilink
+    member specifies the ip range to use for source NAT, the role (active/standby)
+    and obtains the defined network from the StaticNetlink::
     
-        member1 = multilink_member(
-                    StaticNetlink('isp1'), # netlink created above 
-                    nat_range='10.10.0.1-10.10.0.1', # NAT to a single IP
-                    netlink_role='active') 
+        member = MultilinkMember.create(
+            StaticNetlink('netlink1'), ip_range='1.1.1.1-1.1.1.2', role='active')
+        
+        member1 = MultilinkMember.create(
+            StaticNetlink('netlink2'), ip_range='2.1.1.1-2.1.1.2', role='standby')
+
+    Create the multilink using the multilink members::
     
-    Create the multilink::
+        Multilink.create(name='internet', multilink_members=[member, member1])
     
-        Multilink.create(
-            name='testmultilink', 
-            multilink_members=[member1])
-    
-    Add a NAT rule with dynamic source nat using the multilink::
+
+    Lastly, add a NAT rule with dynamic source nat using the multilink::
     
         policy = FirewallPolicy('outbound')
         policy.fw_ipv4_nat_rules.create(
@@ -341,15 +282,15 @@ class Multilink(Element):
             destinations='any',
             services='any',
             dynamic_src_nat=Multilink('internet'))
-    
+       
     .. note:: Multi-Link is supported on Single Firewalls, Firewall Clusters,
         and Virtual Firewalls                 
     """
     typeof = 'outbound_multilink'
    
     @classmethod
-    def create(cls, name, multilink_members, multilink_method='rtt',
-               retries=2, timeout=3600, comment=None):
+    def create(cls, name, multilink_members, multilink_method='rtt', retries=2,
+               timeout=3600, comment=None):
         """
         Create a new multilink configuration. Multilink requires at least
         one netlink for operation, although 2 or more are recommeneded.
@@ -366,19 +307,170 @@ class Multilink(Element):
         :param int timeout: timeout between retries (default: 3600 seconds)
         :param str comment: comment for multilink (optional)
         :raises CreateElementFailed: failure to create multilink
-        :return: instance with meta
         :rtype: Multilink
         """
         json = {'name': name,
                 'comment': comment,
-                'multilink_member': multilink_members,
-                'multilink_method': multilink_method,
                 'retries': retries,
-                'timeout': timeout}
+                'timeout': timeout,
+                'multilink_member': multilink_members,
+                'multilink_method': multilink_method}
         
         return ElementCreator(cls, json)
 
+    @classmethod
+    def create_with_netlinks(cls, name, netlinks, **kwargs):
+        """
+        Create a multilink with a list of StaticNetlinks. To properly create
+        the multilink using this method, pass a list of netlinks with the
+        following dict structure::
+        
+            netlinks = [{'netlink': StaticNetlink,
+                         'ip_range': 1.1.1.1-1.1.1.2,
+                         'netlink_role': 'active'}]
+        
+        The `netlink_role` can be either `active` or `standby`. The remaining
+        settings are resolved from the StaticNetlink. The IP range value must
+        be an IP range within the StaticNetlink's specified network.
+        Use kwargs to pass any additional arguments that are supported by the
+        `create` constructor.
+        A full example of creating a multilink using predefined netlinks::
+        
+            multilink = Multilink.create_with_netlinks(
+                name='mynewnetlink',
+                netlinks=[{'netlink': StaticNetlink('netlink1'),
+                           'ip_range': '1.1.1.2-1.1.1.3',
+                           'netlink_role': 'active'},
+                          {'netlink': StaticNetlink('netlink2'),
+                           'ip_range': '2.1.1.2-2.1.1.3',
+                           'netlink_role': 'standby'}])
+        
+        :param StaticNetlink netlink: StaticNetlink element
+        :param str ip_range: ip range for source NAT on this netlink
+        :param str netlink_role: the role for this netlink, `active` or
+            `standby`
+        :raises CreateElementFailed: failure to create multilink
+        :rtype: Multilink
+        """
+        multilink_members = []
+        for member in netlinks:
+            m = {'ip_range': member.get('ip_range'),
+                 'netlink_role': member.get('netlink_role', 'active')}
+            static_netlink = member.get('netlink')
+            m.update(netlink_ref=static_netlink.href,
+                     network_ref=static_netlink.data.get('ref')[0])
+            multilink_members.append(m)
+        
+        return cls.create(name, multilink_members, **kwargs)
+        
+    @property
+    def members(self):
+        """
+        Multilink members associated with this multilink. This provides a
+        a reference to the existing netlinks and their member settings.
+        
+        :rtype: MultilinkMember
+        """
+        return [MultilinkMember(mm) for mm in self.multilink_member]
+
+
+class MultilinkMember(NestedDict):
+    """
+    A multilink member represents an netlink member used on a multilink
+    configuration. Multilink uses netlinks to specify settings specific
+    to a connection, network, whether it should be active or standby and
+    optionally QoS.
+    Use this class to create mutlilink members that are required for
+    creating a Multilink element.
+    """
+    def __init__(self, kwargs):
+        super(MultilinkMember, self).__init__(data=kwargs)
     
+    @property
+    def ip_range(self):
+        """
+        Specifies the IP address range for dynamic source address
+        translation (NAT) for the internal source IP addresses on the
+        NetLink. Can also be set.
+
+        :rtype: str
+        """
+        return self.get('ip_range')
+    
+    @ip_range.setter
+    def ip_range(self, value):
+        if '-' in value:
+            self.update(ip_range=value)
+    
+    @property
+    def netlink_role(self):
+        """
+        Shows whether the Netlink is active or standby.
+        Active - traffic is routed through the NetLink according to the
+        method you specify in the Outbound Multi-Link element properties.
+        Standby - traffic is only routed through the netlink if all primary
+        (active) netlinks are unavailable.
+        
+        :rtype: str
+        """
+        return self.get('netlink_role')
+    
+    @netlink_role.setter
+    def netlink_role(self, value):
+        if value in ('standby', 'active'):
+            self.update(netlink_role=value)
+    
+    @property
+    def network(self):
+        """
+        Specifies the Network element that represents the IP address
+        space in the directly connected external network of the network
+        link. Can also be set.
+        
+        :rtype: Network
+        """
+        return Element.from_href(self.get('network_ref'))
+    
+    @network.setter
+    def network(self, value):
+        self.update(network_ref=element_resolver(value))
+    
+    @property
+    def netlink(self):
+        """
+        The static netlink referenced in this multilink member
+        
+        :rtype: StaticNetlink
+        """
+        return Element.from_href(self.get('netlink_ref'))
+
+    @classmethod
+    def create(cls, netlink, ip_range, role='active'):
+        """
+        Create a multilink member. Multilink members are added to an
+        Outbound Multilink configuration and define the ip range, static
+        netlink to use, and the role. This element can be passed to the
+        Multilink constructor to simplify creation of the outbound multilink.
+        
+        :param StaticNetlink netlink: static netlink element to use as member
+        :param str role: role of this netlink, 'active' or 'standby'
+        :param str ip_range: the IP range for source NAT for this member. The
+            IP range should be part of the defined network range used by this
+            netlink.
+        :raises ElementNotFound: Specified netlink could not be found
+        :rtype: MultilinkMember
+        """
+        return cls(dict(
+            netlink_ref=netlink.href,
+            netlink_role=role,
+            network_ref=netlink.network[0].href,
+            ip_range=ip_range))
+    
+    def __repr__(self):
+        return 'MultilinkMember(netlink={},netlink_role={},ip_range={})'.format(
+            self.netlink, self.netlink_role, self.ip_range)  
+    
+        
 def multilink_member(netlink, nat_range, netlink_network=None,
                      netlink_role='active'):
     """

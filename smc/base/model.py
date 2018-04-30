@@ -804,7 +804,9 @@ class Element(ElementBase):
         return type(self)(name=name, href=dup.href, type=type(self).typeof)
     
     def __eq__(self, other):
-        return self.name == other.name and self.typeof == other.typeof
+        if isinstance(other, Element):
+            return self.name == other.name and self.typeof == other.typeof
+        return False
     
     def __ne__(self, other):
         return not self.__eq__(other)

@@ -17,8 +17,8 @@ from smc.routing.bgp import BGP
 from smc.routing.ospf import OSPF, OSPFProfile
 from smc.core.route import Antispoofing, Routing, Route, PolicyRoute
 from smc.core.contact_address import ContactAddressCollection
-from smc.core.general import DNSRelay, Layer2Settings, DNSAddress,\
-    DefaultNAT, SNMP
+from smc.core.general import DNSRelay, Layer2Settings, DefaultNAT, \
+    SNMP, RankedDNSAddress
 from smc.core.addon import AntiVirus, FileReputation,\
     SidewinderProxy, UrlFiltering, Sandbox, TLSInspection
 from smc.elements.servers import LogServer
@@ -257,9 +257,9 @@ class Engine(Element):
             [DNSEntry(rank=0,value=8.8.8.8,ne_ref=None),
              DNSEntry(rank=1,value=None,ne_ref=DNSServer(name=mydnsserver))]
         
-        :rtype: DNSAddress
+        :rtype: RankedDNSAddress
         """
-        return DNSAddress(self)
+        return RankedDNSAddress(self.data.get('domain_server_address', []))
     
     @property
     def snmp(self):
@@ -896,7 +896,7 @@ class Engine(Element):
                 print(intf)
 
         :raises UnsupportedInterfaceType: supported on virtual engines only
-        :rtype: InterfaceCollection
+        :rtype: VirtualPhysicalInterfaceCollection
         """
         return VirtualPhysicalInterfaceCollection(self)
 

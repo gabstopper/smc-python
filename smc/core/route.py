@@ -565,11 +565,16 @@ class Routing(RoutingTree):
         if modified:
             self.update()
         return modified
-    
+
     def _add_gateway_node(self, gw_type, routing_node_gateway, network=None):
         """
-        Add a gateway node to existing routing tree. Only add if the gateway does
-        not exist.
+        Add a gateway node to existing routing tree. Gateways are only added if
+        they do not already exist. If they do exist, check the destinations of
+        the existing gateway and add destinations that are not already there.
+        A current limitation is that if a gateway doesn't exist and the
+        destinations specified do not have IP addresses that are valid, they
+        are still added (i.e. IPv4 gateway with IPv6 destination is considered
+        invalid).
         
         :param Routing self: the routing node, should be the interface routing node
         :param str gw_type: type of gateway, i.e. netlink, ospfv2_area, etc
@@ -585,46 +590,69 @@ class Routing(RoutingTree):
         if self.related_element_type == 'tunnel_interface':
             return self._add_gateway_node_on_tunnel(routing_node_gateway)
 
-        # Check for existing gateway using specific network if specified
+        # Find any existing gateways
         routing_node = list(gateway_by_type(self, type=gw_type, on_network=network))
-        modified = False
-        if not routing_node:
-            for networks in self:
-                if len(networks.ip.split(':')) == 1:  # Skip IPv6 
-                    if network is not None:  # Only place on specific network 
-                        if networks.ip == network:
-                            networks.data.setdefault('routing_node', []).append(
-                                routing_node_gateway) 
-                            modified = True 
-                    else: # Place on all networks 
-                        networks.data.setdefault('routing_node', []).append(
-                            routing_node_gateway)
-                        modified = True 
         
-        else: # Gateways already exist on this node
-            for _, subnet, gw in routing_node:
-                if subnet.dynamic_nicid: # Dynamic interface
-                    subnet.data.setdefault('routing_node', []).append(
+        _networks = [netwk for netwk in self if netwk.ip == network] if network is \
+            not None else list(self)
+        
+        # Routing Node Gateway to add as Element
+        gateway_element_type = routing_node_gateway.routing_node_element
+        
+        modified = False
+        for network in _networks:
+            # Short circuit for dynamic interfaces
+            if getattr(network, 'dynamic_nicid', None):
+                network.data.setdefault('routing_node', []).append(
                         routing_node_gateway)
-                    modified = True
-                    break
-                if gw.routing_node_element == routing_node_gateway.routing_node_element:
-                    if not network or network == subnet.ip:
+                modified = True
+                break
+            
+            # Used for comparison to 
+            this_network_node = network.routing_node_element
+            
+            if routing_node and any(netwk for _intf, netwk, gw in routing_node
+                if netwk.routing_node_element == this_network_node and
+                gateway_element_type == gw.routing_node_element):
+                
+                # A gateway exists on this network
+                for gw in network:
+                    if gw.routing_node_element == gateway_element_type:
                         existing_dests = [node.routing_node_element for node in gw]
                         for destination in routing_node_gateway.destinations:
+                            is_valid_destination = False
                             if destination not in existing_dests:
-                                gw.data.setdefault('routing_node', []).append(
-                                    {'level': 'any', 'href': destination.href,
-                                     'name': destination.name})
-                                modified = True
-                else: # Gateway doesn't exist
-                    if not network or network == subnet.ip:
-                        subnet.data.setdefault('routing_node', []).append(
+                                dest_ipv4, dest_ipv6 = _which_ip_protocol(destination)
+                                if len(network.ip.split(':')) > 1: # IPv6
+                                    if dest_ipv6:
+                                        is_valid_destination = True
+                                else:
+                                    if dest_ipv4:
+                                        is_valid_destination = True
+                
+                                if is_valid_destination:
+                                    gw.data.setdefault('routing_node', []).append(
+                                        {'level': 'any', 'href': destination.href,
+                                         'name': destination.name})
+                                    modified = True
+        
+            else: # Gateway doesn't exist
+                gw_ipv4, gw_ipv6 = _which_ip_protocol(gateway_element_type) # ipv4, ipv6 or both
+                if len(network.ip.split(':')) > 1:
+                    if gw_ipv6:
+                        network.data.setdefault('routing_node', []).append(
                             routing_node_gateway)
-                    modified = True
+                        modified = True
+                else: # IPv4
+                    if gw_ipv4:
+                        network.data.setdefault('routing_node', []).append(
+                            routing_node_gateway) 
+                        modified = True
+
         if modified:
             self.update()
-        return modified
+        return modified    
+
                     
     def remove_route_gateway(self, element, network=None):
         """
@@ -834,7 +862,34 @@ def gateway_by_type(self, type=None, on_network=None):  # @ReservedAssignment
                         yield (interface, network, node)
                 else:
                     yield (interface, network, node)
-                  
+
+
+def _which_ip_protocol(element):
+    """
+    Validate the protocol addresses for the element. Most elements can
+    have an IPv4 or IPv6 address assigned on the same element. This
+    allows elements to be validated and placed on the right network.
+    
+    :return: boolean tuple
+    :rtype: tuple(ipv4, ipv6)
+    """
+    try:
+        if element.typeof in ('host', 'router'):
+            return getattr(element, 'address', False), getattr(element, 'ipv6_address', False)
+        elif element.typeof == 'netlink':
+            gateway = element.gateway
+            if gateway.typeof == 'router':
+                return getattr(gateway, 'address', False), getattr(gateway, 'ipv6_address', False)
+            # It's an engine, return true
+        elif element.typeof == 'network':
+            return getattr(element, 'ipv4_network', False), getattr(element, 'ipv6_network', False)
+    except AttributeError:
+        pass
+    # Always return true so that the calling function assumes the element
+    # is valid for the routing node. This could fail when submitting but
+    # we don't want to prevent adding elements yet since this could change
+    return True, True
+
 
 def del_invalid_routes(engine, nicids):
     """
