@@ -20,3 +20,6 @@ exclude_lines =
     string_types
     unicode = str 
     unicode = unicode 
+    def deprecated
+    def memoize
+

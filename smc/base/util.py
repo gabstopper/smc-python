@@ -2,6 +2,7 @@
 Utility functions used in different areas of smc-python
 """
 import time
+import base64
 import datetime
 import smc.compat as compat
 import smc.api.exceptions
@@ -173,6 +174,17 @@ def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
     :return: byte string utf-8 encoded
     """
     return s if isinstance(s, str) else s.encode(encoding, errors)
+
+
+def b64encode(source):
+    """
+    Base64 encoding for python 2 and 3
+    
+    :rtype: base64 content
+    """
+    if compat.PY3:
+        source = source.encode('utf-8')
+    return base64.b64encode(source).decode('utf-8')
 
 
 def bytes_to_unicode(s, encoding='utf-8', errors='replace'):

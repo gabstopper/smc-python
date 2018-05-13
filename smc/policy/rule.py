@@ -72,7 +72,6 @@ Examples of rule operations::
 """
 from smc.base.model import Element, SubElement, SubElementCreator
 from smc.elements.other import LogicalInterface
-from smc.vpn.policy import PolicyVPN
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
     CreateRuleFailed, PolicyCommandFailed
 from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
@@ -98,12 +97,46 @@ class Rule(object):
         return self._meta.name if self._meta.name else \
             'Rule @%s' % self.tag
 
-    def add_after(self):
-        pass
+    def move_rule_after(self, other_rule):
+        """
+        Add this rule after another. This process will make a copy of
+        the existing rule and add after the specified rule. If this
+        raises an exception, processing is stopped. Otherwise the original
+        rule is then deleted.
+        You must re-retrieve the new element after running this operation
+        as new references will be created.
+        
+        :param other_rule Rule: rule where this rule will be positioned after
+        :raises CreateRuleFailed: failed to duplicate this rule, no move
+            is made
+        """
+        self.make_request(
+            CreateRuleFailed,
+            href=other_rule.get_relation('add_after'),
+            method='create',
+            json=self)
+        self.delete()
 
-    def add_before(self):
-        pass
-
+    def move_rule_before(self, other_rule):
+        """
+        Move this rule after another. This process will make a copy of
+        the existing rule and add after the specified rule. If this
+        raises an exception, processing is stopped. Otherwise the original
+        rule is then deleted.
+        You must re-retrieve the new element after running this operation
+        as new references will be created.
+        
+        :param other_rule Rule: rule where this rule will be positioned before
+        :raises CreateRuleFailed: failed to duplicate this rule, no move
+            is made
+        """
+        self.make_request(
+            CreateRuleFailed,
+            href=other_rule.get_relation('add_before'),
+            method='create',
+            json=self)
+        self.delete()
+    
     @cacheable_resource
     def action(self):
         """
@@ -136,6 +169,10 @@ class Rule(object):
     def comment(self, value):
         self.data['comment'] = value
 
+    @property
+    def is_rule_section(self):
+        return 'action' not in self.data
+    
     @property
     def is_disabled(self):
         """
@@ -425,9 +462,10 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
     
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', log_options=None,
-               is_disabled=False, vpn_policy=None, add_pos=None,
-               after=None, before=None, sub_policy=None, comment=None,
-               **kw):
+               authentication_options=None, connection_tracking=None,
+               is_disabled=False, vpn_policy=None, mobile_vpn=False,
+               add_pos=None, after=None, before=None,
+               sub_policy=None, comment=None, **kw):
         """ 
         Create a layer 3 firewall rule
 
@@ -439,11 +477,16 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
         :param services: service/s for rule
         :type services: list[str, Element]
         :param action: allow,continue,discard,refuse,enforce_vpn,
-            apply_vpn,blacklist (default: allow)
+            apply_vpn,forward_vpn, blacklist (default: allow)
         :type action: Action or str
         :param LogOptions log_options: LogOptions object
-        :param str: vpn_policy: vpn policy name; required for enforce_vpn and apply_vpn 
-               actions
+        :param ConnectionTracking connection_tracking: custom connection tracking settings
+        :param AuthenticationOptions authentication_options: options for auth if any
+        :param PolicyVPN,str vpn_policy: policy element or str href; required for
+            enforce_vpn, use_vpn and apply_vpn actions
+        :param bool mobile_vpn: if using a vpn action, you can set mobile_vpn to True and
+            omit the vpn_policy setting if you want this VPN to apply to any mobile VPN based
+            on the policy VPN associated with the engine
         :param str,Element sub_policy: sub policy required when rule has an action of 'jump'.
             Can be the FirewallSubPolicy element or href.
         :param int add_pos: position to insert the rule, starting with position 1. If
@@ -472,36 +515,44 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
 
         if not rule_action.action in self._actions:
             raise CreateRuleFailed('Action specified is not valid for this '
-                                   'rule type; action: {}'
-                                   .format(rule_action.action))
+                'rule type; action: {}'.format(rule_action.action))
 
-        if rule_action.action in ['apply_vpn', 'enforce_vpn', 'forward_vpn']:
-            if vpn_policy is None:
-                raise MissingRequiredInput('A VPN policy must be specified when '
-                                           'rule action has a VPN action')
-            try:
-                vpn = PolicyVPN(vpn_policy).href
-                rule_action.vpn = vpn
-            except ElementNotFound:
-                raise MissingRequiredInput('Cannot find VPN policy specified: {}, '
-                                           .format(vpn_policy))
-        elif rule_action.action in ['jump']:
+        if rule_action.action in ('apply_vpn', 'enforce_vpn', 'forward_vpn'):
+            if vpn_policy is None and not mobile_vpn:
+                raise MissingRequiredInput('You must either specify a vpn_policy or set '
+                    'mobile_vpn when using a rule with a VPN action')
+            if mobile_vpn:
+                rule_action.mobile_vpn = True
+            else:
+                try:
+                    vpn = element_resolver(vpn_policy) # VPNPolicy
+                    rule_action.vpn = vpn
+                except ElementNotFound:
+                    raise MissingRequiredInput('Cannot find VPN policy specified: {}, '
+                        .format(vpn_policy))
+        
+        elif rule_action.action == 'jump':
             try:
                 rule_action.sub_policy = element_resolver(sub_policy)
             except ElementNotFound:
                 raise MissingRequiredInput('Cannot find sub policy specified: {} '
-                                           .format(sub_policy))
+                    .format(sub_policy))
         
-        rule_values.update(action=rule_action.data)
+        #rule_values.update(action=rule_action.data)
 
-        if log_options is None:
-            log_options = LogOptions()
+        log_options = LogOptions() if not log_options else log_options
+        
+        if connection_tracking is not None:
+            rule_action.connection_tracking_options.update(**connection_tracking)
+        
+        auth_options = AuthenticationOptions() if not authentication_options \
+            else authentication_options
 
-        auth_options = AuthenticationOptions()
-
-        rule_values.update(options=log_options.data)
-        rule_values.update(authentication_options=auth_options.data)
-        rule_values.update(is_disabled=is_disabled)
+        rule_values.update(
+            action=rule_action.data,
+            options=log_options.data,
+            authentication_options=auth_options.data,
+            is_disabled=is_disabled)
 
         params = None
         href = self.href

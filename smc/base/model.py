@@ -59,10 +59,12 @@ from smc.base.decorators import cached_property, classproperty, exception,\
 from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
-    DeleteElementFailed, FetchElementFailed, UpdateElementFailed
+    DeleteElementFailed, FetchElementFailed, UpdateElementFailed,\
+    UserElementNotFound
 from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
     find_type_from_self
 from smc.base.mixins import RequestAction, UnicodeMixin
+from smc.base.util import b64encode
 
 
 @exception
@@ -104,12 +106,11 @@ def ElementCreator(cls, json):
     :rtype: Element
     """
     result = SMCRequest(
-        href=fetch_entry_point(cls.typeof),
+        href=cls.href,
         json=json).create()
     
     if result.msg:
         raise CreateElementFailed(result.msg)
-
     return cls(json.get('name'),
                type=cls.typeof,
                href=result.href)
@@ -141,10 +142,14 @@ def SubElementCreator(cls, *exception, **kwargs):
                href=result.href)
 
 
-def ElementFactory(href):
+def ElementFactory(href, raise_exc=None):
     """
     Factory returns an object of type Element when only
     the href is provided.
+    
+    :param str href: string href to fetch
+    :param Exception raise_exc: exception to raise if fetch
+        failed
     """
     element = SMCRequest(href=href).read()
     if element.json:
@@ -156,6 +161,8 @@ def ElementFactory(href):
         e.data = ElementCache(
             element.json, etag=element.etag)
         return e
+    if raise_exc and element.msg:
+        raise raise_exc(element.msg)
 
 
 class ElementCache(NestedDict):
@@ -187,6 +194,7 @@ class ElementCache(NestedDict):
             'on this element.' % rel)
 
 
+from smc.api.exceptions import UnsupportedEntryPoint
 class ElementLocator(object):
     """
     There are two ways to get an elements location, either through
@@ -208,27 +216,33 @@ class ElementLocator(object):
     This descriptor is a non data descriptor and can be overridden if 'href'
     is defined in the instance dict.
     """
-
     def __get__(self, instance, cls=None):
         # Does the instance already have meta data
-        if instance._meta:
+        if instance is not None and instance._meta:
             return instance._meta.href
         else:
-            if hasattr(instance, 'typeof'):
-                element = fetch_href_by_name(
-                    instance.name,
-                    filter_context=instance.typeof)
-                if element.json:
-                    instance._meta = Meta(**element.json[0])
-                    return instance._meta.href
-                raise ElementNotFound(
-                    'Cannot find specified element: {}, type: {}'
-                    .format(unicode_to_bytes(instance.name),
-                            instance.typeof))
-            else:
-                raise ElementNotFound(
-                    'This class does not have the required attribute '
-                    'and cannot be referenced directly, type: {}'
+            if hasattr(cls, 'typeof'):
+                if instance is not None:
+                    element = fetch_href_by_name(
+                        instance.name,
+                        filter_context=instance.typeof)
+                    if element.json:
+                        instance._meta = Meta(**element.json[0])
+                        return instance._meta.href
+                    raise ElementNotFound(
+                        'Cannot find specified element: {}, type: {}'
+                        .format(unicode_to_bytes(instance.name),
+                                instance.typeof))
+                else:
+                    try:
+                        element = fetch_entry_point(cls.typeof)
+                    except UnsupportedEntryPoint as e:
+                        raise ElementNotFound(e)
+                    return element
+            else: 
+                raise ElementNotFound( 
+                    'This class does not have the required attribute ' 
+                    'and cannot be referenced directly, type: {}' 
                     .format(instance))
 
 
@@ -377,9 +391,15 @@ class ElementBase(RequestAction, UnicodeMixin):
 
         :param exception: pass a custom exception to throw if failure
         :param kwargs: optional kwargs to update request data to server.
+        :raises ModificationFailed: raised if element is tagged as System element
+        :raises UpdateElementFailed: failed to update element with reason
         :return: href of the element modified
         :rtype: str
         """
+        if self.data.get('system', False):
+            raise ModificationFailed(
+                'Cannot modify system element: %s' % self.name)
+        
         if not exception:
             exception = UpdateElementFailed
         else:
@@ -401,13 +421,6 @@ class ElementBase(RequestAction, UnicodeMixin):
         json = kwargs.pop('json') if 'json' in kwargs else self.data
         del self.data       # Delete the cache before processing attributes
 
-#          instance_attr = {k: v() if callable(v) else v
-#                          for k, v in vars(self).items()
-#                          if not k.startswith('_')}
-#         
-#         if instance_attr:
-#             json.update(**instance_attr)
-
         # If kwarg settings are provided AND instance variables, kwargs
         # will overwrite collected instance attributes with the same name.
         if kwargs:
@@ -415,13 +428,7 @@ class ElementBase(RequestAction, UnicodeMixin):
             merge_dicts(json, kwargs, append_lists)
 
         params.update(json=json)
-        
-#         # Remove attributes from instance if previously set
-#         if instance_attr:
-#             for attr in instance_attr:
-#                 delattr(self, attr)
-#         
-        
+
         request = SMCRequest(**params) 
         request.exception = exception
         result = request.update()
@@ -431,37 +438,6 @@ class ElementBase(RequestAction, UnicodeMixin):
             self._name = name
         
         return result.href
-
-    def modify_attribute(self, **kwargs):
-        """
-        Modify the attribute by key / value pair.
-        Add append_lists=True kwarg if dict leaf is a list
-        and you want to append, default: replace
-
-        :param dict kwargs: key=value pair to change
-        :param bool append_lists: if change is a list, append or overwrite
-        :raises ElementNotFound: cannot find element specified
-        :raises ModificationFailed, UpdateElementFailed: failure applying
-            change with reason
-        :return: href of the element modified
-        :rtype: str
-        """
-        if self.data.get('system', False):
-            raise ModificationFailed(
-                'Cannot modify system element: %s' % self.name)
-
-        params = {
-            'href': self.href,
-            'etag': self.etag
-        }
-        append_lists = kwargs.pop('append_lists', False)
-        merge_dicts(self.data, kwargs, append_lists)
-        params.update(json=self.data)
-        del self.data
-
-        request = SMCRequest(**params) 
-        request.exception = UpdateElementFailed
-        return request.update().href
 
 
 class Element(ElementBase):
@@ -843,6 +819,63 @@ class SubElement(ElementBase):
     def __unicode__(self):
         return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
 
+    def __repr__(self):
+        return str(self)
+
+
+class UserElement(ElementBase):
+    """
+    User element mixin for LDAP of Internal Domains. Provides comparison and
+    encoding/decoding of the DN used in URIs.
+    """
+    href = ElementLocator()
+    
+    def __init__(self, name, **meta):
+        if meta:
+            meta.update(name=name)
+        super(UserElement, self).__init__(**meta)
+        self._name = name  # <str>
+    
+    @property
+    def name(self):
+        return self._name
+    
+    @classmethod
+    def get(cls, user_dn):
+        """
+        Get a user or group from a specific LDAP domain or internal user group.
+        When specifying the user DN, specify in fully qualified DN syntax and
+        provide the 'domain=' field specifying the name of the External LDAP
+        domain:
+            `cn=domain users,cn=users,dc=lepages,dc=local,domain=myldapdomain`
+        
+        For example::
+        
+            InternalUserGroup.get('cn=testgroup,dc=stonegate,domain=InternalDomain')
+            
+        
+        :param str user_dn: user DN to find
+        :rtype: UserElement
+        """
+        encoded_dn = b64encode(user_dn)
+        element = ElementFactory(
+            href='{}/{}'.format(cls.href, encoded_dn),
+            raise_exc=UserElementNotFound)
+        return element
+
+    def __eq__(self, other):
+        if isinstance(other, UserElement):
+            if self.unique_id == other.unique_id:
+                return True
+        return False
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __unicode__(self):
+        return u'{0}(name={1},unique_id={2})'.format(self.__class__.__name__, self.name,
+            self.unique_id)
+    
     def __repr__(self):
         return str(self)
 

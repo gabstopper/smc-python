@@ -270,7 +270,8 @@ class Session(object):
             logger.debug('Registering class mappings.')
             # Load the modules to register needed classes
             for pkg in ('smc.policy', 'smc.elements', 'smc.routing',
-                        'smc.vpn', 'smc.administration', 'smc.core'):
+                        'smc.vpn', 'smc.administration', 'smc.core',
+                        'smc.administration.user_auth'):
                 import_submodules(pkg, recursive=False)
 
             self._MODS_LOADED = True
@@ -290,6 +291,8 @@ class Session(object):
 
                 except requests.exceptions.SSLError as e:
                     logger.error('SSL exception thrown during logout: %s', e)
+                except requests.exceptions.ConnectionError as e:
+                    logger.error('Connection error on logout: %s', e)
 
             self.entry_points.clear()
             self._session = None

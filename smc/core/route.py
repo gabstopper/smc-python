@@ -105,6 +105,12 @@ the routing node::
     >>> interface0 = engine.routing.get(0)
     >>> interface0.add_static_route(Router('tmprouter'), destination=[Group('routegroup')])
 
+When a routing gateway is added to an IPv6 network, the gateway is validated before
+adding. For example, if you have a single interface that has both an IPv4 and IPv6
+address assigned, a static route using a Router gateway with only an IPv4 address will
+only bind to the IPv4 network. In this case, you can optionally add both an IPv4 and
+IPv6 to the router element, or run this operation for each network respectively.
+
 .. seealso:: :meth:`.Routing.add_static_route`
 
 .. note:: When changing are made to a routing node, i.e. adding OSPF, BGP, Netlink's, the
@@ -652,8 +658,7 @@ class Routing(RoutingTree):
         if modified:
             self.update()
         return modified    
-
-                    
+                 
     def remove_route_gateway(self, element, network=None):
         """
         Remove a route element by href or Element. Use this if you want to

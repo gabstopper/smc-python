@@ -112,12 +112,9 @@ def fetch_entry_point(name):
     :rtype: str
     """
     return _get_default_session().entry_points.get(name)  # from entry point cache
-    
 
-def fetch_href_by_name(name,
-                       filter_context=None,
-                       exact_match=True,
-                       domain=None):
+    
+def fetch_href_by_name(name, filter_context=None, exact_match=True, domain=None):
     """
     Find the element based on name and optional filters. By default, the
     name provided uses the standard filter query. Additional filters can
@@ -178,8 +175,7 @@ def fetch_json_by_href(href, params=None):
     :params dict params: optional search query parameters
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    result = SMCRequest(href=href,
-                        params=params).read()
+    result = SMCRequest(href=href, params=params).read()
     if result:
         result.href = href
     return result

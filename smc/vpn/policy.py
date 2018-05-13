@@ -4,6 +4,7 @@ from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
 from smc.base.collection import sub_collection
 from smc.vpn.elements import VPNProfile, VPNSite
 from smc.base.decorators import cached_property
+from smc.base.util import element_resolver
 
 
 class PolicyVPN(Element):
@@ -183,17 +184,73 @@ class PolicyVPN(Element):
         return self.make_request(
             resource='validate').get('value')
 
+    @property
+    def mobile_vpn_topology(self):
+        """
+        Is the policy VPN configured for mobile VPN gateways.
+        Valid modes: 'Selected Gateways below', 'Only central Gateways from overall topology',
+        'All Gateways from overall topology', 'None'
+        """
+        return self.data.get('mobile_vpn_topology_mode')
+    
+#     @mobile_vpn_topology.setter
+#     def mobile_vpn_topology(self, value):
+#         self.update(mobile_vpn_topology_mode=value)
+#         if self.mobile_vpn_topology == 'None' and value.startswith('Selected'):
+#             self.update(mobile_vpn_topology='Selected Gateways below')
+#             self.make_request(
+#                 PolicyCommandFailed,
+#                 method='create',
+#                 resource='mobile_gateway_node',
+#                 json={'gateway': ClientGateway('VPN Client').href,
+#                       'node_usage': 'mobile'})
+#         elif self.mobile_vpn_topology != value:
+#             self.update(mobile_vpn_topology_mode=value)
+    
+    def add_mobile_vpn_gateway(self, gateway):
+        """
+        Add a mobile VPN gateway to this policy VPN. 
+        Example of adding or removing a mobile VPN gateway::
+        
+            policy_vpn = PolicyVPN('myvpn')
+            policy_vpn.open()
+            policy_vpn.add_mobile_vpn_gateway(ExternalGateway('extgw3'))
+            
+            for mobile_gateway in policy_vpn.mobile_gateway_node:
+                if mobile_gateway.gateway == ExternalGateway('extgw3'):
+                    mobile_gateway.delete()
+            policy_vpn.save()
+            policy_vpn.close()
+        
+        :param Engine,ExternalGateway gateway: An external gateway, engine or
+            href for the mobile gateway
+        :raises PolicyCommandFailed: could not add gateway
+        """
+        try:
+            gateway = gateway.vpn.internal_gateway.href # Engine
+        except AttributeError:
+            gateway = element_resolver(gateway) # External Gateway
+        
+        self.make_request(
+            PolicyCommandFailed,
+            method='create',
+            resource='mobile_gateway_node',
+            json={'gateway': gateway,
+                  'node_usage': 'mobile'})
+
     def add_central_gateway(self, gateway):
         """ 
         Add SMC managed internal gateway to the Central Gateways of this VPN
 
-        :param gateway: href for internal gateway or test_external gateway.
-               If this is another SMC managed gateway, you can retrieve the 
-               href after loading the engine. 
-               See :py:class:`smc.core.engines.Engine.vpn`
+        :param Engine,ExternalGateway gateway: An external gateway, engine or
+            href for the central gateway
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
+        try:
+            gateway = gateway.vpn.internal_gateway.href
+        except AttributeError:
+            gateway = element_resolver(gateway)
         self.make_request(
             PolicyCommandFailed,
             method='create',
@@ -208,13 +265,15 @@ class PolicyVPN(Element):
         want a hub-and-spoke topology or the test_external gateway is a non-SMC 
         managed device.
 
-        :param gateway: href for internal gateway or test_external gateway.
-               If this is another SMC managed gateway, you can retrieve the 
-               href after loading the engine. 
-               See :py:class:`smc.core.engines.Engine.vpn` 
+        :param Engine,ExternalGateway gateway: An external gateway, engine or
+            href for the central gateway
         :raises PolicyCommandFailed: could not add gateway
         :return: None
         """
+        try:
+            gateway = gateway.vpn.internal_gateway.href
+        except AttributeError:
+            gateway = element_resolver(gateway)
         self.make_request(
             PolicyCommandFailed,
             method='create',
@@ -432,4 +491,9 @@ class GatewayTunnel(SubElement):
 
     def __repr__(self):
         return str(self)
+    
+
+class ClientGateway(Element):
+    typeof = 'client_gateway'
+
         

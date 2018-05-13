@@ -102,7 +102,45 @@ class RuleElement(object):
 
         data = element_resolver(data, do_raise=False)
         self.data[self.typeof] = data
-
+    
+    def __eq__(self, other):
+        if type(self) is type(other):
+            if self.is_none or self.is_any:
+                if self.is_none and other.is_none or self.is_any and other.is_any:
+                    return True
+                return False
+            if other.is_none or other.is_any: # Current sources not any or none
+                return False
+            if set(self.all_as_href()) == set(other.all_as_href()):
+                return True
+        return False
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+        
+    def update_field(self, elements):
+        """
+        Update the field with a list of provided values but only if the values
+        are different. Return a boolean indicating whether a change was made
+        indicating whether `save` should be called. If the field is currently
+        set to any or none, then no comparison is made and field is updated.
+        
+        :param list elements: list of elements in href or Element format
+            to compare to existing field
+        :rtype: bool
+        """
+        changed = False
+        if isinstance(elements, list):
+            if self.is_any or self.is_none:
+                self.add_many(elements)
+                changed = True
+            else:
+                _elements = element_resolver(elements, do_raise=False)
+                if set(self.all_as_href()) ^ set(_elements):
+                    self.data[self.typeof] = _elements
+                    changed = True
+        return changed
+    
     def all_as_href(self):
         """
         Return all elements without resolving to :class:`smc.elements.network`
@@ -113,6 +151,7 @@ class RuleElement(object):
         """
         if not self.is_any and not self.is_none:
             return [element for element in self.get(self.typeof)]
+        return []
 
     def all(self):
         """
@@ -196,7 +235,7 @@ class Action(NestedDict):
         Action set for this rule 
  
         :param str value: allow\|discard\|continue\|refuse\|jump\|apply_vpn 
-                          \|enforce_vpn\|forward_vpn\|blacklist\|terminate 
+                          \|enforce_vpn\|forward_vpn\|blacklist
         :rtype: str 
         """ 
         return self.get('action') 
@@ -230,7 +269,7 @@ class Action(NestedDict):
         :param bool value: True, False, None (inherit from continue rule) 
         :rtype: bool
         """
-        return self.get('decrypting', False)
+        return self.get('decrypting')
     
     @decrypting.setter
     def decrypting(self, value):
@@ -330,16 +369,17 @@ class Action(NestedDict):
         """ 
         Return vpn reference. Only used if 'enforce_vpn', 'apply_vpn', 
         or 'forward_vpn' is the action type. 
- 
+     
+        :param PolicyVPN value: set the policy VPN for VPN action
         :rtype: PolicyVPN 
         """ 
         if 'vpn' in self: 
-            return self.get('vpn') 
+            return Element.from_href(self.get('vpn'))
  
     @vpn.setter 
-    def vpn(self, value): 
-        self.update(vpn=value) 
- 
+    def vpn(self, value):
+        self.update(vpn=element_resolver(value))
+
     @property 
     def mobile_vpn(self): 
         """ 
@@ -347,7 +387,7 @@ class Action(NestedDict):
         have the action of 'enforce_vpn', 'apply_vpn' or 'forward_vpn' 
         set. This will enable mobile VPN traffic on this VPN rule. 
  
-        :return: mobile vpn enabled 
+        :param boolean value: set mobile vpn on or off
         :rtype: boolean 
         """ 
         return self.get('mobile_vpn') 
@@ -355,7 +395,7 @@ class Action(NestedDict):
     @mobile_vpn.setter 
     def mobile_vpn(self, value): 
         self.update(mobile_vpn=value)
-            
+
 
 class ConnectionTracking(NestedDict):
     """
@@ -664,6 +704,20 @@ class AuthenticationOptions(NestedDict):
             auth = rule.data.get('authentication_options', {})
         super(AuthenticationOptions, self).__init__(data=auth)
     
+    def __eq__(self, other):
+        if isinstance(other, AuthenticationOptions):
+            if self.require_auth != other.require_auth:
+                return False
+            for values in ('users', 'methods'):
+                if set(self.data.get(values, [])) != \
+                    set(other.data.get(values, [])):
+                    return False
+            return True
+        return False
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
     @property
     def methods(self):
         """
@@ -671,7 +725,7 @@ class AuthenticationOptions(NestedDict):
 
         :return: list value: auth methods enabled
         """
-        return self.get('methods')
+        return [Element.from_href(method) for method in self.get('methods')]
 
     @property
     def require_auth(self):
@@ -698,7 +752,7 @@ class AuthenticationOptions(NestedDict):
 
         :return: list
         """
-        return self.get('users')
+        return [Element.from_href(user) for user in self.get('users', [])]
 
 
 class TimeRange(object):

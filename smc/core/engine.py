@@ -1,3 +1,4 @@
+from collections import namedtuple
 from smc.elements.helpers import domain_helper, location_helper
 from smc.base.model import Element, \
     SubElement, lookup_class, SubElementCreator
@@ -776,9 +777,9 @@ class Engine(Element):
         
         :raises UnsupportedEngineFeature: requires a layer 3 firewall and
             SMC version >= 6.3.4.
-        :rtype: BaseIterable(PolicyVPN)
+        :rtype: VPNMappingCollection(VPNMapping)
         """
-        return VPNMapping(
+        return VPNMappingCollection(
             self.make_request(
                 UnsupportedEngineFeature,
                 resource='vpn_mapping'))
@@ -982,6 +983,19 @@ class Engine(Element):
             resource='switch_physical_interface')
     
     def add_interface(self, interface):
+        """
+        Add interface is a lower level option to adding interfaces directly
+        to the engine. The interface is expected to be an instance of
+        Layer3PhysicalInterface, Layer2PhysicalInterface, TunnelInterface,
+        or ClusterInterface. The engines instance cache is flushed after
+        this call is made to provide an updated cache after modification.
+        
+        .. seealso:: :class:`smc.core.engine.interface.update_or_create`
+        
+        :param PhysicalInterface,TunnelInterface interface: instance of
+            pre-created interface
+        :return: None
+        """
         self.make_request(
             EngineCommandFailed,
             method='create', 
@@ -1070,17 +1084,111 @@ class Engine(Element):
             lookup_class(self.type).__name__, self.name)
 
 
-class VPNMapping(BaseIterable):
+class VPNMappingCollection(BaseIterable):
     def __init__(self, vpns):
         mappings = vpns.get('vpnMappings')
-        super(VPNMapping, self).__init__(mappings)
+        super(VPNMappingCollection, self).__init__(mappings)
     
     def __iter__(self):
         for entry in self.items:
             vpn_mapping = entry.get('vpn_mapping_entry')
-            yield Element.from_href(vpn_mapping.get('vpn_ref'))
-                
+            vpn_mapping.setdefault('gateway_nodes_usage', {})
+            yield VPNMapping(**vpn_mapping)
+
+
+class VPNMapping(namedtuple('VPNMapping', 'gateway_ref vpn_ref gateway_nodes_usage')):
+    """
+    A VPN Mapping represents Policy Based VPNs associated with this engine.
+    This simplifies finding references where an engine is used within a VPN
+    without iterating through existing VPNs to find the engine.
+    """
+    __slots__ = ()
+    @property
+    def internal_gateway(self):
+        """
+        Return the engines internal gateway as element
+        
+        :rtype: InternalGateway
+        """
+        return Element.from_href(self.gateway_ref)
     
+    @property
+    def vpn(self):
+        """
+        The VPN policy for this engine mapping
+        
+        :rtype: PolicyVPN
+        """
+        return Element.from_href(self.vpn_ref)
+    
+    @property
+    def is_central_gateway(self):
+        """
+        Is this engine a central gateway in the VPN policy
+        
+        :rtype: bool
+        """
+        return 'central_gateway_node_ref' in self.gateway_nodes_usage
+    
+    @property
+    def _central_gateway(self):
+        """
+        Return the central gateway tree node as element. This can be used
+        to simplify removal of the element from the specified VPN. You must
+        first open the VPN policy then save and close.
+        
+        :rtype: GatewayTreeNode
+        """
+        return Element.from_href(
+            self.gateway_nodes_usage.get('central_gateway_node_ref', None))
+    
+    @property
+    def is_satellite_gateway(self):
+        """
+        Is this engine a satellite gateway in the VPN policy
+        
+        :rtype: bool
+        """
+        return 'satellite_gateway_node_ref' in self.gateway_nodes_usage
+    
+    @property
+    def _satellite_gateway(self):
+        """
+        Return the satellite gateway tree node as element. This can be used
+        to simplify removal of the element from the specified VPN. You must
+        first open the VPN policy then save and close.
+        
+        :rtype: GatewayTreeNode
+        """
+        return Element.from_href(
+            self.gateway_nodes_usage.get('satellite_gateway_node_ref', None))
+    
+    @property
+    def is_mobile_gateway(self):
+        """
+        Is the engine specified as a mobile gateway in the Policy VPN
+        configuration
+        
+        :rtype: bool
+        """
+        return 'mobile_gateway_node_ref' in self.gateway_nodes_usage
+    
+    @property
+    def _mobile_gateway(self):
+        """
+        Return the mobile gateway tree node as element. This can be used
+        to simplify removal of the element from the specified VPN. You must
+        first open the VPN policy then save and close.
+        
+        :rtype: GatewayTreeNode
+        """
+        return Element.from_href(
+            self.gateway_nodes_usage.get('mobile_gateway_node_ref', None))
+    
+    def __str__(self):
+        return str('VPNMapping(vpn={})'.format(self.vpn))
+     
+
 class VPN(object):
     """
     VPN is the top level interface to all engine based VPN settings.
@@ -1171,8 +1279,16 @@ class VPN(object):
             self.internal_gateway.get_relation('internal_endpoint'), 
             InternalEndpoint) 
     
+    @property
     def loopback_endpoint(self):
-        pass
+        """
+        Internal Loopback endpoints to enable VPN for the engine.
+        
+        :rtype: SubElementCollection(InternalEndpoint)
+        """
+        return sub_collection(
+            self.internal_gateway.get_relation('loopback_endpoint'),
+            InternalEndpoint)
     
     @property
     def gateway_profile(self):

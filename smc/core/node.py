@@ -13,9 +13,8 @@ For example, to load an engine and run node level commands::
         ...
         ...
 """
-import base64
 import collections
-from smc.base.util import save_to_file
+from smc.base.util import save_to_file, b64encode
 from smc.base.model import SubElement, ElementCache
 from smc.core.sub_interfaces import LoopbackInterface
 from smc.api.exceptions import LicenseError, NodeCommandFailed
@@ -237,9 +236,8 @@ class Node(SubElement):
         
         if result.content:
             if as_base64:
-                result.content = base64.b64encode(
-                    result.content.encode()).decode().replace('\n', '')
-                
+                result.content = b64encode(result.content)
+                    
             if filename:
                 try:
                     save_to_file(filename, result.content)

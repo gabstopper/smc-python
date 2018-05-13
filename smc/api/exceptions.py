@@ -314,3 +314,9 @@ class InterfaceNotFound(SMCException):
     Returned when attempting to fetch an interface directly
     """
     
+class UserElementNotFound(SMCException):
+    """
+    Raised when attempting to find a user element that cannot be found in a
+    mapped database (internal or external LDAP)
+    """
+    
