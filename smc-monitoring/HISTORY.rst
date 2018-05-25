@@ -16,4 +16,10 @@ Release History
 - ActiveAlertQuery implemented for interfacing with Alerts (requires SMC >= 6.3.3). Currently read-only
 - BlacklistQuery modified to use generic log fields for all queries except fetch_as_element
 
+1.2
++++
+
+- VPN SA's can be deleted (requires SMC >= 6.4.2)\
+
+
 

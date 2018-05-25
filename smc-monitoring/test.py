@@ -49,11 +49,11 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
-    session.login(url='https://smc-standby:8082',
-                  api_key='AF7Rggmn6XgmrZMCKKpgiYhp', timeout=30,
-                  verify='/Users/davidlepage/Downloads/smc_api.crt', beta=True)
+    #session.login(url='https://smc-standby:8082',
+    #              api_key='AF7Rggmn6XgmrZMCKKpgiYhp', timeout=30,
+    #              verify='/Users/davidlepage/Downloads/smc_api.crt', beta=True)
     
     
     #session.login(url='http://172.18.1.36:8082', api_key='kN8CYwTrxB9UNLPyTcnX0001',
@@ -90,7 +90,17 @@ if __name__ == '__main__':
     engine = Engine('sg_vm')
     #for bl in engine.blacklist_show(max_recv=5):
     #    print(bl)
-           
+    query = VPNSAQuery('sg_vm')
+    #for record in query.fetch_raw():
+    #    print(record)
+     
+    #for record in query.fetch_as_element():
+    #    print(vars(record))
+    #    print(record, record.href)
+    #    record.delete()
+    for record in query.fetch_raw():
+        print(record)
+    
     #query.request = {"query":{"definition":"BLACKLIST","target":"sg_vm"}, "fetch":{}, "format":{"type":"texts", "field_format": "name"}}
     #query = UserQuery('lynn', check_hostname=False)
     
@@ -106,16 +116,16 @@ if __name__ == '__main__':
     
     
     #Use case to pull specific filter logs from Audit
-    query = LogQuery(backwards=False)
-    query.format.timezone('CET')        
-    default_audit_fields_ids = [LogField.TIMESTAMP, LogField.DATATYPE, LogField.USERORIGINATOR, LogField.TYPEDESCRIPTION, LogField.RESULT, LogField.OBJECTNAME, LogField.OBJECTID, LogField.OBJECTTYPE, LogField.INFOMSG]
-    query.format.field_ids(default_audit_fields_ids)
-    # Show only Audit log entries
-    query.add_in_filter( FieldValue(LogField.DATATYPE), [ConstantValue(DataType.AUDIT)]) #HINT: it could be nice to have the Audit Data Type as constant in the LogField
-    
-    for log in query.fetch_batch(CSVFormat):
-        print(log)
-    
+#     query = LogQuery(backwards=False)
+#     query.format.timezone('CET')        
+#     default_audit_fields_ids = [LogField.TIMESTAMP, LogField.DATATYPE, LogField.USERORIGINATOR, LogField.TYPEDESCRIPTION, LogField.RESULT, LogField.OBJECTNAME, LogField.OBJECTID, LogField.OBJECTTYPE, LogField.INFOMSG]
+#     query.format.field_ids(default_audit_fields_ids)
+#     # Show only Audit log entries
+#     query.add_in_filter( FieldValue(LogField.DATATYPE), [ConstantValue(DataType.AUDIT)]) #HINT: it could be nice to have the Audit Data Type as constant in the LogField
+#     
+#     for log in query.fetch_batch(CSVFormat):
+#         print(log)
+#     
     
     #OBJECTNAME
     #for log in query.fetch_live():

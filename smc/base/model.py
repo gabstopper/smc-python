@@ -552,9 +552,11 @@ class Element(ElementBase):
     def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
         """
         Update or create the element. If the element exists, update
-        it using the kwargs provided if the provided kwargs are new. Note
-        that when checking kwargs against attributes, only string values are
-        compared. Lists and dicts are automatically merged.
+        it using the kwargs provided if the provided kwargs are different from the
+        existing value/s. When comparing values, strings and ints are compared
+        normally. If a list is provided and is a list of strings, it will be 
+        compared and updated. If the list contains unhashable elements, it is 
+        automatically merged (i.e. list of dicts).
         If an element does not have a `create` classmethod, then it
         is considered read-only and the request will be redirected to
         :meth:`~get`. Provide a ``filter_key`` dict key/value if you want to
@@ -617,8 +619,16 @@ class Element(ElementBase):
                 elif isinstance(val, Element):
                     if val.href != value:
                         params[key] = value
+                elif isinstance(val, list) and isinstance(value, list):
+                    try: # Try matching lists of strings
+                        if set(val) ^ set(value):
+                            params[key] = value
+                    except TypeError: # Unhashable, list of dicts?
+                        params[key] = value
                 else:
-                    params[key] = value
+                    # Last ditch effort, might be comparing None to None
+                    if val != value:
+                        params[key] = value
             
             if params:
                 element.update(**params)

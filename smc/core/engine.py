@@ -1080,20 +1080,19 @@ class Engine(Element):
             self.get_relation('snapshots', EngineCommandFailed), Snapshot)
 
     def __unicode__(self):
-        return u'{0}(name={1})'.format(
-            lookup_class(self.type).__name__, self.name)
+        return u'{0}(name={1})'.format(lookup_class(self.type).__name__, self.name)
 
 
 class VPNMappingCollection(BaseIterable):
     def __init__(self, vpns):
         mappings = vpns.get('vpnMappings')
-        super(VPNMappingCollection, self).__init__(mappings)
-    
-    def __iter__(self):
-        for entry in self.items:
-            vpn_mapping = entry.get('vpn_mapping_entry')
-            vpn_mapping.setdefault('gateway_nodes_usage', {})
-            yield VPNMapping(**vpn_mapping)
+        _mappings = []
+        if mappings:
+            for entry in mappings:
+                vpn_mapping = entry.get('vpn_mapping_entry')
+                vpn_mapping.setdefault('gateway_nodes_usage', {})
+                _mappings.append(VPNMapping(**vpn_mapping))
+        super(VPNMappingCollection, self).__init__(_mappings)
 
 
 class VPNMapping(namedtuple('VPNMapping', 'gateway_ref vpn_ref gateway_nodes_usage')):

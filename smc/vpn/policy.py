@@ -195,6 +195,10 @@ class PolicyVPN(Element):
     
 #     @mobile_vpn_topology.setter
 #     def mobile_vpn_topology(self, value):
+#         self.data.update(mobile_vpn_topology_mode=value)
+    
+#     @mobile_vpn_topology.setter
+#     def mobile_vpn_topology(self, value):
 #         self.update(mobile_vpn_topology_mode=value)
 #         if self.mobile_vpn_topology == 'None' and value.startswith('Selected'):
 #             self.update(mobile_vpn_topology='Selected Gateways below')
@@ -207,7 +211,7 @@ class PolicyVPN(Element):
 #         elif self.mobile_vpn_topology != value:
 #             self.update(mobile_vpn_topology_mode=value)
     
-    def add_mobile_vpn_gateway(self, gateway):
+    def add_mobile_gateway(self, gateway):
         """
         Add a mobile VPN gateway to this policy VPN. 
         Example of adding or removing a mobile VPN gateway::

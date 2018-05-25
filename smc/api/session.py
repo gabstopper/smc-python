@@ -192,11 +192,12 @@ class Session(object):
             try:
                 cfg = load_from_file(alt_filepath) if alt_filepath\
                     is not None else load_from_file()
+                logger.debug('Read config data from file: %s', cfg)
             except ConfigLoadError:
                 # Last ditch effort, try to load from environment
                 cfg = load_from_environ()
-
-            logger.debug('Read config data: %s', cfg)
+                logger.debug('Read config data from environ: %s', cfg)
+                
             url = cfg.get('url')
             api_key = cfg.get('api_key')
             api_version = cfg.get('api_version')

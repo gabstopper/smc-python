@@ -13,6 +13,9 @@ class StorableUser(object):
     Domain users represents common methods used by Internal and LDAP
     domains to fetch user accounts
     """
+    def browse(self):
+        pass
+    
     def get_users(self, users):
         """
         Get users from this LDAP domain. User format must be in 

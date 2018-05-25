@@ -87,8 +87,8 @@ class DomainController(NestedDict):
 
     
 #TODO: Implement TLS Identity
-#TODO: Cannot update AD server element bc of Domain Controller password ****
-#TODO: Users in rules come back incorrectly
+#TODO: Cannot update AD server element bc of Domain Controller password 6.3.4 FIX ****
+#TODO: Users in rules come back incorrectly 6.3.4 FIX
 
 class ActiveDirectoryServer(Element):
     """
@@ -242,23 +242,23 @@ class ActiveDirectoryServer(Element):
                         ad.data.setdefault('domain_controller', []).append(dc.data)
                         updated = True
         
-                for method in kwargs.pop('supported_method', []):
-                    if method.href not in ad.data.get('supported_method', []):
-                        ad.data.setdefault('supported_method', []).append(
-                            element_resolver(method.href))
-                        updated = True
-                
-                #TODO: update with brand new list leaves original attributes
-                for strlist in ('group_object_class', 'user_object_class'):
-                    value = kwargs.pop(strlist, [])
-                    if value and set(value) ^ set(getattr(ad, strlist, [])):
-                        ad.data[strlist] = value
-                        updated = True
-    
-                for name, value in kwargs.items():
-                    if getattr(ad, name) != value:
-                        ad.data[name] = value
-                        updated = True        
+            for method in kwargs.pop('supported_method', []):
+                if method.href not in ad.data.get('supported_method', []):
+                    ad.data.setdefault('supported_method', []).append(
+                        element_resolver(method.href))
+                    updated = True
+            
+            #TODO: update with brand new list leaves original attributes
+            for strlist in ('group_object_class', 'user_object_class'):
+                value = kwargs.pop(strlist, [])
+                if value and set(value) ^ set(getattr(ad, strlist, [])):
+                    ad.data[strlist] = value
+                    updated = True
+
+            for name, value in kwargs.items():
+                if getattr(ad, name) != value:
+                    ad.data[name] = value
+                    updated = True        
         if updated:
             ad.update()
         if with_status:

@@ -113,7 +113,7 @@ class CommunityAccessList(AccessList, Element):
 
 
 ExtCommunityListEntry = collections.namedtuple('ExtCommunityListEntry',
-    'community action comment type')
+    'community action type')
 """
 The ExtCommunityListEntry represents the entries for the extended community
 access lists.
@@ -121,7 +121,6 @@ access lists.
 :ivar str community: community id
 :ivar str action: 'permit' or 'deny'
 :ivar str type: 'rt' (Route Target) or 'soo' (Site of Origin) (required)
-:ivar str comment: optional comment
 """
 ExtCommunityListEntry.__new__.__defaults__ = (None,) * len(ExtCommunityListEntry._fields)
 

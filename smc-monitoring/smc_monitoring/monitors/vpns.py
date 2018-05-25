@@ -24,6 +24,8 @@ Execute query and return as a :class:`.VPNSecurityAssoc` element::
 """
 from smc_monitoring.models.query import Query
 from smc_monitoring.models.constants import LogField
+from smc.base.model import prepared_request
+from smc.api.exceptions import DeleteElementFailed
 
 
 class VPNSAQuery(Query):
@@ -85,6 +87,15 @@ class VPNSecurityAssoc(object):
     def __init__(self, **data):
         self.vpn = data
 
+    @property
+    def href(self):
+        return self.vpn.get('vpn_sa_href')
+    
+    def delete(self):
+        return prepared_request(
+            DeleteElementFailed,
+            href=self.href).delete()
+    
     @property
     def timestamp(self):
         """

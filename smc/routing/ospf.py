@@ -76,13 +76,17 @@ class OSPF(object):
         self.data = self._engine.data['dynamic_routing']['ospfv2']
     
     @property
-    def is_enabled(self):
+    def status(self):
         """
         Is OSPF enabled on this engine.
         
         :rtype: bool
         """
         return self.data.get('enabled')
+    
+    @property
+    def is_enabled(self):
+        return self.status
 
     def enable(self, ospf_profile=None, router_id=None):
         """
@@ -220,10 +224,10 @@ class OSPFArea(Element):
 
     @classmethod
     def create(cls, name, interface_settings_ref=None, area_id=1,
-               area_type='normal', outbound_filters_ref=None,
-               inbound_filters_ref=None, shortcut_capable_area=False,
+               area_type='normal', outbound_filters=None,
+               inbound_filters=None, shortcut_capable_area=False,
                ospfv2_virtual_links_endpoints_container=None,
-               ospf_abr_substitute_container=None):
+               ospf_abr_substitute_container=None, comment=None, **kwargs):
         """
         Create a new OSPF Area
 
@@ -241,6 +245,7 @@ class OSPFArea(Element):
         :param list ospfv2_virtual_links_endpoints_container: virtual link endpoints
         :param list ospf_abr_substitute_container: substitute types: 
                \|aggregate\|not_advertise\|substitute_with
+        :param str comment: optional comment
         :raises CreateElementFailed: failed to create with reason
         :rtype: OSPFArea
         """
@@ -249,23 +254,48 @@ class OSPFArea(Element):
                 OSPFInterfaceSetting('Default OSPFv2 Interface Settings').href
         else:
             interface_settings_ref = element_resolver(interface_settings_ref)
-
+        
+        if 'inbound_filters_ref' in kwargs:
+            inbound_filters = kwargs.get('inbound_filters_ref')
+        
+        if 'outbound_filters_ref' in kwargs:
+            outbound_filters = kwargs.get('outbound_filters_ref')
+        
         json = {'name': name,
                 'area_id': area_id,
                 'area_type': area_type,
-                'inbound_filters_ref': inbound_filters_ref,
+                'comment': comment,
+                'inbound_filters_ref': inbound_filters,
                 'interface_settings_ref': interface_settings_ref,
                 'ospf_abr_substitute_container': ospf_abr_substitute_container,
                 'ospfv2_virtual_links_endpoints_container':
                     ospfv2_virtual_links_endpoints_container,
-                'outbound_filters_ref': outbound_filters_ref,
+                'outbound_filters_ref': outbound_filters,
                 'shortcut_capable_area': shortcut_capable_area}
 
         return ElementCreator(cls, json)
 
+    @classmethod
+    def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
+        if 'inbound_filters' in kwargs:
+            kwargs.update(inbound_filters_ref=kwargs.pop('inbound_filters'))
+        if 'outbound_filters' in kwargs:
+            kwargs.update(outbound_filters_ref=kwargs.pop('outbound_filters'))
+        return super(OSPFArea, cls).update_or_create(filter_key, with_status, **kwargs)
+        
     @property
     def interface_settings_ref(self):
         return Element.from_href(self.data.get('interface_settings_ref'))
+    
+    @property
+    def inbound_filters(self):
+        return [Element.from_href(filt)
+            for filt in self.data.get('inbound_filters_ref', [])]
+    
+    @property
+    def outbound_filters(self):
+        return [Element.from_href(filt)
+            for filt in self.data.get('outbound_filters_ref', [])]
 
 
 class OSPFInterfaceSetting(Element):
@@ -378,6 +408,23 @@ class OSPFKeyChain(Element):
         return ElementCreator(cls, json)
 
 
+def _format_redist_entry(redistribution_entry):
+    for entry in redistribution_entry:
+        _filter = entry.pop('filter', None)
+        if _filter and _filter.typeof == 'ip_access_list':
+            entry.update(
+                filter_type='access_list',
+                redistribution_filter_ref=_filter.href)
+        elif _filter and _filter.typeof == 'route_map':
+            entry.update(
+                filter_type='route_map_policy',
+                redistribution_rm_ref=_filter.href)
+        if not 'metric_type' in entry:
+            entry.update(
+                metric_type='external_1')
+    return redistribution_entry
+
+    
 class OSPFProfile(Element):
     """
     An OSPF Profile contains administrative distance and redistribution 
@@ -399,9 +446,31 @@ class OSPFProfile(Element):
 
     @classmethod
     def create(cls, name, domain_settings_ref=None, external_distance=110,
-               inter_distance=110, intra_distance=110):
+               inter_distance=110, intra_distance=110, redistribution_entry=None,
+               default_metric=None, comment=None):
         """
-        Create an OSPF Profile
+        Create an OSPF Profile.
+        
+        If providing a list of redistribution entries, provide in the following
+        dict format: 
+        
+        {'enabled': boolean, 'metric_type': 'external_1' or 'external_2',
+         'metric': 2, 'type': 'kernel'}
+        
+        Valid types for redistribution entries are: kernel, static, connected, bgp,
+        and default_originate.
+        
+        You can also provide a 'filter' key with either an IPAccessList or RouteMap
+        element to use for further access control on the redistributed route type.
+        If metric_type is not provided, external_1 (E1) will be used. 
+        
+        An example of a redistribution_entry would be::
+        
+            {u'enabled': True,
+             u'metric': 123,
+             u'metric_type': u'external_2',
+             u'filter': RouteMap('myroutemap'),
+             u'type': u'static'}
 
         :param str name: name of profile
         :param str,OSPFDomainSetting domain_settings_ref: OSPFDomainSetting 
@@ -409,6 +478,7 @@ class OSPFProfile(Element):
         :param int external_distance: route metric (E1-E2)
         :param int inter_distance: routes learned from different areas (O IA)
         :param int intra_distance: routes learned from same area (O)
+        :param list redistribution_entry: how to redistribute the OSPF routes.
         :raises CreateElementFailed: create failed with reason
         :return: instance with meta
         :rtype: OSPFProfile
@@ -416,18 +486,31 @@ class OSPFProfile(Element):
         json = {'name': name,
                 'external_distance': external_distance,
                 'inter_distance': inter_distance,
-                'intra_distance': intra_distance}
+                'intra_distance': intra_distance,
+                'default_metric': default_metric,
+                'comment': comment}
+        
+        if redistribution_entry:
+            json.update(redistribution_entry=
+                _format_redist_entry(redistribution_entry))
 
         if not domain_settings_ref:
             domain_settings_ref = OSPFDomainSetting(
                 'Default OSPFv2 Domain Settings').href
         else:
             domain_settings_ref = element_resolver(domain_settings_ref)
-
+            
         json.update(domain_settings_ref=domain_settings_ref)
 
         return ElementCreator(cls, json)
-
+        
+    @classmethod
+    def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
+        if 'redistribution_entry' in kwargs:
+            kwargs.update(redistribution_entry=_format_redist_entry(
+                kwargs.pop('redistribution_entry', [])))
+        return super(OSPFProfile, cls).update_or_create(filter_key, with_status, **kwargs)
+    
     @property
     def external_distance(self):
         """
