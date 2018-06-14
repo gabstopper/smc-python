@@ -122,12 +122,12 @@ Then from launching scripts, you can do:
 	session.login()
 	session.logout()
 
-.. note:: It is possible to override the location of .smcrc by using the 'altpath' argument in
+.. note:: It is possible to override the location of .smcrc by using the 'alt_filepath' argument in
           the login constructor.
 
 .. code-block:: python
 
-   session.login(altpath='/home/somedir/test')
+   session.login(alt_filepath='/home/somedir/test')
 
 Environment Variables
 *********************
