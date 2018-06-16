@@ -44,7 +44,7 @@ configurations::
 """
 
 from smc.api.exceptions import ElementNotFound
-from smc.base.model import SubElement, SubElementCreator
+from smc.base.model import SubElement, SubElementCreator, ElementRef
 from smc.base.model import Element, ElementCreator
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
@@ -126,9 +126,12 @@ class ExternalGateway(Element):
         gw = ExternalGateway.create(name='mygw')
         gw.external_endpoint.create(name='myendpoint', address='10.10.10.10')
         gw.vpn_site.create(name='mysite', site_element=[Network('mynetwork')])
-
+    
+    :ivar GatewayProfile gateway_profile: A gateway profile will define the
+        capabilities (i.e. crypto) allowed for this VPN.
     """
     typeof = 'external_gateway'
+    gateway_profile = ElementRef('gateway_profile')
 
     @classmethod
     def create(cls, name, trust_all_cas=True):
@@ -251,16 +254,6 @@ class ExternalGateway(Element):
         :rtype: bool
         """
         return self.data.get('trust_all_cas')
-
-    @property
-    def gateway_profile(self):
-        """
-        Return the Gateway Profile for this external gateway. A gateway
-        profile will define the capabilities (i.e. crypto) allowed for this VPN.
-
-        :return: :class:`.GatewayProfile`
-        """
-        return Element.from_href(self.data.get('gateway_profile'))
 
 
 class ExternalEndpoint(SubElement):
@@ -435,8 +428,11 @@ class VPNSite(SubElement):
     This class is a property of :py:class:`smc.core.engine.InternalGateway`
     or :py:class:`smc.vpn.elements.ExternalGateway` and should not be accessed
     directly.
+    
+    :ivar InternalGateway,ExternalGateway gateway: gateway referenced
     """
     typeof = 'vpn_site'
+    gateway = ElementRef('gateway')
     
     def create(self, name, site_element):
         """
@@ -529,10 +525,6 @@ class VPNSite(SubElement):
         element = element_resolver(element)
         self.data['site_element'].extend(element)
         self.update()
-
-    @property
-    def gateway(self):
-        return Element.from_href(self.data.get('gateway'))
 
        
 class VPNProfile(Element):

@@ -56,8 +56,6 @@ Then create the multilink specifying the multilink members::
 """
 from smc.base.model import Element, ElementCreator, ElementCache
 from smc.base.util import element_resolver
-from smc.api.exceptions import MissingRequiredInput, ElementNotFound,\
-    CreateElementFailed
 from smc.core.general import RankedDNSAddress
 
 
@@ -92,16 +90,16 @@ class StaticNetlink(Element):
         Create a new StaticNetlink to be used as a traffic handler.
 
         :param str name: name of netlink Element
-        :param gateway: gateway to map this netlink to. This can be an element
+        :param gateway_ref: gateway to map this netlink to. This can be an element
             or str href.
-        :type gateway: Router,Engine
-        :param list network: network/s associated with this netlink.
-        :type network: list(str,Element)
+        :type gateway_ref: Router,Engine
+        :param list ref: network/s associated with this netlink.
+        :type ref: list(str,Element)
         :param int input_speed: input speed in Kbps, used for ratio-based
             load-balancing
         :param int output_speed: output speed in Kbps,  used for ratio-based
             load-balancing
-        :param list domain_server_address: dns addresse for netlink. Engine
+        :param list domain_server_address: dns address for netlink. Engine
             DNS can override this field
         :type dns_addresses: list(str,Element)
         :param str provider_name: optional name to identify provider for this
@@ -154,45 +152,43 @@ class StaticNetlink(Element):
         :return: element instance by type or 3-tuple if with_status set
         """
         updated, created = False, False
-        name = kwargs.pop('name', None)
-        try:
-            element = cls.get(name)
-            gateway = kwargs.pop('gateway', None)
-            if gateway is not None and gateway != element.gateway:
-                element.gateway = gateway
-                updated = True
-            
-            for net in kwargs.pop('network', []):
-                if net not in element.network:
-                    element.data['ref'].append(element_resolver(net))
+        element, _created = super(StaticNetlink, cls).get_or_create(with_status=True, **kwargs)
+        if _created:
+            created = True
+        else:
+            if 'domain_server_address' in kwargs:
+                dns = kwargs.pop('domain_server_address', [])
+                current_dns = element.domain_server_address
+                new_entries = RankedDNSAddress([])
+                new_entries.add(dns)
+                if len(new_entries) != len(current_dns):
+                    element.update(domain_server_address=new_entries.entries)
                     updated = True
+                else:
+                    if any(entry for entry in dns if entry not in current_dns):
+                        element.update(domain_server_address=new_entries.entries)
+                        updated = True
             
-            current_dns = len(element.domain_server_address)
-            element.domain_server_address.append(
-                kwargs.pop('domain_server_address', []))
-            if len(element.domain_server_address) != current_dns:
+            gateway = element_resolver(kwargs.pop('gateway', None))
+            if gateway and gateway != element.data.get('gateway_ref'):
+                element.data.update(gateway_ref=gateway)
                 updated = True
-
+            network = element_resolver(kwargs.pop('network', []))
+            if network and set(element.data.get('ref')) ^ set(network):    
+                element.data.update(ref=network)
+                updated = True
+            
             for name, value in kwargs.items():
-                if getattr(element, name, None) != value:
-                    #setattr(element, name, value)
+                if element.data.get(name) != value:
                     element.data[name] = value
-                    updated = True      
+                    updated = True
             
             if updated:
                 element.update()
-
-        except ElementNotFound:
-            try:
-                element = cls.create(name=name, **kwargs)
-                created = True
-            except TypeError:
-                raise CreateElementFailed('%s: %r not found and missing '
-                    'constructor arguments to properly create.' %
-                    (cls.__name__, name))
-        
+             
         if with_status:
             return element, updated, created
+        
         return element
 
     def add_network(self, network):
@@ -561,37 +557,4 @@ class MultilinkMember(object):
     def __repr__(self):
         return 'MultilinkMember(netlink={},netlink_role={},ip_range={})'.format(
             self.netlink, self.netlink_role, self.ip_range)  
-    
-        
-def multilink_member(netlink, nat_range, netlink_network=None,
-                     netlink_role='active'):
-    """
-    :param StaticNetlink netlink: netlink element for multilink member
-    :param str nat_range: ip address range to use for NAT. This needs
-        to be a range in the same network defined in the netlink
-    :param str,Element netlink_network: netlink network when multiple
-        networks are defined within a netlink. Only one network can be
-        defined for each multilink member.
-    :param str netlink_role: role for this netlink member. Values can
-        be 'active' or 'standby' (default: 'active')
-    :raises ElementNotFound: if provided netlink or netlink_network is
-        not found.
-    :return: member dict required for calling Multilink create
-    :rtype: dict
-    """
-    member = {}
-    member.update(netlink_ref=netlink.href)
-    if len(netlink.networks) > 1: 
-        if not netlink_network:
-            raise MissingRequiredInput(
-                'Netlink %r has more than one network defined. You must '
-                'specify which network to use with the netlink_network '
-                'parameter' % netlink.name)
-        netlink_network = element_resolver(netlink_network)
-        member.update(network_ref=netlink_network)
-    else:
-        member.update(network_ref=netlink.networks[0].href)
 
-    member.update(ip_range=nat_range,
-                  netlink_role=netlink_role)
-    return member    

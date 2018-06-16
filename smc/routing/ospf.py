@@ -46,84 +46,29 @@ Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF.
              :py:class:`smc.core.engines.Layer3VirtualEngine`
 
 """
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, ElementCache, ElementRef
 from smc.base.util import element_resolver
 
 
 class OSPF(object):
     """
-    OSPF represents the OSPF configuration on a given engine. An
-    instance is returned from an engine reference::
-    
-        engine = Engine('myengine')
-        engine.ospf.is_enabled
-        engine.ospf.profile
-        ...
-    
+    OSPF configuration on the engine. Access through an engine reference::
+        
+        engine.dynamic_routing.ospf.status
+        engine.dynamic_rotuing.ospf.enable(....)
+        
     When making changes to the OSPF configuration, any methods
     called that change the configuration also require that
     engine.update() is called once changes are complete. This way
     you can make multiple changes without refreshing the engine cache.
     
-    For example, adding advertised networks to the configuration::
-    
-        engine.ospf.reset_profile(BGPProfile('newprofile'))
-        engine.ospf.router_id('1.1.1.1')
-        engine.update()
+    :ivar OSPFProfile profile: OSPFProfile reference for this engine
     """
-    def __init__(self, engine):
-        self._engine = engine
-        self.data = self._engine.data['dynamic_routing']['ospfv2']
+    profile = ElementRef('ospfv2_profile_ref')
     
-    @property
-    def status(self):
-        """
-        Is OSPF enabled on this engine.
-        
-        :rtype: bool
-        """
-        return self.data.get('enabled')
+    def __init__(self, data=None):
+        self.data = data if data else ElementCache()
     
-    @property
-    def is_enabled(self):
-        return self.status
-
-    def enable(self, ospf_profile=None, router_id=None):
-        """
-        Enable OSPF on this engine. For master engines, enable
-        OSPF on the virtual firewall.
-
-        Once enabled on the engine, add an OSPF area to an interface::
-
-            engine.ospf.enable()
-            interface = engine.routing.get(0)
-            interface.add_ospf_area(OSPFArea('myarea'))
-
-        :param str,OSPFProfile ospf_profile: OSPFProfile element or str
-            href; if None, use default profile
-        :param str router_id: single IP address router ID
-        :raises ElementNotFound: OSPF profile not found
-        :return: None
-        """
-        if not ospf_profile:
-            ospf_profile = OSPFProfile('Default OSPFv2 Profile').href
-        else:
-            ospf_profile = element_resolver(ospf_profile)
-
-        self.data.update(
-            enabled=True,
-            ospfv2_profile_ref=ospf_profile,
-            router_id=router_id)
-    
-    def disable(self):
-        """
-        Disable OSPF on this engine.
-
-        :return: None
-        """
-        self.data.update(
-            enabled=False)
-        
     @property
     def router_id(self):
         """
@@ -134,39 +79,68 @@ class OSPF(object):
         """
         return self.data.get('router_id')
     
-    def reset_router_id(self, router_id):
-        """
-        Specified router ID for this BGP configuration. You
-        can optionally reset the router ID if you provide a
-        value to newid.
-        
-        :param str router_id: router id to use. Typically the
-            IP address. If not set, interface IP will be used.
-        """
-        self.data['router_id'] = router_id
-
     @property
-    def profile(self):
+    def status(self):
         """
-        The OSPF Profile assigned to this configuration.
+        Is OSPF enabled on this engine.
         
-        :rtype: OSPFProfile
+        :rtype: bool
         """
-        return OSPFProfile.from_href(self.data.get('ospfv2_profile_ref'))
+        return self.data.get('enabled')
     
-    def reset_profile(self, profile):
+    def disable(self):
         """
-        Reset the OSPFProfile used for this configuration.
-        
-        :param str, OSPFProfile profile: profile to use
-        :raises ElementNotFound: OSPFProfile specified is invalid
+        Disable OSPF on this engine.
+
         :return: None
-        
-        .. note:: If str is provided for the profile, the str value
-            should be the href for the element.
         """
-        self.data.update(ospfv2_profile_ref=element_resolver(profile))
+        self.data.update(
+            enabled=False)
+
+    def enable(self, ospf_profile=None, router_id=None):
+        """
+        Enable OSPF on this engine. For master engines, enable
+        OSPF on the virtual firewall.
+
+        Once enabled on the engine, add an OSPF area to an interface::
+
+            engine.dynamic_routing.ospf.enable()
+            interface = engine.routing.get(0)
+            interface.add_ospf_area(OSPFArea('myarea'))
+
+        :param str,OSPFProfile ospf_profile: OSPFProfile element or str
+            href; if None, use default profile
+        :param str router_id: single IP address router ID
+        :raises ElementNotFound: OSPF profile not found
+        :return: None
+        """
+        ospf_profile = element_resolver(ospf_profile) if ospf_profile \
+            else OSPFProfile('Default OSPFv2 Profile').href
+
+        self.data.update(
+            enabled=True,
+            ospfv2_profile_ref=ospf_profile,
+            router_id=router_id)
     
+    def update_configuration(self, **kwargs):
+        """
+        Update the OSPF configuration using kwargs that match the
+        `enable` constructor.
+        
+        :param dict kwargs: keyword arguments matching enable constructor.
+        :return: whether change was made
+        :rtype: bool
+        """
+        updated = False
+        if 'ospf_profile' in kwargs:
+            kwargs.update(ospfv2_profile_ref=kwargs.pop('ospf_profile'))
+        for name, value in kwargs.items():
+            _value = element_resolver(value)
+            if self.data.get(name) != _value:
+                self.data[name] = _value
+                updated = True
+        return updated
+
 
 class OSPFArea(Element):
     """
@@ -219,8 +193,12 @@ class OSPFArea(Element):
                      'substitute_type': 'substitute_with'},
                     {'subnet_ref': 'http://172.18.1.150:8082/6.1/elements/network/979',
                      'substitute_type': 'aggregate'}])
+    
+    :ivar OSPFInterfaceSetting interface_settings_ref: reference to the OSPFInterfaceSetting
+        element
     """
     typeof = 'ospfv2_area'
+    interface_settings_ref = ElementRef('interface_settings_ref')
 
     @classmethod
     def create(cls, name, interface_settings_ref=None, area_id=1,
@@ -237,10 +215,10 @@ class OSPFArea(Element):
         :param str name: area id
         :param str area_type: \|normal\|stub\|not_so_stubby\|totally_stubby\|
                totally_not_so_stubby
-        :param str outbound_filters_ref: reference to 
-               :py:class:`~smc.routing.access_list.IPAccessList`
-        :param str inbound_filters_ref: reference to
-               :py:class:`~smc.routing.access_list.IPAccessList`
+        :param list outbound_filters: reference to an IPAccessList and or IPPrefixList.
+            You can only have one outbound prefix or access list
+        :param list inbound_filters: reference to an IPAccessList and or IPPrefixList.
+            You can only have one outbound prefix or access list
         :param shortcut_capable_area: True|False
         :param list ospfv2_virtual_links_endpoints_container: virtual link endpoints
         :param list ospf_abr_substitute_container: substitute types: 
@@ -249,11 +227,8 @@ class OSPFArea(Element):
         :raises CreateElementFailed: failed to create with reason
         :rtype: OSPFArea
         """
-        if interface_settings_ref is None:
-            interface_settings_ref = \
-                OSPFInterfaceSetting('Default OSPFv2 Interface Settings').href
-        else:
-            interface_settings_ref = element_resolver(interface_settings_ref)
+        interface_settings_ref = element_resolver(interface_settings_ref) or \
+            OSPFInterfaceSetting('Default OSPFv2 Interface Settings').href
         
         if 'inbound_filters_ref' in kwargs:
             inbound_filters = kwargs.get('inbound_filters_ref')
@@ -265,12 +240,12 @@ class OSPFArea(Element):
                 'area_id': area_id,
                 'area_type': area_type,
                 'comment': comment,
-                'inbound_filters_ref': inbound_filters,
+                'inbound_filters_ref': element_resolver(inbound_filters),
                 'interface_settings_ref': interface_settings_ref,
                 'ospf_abr_substitute_container': ospf_abr_substitute_container,
                 'ospfv2_virtual_links_endpoints_container':
                     ospfv2_virtual_links_endpoints_container,
-                'outbound_filters_ref': outbound_filters,
+                'outbound_filters_ref': element_resolver(outbound_filters),
                 'shortcut_capable_area': shortcut_capable_area}
 
         return ElementCreator(cls, json)
@@ -278,22 +253,32 @@ class OSPFArea(Element):
     @classmethod
     def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
         if 'inbound_filters' in kwargs:
-            kwargs.update(inbound_filters_ref=kwargs.pop('inbound_filters'))
+            kwargs.update(inbound_filters_ref=
+                element_resolver(kwargs.pop('inbound_filters')))
         if 'outbound_filters' in kwargs:
-            kwargs.update(outbound_filters_ref=kwargs.pop('outbound_filters'))
+            kwargs.update(outbound_filters_ref=
+                element_resolver(kwargs.pop('outbound_filters')))
         return super(OSPFArea, cls).update_or_create(filter_key, with_status, **kwargs)
-        
-    @property
-    def interface_settings_ref(self):
-        return Element.from_href(self.data.get('interface_settings_ref'))
-    
+
     @property
     def inbound_filters(self):
+        """
+        Inbound filters attached to this OSPF Area. Filters can be type
+        IPPrefixList or IPAccessList
+        
+        :rtype: list
+        """
         return [Element.from_href(filt)
             for filt in self.data.get('inbound_filters_ref', [])]
     
     @property
     def outbound_filters(self):
+        """
+        Outbound filters attached to this OSPF Area. Filters can be type
+        IPPrefixList or IPAccessList
+        
+        :rtype: list
+        """
         return [Element.from_href(filt)
             for filt in self.data.get('outbound_filters_ref', [])]
 
@@ -322,6 +307,7 @@ class OSPFInterfaceSetting(Element):
     parameter must be specified.
     """
     typeof = 'ospfv2_interface_settings'
+    key_chain_ref = ElementRef('key_chain_ref')
 
     @classmethod
     def create(cls, name, dead_interval=40, hello_interval=10,
@@ -351,11 +337,10 @@ class OSPFInterfaceSetting(Element):
         :return: instance with meta
         :rtype: OSPFInterfaceSetting
         """
-        key_chain_ref = element_resolver(key_chain_ref) if key_chain_ref else None
         json = {'name': name,
                 'authentication_type': authentication_type,
                 'password': password,
-                'key_chain_ref': key_chain_ref,
+                'key_chain_ref': element_resolver(key_chain_ref),
                 'dead_interval': dead_interval,
                 'dead_multiplier': dead_multiplier,
                 'hello_interval': hello_interval,
@@ -401,7 +386,7 @@ class OSPFKeyChain(Element):
         :return: instance with meta
         :rtype: OSPFKeyChain
         """
-        key_chain_entry = [] if key_chain_entry is None else key_chain_entry
+        key_chain_entry = key_chain_entry or []
         json = {'name': name,
                 'ospfv2_key_chain_entry': key_chain_entry}
 
@@ -440,9 +425,17 @@ class OSPFProfile(Element):
         OSPFProfile.create(name='myospf')
 
     .. note:: Enable OSPF on engine using engine.ospf.enable()
-
+    
+    :ivar int external_distance: external distance metric
+    :ivar int inter_distance: inter distance metric
+    :ivar int intra_distance: intra distance metric
+    :ivar int default_metric: set a default metric for all unset areas
+    :ivar list redistribution_entry: settings for static, connected, etc
+    :ivar OSPFDomainSetting domain_settings_ref: OSPF Domain Settings profile
+        used for this OSPF Profile
     """
     typeof = 'ospfv2_profile'
+    domain_settings_ref = ElementRef('domain_settings_ref')
 
     @classmethod
     def create(cls, name, domain_settings_ref=None, external_distance=110,
@@ -480,7 +473,6 @@ class OSPFProfile(Element):
         :param int intra_distance: routes learned from same area (O)
         :param list redistribution_entry: how to redistribute the OSPF routes.
         :raises CreateElementFailed: create failed with reason
-        :return: instance with meta
         :rtype: OSPFProfile
         """
         json = {'name': name,
@@ -494,12 +486,9 @@ class OSPFProfile(Element):
             json.update(redistribution_entry=
                 _format_redist_entry(redistribution_entry))
 
-        if not domain_settings_ref:
-            domain_settings_ref = OSPFDomainSetting(
-                'Default OSPFv2 Domain Settings').href
-        else:
-            domain_settings_ref = element_resolver(domain_settings_ref)
-            
+        domain_settings_ref = element_resolver(domain_settings_ref) or \
+            OSPFDomainSetting('Default OSPFv2 Domain Settings').href
+
         json.update(domain_settings_ref=domain_settings_ref)
 
         return ElementCreator(cls, json)
@@ -510,42 +499,6 @@ class OSPFProfile(Element):
             kwargs.update(redistribution_entry=_format_redist_entry(
                 kwargs.pop('redistribution_entry', [])))
         return super(OSPFProfile, cls).update_or_create(filter_key, with_status, **kwargs)
-    
-    @property
-    def external_distance(self):
-        """
-        External administrative distance. Between 1-255.
-
-        :return: int distance value
-        """
-        return self.data.get('external_distance')
-
-    @property
-    def inter_distance(self):
-        """
-        Inter administrative distance. Between 1-255.
-
-        :return: int distance value
-        """
-        return self.data.get('inter_distance')
-
-    @property
-    def intra_distance(self):
-        """
-        Intra administrative distance. Between 1-255.
-
-        :return: int distance value
-        """
-        return self.data.get('intra_distance')
-
-    @property
-    def domain_settings_ref(self):
-        """
-        OSPF Domain Settings profile used for this OSPF Profile
-
-        :return: :class:`~OSPFDomainSetting`
-        """
-        return Element.from_href(self.data.get('domain_settings_ref'))
 
 
 class OSPFDomainSetting(Element):

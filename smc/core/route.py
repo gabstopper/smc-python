@@ -222,7 +222,9 @@ class RoutingTree(SubElement):
         
         :rtype: str
         """
-        return self.data.get('related_element_type')
+        if 'related_element_type' in self.data:
+            return self.data.get('related_element_type')
+        return Element.from_href(self.data.get('href')).typeof # pre-6.4
 
     def as_tree(self, level=0):
         """
@@ -409,8 +411,8 @@ class Routing(RoutingTree):
             
         :param StaticNetlink,Multilink netlink: netlink element
         :param list(Element) netlink_gw: list of elements that should be destinations
-            for this netlink. Typically these may be of type host, router, group, servers,
-            networks or engine. 
+            for this netlink. Typically these may be of type host, router, group, server,
+            network or engine. 
         :param str network: if network specified, only add OSPF to this network on interface
         :raises UpdateElementFailed: failure updating routing
         :raises ModificationAborted: Change must be made at the interface level
@@ -422,8 +424,8 @@ class Routing(RoutingTree):
             destinations=[] if not netlink_gw else netlink_gw)
         return self._add_gateway_node('netlink', routing_node_gateway, network)
 
-    def add_ospf_area(self, ospf_area, communication_mode='NOT_FORCED',
-                      unicast_ref=None, network=None):
+    def add_ospf_area(self, ospf_area, ospf_interface_setting=None, network=None,
+                      communication_mode='NOT_FORCED', unicast_ref=None):
         """
         Add OSPF Area to this routing node.
 
@@ -444,13 +446,16 @@ class Routing(RoutingTree):
             interface.add_ospf_area(area)
 
         .. note:: If UNICAST is specified, you must also provide a unicast_ref
-                  to identify the remote host
+                  of element type Host to identify the remote host. If no
+                  unicast_ref is provided, this is skipped
 
         :param OSPFArea ospf_area: OSPF area instance or href
-        :param str communication_mode: NOT_FORCED|POINT_TO_POINT|PASSIVE|UNICAST
-        :param Element unicast_ref: Element used as unicast gw (required for UNICAST)
+        :param OSPFInterfaceSetting ospf_interface_setting: used to override the
+            OSPF settings for this interface (optional)
         :param str network: if network specified, only add OSPF to this network
             on interface
+        :param str communication_mode: NOT_FORCED|POINT_TO_POINT|PASSIVE|UNICAST
+        :param Element unicast_ref: Element used as unicast gw (required for UNICAST)
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure updating routing
         :raises ElementNotFound: ospf area not found
@@ -458,9 +463,12 @@ class Routing(RoutingTree):
         :rtype: bool
         """
         communication_mode = communication_mode.upper()
+        destinations=[] if not ospf_interface_setting else [ospf_interface_setting]
+        if communication_mode == 'UNICAST' and unicast_ref:
+            destinations.append(unicast_ref)
         routing_node_gateway = RoutingNodeGateway(
             ospf_area, communication_mode=communication_mode,
-            destinations=[] if not unicast_ref else [unicast_ref])
+            destinations=destinations)
         return self._add_gateway_node('ospfv2_area', routing_node_gateway, network)
 
     def add_bgp_peering(self, bgp_peering, external_bgp_peer=None,
@@ -538,7 +546,7 @@ class Routing(RoutingTree):
         :rtype: bool
         """
         routing_node_gateway = RoutingNodeGateway(dynamic_classid='gateway',
-            destinations=[] if not networks else networks)
+            destinations=networks or [])
         return self._add_gateway_node('dynamic_netlink', routing_node_gateway)
     
     def _add_gateway_node_on_tunnel(self, routing_node_gateway):
@@ -584,7 +592,7 @@ class Routing(RoutingTree):
         
         :param Routing self: the routing node, should be the interface routing node
         :param str gw_type: type of gateway, i.e. netlink, ospfv2_area, etc
-        :param list(Element) destinations: list of destinations if any
+        :param RoutingNodeGateway route_node_gateway: gateway element
         :param str network: network to bind to. If none, all networks
         :return: Whether a change was made or not
         :rtype: bool
@@ -595,7 +603,7 @@ class Routing(RoutingTree):
         
         if self.related_element_type == 'tunnel_interface':
             return self._add_gateway_node_on_tunnel(routing_node_gateway)
-
+        
         # Find any existing gateways
         routing_node = list(gateway_by_type(self, type=gw_type, on_network=network))
         
@@ -713,8 +721,8 @@ class RoutingNodeGateway(Routing):
         if element:
             self.data.update(
                 href=element.href,
-                name=element.name,
-                related_element_type=element.typeof)
+                name=element.name)
+                #related_element_type=element.typeof)
         
         for destination in self.destinations:
             self.data['routing_node'].append(
@@ -762,34 +770,67 @@ class Antispoofing(RoutingTree):
         :rtype: str
         """
         return self.data.get('validity')
-
-    def add(self, entry):
+    
+    def add(self, element):
         """
         Add an entry to this antispoofing node level.
         Entry can be either href or network elements specified
         in :py:class:`smc.elements.network`
         ::
 
-            for entry in engine.antispoofing.all():
-                if entry.name == 'Interface 0':
-                    entry.add(Network('network-10.1.2.0/24'))
+            if0 = engine.antispoofing.get(0)
+            if0.add(Network('foonet'))
 
-        :param Element entry: entry to add, i.e. Network('mynetwork'), Host(..)
-        :return: None
+        :param Element element: entry to add, i.e. Network('mynetwork'), Host(..)
         :raises CreateElementFailed: failed adding entry
         :raises ElementNotFound: element entry specified not in SMC
+        :return: whether entry was added
+        :rtype: bool
         """
-        node = {
-            'antispoofing_node': [],
-            'auto_generated': 'false',
-            'href': entry.href,
-            'level': self.level,
-            'validity': 'enable',
-            'name': entry.name}
+        if self.level == 'interface':
+            for network in self:
+                if from_meta(network) == element:
+                    return False
+        
+            self.data['antispoofing_node'].append({
+                'antispoofing_node': [],
+                'auto_generated': 'false',
+                'href': element.href,
+                'level': self.level,
+                'validity': 'enable',
+                'name': element.name})
 
-        self.data['antispoofing_node'].append(node)
-        self.update()
-
+            self.update()
+            return True
+        return False
+    
+    def __len__(self):
+        return len(self.data.get('antispoofing_node', []))
+    
+    def remove(self, element):
+        """
+        Remove a specific user added element from the antispoofing tables of
+        a given interface. This will not remove autogenerated or system level
+        entries.
+        
+        :param Element element: element to remove
+        :return: remove element if it exists and return bool
+        :rtype: bool
+        """
+        if self.level == 'interface':
+            len_before_change = len(self)
+            _nodes = []
+            for network in self:
+                if from_meta(network) != element:
+                    _nodes.append(network.data)
+                else:
+                    if network.autogenerated: # Make sure it was user added
+                        _nodes.append(network.data)
+            if len(_nodes) != len_before_change:
+                self.data['antispoofing_node'] = _nodes
+                self.update()
+                return True
+        return False
 
 def from_meta(node):
     """
@@ -800,7 +841,7 @@ def from_meta(node):
     :rtype: Element
     """
     # Version SMC < 6.4
-    if not node.related_element_type:
+    if 'related_element_type' not in node.data:
         return Element.from_href(
             node.data.get('href'))
     

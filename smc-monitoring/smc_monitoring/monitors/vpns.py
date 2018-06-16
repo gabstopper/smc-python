@@ -19,6 +19,12 @@ Execute query and return as a :class:`.VPNSecurityAssoc` element::
     for records in query.fetch_as_element():
         ...
 
+Delete a VPN SA::
+
+    query = VPNSAQuery('sg_vm')
+    for sa in query.fetch_as_element():
+        sa.delete()
+        
 .. seealso:: :class:`smc_monitoring.models.filters` for more information on creating filters
 
 """

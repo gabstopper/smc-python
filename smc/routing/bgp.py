@@ -48,191 +48,62 @@ Only Layer3Firewall and Layer3VirtualEngine types can support running BGP.
              :class:`smc.core.engines.Layer3VirtualEngine`
              
 """
-from smc.base.model import Element, ElementCreator, ElementCache
+from smc.base.model import Element, ElementCreator, ElementCache,\
+    ElementRef
 from smc.base.util import element_resolver
+from smc.routing.ospf import OSPF
 
 
-# class NewBGP(object):
-#     """
-#     BGP represents the BGP configuration on a given engine. An
-#     instance is returned from an engine reference::
-#     
-#         engine = Engine('myengine')
-#         engine.bgp.status
-#         engine.bgp.advertisements
-#         ...
-#     
-#     When making changes to the BGP configuration, any methods
-#     called that change the configuration also require that
-#     engine.update() is called once changes are complete. This way
-#     you can make multiple changes without refreshing the engine cache.
-#     
-#     For example, adding advertised networks to the configuration::
-#     
-#         engine.bgp.update_configuration(announced_network=[Network('foo')])
-#         engine.update()
-# 
-#     """
-#     def __init__(self, engine=None):
-#         self.data = engine.data.get('dynamic_routing', {}).get('bgp')\
-#             if engine else ElementCache()
-#     
-#     @property
-#     def router_id(self):
-#         """
-#         Get the router ID for this BGP configuration. If None, then
-#         the ID will use the interface IP.
-#         
-#         :return: str or None
-#         """
-#         return self.data.get('router_id')
-#     
-#     @property
-#     def status(self):
-#         """
-#         Is BGP enabled on this engine.
-#         
-#         :rtype: bool
-#         """
-#         return self.data.get('enabled')
-#     
-#     def disable(self):
-#         """
-#         Disable BGP on this engine.
-# 
-#         :return: None
-#         """
-#         self.data.update(    
-#             enabled=False,
-#             announced_ne_setting=[])
-#     
-#     def enable(self, autonomous_system, announced_networks,
-#                router_id=None, bgp_profile=None):
-#         """
-#         Enable BGP on this engine. On master engine, enable BGP on the
-#         virtual firewall. When adding networks to `announced_networks` or
-#         `antispoofing_networks`, the element types can be of type
-#         :class:`smc.elements.network.Host`, :class:`smc.elements.network.Network`
-#         or :class:`smc.elements.group.Group`. If passing a Group, it must have
-#         element types of host or network.
-#         ::
-# 
-#             engine.bgp.enable(
-#                 autonomous_system=AutonomousSystem('aws_as'),
-#                 announced_networks=[Network('bgpnet'),Network('inside')],
-#                 router_id='10.10.10.10')
-# 
-#         :param str,AutonomousSystem autonomous_system: provide the AS element
-#             or str href for the element
-#         :param str,BGPProfile bgp_profile: provide the BGPProfile element or
-#             str href for the element; if None, use system default
-#         :param list announced_networks: list of networks to advertise via BGP
-#         :type announced_networks: list(str,Element). 
-#         :param list antispoofing_networks: list of networks to advertise via BGP
-#         :type antispoofing_networks: list(str, Element)
-#         :param str router_id: router id for BGP, should be an IP address. If not
-#             set, automatic discovery will use default bound interface as ID.
-#         :raises ElementNotFound: OSPF, AS or Networks not found
-#         :return: None
-#         
-#         .. note:: For arguments that take str or Element, the str value should be
-#             the href of the element.
-#         """
-#         autonomous_system = element_resolver(autonomous_system)
-#     
-#         bgp_profile = element_resolver(bgp_profile) if bgp_profile \
-#             else BGPProfile('Default BGP Profile').href
-#         
-#         announced = [self._unwrap(*network)
-#                      for network in announced_networks]
-#         
-#         self.data.update(
-#             enabled=True,
-#             bgp_as_ref=autonomous_system,
-#             bgp_profile_ref=bgp_profile,
-#             announced_ne_setting=announced,
-#             router_id=router_id)
-#     
-#     def update_configuration(self, **kwargs):
-#         """
-#         Update configuration using valid kwargs as defined in
-#         the enable constructor.
-#         
-#         :param dict kwargs: kwargs to satisfy valid args from `enable`
-#         :rtype: bool
-#         """
-#         updated = False
-#         if 'announced_networks' in kwargs:
-#             kwargs.update(announced_ne_setting=kwargs.pop('announced_networks'))
-#         if 'bgp_profile' in kwargs:
-#             kwargs.update(bgp_profile_ref=kwargs.pop('bgp_profile'))
-#         if 'autonomous_system' in kwargs:
-#             kwargs.update(bgp_as_ref=kwargs.pop('autonomous_system'))
-#         
-#         announced_ne = kwargs.pop('announced_ne_setting', None)
-#         
-#         for name, value in kwargs.items():
-#             _value = element_resolver(value)
-#             if self.data.get(name) != _value:
-#                 self.data[name] = _value
-#                 updated = True
-#         
-#         if announced_ne is not None:
-#             s = self.data.get('announced_ne_setting')
-#             if len(announced_ne) != len(s) or not self._equal(announced_ne, s):
-#                 self.data.update(announced_ne_setting=announced_ne)
-#                 updated = True
-#             
-#         return updated    
-#     
-#     def _equal(self, dict1, dict2):
-#         _s = {entry.get('announced_ne_ref'): entry.get('announced_rm_ref')
-#               for entry in dict1}
-#         _d = {entry.get('announced_ne_ref'): entry.get('announced_rm_ref')
-#               for entry in dict2}
-#         return cmp(_s, _d) == 0
-#     
-#     def _unwrap(self, network, route_map=None):
-#         d = dict(announced_ne_ref=network.href)
-#         if route_map:
-#             d.update(announced_rm_ref=route_map.href)
-#         return d
-#     
-#     @property
-#     def autonomous_system(self):
-#         """
-#         The autonomous system assigned to this BGP configuration.
-#         
-#         :rtype: AutonomousSystem
-#         """
-#         return Element.from_href(self.data.get('bgp_as_ref'))
-#     
-#     @property
-#     def profile(self):
-#         """
-#         The BGP Profile assigned to this configuration.
-#         
-#         :rtype: BGPProfile
-#         """
-#         return Element.from_href(self.data.get('bgp_profile_ref'))
-#     
-#     @property
-#     def announced_networks(self):
-#         """
-#         Show all announced networks for the BGP configuration.
-#         Returns tuple of advertised network, routemap. Route
-#         map may be None.
-#         ::
-#         
-#             for advertised in engine.bgp.advertisements:
-#                 net, route_map = advertised
-#         
-#         :return: list of tuples (advertised_network, route_map).
-#         """
-#         return [(Element.from_href(ne.get('announced_ne_ref')),
-#                  Element.from_href(ne.get('announced_rm_ref')))
-#                  for ne in self.data.get('announced_ne_setting')]
+class DynamicRouting(object):
+    """
+    Dynamic Routing element node. Encapsulates antispoofing networks
+    to be added for dynamic routing protocols as well as references
+    to OSPF and BGP configurations.
+    """
+    def __init__(self, engine):
+        self.data = engine.data.get('dynamic_routing', {})
+        
+    @property
+    def antispoofing_networks(self):
+        return [Element.from_href(network)
+            for network in self.data.get('antispoofing_ne_ref', [])]
     
+    def update_antispoofing(self, networks=None):
+        """
+        Pass a list of networks to update antispoofing networks with.
+        You can clear networks by providing an empty list. If networks
+        are provided but already exist, no update is made.
+        
+        :param list networks: networks, groups or hosts for antispoofing
+        :rtype: bool
+        """
+        if not networks and len(self.data.get('antispoofing_ne_ref')):
+            self.data.update(antispoofing_ne_ref=[])
+            return True
+        _networks = element_resolver(networks)
+        if set(_networks) ^ set(self.data.get('antispoofing_ne_ref')):
+            self.data.update(antispoofing_ne_ref=_networks)
+            return True
+        return False
+
+    @property
+    def bgp(self):
+        """
+        Reference to BGP configuration
+        
+        :rtype: BGP
+        """
+        return BGP(self.data.get('bgp', {}))
+        
+    @property
+    def ospf(self):
+        """
+        Reference to OSPF configuration
+        
+        :rtype: OSPF
+        """
+        return OSPF(self.data.get('ospfv2', {}))
+
 
 class BGP(object):
     """
@@ -240,8 +111,8 @@ class BGP(object):
     instance is returned from an engine reference::
     
         engine = Engine('myengine')
-        engine.bgp.is_enabled
-        engine.bgp.advertisements
+        engine.dynamic_routing.bgp.status
+        engine.dynamic_routing.bgp.announced_networks
         ...
     
     When making changes to the BGP configuration, any methods
@@ -251,13 +122,27 @@ class BGP(object):
     
     For example, adding advertised networks to the configuration::
     
-        engine.bgp.advertise_network(Network('foo'))
+        engine.dynamic_routing.bgp.update_configuration(announced_network=[Network('foo')])
         engine.update()
-
+    
+    :ivar AutonomousSystem autonomous_system: AS reference for this BGP configuration
+    :ivar BGPProfile profile: BGP profile reference for this configuration
     """
-    def __init__(self, engine):
-        self._engine = engine
-        self.data = self._engine.data.get('dynamic_routing', {})
+    autonomous_system = ElementRef('bgp_as_ref')
+    profile = ElementRef('bgp_profile_ref')
+    
+    def __init__(self, data=None):
+        self.data = data if data else ElementCache()
+
+    @property
+    def router_id(self):
+        """
+        Get the router ID for this BGP configuration. If None, then
+        the ID will use the interface IP.
+        
+        :return: str or None
+        """
+        return self.data.get('router_id')
     
     @property
     def status(self):
@@ -266,29 +151,33 @@ class BGP(object):
         
         :rtype: bool
         """
-        return self.data.get('bgp', False).get('enabled')
+        return self.data.get('enabled')
     
-    @property
-    def is_enabled(self):
+    def disable(self):
         """
-        Is BGP enabled on this engine.
-        
-        :rtype: bool
+        Disable BGP on this engine.
+
+        :return: None
         """
-        return self.status
+        self.data.update(    
+            enabled=False,
+            announced_ne_setting=[])
     
     def enable(self, autonomous_system, announced_networks,
-               antispoofing_networks=None, router_id=None, bgp_profile=None):
+               router_id=None, bgp_profile=None):
         """
         Enable BGP on this engine. On master engine, enable BGP on the
-        virtual firewall. When adding networks to `announced_networks` or
-        `antispoofing_networks`, the element types can be of type
-        :class:`smc.elements.network.Host`, :class:`smc.elements.network.Network`
-        or :class:`smc.elements.group.Group`. If passing a Group, it must have
-        element types of host or network.
+        virtual firewall. When adding networks to `announced_networks`, the
+        element types can be of type :class:`smc.elements.network.Host`,
+        :class:`smc.elements.network.Network` or :class:`smc.elements.group.Group`.
+        If passing a Group, it must have element types of host or network.
+        
+        Within announced_networks, you can pass a 2-tuple that provides an optional
+        :class:`smc.routing.route_map.RouteMap` if additional policy is required
+        for a given network.
         ::
 
-            engine.bgp.enable(
+            engine.dynamic_routing.bgp.enable(
                 autonomous_system=AutonomousSystem('aws_as'),
                 announced_networks=[Network('bgpnet'),Network('inside')],
                 router_id='10.10.10.10')
@@ -298,9 +187,8 @@ class BGP(object):
         :param str,BGPProfile bgp_profile: provide the BGPProfile element or
             str href for the element; if None, use system default
         :param list announced_networks: list of networks to advertise via BGP
-        :type announced_networks: list(str,Element). 
-        :param list antispoofing_networks: list of networks to advertise via BGP
-        :type antispoofing_networks: list(str, Element)
+            Announced networks can be single networks,host or group elements or
+            a 2-tuple with the second tuple item being a routemap element
         :param str router_id: router id for BGP, should be an IP address. If not
             set, automatic discovery will use default bound interface as ID.
         :raises ElementNotFound: OSPF, AS or Networks not found
@@ -310,111 +198,79 @@ class BGP(object):
             the href of the element.
         """
         autonomous_system = element_resolver(autonomous_system)
+    
+        bgp_profile = element_resolver(bgp_profile) or \
+            BGPProfile('Default BGP Profile').href
         
-        if not bgp_profile:
-            bgp_profile = BGPProfile('Default BGP Profile').href
-        else:
-            bgp_profile = element_resolver(bgp_profile)
-
-        announced = [{'announced_ne_ref': network}
-                     for network in element_resolver(announced_networks)]
+        announced = self._unwrap(announced_networks)
         
-        self.data.setdefault('bgp', {}).update(
+        self.data.update(
             enabled=True,
             bgp_as_ref=autonomous_system,
             bgp_profile_ref=bgp_profile,
             announced_ne_setting=announced,
             router_id=router_id)
-        
-        if antispoofing_networks:
-            self.data.setdefault('antispoofing_ne_ref', []).extend(
-                [element_resolver(net) for net in antispoofing_networks])
-
-    def disable(self):
-        """
-        Disable BGP on this engine.
-
-        :return: None
-        """
-        self.data.setdefault('bgp', {}).update(    
-            enabled=False,
-            announced_ne_setting=[])
-        self.data.update(antispoofing_ne_ref=[])
     
-    def reset_router_id(self, router_id):
+    def update_configuration(self, **kwargs):
         """
-        Specified router ID for this BGP configuration. You
-        can optionally reset the router ID if you provide a
-        value to newid.
+        Update configuration using valid kwargs as defined in
+        the enable constructor.
         
-        :param str router_id: router id to use. Typically the
-            IP address. If not set, interface IP will be used.
+        :param dict kwargs: kwargs to satisfy valid args from `enable`
+        :rtype: bool
         """
-        self.data.setdefault('bgp', {}).update(
-            router_id=router_id)
+        updated = False
+        if 'announced_networks' in kwargs:
+            kwargs.update(announced_ne_setting=kwargs.pop('announced_networks'))
+        if 'bgp_profile' in kwargs:
+            kwargs.update(bgp_profile_ref=kwargs.pop('bgp_profile'))
+        if 'autonomous_system' in kwargs:
+            kwargs.update(bgp_as_ref=kwargs.pop('autonomous_system'))
+        
+        announced_ne = kwargs.pop('announced_ne_setting', None)
+        
+        for name, value in kwargs.items():
+            _value = element_resolver(value)
+            if self.data.get(name) != _value:
+                self.data[name] = _value
+                updated = True
+        
+        if announced_ne is not None:
+            s = self.data.get('announced_ne_setting')
+            ne = self._unwrap(announced_ne)
+            
+            if len(announced_ne) != len(s) or not self._equal(ne, s):
+                self.data.update(announced_ne_setting=ne)
+                updated = True
+            
+        return updated    
     
-    @property
-    def router_id(self):
-        """
-        Get the router ID for this BGP configuration. If None, then
-        the ID will use the interface IP.
-        
-        :return: str or None
-        """
-        return self.data.get('bgp', None).get('router_id')
+    def _equal(self, dict1, dict2):
+        _s = {entry.get('announced_ne_ref'): entry.get('announced_rm_ref')
+              for entry in dict1}
+        _d = {entry.get('announced_ne_ref'): entry.get('announced_rm_ref')
+              for entry in dict2}
+        return len({k:_s[k] for k in _s if k not in _d or _d.get(k) != _s[k]}) == 0
     
-    @property
-    def autonomous_system(self):
-        """
-        The autonomous system assigned to this BGP configuration.
-        
-        :rtype: AutonomousSystem
-        """
-        return AutonomousSystem.from_href(
-            self.data.get('bgp', None).get('bgp_as_ref'))
-    
-    def reset_autonomous_system(self, as_element):
-        """
-        Modify an existing autonomous system reference for this BGP
-        configuration.
-        
-        :param str,AutonomousSystem as_element: instance of AS
-        :return: None
-        
-        .. note:: If str is provided for the AS, the str value
-            should be the href for the element.
-        """ 
-        self.data.setdefault('bgp', {}).update(
-            bgp_as_ref=element_resolver(as_element))
+    def _unwrap(self, network):
+        _announced = []
+        for net in network:
+            d = dict()
+            if isinstance(net, tuple):
+                _network, _routemap = net
+                d.update(announced_ne_ref=_network.href)
+                if _routemap:
+                    d.update(announced_rm_ref=_routemap.href)
+                _announced.append(d)
+                continue
+            d.update(announced_ne_ref=net.href)
+            _announced.append(d)
+        return _announced
     
     @property
-    def profile(self):
+    def announced_networks(self):
         """
-        The BGP Profile assigned to this configuration.
-        
-        :rtype: BGPProfile
-        """
-        return BGPProfile.from_href(
-            self.data.get('bgp', None).get('bgp_profile_ref'))
-    
-    def reset_profile(self, profile):
-        """
-        Reset the BGPProfile used for this configuration.
-        
-        :param str,BGPProfile profile: profile to use
-        :raises ElementNotFound: BGPProfile specified is invalid
-        :return: None
-        
-        .. note:: If str is provided for the profile, the str value
-            should be the href for the element.
-        """
-        self.data.setdefault('bgp', {}).update(
-            bgp_profile_ref=element_resolver(profile))
-        
-    @property
-    def advertisements(self):
-        """
-        Show all advertised networks for the BGP configuration.
+        Show all announced networks for the BGP configuration.
         Returns tuple of advertised network, routemap. Route
         map may be None.
         ::
@@ -426,85 +282,7 @@ class BGP(object):
         """
         return [(Element.from_href(ne.get('announced_ne_ref')),
                  Element.from_href(ne.get('announced_rm_ref')))
-                 for ne in self.data.get('bgp', []).get('announced_ne_setting')]
-        
-    def advertise_network(self, network, route_map=None):
-        """
-        Advertise a network through BGP. An advertised network can be
-        either a Host, Network or a Group of Host/Networks.
-        An optional RouteMap can be mapped to the advertised members
-        as well.
-        
-        :param str,Element network: Advertise this network. Must be of type
-            Host, Network or Group of Host, Network
-        :param str,RouteMap route_map: An optional Route Map that will be
-            applied to this network or group of networks
-        :raises UpdateElementFailed: Failure to create
-        :raises ElementNotFound: Specified network or route map not found
-        :return: None
-        
-        .. note:: If str is provided for network or route_map, the str value
-            should be the href for the element.
-        """
-        resolved = element_resolver(network)
-        announced_ne_setting = self.data.get('bgp', {}).get('announced_ne_setting')
-        
-        existing = [ref.get('announced_ne_ref') for ref in announced_ne_setting]
-    
-        if resolved not in existing:
-            announced_ne_setting.append(
-                {'announced_ne_ref': resolved,
-                 'announced_rm_ref': element_resolver(route_map)})
-        
-    def remove_advertisement(self, network):
-        """
-        Remove advertisements from the BGP configuration.
-        
-        :param networks: networks to remove
-        :type networks: list(Element)
-        :return: None
-        """ 
-        announced_ne_setting = self.data.get('bgp', {}).get(
-            'announced_ne_setting')
-        announced_ne_setting[:] = [
-            entry for entry in announced_ne_setting if
-            entry.get('announced_ne_ref') != network.href]
-
-    @property
-    def antispoofing_networks(self):
-        """
-        Show all networks which will also be placed into the antispoofing
-        routing table.
-        
-        :rtype: list(Element)
-        """
-        return [Element.from_href(net) 
-            for net in self.data.get('antispoofing_ne_ref', [])]
-    
-    def add_to_antispoofing(self, element):
-        """
-        Add a Host, Network or Group or host/networks to the networks list
-        to be added into the antispoofing table.
-        
-        :param str,Element element: any of the supported element types
-        :return: None
-        """
-        existing = self.data.get('antispoofing_ne_ref', [])
-        element = element_resolver(element)
-        if element not in existing:
-            existing.append(element)
-    
-    def remove_from_antispoofing(self, element):
-        """
-        Remove an Host, Network or Group element from the networks added
-        into the antispoofing table.
-        
-        :param str,Element element: any of the supported element types.
-        :return: None
-        """
-        antispoofing_ne_ref = self.data.get('antispoofing_ne_ref', [])
-        antispoofing_ne_ref[:] = [elem for elem in antispoofing_ne_ref
-            if elem != element.href]
+                 for ne in self.data.get('announced_ne_setting')]
         
     
 
@@ -702,8 +480,11 @@ class ExternalBGPPeer(Element):
         ExternalBGPPeer.create(name='name', 
                                neighbor_as_ref=AutonomousSystem('neighborA'),
                                neighbor_ip='1.1.1.1')
+    
+    :ivar AutonomousSystem neighbor_as: AS for this external BGP peer
     """
     typeof = 'external_bgp_peer'
+    neighbor_as = ElementRef('neighbor_as')
 
     @classmethod
     def create(cls, name, neighbor_as, neighbor_ip,
@@ -729,15 +510,6 @@ class ExternalBGPPeer(Element):
         json.update(neighbor_as=neighbor_as_ref)
 
         return ElementCreator(cls, json)
-
-    @property
-    def neighbor_as(self):
-        """
-        AutonomousSystem for this external BGP peer
-
-        :return: :class:`~AutonomousSystem` element
-        """
-        return Element.from_href(self.data.get('neighbor_as'))
 
     @property
     def neighbor_ip(self):
@@ -772,8 +544,11 @@ class BGPPeering(Element):
 
         BGPPeering.create(name='my-aws-peer')
 
+    :ivar BGPConnectionProfile connection_profile: BGP connection profile for this
+        peering
     """
     typeof = 'bgp_peering'
+    connection_profile = ElementRef('connection_profile')
 
     @classmethod
     def create(cls, name, connection_profile_ref=None,
@@ -831,24 +606,12 @@ class BGPPeering(Element):
         if md5_password:
             json.update(md5_password=md5_password)
 
-        if not connection_profile_ref:
-            connection_profile_ref = \
-                BGPConnectionProfile('Default BGP Connection Profile')
-
-        connection_profile_ref = element_resolver(connection_profile_ref)
-
+        connection_profile_ref = element_resolver(connection_profile_ref) or \
+            BGPConnectionProfile('Default BGP Connection Profile').href
+    
         json.update(connection_profile=connection_profile_ref)
 
         return ElementCreator(cls, json)
-
-    @property
-    def connection_profile(self):
-        """
-        BGP Connection Profile used by this BGP Peering.
-
-        :return: :class:`~BGPConnectionProfile`
-        """
-        return Element.from_href(self.data.get('connection_profile'))
 
 
 class BGPConnectionProfile(Element):

@@ -14,8 +14,8 @@ from smc.administration.tasks import Task
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
 from smc.vpn.elements import VPNSite
-from smc.routing.bgp import BGP
-from smc.routing.ospf import OSPF, OSPFProfile
+from smc.routing.bgp import DynamicRouting
+from smc.routing.ospf import OSPFProfile
 from smc.core.route import Antispoofing, Routing, Route, PolicyRoute
 from smc.core.contact_address import ContactAddressCollection
 from smc.core.general import DNSRelay, Layer2Settings, DefaultNAT, \
@@ -403,31 +403,22 @@ class Engine(Element):
     
     @property
     def ospf(self):
-        """
-        Obtain an instance of the OSPF configuration for this engine.
-        Dynamic routing is only supported on layer 3 engines and clusters.
-        
-        :raises UnsupportedEngineFeature: For engines that do not support
-            dynamic routing capabilities
-        :rtype: OSPF
-        """
-        if 'dynamic_routing' in self.data:
-            return OSPF(self)
-        raise UnsupportedEngineFeature(
-            'Dynamic routing is only supported on layer 3 engine types')
+        return self.dynamic_routing.ospf
         
     @property
     def bgp(self):
+        return self.dynamic_routing.bgp
+
+    @property
+    def dynamic_routing(self):
         """
-        Obtain an instance of the BGP configuration for this engine.
-        Dynamic routing is only supported on layer 3 engines and clusters.
+        Dynamic Routing entry point. Access BGP, OSPF configurations
         
-        :raises UnsupportedEngineFeature: For engines that do not support
-            dynamic routing capabilities
-        :rtype: BGP
+        :raises UnsupportedEngineFeature: Only supported on layer 3 engines
+        :rtype: DynamicRouting
         """
         if 'dynamic_routing' in self.data:
-            return BGP(self)
+            return DynamicRouting(self)
         raise UnsupportedEngineFeature( 
             'Dynamic routing is only supported on layer 3 engine types')
     
@@ -1132,14 +1123,14 @@ class VPNMapping(namedtuple('VPNMapping', 'gateway_ref vpn_ref gateway_nodes_usa
     @property
     def _central_gateway(self):
         """
-        Return the central gateway tree node as element. This can be used
-        to simplify removal of the element from the specified VPN. You must
-        first open the VPN policy then save and close.
+        Return the central gateway tree node as href. This can be used
+        to simplify removal of the element from the specified VPN.
+        You must first open the VPN policy then save and close.
         
-        :rtype: GatewayTreeNode
+        :return: GatewayTreeNode href
+        :rtype: str
         """
-        return Element.from_href(
-            self.gateway_nodes_usage.get('central_gateway_node_ref', None))
+        return self.gateway_nodes_usage.get('central_gateway_node_ref', None)
     
     @property
     def is_satellite_gateway(self):
@@ -1153,14 +1144,14 @@ class VPNMapping(namedtuple('VPNMapping', 'gateway_ref vpn_ref gateway_nodes_usa
     @property
     def _satellite_gateway(self):
         """
-        Return the satellite gateway tree node as element. This can be used
-        to simplify removal of the element from the specified VPN. You must
-        first open the VPN policy then save and close.
+        Return the satellite gateway tree node href. This can be used
+        to simplify removal of the element from the specified VPN.
+        You must first open the VPN policy then save and close.
         
-        :rtype: GatewayTreeNode
+        :return: GatewayTreeNode href 
+        :rtype: str
         """
-        return Element.from_href(
-            self.gateway_nodes_usage.get('satellite_gateway_node_ref', None))
+        return self.gateway_nodes_usage.get('satellite_gateway_node_ref', None)
     
     @property
     def is_mobile_gateway(self):
@@ -1175,14 +1166,14 @@ class VPNMapping(namedtuple('VPNMapping', 'gateway_ref vpn_ref gateway_nodes_usa
     @property
     def _mobile_gateway(self):
         """
-        Return the mobile gateway tree node as element. This can be used
-        to simplify removal of the element from the specified VPN. You must
-        first open the VPN policy then save and close.
+        Return the mobile gateway tree href. This can be used
+        to simplify removal of the element from the specified VPN.
+        You must first open the VPN policy then save and close.
         
-        :rtype: GatewayTreeNode
+        :return: GatewayTreeNode href
+        :rtype: str
         """
-        return Element.from_href(
-            self.gateway_nodes_usage.get('mobile_gateway_node_ref', None))
+        return self.gateway_nodes_usage.get('mobile_gateway_node_ref', None)
     
     def __str__(self):
         return str('VPNMapping(vpn={})'.format(self.vpn))

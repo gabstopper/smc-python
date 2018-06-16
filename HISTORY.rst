@@ -146,6 +146,9 @@ Release History
 - Add BGP Peerings to Tunnel Interface fixed to set on top level interface versus network level.
 - update_or_create methods for ExternalGateway, ExternalEndpoint and VPNSite. Allows for full provisioning
   of an external gateway and update after creation.
+- Interfaces rewritten to provide more flexibility. Interfaces can be built from a low level API or previous
+  helper methods can be used
+
  
 
  

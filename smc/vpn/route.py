@@ -132,18 +132,23 @@ Create a no-encryption GRE route based VPN between two managed NGFWs::
         remote_endpoint=remote_gateway)
 
 """
-from smc.base.model import Element, ElementCreator
-from smc.core.engine import InternalEndpoint
+from smc.base.model import Element, ElementCreator, ElementRef
 from smc.vpn.elements import VPNProfile
 from smc.api.exceptions import CreateElementFailed, CreateVPNFailed
+from smc.core.engine import InternalEndpoint
 from smc.core.interfaces import TunnelInterface
 
 
 class RouteVPN(Element):
     """
     Route based VPN in NGFW.
+    
+    :ivar VPNProfile vpn_profile: VPNProfile reference for this RouteVPN
+    :ivar TunnelMonitoringGroup monitoring_group: tunnel monitoring group reference
     """
     typeof = 'rbvpn_tunnel'
+    vpn_profile = ElementRef('vpn_profile_ref')
+    monitoring_group = ElementRef('monitoring_group_ref')
     
     @classmethod
     def create_ipsec_tunnel(cls, name, local_endpoint, remote_endpoint,
@@ -173,9 +178,8 @@ class RouteVPN(Element):
         :raises CreateVPNFailed: failed to create the VPN with reason
         :rtype: RouteVPN
         """
-        group = monitoring_group if monitoring_group else \
-            TunnelMonitoringGroup('Uncategorized')
-        profile = vpn_profile if vpn_profile else VPNProfile('VPN-A Suite')
+        group = monitoring_group or TunnelMonitoringGroup('Uncategorized')
+        profile = vpn_profile or VPNProfile('VPN-A Suite')
         
         json = {
             'name': name,
@@ -283,9 +287,8 @@ class RouteVPN(Element):
         :raises CreateVPNFailed: failed to create the VPN with reason
         :rtype: RouteVPN
         """
-        group = monitoring_group if monitoring_group else \
-            TunnelMonitoringGroup('Uncategorized')
-        profile = vpn_profile if vpn_profile else VPNProfile('VPN-A Suite')
+        group = monitoring_group or TunnelMonitoringGroup('Uncategorized')
+        profile = vpn_profile or VPNProfile('VPN-A Suite')
         
         json = {
             'name': name,
@@ -363,27 +366,6 @@ class RouteVPN(Element):
         :rtype: str
         """
         return self.data.get('tunnel_mode')
-    
-    @property
-    def monitoring_group(self):
-        """
-        Each RBVPN can be placed into a monitoring group for
-        visibility from the Home page. This RBVPN monitoring
-        group.
-        
-        :rtype: TunnelMonitoringGroup
-        """
-        return Element.from_href(self.monitoring_group_ref)
-    
-    @property
-    def vpn_profile(self):
-        """
-        VPN profile for this RBVPN
-        
-        :rtype: VPNProfile
-        """
-        if self.data.get('vpn_profile_ref'):
-            return Element.from_href(self.vpn_profile_ref)
 
 
 class TunnelMonitoringGroup(Element):
@@ -400,13 +382,44 @@ class TunnelEndpoint(object):
     Based on the RBVPN type required, you must create the local
     and remote endpoints and pass them into the RouteVPN create
     classmethods.
+    
+    :ivar InternalGateway,ExternalGateway gateway: reference to the element
+        that is used by this tunnel endpoint
+    :ivar TunnelInterface tunnel_interface: Tunnel interface used by this tunnel
+        endpoint
     """
+    gateway = ElementRef('gateway_ref')
+    
     def __init__(self, gateway_ref=None, tunnel_interface_ref=None,
                  endpoint_ref=None, ip_address=None):
         self.gateway_ref = gateway_ref
         self.tunnel_interface_ref= tunnel_interface_ref
         self.endpoint_ref = endpoint_ref
         self.ip_address = ip_address
+    
+    @property
+    def endpoint(self):
+        """
+        Endpoint is used to specify which interface is enabled for
+        VPN. This is the InternalEndpoint property of the
+        InternalGateway.
+        
+        :return: internal endpoint where VPN is enabled
+        :rtype: InternalEndpoint
+        """
+        if self.endpoint_ref:
+            return InternalEndpoint(href=self.endpoint_ref)
+    
+    @property
+    def tunnel_interface(self):
+        """
+        Show the tunnel interface for this TunnelEndpoint.
+        
+        :return: interface for this endpoint
+        :rtype: TunnelInterface
+        """
+        if self.tunnel_interface_ref:
+            return TunnelInterface(href=self.tunnel_interface_ref)
         
     @classmethod
     def create_gre_tunnel_endpoint(cls, endpoint=None, tunnel_interface=None,
@@ -474,43 +487,6 @@ class TunnelEndpoint(object):
     @property
     def data(self):
         return {k: v for k, v in vars(self).items() if v}
-            
-    @property
-    def gateway(self):
-        """
-        The gateway referenced in this tunnel endpoint. Gateway will either
-        be an InternalGateway (SMC managed) or ExternalGateway (non-SMC managed)
-        element. Gateway references are used in IPSEC wrapped RBVPN's.
-        
-        :returng ateway reference for the VPN
-        :rtype: InternalGateway,ExternalGateway
-        """
-        if self.gateway_ref:
-            return Element.from_href(self.gateway_ref)
-    
-    @property
-    def tunnel_interface(self):
-        """
-        Show the tunnel interface for this TunnelEndpoint.
-        
-        :return: interface for this endpoint
-        :rtype: TunnelInterface
-        """
-        if self.tunnel_interface_ref:
-            return TunnelInterface(href=self.tunnel_interface_ref)
-   
-    @property
-    def endpoint(self):
-        """
-        Endpoint is used to specify which interface is enabled for
-        VPN. This is the InternalEndpoint property of the
-        InternalGateway.
-        
-        :return: internal endpoint where VPN is enabled
-        :rtype: InternalEndpoint
-        """
-        if self.endpoint_ref:
-            return InternalEndpoint(href=self.endpoint_ref)
     
     @property
     def remote_address(self):

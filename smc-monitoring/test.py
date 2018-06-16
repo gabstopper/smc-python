@@ -94,12 +94,16 @@ if __name__ == '__main__':
     #for record in query.fetch_raw():
     #    print(record)
      
-    #for record in query.fetch_as_element():
+    for record in query.fetch_as_element():
+        print(record)
+        record.delete()
+    
+    
     #    print(vars(record))
     #    print(record, record.href)
     #    record.delete()
-    for record in query.fetch_raw():
-        print(record)
+    #for record in query.fetch_raw():
+    #    print(record)
     
     #query.request = {"query":{"definition":"BLACKLIST","target":"sg_vm"}, "fetch":{}, "format":{"type":"texts", "field_format": "name"}}
     #query = UserQuery('lynn', check_hostname=False)

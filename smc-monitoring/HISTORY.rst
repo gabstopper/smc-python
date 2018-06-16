@@ -19,7 +19,9 @@ Release History
 1.2
 +++
 
-- VPN SA's can be deleted (requires SMC >= 6.4.2)\
+- VPN SA's can be deleted (requires SMC >= 6.4.2)
+- Updated requirement to websocket-client 0.48.0. Fixes issue with IndexError when Tomcat 8 does not include
+  the Status-Message in the initial handshake: https://github.com/websocket-client/websocket-client/issues/406
 
 
 

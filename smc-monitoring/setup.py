@@ -22,7 +22,7 @@ with open('HISTORY.rst', encoding='utf-8') as f:
 setup(
     name='smc-python-monitoring',
     version=version,
-    description='Stonesoft Management Cetner Monitoring',
+    description='Stonesoft Management Center Monitoring',
     long_description=readme + '\n\n' + history,
     license='Apache License',
     author='David LePage',
@@ -43,6 +43,6 @@ setup(
     zip_safe=False,
     install_requires=[
         'smc-python >=0.6.0',
-        'websocket-client'
+        'websocket-client >=0.48.0'
     ],
 )

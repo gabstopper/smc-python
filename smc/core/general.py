@@ -10,8 +10,6 @@ from smc.elements.profiles import DNSRelayProfile
 from smc.base.structs import NestedDict
 from smc.policy.interface import InterfacePolicy
 from smc.api.exceptions import LoadPolicyFailed
-from smc.elements.network import Host
-from smc.elements.servers import DNSServer
 
 
 class SNMP(object):
@@ -42,6 +40,18 @@ class SNMP(object):
     def status(self):
         return bool(getattr(self.engine, 'snmp_agent_ref', False))
     
+    def disable(self):
+        """
+        Disable SNMP on this engine. You must call `update` on the engine
+        for this to take effect.
+
+        :return: None
+        """
+        self.engine.data.update(
+            snmp_agent_ref=None,
+            snmp_location='',
+            snmp_interface=[])
+        
     def enable(self, snmp_agent, snmp_location=None, snmp_interface=None):
         """
         Enable SNMP on the engine. Specify a list of interfaces
@@ -56,26 +66,53 @@ class SNMP(object):
         """
         agent = element_resolver(snmp_agent)
         snmp_interface = [] if not snmp_interface else snmp_interface
-        interfaces = [values for interface in snmp_interface
-                      for values in self.engine.interface.get(interface).ndi_interfaces]
+        interfaces = self._iface_dict(snmp_interface)
     
         self.engine.data.update(
             snmp_agent_ref=agent,
             snmp_location=snmp_location if snmp_location else '',
             snmp_interface=interfaces)
-               
-    def disable(self):
+    
+    def _iface_dict(self, snmp_interface):
+        return [values for interface in snmp_interface
+            for values in self.engine.interface.get(interface).ndi_interfaces]
+    
+    @property
+    def _nicids(self):
+        return [str(nic.get('nicid'))
+            for nic in getattr(self.engine, 'snmp_interface', [])]
+                              
+    def update_configuration(self, **kwargs):
         """
-        Disable SNMP on this engine. You must call `update` on the engine
-        for this to take effect.
-
-        :return: None
+        Update the SNMP configuration using any kwargs supported in the
+        `enable` constructor. Return whether a change was made. You must call
+        update on the engine to commit any changes.
+        
+        :param dict kwargs: keyword arguments supported by enable constructor
+        :rtype: bool
         """
-        self.engine.data.update(
-            snmp_agent_ref=None,
-            snmp_location='',
-            snmp_interface=[])
-
+        updated = False
+        if 'snmp_agent' in kwargs:
+            kwargs.update(snmp_agent_ref=kwargs.pop('snmp_agent'))
+        snmp_interface = kwargs.pop('snmp_interface', None)
+        for name, value in kwargs.items():
+            _value = element_resolver(value)
+            if getattr(self.engine, name, None) != _value:
+                self.engine.data[name] = _value
+                updated = True
+        
+        if snmp_interface is not None:
+            _snmp_interface = getattr(self.engine, 'snmp_interface', [])
+            if not len(snmp_interface) and len(_snmp_interface):
+                self.engine.data.update(snmp_interface=[])
+                updated = True
+            elif len(snmp_interface):
+                if set(self._nicids) ^ set(map(str, snmp_interface)):
+                    self.engine.data.update(
+                        snmp_interface=self._iface_dict(snmp_interface))
+                    updated = True
+        return updated
+            
     @property
     def location(self):
         """
@@ -211,7 +248,7 @@ class RankedDNSAddress(object):
          
         >>> engine.dns.append(['8.8.8.8', '9.9.9.9'])
         >>> engine.dns.prepend(['1.1.1.1'])
-        >>> engine.dns.remove(['8.8.8.8', DNSEntry('mydnsserver')])
+        >>> engine.dns.remove(['8.8.8.8', DNSServer('mydnsserver')])
     
     .. note:: You must call engine.update() to commit any changes.
     """
@@ -253,11 +290,11 @@ class RankedDNSAddress(object):
             for e in self.entries:
                 e.update((k, v+1) for k, v in e.items() if k == 'rank')
         
-        for num, addr in enumerate(additions, start_rank):
+        for num, addr in enumerate(additions, int(start_rank)):
             try:
-                self.entries.append({'rank': num, 'ne_ref': addr.href})
+                self.entries.append({'rank': float(num), 'ne_ref': addr.href})
             except AttributeError:
-                self.entries.append({'rank': num, 'value': addr})   
+                self.entries.append({'rank': float(num), 'value': addr})   
     
     def add(self, values):
         return self.append(values)

@@ -28,6 +28,11 @@ def load_from_environ():
         SMC_EXTRA_ARGS = string in dict format of extra args needed
     
     SMC_CLIENT CERT is only checked IF the SMC_URL is an HTTPS url.
+    
+    Example of forcing retry on service unavailable::
+    
+        os.environ['SMC_EXTRA_ARGS'] = '{"retry_on_busy": "True"}'
+    
     """
     try:
         from urllib.parse import urlparse
@@ -80,6 +85,7 @@ def load_from_environ():
     
     return transform_login(config_dict)
 
+
 def load_from_file(alt_filepath=None):
     """ Attempt to read the SMC configuration from a
     dot(.) file in the users home directory. The order in
@@ -87,6 +93,7 @@ def load_from_file(alt_filepath=None):
 
     - Passing credentials as parameters to the session login
     - Shared credential file (~/.smcrc)
+    - Environment variables
 
     :param alt_filepath: Specify a different file name for the
            configuration file. This should be fully qualified and include
@@ -101,6 +108,7 @@ def load_from_file(alt_filepath=None):
         smc_port=8082
         smc_ssl=True
         verify_ssl=True
+        retry_on_busy=True
         ssl_cert_file='/Users/davidlepage/home/mycacert.pem'
 
     :param str smc_address: IP of the SMC Server
@@ -109,6 +117,7 @@ def load_from_file(alt_filepath=None):
     :param int smc_port: port to use for SMC, (default: 8082)
     :param bool smc_ssl: Whether to use SSL (default: False)
     :param bool verify_ssl: Verify client cert (default: False)
+    :param bool retry_on_busy: Retry CRUD operation if service is unavailable (default: False)
     :param str ssl_cert_file: Full path to client pem (default: None)
 
     The only settings that are required are smc_address and smc_apikey.
@@ -121,12 +130,13 @@ def load_from_file(alt_filepath=None):
 
     """
     required = ['smc_address', 'smc_apikey']
-    bool_type = ['smc_ssl', 'verify_ssl']  # boolean option flag
+    bool_type = ['smc_ssl', 'verify_ssl', 'retry_on_busy']  # boolean option flag
     option_names = ['smc_port',
                     'api_version',
                     'smc_ssl',
                     'verify_ssl',
                     'ssl_cert_file',
+                    'retry_on_busy',
                     'timeout',
                     'domain']
 

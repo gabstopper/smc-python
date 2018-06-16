@@ -8,7 +8,7 @@
 <pydev_pathproperty name="org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH">
 <path>/Users/davidlepage/git/smc-python/src</path>
 <path>/Users/davidlepage/git/smc-python/src/smc-monitoring</path>
-<path>/Users/davidlepage/git/smc-python/src/venv/lib/python2.7/site-packages</path>
 <path>/Users/davidlepage/Downloads/ptf</path>
+<path>/Users/davidlepage/git/smc-python/src/venv/lib/python2.7/site-packages/requests-2.18.4-py2.7.egg/requests</path>
 </pydev_pathproperty>
 </pydev_project>

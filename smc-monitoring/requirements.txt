@@ -1,3 +1,3 @@
 #file:../#egg=smc-python
 smc-python >= 0.6.0
-websocket-client
+websocket-client >= 0.48.0

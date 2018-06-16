@@ -148,4 +148,4 @@ class NestedDict(collections.MutableMapping):
             return self[key]
         raise AttributeError("%r object has no attribute %r" 
             % (self.__class__, key)) 
-
+            

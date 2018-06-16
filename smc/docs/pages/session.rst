@@ -146,11 +146,57 @@ The minimum variables that need to be present are ``SMC_ADDRESS`` and ``SMC_API_
 	export SMC_ADDRESS = http://1.1.1.1:8082
 	export SMC_API_KEY = foobarkey
 
+Based on the session login constructor, you can also pass kwargs using the parameter `SMC_EXTRA_ARGS`.
 
 Once the session has been successfully obtained, there is no reason to re-authenticate a new session
 unless `logout` has been called.
 
 .. note:: The SMC will automatically purge idle sessions after a configurable amount of time.
+
+Handling retries on server busy
++++++++++++++++++++++++++++++++
+
+It is possible to override the default behavior for retrying a CRUD operation based on receiving a 
+"Service Unavailable" (HTTP 503) response. By default, no retry is attempted.
+You can override this behavior and allow the API to retry an operation using a backoff algorithm.
+
+This can be enabled through the session login constructor using the `retry_on_busy` boolean or after
+session login by calling `set_retry_on_busy`.
+If called from session login, default parameters are provided for all retry related settings.
+If you require more granularity, call after session login.
+
+.. note:: By default, the following operation types are eligible for retry (GET/POST/PUT). You can
+ override this by calling session.set_retry_on_busy(method_whitelist=['GET', 'POST', 'DELETE']) 
+
+Calling from session login:
+
+.. code-block:: python
+
+	session.login(url='https://x.x.x.x:8082', api_key='xxxxxxxxxxxxxxx',
+                  verify=False, timeout=30, retry_on_busy=True)
+
+Calling after session login:
+
+.. code-block:: python
+
+	session.login()
+	session.set_retry_on_busy(total=5, backoff_factor=0.1)
+	...
+	session.logout()
+
+If you are using an preferences file, place the following into your .smcrc:
+
+.. code-block:: python
+
+  [smc]
+  retry_on_busy=True
+ 
+You can also set this on as an environment variable using the `SMC_EXTRA_ARGS` variable:
+
+.. code-block:: python
+
+	os.environ['SMC_EXTRA_ARGS'] = '{"retry_on_busy": "True"}'
+
 
 Handling proxies
 ++++++++++++++++

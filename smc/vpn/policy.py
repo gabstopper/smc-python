@@ -1,4 +1,4 @@
-from smc.base.model import Element, ElementCreator, SubElement
+from smc.base.model import Element, ElementCreator, SubElement, ElementRef
 from smc.api.exceptions import CreatePolicyFailed, CreateElementFailed,\
     PolicyCommandFailed, ElementNotFound
 from smc.base.collection import sub_collection
@@ -21,8 +21,12 @@ class PolicyVPN(Element):
     When making VPN Policy modifications, you must first call :func:`open`, 
     make your modifications and then call :func:`save` followed by 
     :func:`close`.
+    
+    :ivar VPNProfile vpn_profile: VPN Profile used by this Policy VPN
+    
     """
     typeof = 'vpn'
+    vpn_profile = ElementRef('vpn_profile')
 
     @classmethod
     def create(cls, name, nat=False, mobile_vpn_toplogy_mode=None,
@@ -36,12 +40,13 @@ class PolicyVPN(Element):
         :param VPNProfile vpn_profile: reference to VPN profile, or uses default
         :rtype: PolicyVPN
         """
-        vpn_profile = vpn_profile if vpn_profile else VPNProfile('VPN-A Suite')
+        vpn_profile = element_resolver(vpn_profile) or \
+            VPNProfile('VPN-A Suite').href
         
         json = {'mobile_vpn_topology_mode': mobile_vpn_toplogy_mode,
                 'name': name,
                 'nat': nat,
-                'vpn_profile': vpn_profile.href}
+                'vpn_profile': vpn_profile}
 
         try:
             return ElementCreator(cls, json)
@@ -69,15 +74,6 @@ class PolicyVPN(Element):
             self.data['nat'] = False
         else:
             self.data['nat'] = True
-
-    @cached_property
-    def vpn_profile(self):
-        """
-        Specified VPN Profile used by this VPN Policy
-
-        :return: :class:`smc.vpn.elements.VPNProfile`
-        """
-        return Element.from_href(self.data.get('vpn_profile'))
 
     @property
     def central_gateway_node(self):

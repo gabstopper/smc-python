@@ -60,11 +60,11 @@ from smc.api.common import SMCRequest, fetch_href_by_name, fetch_entry_point
 from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
     DeleteElementFailed, FetchElementFailed, UpdateElementFailed,\
-    UserElementNotFound
+    UserElementNotFound, UnsupportedEntryPoint
 from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
     find_type_from_self
 from smc.base.mixins import RequestAction, UnicodeMixin
-from smc.base.util import b64encode
+from smc.base.util import b64encode, element_resolver
 
 
 @exception
@@ -194,7 +194,22 @@ class ElementCache(NestedDict):
             'on this element.' % rel)
 
 
-from smc.api.exceptions import UnsupportedEntryPoint
+class ElementRef(object):
+    """
+    Descriptor to allow get/set operations on an element referenced in
+    an Element.
+    """
+    def __init__(self, attr, doc=None):
+        self.attr = attr
+    def __set__(self, obj, value):
+        obj.data[self.attr] = element_resolver(value)
+        return obj
+    def __get__(self, obj, owner):
+        if obj is None:
+            return self
+        return Element.from_href(obj.data.get(self.attr))
+        
+
 class ElementLocator(object):
     """
     There are two ways to get an elements location, either through
@@ -220,30 +235,29 @@ class ElementLocator(object):
         # Does the instance already have meta data
         if instance is not None and instance._meta:
             return instance._meta.href
-        else:
-            if hasattr(cls, 'typeof'):
-                if instance is not None:
-                    element = fetch_href_by_name(
-                        instance.name,
-                        filter_context=instance.typeof)
-                    if element.json:
-                        instance._meta = Meta(**element.json[0])
-                        return instance._meta.href
-                    raise ElementNotFound(
-                        'Cannot find specified element: {}, type: {}'
-                        .format(unicode_to_bytes(instance.name),
-                                instance.typeof))
-                else:
-                    try:
-                        element = fetch_entry_point(cls.typeof)
-                    except UnsupportedEntryPoint as e:
-                        raise ElementNotFound(e)
-                    return element
-            else: 
-                raise ElementNotFound( 
-                    'This class does not have the required attribute ' 
-                    'and cannot be referenced directly, type: {}' 
-                    .format(instance))
+        if hasattr(cls, 'typeof'):
+            if instance is not None:
+                element = fetch_href_by_name(
+                    instance.name,
+                    filter_context=instance.typeof)
+                if element.json:
+                    instance._meta = Meta(**element.json[0])
+                    return instance._meta.href
+                raise ElementNotFound(
+                    'Cannot find specified element: {}, type: {}'
+                    .format(unicode_to_bytes(instance.name),
+                            instance.typeof))
+            else:
+                try:
+                    element = fetch_entry_point(cls.typeof)
+                except UnsupportedEntryPoint as e:
+                    raise ElementNotFound(e)
+                return element
+        else: 
+            raise ElementNotFound( 
+                'This class does not have the required attribute ' 
+                'and cannot be referenced directly, type: {}' 
+                .format(instance))
 
 
 class ElementMeta(type):
@@ -366,7 +380,7 @@ class ElementBase(RequestAction, UnicodeMixin):
         """
         request = SMCRequest(
             href=self.href,
-            headers={'if-match': self.etag}) 
+            headers={'if-match': self.etag})
         request.exception = DeleteElementFailed
         request.delete()
 
@@ -521,14 +535,17 @@ class Element(ElementBase):
         """
         was_created = False
         if not hasattr(cls, 'create'):
-            return cls.get(kwargs.get('name'))
+            element = cls.get(kwargs.get('name'))
+            if with_status:
+                return element, False
+            return element
         elif 'name' not in kwargs:
             raise ElementNotFound('Name field is a required parameter '
-                'for all create type operations on an element')
-        
+                'for all create or update_or_create type operations on an element')
+         
         if filter_key:
             elements = cls.objects.filter(**filter_key)
-            element = elements.first()
+            element = elements.first() if elements.exists() else None
         else:
             try:
                 element = cls.get(kwargs.get('name'))
@@ -536,8 +553,10 @@ class Element(ElementBase):
                 element = None
         
         if not element:
+            params = {k: v() if callable(v) else v
+                      for k, v in kwargs.items()}
             try:
-                element = cls.create(**kwargs)
+                element = cls.create(**params)
                 was_created = True
             except TypeError:
                 raise CreateElementFailed('%s: %r not found and missing '
@@ -547,7 +566,7 @@ class Element(ElementBase):
         if with_status:
             return element, was_created
         return element
-
+    
     @classmethod
     def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
         """
@@ -586,24 +605,10 @@ class Element(ElementBase):
         :rtype: Element
         """
         was_created, was_modified = False, False
-        if not hasattr(cls, 'create'):
-            return cls.get(kwargs.get('name'))
-        elif 'name' not in kwargs:
-            raise ElementNotFound('Name field is a required parameter '
-                'for all create type operations on an element')
-        
-        element = None
-        if filter_key:
-            elements = cls.objects.filter(**filter_key)
-            if elements.exists():
-                element = elements.first()
+        element, created = cls.get_or_create(filter_key=filter_key, with_status=True, **kwargs)
+        if created:
+            was_created = True
         else:
-            try:
-                element = cls.get(kwargs.get('name'))
-            except ElementNotFound:
-                element = None
-
-        if element: 
             params = {}
             for key, value in kwargs.items():
                 # Callable, Element or string
@@ -633,11 +638,6 @@ class Element(ElementBase):
             if params:
                 element.update(**params)
                 was_modified = True
-        else:
-            params = {k: v() if callable(v) else v
-                      for k, v in kwargs.items()}
-            element = cls.create(**params)
-            was_created = True
         
         if with_status:
             return element, was_modified, was_created
@@ -857,6 +857,7 @@ class UserElement(ElementBase):
         When specifying the user DN, specify in fully qualified DN syntax and
         provide the 'domain=' field specifying the name of the External LDAP
         domain:
+            
             `cn=domain users,cn=users,dc=lepages,dc=local,domain=myldapdomain`
         
         For example::

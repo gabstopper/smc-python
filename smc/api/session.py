@@ -51,10 +51,8 @@ class Session(object):
     
     def __init__(self):
         self._api_version = None
-        # The session is the underlying requests session object
-        self._session = None
-        # A connection reference to an SMCAPIConnection
-        self._connection = None
+        self._session = None # Python requests session object
+        self._connection = None # SMCAPIConnection
         self._url = None
         self._timeout = 10
         self._domain = 'Shared Domain'
@@ -142,9 +140,8 @@ class Session(object):
             if response.status_code in (200, 201):
                 return ApiClient.from_href(response.json().get('value'))
     
-    def login(self, url=None, api_key=None, login=None, pwd=None,
-              api_version=None, timeout=None, verify=True,
-              alt_filepath=None, domain=None, **kwargs):
+    def login(self, url=None, api_key=None, login=None, pwd=None, api_version=None,
+              timeout=None, verify=True, alt_filepath=None, domain=None, **kwargs):
         """
         Login to SMC API and retrieve a valid session.
         Session will be re-used when multiple queries are required.
@@ -168,6 +165,9 @@ class Session(object):
         :param str alt_filepath: If using .smcrc, alternate file+path
         :param str domain: domain to log in to. If domains are not configured, this
             field will be ignored and api client logged in to 'Shared Domain'.
+        :param bool retry_on_busy: pass as kwarg with boolean if you want to add retries
+            if the SMC returns HTTP 503 error during operation. You can also optionally customize
+            this behavior and call :meth:`.set_retry_on_busy`
         :raises ConfigLoadError: loading cfg from ~.smcrc fails
 
         For SSL connections, you can disable validation of the SMC SSL certificate by setting
@@ -204,68 +204,39 @@ class Session(object):
             verify = cfg.get('verify')
             timeout = cfg.get('timeout')
             domain = cfg.get('domain')
-            kwargs = cfg.get('kwargs')
+            kwargs = cfg.get('kwargs', {})
         
-        if timeout:
-            self._timeout = timeout
-
+        self._timeout = timeout or self._timeout
+        self._domain = domain or self._domain
+        self._url = url
+        
+        # Determine and set the API version we will use.
         self._api_version = get_api_version(url, api_version, timeout, verify)
         
-        base = get_api_base(url, self.api_version, verify=verify)
+        # Set the auth provider which will determine what type of login this is
+        self.credential = Credential(api_key, login, pwd)
         
-        self._resource.add(get_entry_points(base, timeout, verify))
+        # Retries configured generically
+        retry_on_busy = kwargs.pop('retry_on_busy', False)
         
-        s = requests.session()  # empty session
-
-        json = {
-            'domain': domain
-        }
-    
-        if api_key:
-            json.update(authenticationkey=api_key)
+        request = self._build_auth_request(verify=verify, **kwargs)
         
-        if kwargs:
-            json.update(**kwargs)
-            self._extra_args.update(**kwargs)
+        # This will raise if session login fails...
+        self._session = self._get_session(request)
+        self.session.verify = verify
         
-        params = dict(login=login, pwd=pwd) if login and pwd else None
+        logger.debug('Login succeeded and session retrieved: %s, domain: %s',
+            self.session_id, self.domain)
         
-        req = dict(
-            url=self.entry_points.get('login') if api_key else \
-                '{}/{}/lms_login'.format(url, self._api_version),
-            json=json,
-            params=params,
-            headers={'content-type': 'application/json'},
-            verify=verify)
+        if retry_on_busy:
+            self.set_retry_on_busy()
         
-        r = s.post(**req)
-        logger.info('Using SMC API version: %s', self.api_version)
-        
-        if r.status_code == 200:
-            self._session = s  # session creation was successful
-            self._session.verify = verify  # make verify setting persistent
-            self._url = url
-            self.credential.set_credentials(api_key, login, pwd)
-        
-            if domain:
-                self._domain = domain
-        
-            self._sessions[self.domain] = self.session
-            if self.connection is None:
-                self._connection = smc.api.web.SMCAPIConnection(self)
-            
-            logger.debug(
-                'Login succeeded and session retrieved: %s, domain: %s',
-                    self.session_id, self.domain)
-            
-            # Reload entry points
-            self.entry_points.clear()
-            self._resource.add(reload_entry_points(self))
-            
-        else:
-            raise SMCConnectionError(
-                'Login failed, HTTP status code: %s and reason: %s' % (
-                    r.status_code, r.reason))
+        self._sessions[self.domain] = self.session
+        if self.connection is None:
+            self._connection = smc.api.web.SMCAPIConnection(self)
+             
+        # Reload entry points
+        load_entry_points(self)
 
         if not self._MODS_LOADED:
             logger.debug('Registering class mappings.')
@@ -276,6 +247,53 @@ class Session(object):
                 import_submodules(pkg, recursive=False)
 
             self._MODS_LOADED = True
+    
+    def _build_auth_request(self, verify=False, **kwargs):
+        """
+        Build the authentication request to SMC
+        """
+        json = {
+            'domain': self.domain
+        }
+        
+        params = {}
+        if self.credential.provider_name.startswith('lms'):
+            params = self.credential.get_credentials()
+        else:
+            json.update(authenticationkey=self.credential._api_key)
+        
+        if kwargs:
+            json.update(**kwargs)
+            self._extra_args.update(**kwargs) # Store in case we need to rebuild later
+        
+        request = dict(
+            url=self.credential.get_provider_entry_point(self.url, self.api_version),
+            json=json,
+            params=params,
+            headers={'content-type': 'application/json'},
+            verify=verify)
+        
+        return request
+    
+    def _get_session(self, request):
+        """
+        Authenticate the request dict
+        
+        :param dict request: request dict built from user input
+        :raises SMCConnectionError: failure to connect
+        :return: python requests session
+        :rtype: requests.Session
+        """
+        _session = requests.session()  # empty session
+        
+        response = _session.post(**request)
+        logger.info('Using SMC API version: %s', self.api_version)
+        
+        if response.status_code != 200:
+            raise SMCConnectionError(
+                'Login failed, HTTP status code: %s and reason: %s' % (
+                    response.status_code, response.reason))
+        return _session
 
     def logout(self):
         """ Logout session from SMC """
@@ -294,7 +312,7 @@ class Session(object):
                     logger.error('SSL exception thrown during logout: %s', e)
                 except requests.exceptions.ConnectionError as e:
                     logger.error('Connection error on logout: %s', e)
-
+            
             self.entry_points.clear()
             self._session = None
 
@@ -308,8 +326,7 @@ class Session(object):
         # Did we already have a session that just timed out
         if self.session and self.credential.has_credentials and self.url:
             # Try relogging in to refresh, otherwise fail
-            logger.info(
-                'Session timed out, will try obtaining a new session using '
+            logger.info('Session timed out, will try obtaining a new session using '
                 'previously saved credential information.')
             self.login(**self._get_login_params())
             return
@@ -369,6 +386,37 @@ class Session(object):
         ch.setFormatter(formatter)
         # add ch to logger
         log.addHandler(ch)
+    
+    def set_retry_on_busy(self, total=5, backoff_factor=0.1, status_forcelist=None, **kwargs):
+        """
+        Mount a custom retry object on the current session that allows service level
+        retries when the SMC might reply with a Service Unavailable (503) message.
+        This can be possible in larger environments with higher database activity.
+        You can all this on the existing session, or provide as a dict to the login
+        constructor.
+        
+        :param int total: total retries
+        :param float backoff_factor: when to retry
+        :param list status_forcelist: list of HTTP error codes to retry on
+        :param list method_whitelist: list of methods to apply retries for, GET, POST and
+            PUT by default
+        :return: None
+        """
+        if self.session:
+            from requests.adapters import HTTPAdapter
+            from requests.packages.urllib3.util.retry import Retry
+    
+            method_whitelist = kwargs.pop('method_whitelist', []) or ['GET', 'POST', 'PUT']
+            status_forcelist = frozenset(status_forcelist) if status_forcelist else frozenset([503])
+            retry = Retry(
+                total=total,
+                backoff_factor=backoff_factor,
+                status_forcelist=status_forcelist,
+                method_whitelist=method_whitelist)
+            
+            for proto_str in ('http://', 'https://'):
+                self.session.mount(proto_str, HTTPAdapter(max_retries=retry))
+            logger.debug('Mounting retry object to HTTP session: %s' % retry) 
         
     def set_stream_logger(self, log_level=logging.DEBUG, format_string=None, logger_name='smc'): 
         """ 
@@ -427,13 +475,31 @@ class Session(object):
 
 class Credential(object):
     """
-    Default credential object storing the api_key or 
-    login / pwd for LMS connections.
+    Provider for authenticating the user. LMS Login is a user created within
+    the SMC as a normal administrative account. Login is the standard way of
+    using an API client and key as password.
+    The key of the CredentialMap also indicates the entry point for which to
+    POST the authentication.
     """
-    def __init__(self):
-        self._api_key = None
-        self._login = None
-        self._pwd = None
+    CredentialMap = {
+        'lms_login': ('login', 'pwd'),
+        'login': ('api_key',)
+    }
+    
+    def __init__(self, api_key=None, login=None, pwd=None):
+        self._api_key = api_key
+        self._login = login
+        self._pwd = pwd
+
+    @property
+    def provider_name(self):
+        if self._api_key:
+            return 'login'
+        return 'lms_login'
+    
+    def get_provider_entry_point(self, url, api_version):
+        return '{url}/{api_version}/{provider_name}'.format(
+            url=url, api_version=api_version, provider_name=self.provider_name)
     
     @property
     def has_credentials(self):
@@ -447,11 +513,6 @@ class Credential(object):
         elif self._login is not None and self._pwd is not None:
             return True
         return False
-    
-    def set_credentials(self, api_key=None, login=None, pwd=None):
-        self._api_key = api_key
-        self._login = login
-        self._pwd = pwd
     
     def get_credentials(self):
         """
@@ -470,11 +531,15 @@ class Credential(object):
         return {}
 
 
-def reload_entry_points(session):
-    logger.debug("Reloading entry points with obtained session.")
-    req = session.session.get('{url}/{api_version}/api'.format(
-        url=session.url, api_version=session.api_version))
-    return req.json().get('entry_point', [])
+def load_entry_points(session):
+    result_list = get_entry_points('{url}/{api_version}'.format(
+        url=session.url, api_version=session.api_version),
+        session.timeout, session.session.verify)
+    
+    if session._resource:
+        session.entry_points.clear()
+    session._resource.add(result_list)
+    logger.debug("Loaded entry points with obtained session.")
 
                                
 def get_entry_points(base_url, timeout=10, verify=True):
@@ -484,7 +549,7 @@ def get_entry_points(base_url, timeout=10, verify=True):
     try:
         r = requests.get('%s/api' % (base_url), timeout=timeout,
             verify=verify)
-
+        
         if r.status_code == 200:
             entry_point_list = json.loads(r.text)
             logger.debug('Successfully retrieved API entry points from SMC')
@@ -510,7 +575,7 @@ def available_api_versions(base_url, timeout=10, verify=True):
     try:
         r = requests.get('%s/api' % base_url, timeout=timeout,
                          verify=verify)  # no session required
-
+        
         if r.status_code == 200:
             j = json.loads(r.text)
             versions = []
@@ -543,18 +608,6 @@ def get_api_version(base_url, api_version=None, timeout=10, verify=True):
             api_version = newest_version
     
     return api_version
-
-
-def get_api_base(base_url, api_version=None, verify=True):
-    """
-    From the base url and optional api version, return the
-    fully qualified API base URL
-
-    :rtype: str
-    """
-    return '{}/{}'.format(
-        base_url,
-        str(get_api_version(base_url, api_version, verify=verify)))
 
 
 def import_submodules(package, recursive=True):

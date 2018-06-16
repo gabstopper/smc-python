@@ -90,7 +90,7 @@ class SMCAPIConnection(object):
                         data=json.dumps(request.json, cls=CacheEncoder),
                         headers=request.headers,
                         params=request.params)
-                    
+                
                     response.encoding = 'utf-8'
 
                     counters.update(create=1)
