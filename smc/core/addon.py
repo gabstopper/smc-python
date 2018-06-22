@@ -23,7 +23,7 @@ Then enable or disable::
 """
 from smc.base.model import Element
 from smc.base.structs import NestedDict
-from smc.elements.profiles import SandboxService
+from smc.elements.profiles import SandboxService, SandboxDataCenter
 from smc.base.util import element_resolver
 
 
@@ -371,7 +371,8 @@ class Sandbox(NestedDict):
             The default is to use the 'US Data Centers' profile if undefined.
         :return: None
         """
-        service = element_resolver(SandboxService(service))
+        service = element_resolver(SandboxService(service), do_raise=False) or \
+            element_resolver(SandboxDataCenter(service))
             
         self.update(sandbox_license_key=license_key,
                     sandbox_license_token=license_token,
@@ -380,7 +381,7 @@ class Sandbox(NestedDict):
         
         self.engine.data.setdefault('sandbox_settings', {}).update(self.data)
         self.engine.data.update(sandbox_type=sandbox_type)
-    
+
     @property
     def http_proxy(self):
         """    

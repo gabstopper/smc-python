@@ -5,6 +5,8 @@ from smc.base.model import SubElement, ElementCreator
 from smc.elements.helpers import location_helper
 from smc.base.model import Element
 from smc.base.structs import SerializedIterable
+from smc.api.exceptions import CreateElementFailed
+from smc.base.util import element_resolver
 
     
     
@@ -234,3 +236,106 @@ class DNSServer(Element):
             'secondary': secondary if secondary else []}
         
         return ElementCreator(cls, json)
+
+   
+class ProxyServer(Element):
+    """
+    A ProxyServer element is used in the firewall policy to provide the ability to
+    send HTTP, HTTPS, FTP or SMTP traffic to a next hop proxy.
+    There are two types of next hop proxies, 'Generic' and 'Forcepoint AP Web".
+    
+    Example of creating a configuration for a Forcepoint AP-Web proxy redirect::
+    
+        server = ProxyServer.update_or_create(name='myproxy',
+            address='1.1.1.1', proxy_service='forcepoint_ap-web_cloud',
+            fp_proxy_key='mypassword', fp_proxy_key_id=3, fp_proxy_user_id=1234,
+            inspected_service=[{'service_type': 'HTTP', 'port': '80'}])
+    
+    Create a Generic Proxy forward service::
+    
+        server = ProxyServer.update_or_create(name='generic', address='1.1.1.1,1.1.1.2',
+            inspected_service=[{'service_type': 'HTTP', 'port': 80}, {'service_type': 'HTTPS', 'port': 8080}])
+    
+    Inspected services take a list of keys `service_type` and `port`. Service type key values
+    are 'HTTP', 'HTTPS', 'FTP' and 'SMTP'. Port value is the port for the respective protocol.
+    """     
+    typeof = 'proxy_server'
+    
+    @classmethod
+    def create(cls, name, address, secondary=None, balancing_mode='ha',
+               proxy_service='generic', location=None, comment=None,
+               add_x_forwarded_for=False, trust_host_header=False,
+               inspected_service=None, **kw):
+        """
+        Create a Proxy Server element
+        
+        :param str name: name of proxy server element
+        :param str address: address of element. Can be a single FQDN or comma separated
+            list of IP addresses
+        :param list secondary: list of secondary IP addresses
+        :param str balancing_mode: how to balance traffic, valid options are
+            ha (first available server), src, dst, srcdst (default: ha)
+        :param str proxy_service: which proxy service to use for next hop, options
+            are generic or forcepoint_ap-web_cloud
+        :param str,Element location: location for this proxy server
+        :param bool add_x_forwarded_for: add X-Forwarded-For header when using the
+            Generic Proxy forwarding method (default: False)
+        :param bool trust_host_header: trust the host header when using the Generic
+            Proxy forwarding method (default: False)
+        :param dict inspected_service: inspection services dict. Valid keys are
+            service_type and port. Service type valid values are HTTP, HTTPS, FTP or SMTP
+            and are case sensitive
+        :param str comment: optional comment
+        :param kw: keyword arguments are used to collect settings when the proxy_service
+            value is forcepoint_ap-web_cloud. Valid keys are `fp_proxy_key`, 
+            `fp_proxy_key_id`, `fp_proxy_user_id`. The fp_proxy_key is the password value.
+            All other values are of type int
+        """     
+        json = {'name': name,
+                'comment': comment,
+                'secondary': secondary or [],
+                'http_proxy': proxy_service,
+                'balancing_mode': balancing_mode,
+                'inspected_service': inspected_service,
+                'trust_host_header': trust_host_header,
+                'add_x_forwarded_for': add_x_forwarded_for,
+                'location_ref': element_resolver(location)
+            }
+        addresses = address.split(',')
+        json.update(address=addresses.pop(0))
+        json.update(ip_address=addresses if 'ip_address' not in kw else kw['ip_address'])
+        
+        if proxy_service == 'forcepoint_ap-web_cloud':
+            for key in ('fp_proxy_key', 'fp_proxy_key_id', 'fp_proxy_user_id'):
+                if key not in kw:
+                    raise CreateElementFailed('Missing required fp key when adding a '
+                        'proxy server to forward to forcepoint. Missing key: %s' % key)
+                json[key] = kw.get(key)
+        
+        return ElementCreator(cls, json)
+
+    @classmethod
+    def update_or_create(cls, with_status=False, **kwargs):
+        if 'proxy_service' in kwargs:
+            kwargs.update(http_proxy=kwargs.pop('proxy_service'))
+        if 'address' in kwargs and ',' in kwargs.get('address'):
+            addresses = kwargs.pop('address').split(',')
+            kwargs.update(address=addresses.pop(0))
+            kwargs.update(ip_address=addresses)          
+        element, updated, created = super(ProxyServer, cls).update_or_create(
+            defer_update=True, **kwargs)
+        if not created:
+            inspected_service = kwargs.pop('inspected_service', None)
+            if inspected_service is not None:
+                service_keys = set([k.get('service_type') for k in inspected_service])
+                element_keys = set([k.get('service_type') for k in element.data.get(
+                    'inspected_service', [])])
+                if service_keys ^ element_keys:
+                    element.data['inspected_service'] = inspected_service
+                    updated = True
+            if updated:
+                element.update()
+                
+        if with_status:
+            return element, updated, created
+        return element

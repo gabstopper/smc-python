@@ -492,13 +492,25 @@ class OSPFProfile(Element):
         json.update(domain_settings_ref=domain_settings_ref)
 
         return ElementCreator(cls, json)
-        
+    
     @classmethod
     def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
         if 'redistribution_entry' in kwargs:
             kwargs.update(redistribution_entry=_format_redist_entry(
                 kwargs.pop('redistribution_entry', [])))
-        return super(OSPFProfile, cls).update_or_create(filter_key, with_status, **kwargs)
+        
+        element, updated, created = super(OSPFProfile, cls).update_or_create(
+            filter_key, defer_update=True, **kwargs)
+        if not created:
+            # Deferred update, update redistribution settings
+            if 'redistribution_entry' in kwargs:
+                element.data['redistribution_entry'] = kwargs.get('redistribution_entry')
+                element.update()
+                updated = True
+        
+        if with_status:
+            return element, updated, created
+        return element
 
 
 class OSPFDomainSetting(Element):

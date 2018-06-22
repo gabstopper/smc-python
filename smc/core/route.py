@@ -224,8 +224,9 @@ class RoutingTree(SubElement):
         """
         if 'related_element_type' in self.data:
             return self.data.get('related_element_type')
-        return Element.from_href(self.data.get('href')).typeof # pre-6.4
-
+        return None if self.dynamic_nicid or (self.nicid and '.' in self.nicid) else \
+            Element.from_href(self.data.get('href')).typeof # pre-6.4
+        
     def as_tree(self, level=0):
         """
         Display the routing tree representation in string
@@ -616,7 +617,7 @@ class Routing(RoutingTree):
         modified = False
         for network in _networks:
             # Short circuit for dynamic interfaces
-            if getattr(network, 'dynamic_nicid', None):
+            if getattr(network, 'dynamic_classid', None):
                 network.data.setdefault('routing_node', []).append(
                         routing_node_gateway)
                 modified = True
@@ -691,7 +692,7 @@ class Routing(RoutingTree):
         :return: Status of whether the entry was removed (i.e. or not found)
         :rtype: bool
         """
-        if self.level not in ('interface'):
+        if self.level not in ('interface',):
             raise ModificationAborted('You must make this change from the '
                 'interface routing level. Current node: {}'.format(self))
         

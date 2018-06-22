@@ -254,3 +254,8 @@ class SNMPAgent(Element):
 class SandboxService(Element):
     typeof = 'sandbox_service'
 
+    
+class SandboxDataCenter(Element):
+    typeof = 'sandbox_data_center'
+
+

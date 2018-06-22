@@ -357,7 +357,7 @@ class AutonomousSystem(Element):
     
     @classmethod
     def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
-        if '.' in kwargs.get('as_number'):
+        if '.' in str(kwargs.get('as_number')):
             kwargs.update(as_number=int(as_dotted(kwargs['as_number'])))
         return super(AutonomousSystem, cls).update_or_create(
             filter_key, with_status, **kwargs)

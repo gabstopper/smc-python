@@ -1,20 +1,87 @@
 """
+.. versionadded:: 0.6.2
+    Requires SMC 6.4.3
+
 The Users module provides an interface to user specific related elements such
 as External LDAP domains, Internal domains and external/internal users and 
 external/internal groups.
+
+Example of browsing all available external ldap user domains::
+
+    >>> from smc.administration.user_auth.users import ExternalLdapUserDomain
+    >>> for domain in ExternalLdapUserDomain.objects.all():
+    ...   domain
+    ... 
+    ExternalLdapUserDomain(name=lepages)
+
+If you know the name of the domain or want to load it directly, do so like other elements::
+
+    >>> ldap = ExternalLdapUserDomain('lepages')
+    >>> ldap.ldap_server
+    [ActiveDirectoryServer(name=dc)]
+    
+Find all groups in a specified LDAP domain::
+
+    >>> ldap
+    ExternalLdapUserDomain(name=lepages)
+    >>> ldap.browse()
+    [ExternalLdapUserGroup(name=Computers), ExternalLdapUserGroup(name=Domain Controllers),
+     ExternalLdapUserGroup(name=ForeignSecurityPrincipals), ExternalLdapUserGroup(name=Managed Service Accounts),
+     ExternalLdapUserGroup(name=Program Data), ExternalLdapUserGroup(name=System), ExternalLdapUserGroup(name=Users),
+     ExternalLdapUserGroup(name=resource users)]
+
+Find all users in specific LDAP user group::
+
+    >>> for group in ldap.browse():
+    ...   if group.name == 'Users':
+    ...     group.browse()
+    ... 
+    [ExternalLdapUser(name=Administrator), ExternalLdapUserGroup(name=Allowed RODC Password Replication Group),
+     ExternalLdapUserGroup(name=Cert Publishers), ExternalLdapUserGroup(name=Cisco ISE Wireless),
+     ExternalLdapUserGroup(name=Cloneable Domain Controllers), ExternalLdapUserGroup(name=DHCP Administrators),
+     ExternalLdapUserGroup(name=DHCP Users)
+     ...
+
+.. note:: Depending on your LDAP directory structure, groups may yield other groups as in the example above
+
+
+Internal domains, groups and users are configured statically within the SMC. By default, the SMC
+comes with an example `InternalDomain` domain configured.
+
+Example of fetching an internal domain, browsing it's contents and iterating over the
+users and groups to delete a user named 'testuser'::
+
+    >>> from smc.administration.user_auth.users import InternalUserDomain
+    >>> domain = InternalUserDomain('InternalDomain')
+    >>> domain.browse()
+    [InternalUserGroup(name=Mobile VPN users), InternalUserGroup(name=testgroup), InternalUser(name=testuser)]
+    >>> for user in domain.browse():
+    ...   if user.name == 'testuser':
+    ...     user.delete()
+    ... 
+    >>> domain.browse()
+    [InternalUserGroup(name=Mobile VPN users), InternalUserGroup(name=testgroup)]
+
 """
 from smc.base.model import Element, ElementCreator, UserElement
 from smc.base.util import element_resolver
-from smc.api.exceptions import ElementNotFound, CreateElementFailed
 
 
-class StorableUser(object):
+class Browseable(object):
     """
     Domain users represents common methods used by Internal and LDAP
     domains to fetch user accounts
     """
     def browse(self):
-        pass
+        """
+        Browse the elements nested below this Domain or Group.
+        Results could be internal users or groups.
+        
+        :return: list of Element by type
+        :rtype: list
+        """
+        return [Element.from_meta(**element)
+            for element in self.make_request(resource='browse')]
     
     def get_users(self, users):
         """
@@ -58,15 +125,26 @@ class StorableUser(object):
             for group in groups]
 
 
-class InternalUserDomain(StorableUser, Element):
+class InternalUserDomain(Browseable, Element):
     """
     An internal user domain specifies users that are created and reside
     on the SMC.
     """
     typeof = 'internal_user_domain'
    
+    @classmethod
+    def create(cls, name, comment=None):
+        """
+        Create an internal domain for storage within the SMC.
+        
+        :param str name: name of domain
+        :param str comment: optional comment
+        :rtype: InternalDomain
+        """
+        return ElementCreator(cls, json={'name': name, 'comment': comment})
+        
 
-class ExternalLdapUserDomain(StorableUser, Element):
+class ExternalLdapUserDomain(Browseable, Element):
     typeof = 'external_ldap_user_domain'
     
     @classmethod
@@ -95,7 +173,7 @@ class ExternalLdapUserDomain(StorableUser, Element):
                   'isdefault': isdefault, 'comment': comment})
     
     @classmethod
-    def update_or_create(cls, name, with_status=False, **kwargs):
+    def update_or_create(cls, with_status=False, **kwargs):
         """
         Update or create LDAP User Domain
         
@@ -105,38 +183,14 @@ class ExternalLdapUserDomain(StorableUser, Element):
         :raises ElementNotFound: referenced elements are not found
         :return: element instance by type or 3-tuple if with_status set
         """
-        updated, created = False, False
-        try:
-            element = ExternalLdapUserDomain.get(name)
-        except ElementNotFound:
-            try:
-                element = ExternalLdapUserDomain.create(name, **kwargs)
-                created = True
-            except TypeError:
-                raise CreateElementFailed('%s: %r not found and missing '
-                    'constructor arguments to properly create.' % 
-                    (cls.__name__, name))
-    
-        if not created:
-            for ldap_server in kwargs.pop('ldap_server', []):
-                if ldap_server.href not in element.data.get('ldap_server', []):
-                    element.data.setdefault('ldap_server', []).append(
-                        ldap_server.href)
-                    updated = True
-            if kwargs.get('auth_method') and kwargs['auth_method'].href != \
-                element.data.get('auth_method'):
-                element.data['auth_method'] = kwargs.pop('auth_method').href
-                updated = True
-            
-            if kwargs.get('comment') and kwargs['comment'] != element.comment:
-                element.data['comment'] = kwargs['comment']
-                updated = True
-    
-        if updated:
-            element.update()
+        if 'ldap_server' in kwargs:
+            kwargs.update(ldap_server=element_resolver(kwargs.pop('ldap_server')))
+        
+        element, updated, created = super(ExternalLdapUserDomain, cls).update_or_create(
+            with_status=True, **kwargs)
         
         if with_status:
-            return element, updated, created    
+            return element, updated, created
         return element
 
     @property
@@ -150,6 +204,10 @@ class ExternalLdapUserDomain(StorableUser, Element):
         return Element.from_href(self.data.get('auth_method'))
     
     @property
+    def base_dn(self):
+        pass
+    
+    @property
     def ldap_server(self):
         """
         LDAP Servers associated with this ExternalLdapUserDomain. You must
@@ -160,9 +218,13 @@ class ExternalLdapUserDomain(StorableUser, Element):
         return [Element.from_href(server) for server in self.data.get('ldap_server', [])]
 
     
-class ExternalLdapUserGroup(UserElement):
+class ExternalLdapUserGroup(Browseable, UserElement):
     """
     This represents an external LDAP Group defined on an external LDAP server.
+    Retrieving an external LDAP group can be done by specifying the full DN
+    of the group::
+    
+    ExternalLdapUserGroup.get('cn=Users,dc=lepages,dc=local,domain=lepages')
     
     :ivar str name: name of ldap user
     :ivar str unique_id: the fully qualified DN for the group
@@ -183,6 +245,14 @@ class ExternalLdapUser(UserElement):
 class InternalUser(UserElement):
     """
     This represents an internal user defined within the SMC only
+    You can retrieve an internal user by referencing it by either
+    name::
+    
+        InternalUser('myuser')
+        
+    or by getting using full dn::
+    
+        InternalUser.get('cn=myuser,cn=mygroup,domain=myinternaldomain')
     
     :ivar str name: name of user
     :ivar str unique_id: the fully qualified DN for the user
@@ -190,7 +260,7 @@ class InternalUser(UserElement):
     typeof = 'internal_user'
 
     @classmethod
-    def create(cls, name, user_dn):
+    def create(cls, name, user_dn, user_group=None):
         """
         Create an internal user. When creating a user be sure to include
         the internal domain as `domain=` to map to the proper group.
@@ -209,12 +279,22 @@ class InternalUser(UserElement):
         :rtype: InternalUser
         """
         #TODO: Can't add user to user group
-        return ElementCreator(cls, json={'name': name, 'unique_id': user_dn})
+        json = {'name': name, 'unique_id': user_dn}
+        
+        return ElementCreator(cls, json)
 
         
-class InternalUserGroup(UserElement):
+class InternalUserGroup(Browseable, UserElement):
     """
     This represents an internal user group defined within the SMC only
+    You can retrieve an internal user by referencing it by either
+    name::
+    
+        InternalUserGroup('Mobile VPN users')
+        
+    or by getting using full dn::
+    
+        InternalUserGroup.get('cn=Mobile VPN users,dc=stonegate,domain=InternalDomain')
     
     :ivar str name: name of user
     :ivar str unique_id: the fully qualified DN for the user
@@ -244,4 +324,4 @@ class InternalUserGroup(UserElement):
         :rtype: InternalUserGroup
         """
         return ElementCreator(cls, json={'name': name, 'unique_id': user_dn})
-        
+           

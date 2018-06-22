@@ -1819,7 +1819,7 @@ class InterfaceEditor(object):
                         clz = lookup_class(typeof, Interface)
 
                 clazz = clz(meta=dict(
-                    name=data.get('name'),
+                    name=data.get('name', 'Interface %s' % data.get('interface_id')),
                     type=typeof,
                     href=self.extract_self(data.get('link'))))
     

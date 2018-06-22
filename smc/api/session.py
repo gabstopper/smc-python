@@ -235,7 +235,7 @@ class Session(object):
         if self.connection is None:
             self._connection = smc.api.web.SMCAPIConnection(self)
              
-        # Reload entry points
+        # Load entry points
         load_entry_points(self)
 
         if not self._MODS_LOADED:
@@ -532,35 +532,24 @@ class Credential(object):
 
 
 def load_entry_points(session):
-    result_list = get_entry_points('{url}/{api_version}'.format(
-        url=session.url, api_version=session.api_version),
-        session.timeout, session.session.verify)
-    
-    if session._resource:
-        session.entry_points.clear()
-    session._resource.add(result_list)
-    logger.debug("Loaded entry points with obtained session.")
-
-                               
-def get_entry_points(base_url, timeout=10, verify=True):
-    """
-    Return the entry points in iterable class
-    """
     try:
-        r = requests.get('%s/api' % (base_url), timeout=timeout,
-            verify=verify)
+        r = session.session.get('{url}/{api_version}/api'.format(
+                url=session.url, api_version=session.api_version))
         
         if r.status_code == 200:
-            entry_point_list = json.loads(r.text)
-            logger.debug('Successfully retrieved API entry points from SMC')
+            result_list = json.loads(r.text)
             
-            return entry_point_list['entry_point']
-
+            if session._resource:
+                session.entry_points.clear()
+            
+            session._resource.add(result_list['entry_point'])
+            logger.debug("Loaded entry points with obtained session.")
+        
         else:
             raise SMCConnectionError(
                 'Invalid status received while getting entry points from SMC. '
                 'Status code received %s. Reason: %s' % (r.status_code, r.reason))
-
+    
     except requests.exceptions.RequestException as e:
         raise SMCConnectionError(e)
 

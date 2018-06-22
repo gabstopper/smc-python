@@ -151,11 +151,9 @@ class StaticNetlink(Element):
         :raises CreateElementFailed: failed creating element
         :return: element instance by type or 3-tuple if with_status set
         """
-        updated, created = False, False
-        element, _created = super(StaticNetlink, cls).get_or_create(with_status=True, **kwargs)
-        if _created:
-            created = True
-        else:
+        updated = False
+        element, created = super(StaticNetlink, cls).get_or_create(with_status=True, **kwargs)
+        if not created:
             if 'domain_server_address' in kwargs:
                 dns = kwargs.pop('domain_server_address', [])
                 current_dns = element.domain_server_address

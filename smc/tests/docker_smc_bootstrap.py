@@ -36,6 +36,7 @@ class DockerFailure(Exception):
 smc = {'HostConfig': {
     'NetworkMode': 'mynet',
     'PortBindings': {
+        '8080/tcp': [{'HostPort': '8080'}],
         '8082/tcp': [{'HostPort': '8082'}],
         '8902/tcp': [{'HostPort': '8902'}],
         '8903/tcp': [{'HostPort': '8903'}],
@@ -67,6 +68,7 @@ smc = {'HostConfig': {
 },
     'Config': {'ExposedPorts': {
         '22/tcp': {},
+        '8080/tcp': {},
         '8082/tcp': {},
         '8902/tcp': {},
         '8903/tcp': {},
@@ -254,20 +256,41 @@ def do_delete(uri):
     return requests.delete('{}/{}'.format(docker_engine, uri))
 
 
+def get_available_smc_versions():
+    """
+    Return list of available SMC versions. SMC versioning is done by
+    dwlepage70/smc:v6.1.2. Version returned is after the colon.
+    """
+    return [repotag for image in get_images(filter='dwlepage70/smc')
+        for repotag in image.get('RepoTags')]
+
+
+def smc_version_simple():
+    """
+    :param list repotag_list: output of call to get_available_smc_versions
+    :rtype: list
+    """
+    return [tag.split(':')[-1]
+        for tag in get_available_smc_versions()]
+    
+        
 if __name__ == '__main__':
 
     docker_engine = 'http://172.18.1.26:4243'
 
+    # Sys arg values:
+    # versions -> show all available SMC docker container versions
     if len(sys.argv[1:]) > 0:
-        # docker_smc_bootstrap.py docker_host smc_version
-        print("Got some args")
-
-    # pprint(get_images())
-
-    # for image in get_containers_by_image('dwlepage'):
-    #    print("image: %s" % image)
-    #    pprint(get_container_stats(image.get('Id')))
-
+        argument = sys.argv[-1]
+        if argument.startswith('version'):
+            print(smc_version_simple())
+            sys.exit(1)
+        else: # # docker_smc_bootstrap.py docker_host smc_version
+            if argument not in smc_version_simple():
+                print("Version specified: %s is not found in docker repository" % argument)
+                sys.exit(1)
+            smc['Image'] = 'dwlepage70/smc:{}'.format(argument)
+             
     for container in get_containers():
         if container.get('Image').startswith('dwlepage70/smc'):
             container_id = container.get('Id')

@@ -149,6 +149,13 @@ Release History
 - Interfaces rewritten to provide more flexibility. Interfaces can be built from a low level API or previous
   helper methods can be used
 
+0.6.2
+-----
+
+- Added support for ProxyServer network element
+- Elements for Internal Domain users and External LDAP Domain configurations
+- Active Directory elements
+
  
 
  

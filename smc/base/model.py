@@ -430,9 +430,9 @@ class ElementBase(RequestAction, UnicodeMixin):
         if 'etag' in kwargs:
             params.update(etag=kwargs.pop('etag'))
 
-        name = kwargs.get('name', None)
-
-        json = kwargs.pop('json') if 'json' in kwargs else self.data
+        json = kwargs.pop('json', self.data) #if 'json' in kwargs else self.data
+        name = kwargs.get('name', json.get('name'))
+        
         del self.data       # Delete the cache before processing attributes
 
         # If kwarg settings are provided AND instance variables, kwargs
@@ -570,12 +570,13 @@ class Element(ElementBase):
     @classmethod
     def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
         """
-        Update or create the element. If the element exists, update
-        it using the kwargs provided if the provided kwargs are different from the
-        existing value/s. When comparing values, strings and ints are compared
-        normally. If a list is provided and is a list of strings, it will be 
-        compared and updated. If the list contains unhashable elements, it is 
-        automatically merged (i.e. list of dicts).
+        Update or create the element. If the element exists, update it using the
+        kwargs provided if the provided kwargs after resolving differences from
+        existing values. When comparing values, strings and ints are compared
+        directly. If a list is provided and is a list of strings, it will be 
+        compared and updated if different. If the list contains unhashable elements,
+        it is skipped. To handle complex comparisons, override this method on
+        the subclass and process the comparison seperately.
         If an element does not have a `create` classmethod, then it
         is considered read-only and the request will be redirected to
         :meth:`~get`. Provide a ``filter_key`` dict key/value if you want to
@@ -604,43 +605,56 @@ class Element(ElementBase):
         :return: element instance by type
         :rtype: Element
         """
-        was_created, was_modified = False, False
+        updated = False
+        # Providing this flag will return before updating and require the calling
+        # class to call update if changes were made.
+        defer_update = kwargs.pop('defer_update', False)
+        if defer_update:
+            with_status = True
+        
         element, created = cls.get_or_create(filter_key=filter_key, with_status=True, **kwargs)
-        if created:
-            was_created = True
-        else:
-            params = {}
+        if not created:
+            #params = {}
             for key, value in kwargs.items():
                 # Callable, Element or string
                 if callable(value):
                     value = value()
                 elif isinstance(value, Element):
                     value = value.href
-                # Get value from element
+                # Get value from element being modified
                 val = getattr(element, key, None)
                 if isinstance(val, (string_types, int)):
                     if val != value:
-                        params[key] = value
+                        element.data[key] = value
+                        updated = True
                 elif isinstance(val, Element):
                     if val.href != value:
-                        params[key] = value
+                        element.data[key] = value
+                        updated = True
                 elif isinstance(val, list) and isinstance(value, list):
                     try: # Try matching lists of strings
                         if set(val) ^ set(value):
-                            params[key] = value
-                    except TypeError: # Unhashable, list of dicts?
-                        params[key] = value
+                            element.data[key] = value
+                            updated = True
+                    except TypeError:
+                        # Unhashable, list of dicts. You should override
+                        # this method in the child class and resolve differences
+                        # based on the data structure since each will be unique
+                        pass
                 else:
                     # Last ditch effort, might be comparing None to None
                     if val != value:
-                        params[key] = value
+                        element.data[key] = value
+                        updated = True
             
-            if params:
-                element.update(**params)
-                was_modified = True
+            if updated and not defer_update:
+                element.update()
+            #if params:
+            #    element.update(**params)
+            #    updated = True
         
         if with_status:
-            return element, was_modified, was_created
+            return element, updated, created
         return element
 
     @property
@@ -873,7 +887,16 @@ class UserElement(ElementBase):
             href='{}/{}'.format(cls.href, encoded_dn),
             raise_exc=UserElementNotFound)
         return element
-
+    
+    @property
+    def unique_id(self):
+        """
+        Fully qualified unique DN for this entry
+        
+        :rtype: str
+        """
+        return self.data.get('unique_id')
+    
     def __eq__(self, other):
         if isinstance(other, UserElement):
             if self.unique_id == other.unique_id:
@@ -884,9 +907,8 @@ class UserElement(ElementBase):
         return not self.__eq__(other)
     
     def __unicode__(self):
-        return u'{0}(name={1},unique_id={2})'.format(self.__class__.__name__, self.name,
-            self.unique_id)
-    
+        return u'{0}(name={1})'.format(self.__class__.__name__, self.name)
+
     def __repr__(self):
         return str(self)
 
