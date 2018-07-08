@@ -9,7 +9,7 @@ An example of creating an Active Directory Server instance with additional
 domain controllers (you can omit the `domain_controller` attribute and the value
 specified in `address` will be the only DC used)::
 
-    ldap = AuthenticationService('LDAP Authentication')
+    ldap = AuthenticationMethod('LDAP Authentication')
     
     dc1 = DomainController(user='foo', ipaddress='1.1.1.1', password='mypassword')
     dc2 = DomainController(user='foo2', ipaddress='1.1.1.1', password='mypassword')
@@ -23,9 +23,9 @@ specified in `address` will be the only DC used)::
         supported_method=[ldap],    # <-- enable LDAP authentication on this service
         domain_controller=[dc1, dc2]) # <-- add additional domain controllers
         
-You can find AuthenticationService elements using the normal collections::
+You can find AuthenticationMethod elements using the normal collections::
 
-    for service in AuthenticationService.objects.all():
+    for service in AuthenticationMethod.objects.all():
         ...
         
 Create an External LDAP User Domain that uses the Active Directory server/s that
@@ -43,13 +43,12 @@ an LDAP domain called 'myldapdomain'.
 """
 
 from smc.base.model import ElementCreator, Element
-from smc.api.exceptions import CreateElementFailed, SMCConnectionError,\
-    ElementNotFound
+from smc.api.exceptions import CreateElementFailed, SMCConnectionError
 from smc.base.structs import NestedDict
 from smc.base.util import element_resolver
 
 
-class AuthenticationService(Element):
+class AuthenticationMethod(Element):
     """
     An Authentication Service represents an authentication capability
     such as LDAP, RADIUS or TACACS+. These services are used when
@@ -68,10 +67,11 @@ class DomainController(NestedDict):
     :param str ipaddress: ip address for domain controller
     :param str password: password for AD domain controller
     """
-    def __init__(self, user, ipaddress, password):
+    def __init__(self, user, ipaddress, password, **kw):
         dc = dict(user=user,
                   ipaddress=ipaddress,
-                  password=password)
+                  password=password,
+                  **kw)
         super(DomainController, self).__init__(data=dc)
     
     def __eq__(self, other):
@@ -83,12 +83,10 @@ class DomainController(NestedDict):
         return not self.__eq__(other)
     
     def __repr__(self):
-        return 'DomainServer(ipaddress={})'.format(self.ipaddress)
+        return 'DomainController(ipaddress={})'.format(self.ipaddress)
 
     
 #TODO: Implement TLS Identity
-#TODO: Cannot update AD server element bc of Domain Controller password 6.3.4 FIX ****
-#TODO: Users in rules come back incorrectly 6.3.4 FIX
 
 class ActiveDirectoryServer(Element):
     """
@@ -171,7 +169,7 @@ class ActiveDirectoryServer(Element):
             to ldaps or ldap_tls
         :param list(DomainController) domain_controller: list of domain controller objects to
             add an additional domain controllers for AD communication
-        :param list(AuthenticationService) supported_method: authentication services allowed
+        :param list(AuthenticationMethod) supported_method: authentication services allowed
             for this resource
         :param int timeout: The time (in seconds) that components wait for the server to reply
         :param int max_search_result: The maximum number of LDAP entries that are returned in
@@ -213,7 +211,7 @@ class ActiveDirectoryServer(Element):
         return ElementCreator(cls, json)
     
     @classmethod
-    def update_or_create(cls, name, with_status=False, **kwargs):
+    def update_or_create(cls, with_status=False, **kwargs):
         """
         Update or create active directory configuration.
         
@@ -222,63 +220,42 @@ class ActiveDirectoryServer(Element):
         :raises CreateElementFailed: failed creating element
         :return: element instance by type or 3-tuple if with_status set
         """
-        updated, created = False, False
-        try:
-            ad = ActiveDirectoryServer.get(name)
-        except ElementNotFound:
-            try:
-                ad = ActiveDirectoryServer.create(name, **kwargs)
-                created = True
-            except TypeError:
-                raise CreateElementFailed('%s: %r not found and missing '
-                    'constructor arguments to properly create.' % 
-                    (cls.__name__, name))
+        if 'supported_method' in kwargs:
+            kwargs.update(supported_method=element_resolver(kwargs.pop('supported_method')))
+        
+        element, updated, created = super(ActiveDirectoryServer, cls).update_or_create(
+            defer_update=True, **kwargs)
         
         if not created:
-            if 'domain_controller' in kwargs: #TODO: Workaround for SMC bug
-                ad.data.pop('domain_controller', None)
-                for dc in kwargs.pop('domain_controller', []):
-                    if dc not in ad.domain_controller:
-                        ad.data.setdefault('domain_controller', []).append(dc.data)
-                        updated = True
+            if 'domain_controller' in kwargs:
+                current_dc_list = element.domain_controller
+            for dc in kwargs.pop('domain_controller', []):
+                if dc not in current_dc_list:
+                    element.data.setdefault('domain_controller', []).append(dc.data)
+                    updated = True
         
-            for method in kwargs.pop('supported_method', []):
-                if method.href not in ad.data.get('supported_method', []):
-                    ad.data.setdefault('supported_method', []).append(
-                        element_resolver(method.href))
-                    updated = True
-            
-            #TODO: update with brand new list leaves original attributes
-            for strlist in ('group_object_class', 'user_object_class'):
-                value = kwargs.pop(strlist, [])
-                if value and set(value) ^ set(getattr(ad, strlist, [])):
-                    ad.data[strlist] = value
-                    updated = True
-
-            for name, value in kwargs.items():
-                if getattr(ad, name) != value:
-                    ad.data[name] = value
-                    updated = True        
         if updated:
-            ad.update()
+            element.update()
         if with_status:
-            return ad, updated, created
-        return ad
+            return element, updated, created
+        return element
     
     @property
     def supported_method(self):
         """
         Supported authentication methods for this Active Directory service
         
-        :rtype: AuthenticationService
+        :rtype: AuthenticationMethod
         """
-        return [AuthenticationService.from_href(method) for method in
+        return [AuthenticationMethod.from_href(method) for method in
             self.data.get('supported_method', [])]
         
     @property
     def domain_controller(self):
         """
-        List of optional domain controllers specified for this AD resource
+        List of optional domain controllers specified for this AD resource.
+        When adding domain controllers through update_or_create, only domain
+        controllers that do not already exist are added.
         
         :rtype: list(DomainController)
         """

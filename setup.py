@@ -1,21 +1,32 @@
+import os
 from setuptools import setup, find_packages
+from codecs import open
 
+here = os.path.abspath(os.path.dirname(__file__))
 
-with open('README.rst') as f:
+about = {}
+with open(os.path.join(here, 'smc', '__version__.py'), 'r', 'utf-8') as f:
+    exec(f.read(), about)
+        
+if '__version__' not in about:
+    raise RuntimeError('Cannot find version information')
+
+with open('README.rst', encoding='utf-8') as f:
     readme = f.read()
-
-with open('HISTORY.rst') as f:
+    
+with open('HISTORY.rst', encoding='utf-8') as f:
     history = f.read()
 
     
 setup(name='smc-python',
-      version='0.6.1',
-      description='Python based API to Stonesoft Security Management Center',
+      #version='0.6.1',
+      version=about['__version__'],
+      description=about['__description__'],
       long_description=readme + '\n\n' + history,
-      url='http://github.com/gabstopper/smc-python',
-      author='David LePage',
-      author_email='dwlepage70@gmail.com',
-      license='Apache 2.0',
+      url=about['__url__'],
+      author=about['__author__'],
+      author_email=about['__author_email__'],
+      license=about['__license__'],
       packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
       install_requires=[
         'requests>=2.12.0'

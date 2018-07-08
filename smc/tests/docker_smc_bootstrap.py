@@ -55,7 +55,7 @@ smc = {'HostConfig': {
         '8916/tcp': [{'HostPort': '8916'}],
         '8917/tcp': [{'HostPort': '8917'}],
         '8918/tcp': [{'HostPort': '8918'}]}, },
-       'Image': 'dwlepage70/smc:v6.3.4',
+       'Image': 'dwlepage70/smc:v6.4.3',
        'Labels': {},
        'Mounts': [],
        'NetworkingConfig': {
@@ -277,7 +277,7 @@ def smc_version_simple():
 if __name__ == '__main__':
 
     docker_engine = 'http://172.18.1.26:4243'
-
+        
     # Sys arg values:
     # versions -> show all available SMC docker container versions
     if len(sys.argv[1:]) > 0:

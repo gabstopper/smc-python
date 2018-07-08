@@ -1,6 +1,6 @@
 from smc.policy.rule import Rule, RuleCommon
 from smc.base.model import Element, SubElement, SubElementCreator
-from smc.policy.rule_elements import LogOptions, Destination
+from smc.policy.rule_elements import LogOptions
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
     CreateRuleFailed
 from smc.base.util import element_resolver
@@ -27,7 +27,32 @@ class NATRule(Rule):
             self.data['used_on'] = element_resolver(value)
         except ElementNotFound:
             pass
-
+    
+    def _update_nat_field(self, source_or_dest):
+        """
+        If the source or destination field of a rule is changed and the rule
+        is a NAT rule, this method will check to see if the changed field
+        maps to a NAT type and modifies the `original_value` field within
+        the NAT dict to reflect the new element reference. It is possible
+        that a NAT rule doesn't actually define a NAT type, i.e. meaning do
+        not NAT.
+        
+        :param Source,Destination source_or_dest: source or destination
+            element changed. This would be called from update_field on
+            the Source or Destination object.
+        """
+        original_value = source_or_dest.all_as_href()
+        if original_value:
+            nat_element = None
+            if 'src' in source_or_dest.typeof and self.static_src_nat.has_nat:
+                nat_element = self.static_src_nat
+            elif 'dst' in source_or_dest.typeof and self.static_dst_nat.has_nat:
+                nat_element = self.static_dst_nat
+            
+            if nat_element:
+                nat_element.setdefault(nat_element.typeof, {}).update(
+                    original_value={'element': original_value[0]})
+        
     @property
     def action(self):
         pass
@@ -35,13 +60,13 @@ class NATRule(Rule):
     @property
     def authentication_options(self):
         pass
-
+    
     @property
     def dynamic_src_nat(self):
         """
         Dynamic Source NAT configuration for this NAT rule.
 
-        :return: :py:class:`~DynamicSourceNAT`: dynamic source nat object
+        :rtype: DynamicSourceNAT
         """
         return DynamicSourceNAT(self)
 
@@ -50,7 +75,7 @@ class NATRule(Rule):
         """
         Static Source NAT configuraiton for this NAT rule.
 
-        :return: :py:class:`~StaticSourceNAT`: static source nat object
+        :rtype: StaticSourceNAT
         """
         return StaticSourceNAT(self)
 
@@ -59,9 +84,58 @@ class NATRule(Rule):
         """
         Static Destination NAT configuration for this NAT rule
 
-        :return: :py:class:`~StaticDestNAT`: static dest nat object
+        :rtype: StaticDestNAT
         """
         return StaticDestNAT(self)
+
+    
+class NATValue(NestedDict):
+    """
+    NAT Values are either used as original or translated values
+    on all NAT types.
+     
+    :ivar str element: element href if an element is used
+    :ivar str ip_descriptor: IP address assigned. If element href is
+        present, the ip_descriptor value is obtained automatically
+        from the SMC and represents the elements address in use
+    :ivar str min_port: min port for this translation
+    :ivar str max_port: max port for this translation  
+    """
+    def __init__(self, values):
+        super(NATValue, self).__init__(data=values)
+     
+    @property
+    def as_element(self):
+        if 'element' in self:
+            return Element.from_href(self.get('element'))
+    
+    def _update_field(self, natvalue):
+        """
+        Update this NATValue if values are different
+        
+        :rtype: bool
+        """
+        updated = False
+        if natvalue.element and natvalue.element != self.element:
+            self.update(element=natvalue.element)
+            self.pop('ip_descriptor', None)
+            updated = True
+        elif natvalue.ip_descriptor and self.ip_descriptor and \
+            natvalue.ip_descriptor != self.ip_descriptor:
+            self.update(ip_descriptor=natvalue.ip_descriptor)
+            self.pop('element', None)
+            updated = True
+
+        for port in ('min_port', 'max_port'):
+            _port = getattr(natvalue, port, None)
+            if _port is not None and getattr(self, port, None) != _port:
+                self[port] = _port
+                updated = True
+    
+        return updated
+        
+    def __getattr__(self, key):
+        return self.get(key)
 
 
 class NATElement(NestedDict):
@@ -69,162 +143,130 @@ class NATElement(NestedDict):
     Common structure for source and destination NAT
     configurations.
     """
-    def __init__(self, rule):
-        options = rule.data.get('options')
+    def __init__(self, rule=None):
+        options = LogOptions().data if not rule else \
+            rule.data.get('options')
+        self.rule = rule
         super(NATElement, self).__init__(data=options)
-        
+          
     @property
     def has_nat(self):
         """
         Is NAT already enabled (assuming modification) or newly
         created.
-
+  
         :return: boolean
         """
         return self.typeof in self
+      
+    def set_none(self):
+        """
+        Clear the NAT field for this NAT rule. You must call
+        `update` or `save` on the rule to commit this change.
+          
+        :return: None
+        """
+        self.pop(self.typeof, None)
     
     @property
     def automatic_proxy(self):
         """
         Is proxy arp enabled. Leaving this in the on state is recommended.
-
+  
         :param bool value: enable/disable proxy arp
         :rtype: bool
         """
         return self.get(self.typeof, {}).get(
             'automatic_proxy')
-
+  
     @automatic_proxy.setter
     def automatic_proxy(self, value):
         self.setdefault(self.typeof, {}).update(
             automatic_proxy=value)
-        
-    @property
-    def original_value(self):
-        """
-        Original value is the elements location. Setting this can
-        be done by providing an element from :py:class:`smc.elements.network`
-        or the direct href. For source NAT, this will be the NAT source element,
-        and for dynamic dst NAT, this will be the destination element.
-
-        :param str value: element or href from source or destination field
-        :return: str original_value: element location 
-        """
-        values = self.get(self.typeof, {}).get('original_value')
-        if values:
-            if 'ip_descriptor' in values:
-                return values['ip_descriptor']
-            elif 'element' in values:
-                return values['element']
     
-    @original_value.setter
-    def original_value(self, value):
-        src = element_resolver(value, do_raise=False)
-        if src and src.startswith('http'):
-            self.setdefault(self.typeof, {'original_value': {}}).update(
-                original_value={'element':src})
+    def update_field(self, element_or_ip_address=None, 
+            start_port=None, end_port=None, **kw):
+        """
+        Update the source NAT translation on this rule.
+        You must call `save` or `update` on the rule to make this
+        modification. To update the source target for this NAT rule, update
+        the source field directly using rule.sources.update_field(...).
+        This will automatically update the NAT value. This method should be
+        used when you want to change the translated value or the port
+        mappings for dynamic source NAT.
         
+        Starting and ending ports are only used for dynamic source NAT and
+        define the available ports for doing PAT on the outbound connection.
+        
+        :param str,Element element_or_ip_address: Element or IP address that
+            is the NAT target
+        :param int start_port: starting port value, only used for dynamic source NAT
+        :param int end_port: ending port value, only used for dynamic source NAT
+        :param bool automatic_proxy: whether to enable proxy ARP (default: True)
+        :return: boolean indicating whether the rule was modified
+        :rtype: bool
+        """
+        updated = False
+        src = _resolve_nat_element(element_or_ip_address) if \
+            element_or_ip_address else {}
+        
+        automatic_proxy = kw.pop('automatic_proxy', None)
+        # Original value is only used when creating a rule for static src NAT.
+        # This should be the href of the source field to properly create
+        # TODO: The SMC API should autofill this based on source field
+        _original_value = kw.pop('original_value', None)
+        
+        src.update(kw)
+        
+        if not self.translated_value:
+            # Adding to a rule
+            if 'dynamic_src_nat' in self.typeof:
+                src.update(
+                    min_port=start_port or 1024,
+                    max_port=end_port or 65535)
+            
+            self.setdefault(self.typeof, {}).update(
+                automatic_proxy=automatic_proxy if automatic_proxy else True,
+                **self._translated_value(src))
+            
+            if 'static_src_nat' in self.typeof:
+                if self.rule and self.rule.sources.all_as_href():
+                    original_value={'element': self.rule.sources.all_as_href()[0]}
+                else:
+                    original_value={'element': _original_value}
+            
+                self.setdefault(self.typeof, {}).update(original_value=original_value)
+            
+            updated = True
+        else:
+            if 'dynamic_src_nat' in self.typeof:
+                src.update(min_port=start_port, max_port=end_port)
+            if self.translated_value._update_field(NATValue(src)):
+                updated = True
+        
+        if automatic_proxy is not None and self.automatic_proxy \
+            != automatic_proxy:
+            self.automatic_proxy = automatic_proxy
+            updated = True
+            
+        return updated
+    
+    def _translated_value(self, src_dict):
+        return {'translated_value': src_dict}
+    
     @property
     def translated_value(self):
         """
-        Translated value is the NAT value based on the type of
-        NAT. For source NAT and destination NAT this can be either
-        an IP address or an element from :py:class:`smc.elements.network`.
-
-        :param str value: string ip address or Element (or element href)
-        :return: str value: translated value, give preference to IP address if
-                            ip address and element are both defined.
-        """
-        values = self.get(self.typeof, {}).get(
-            'translated_value', {})
-        if values:
-            if 'ip_descriptor' in values:
-                return values['ip_descriptor']
-            elif 'element' in values:
-                return values['element']
-
-    @translated_value.setter
-    def translated_value(self, value):
-        try:
-            src = {'element': value.href}
-        except AttributeError:
-            src = {'ip_descriptor': value}
+        The translated value for this NAT type. If this rule
+        does not have a NAT value defined, this will return
+        None.
         
-        p = self.setdefault(self.typeof, {})
-        p.setdefault('translated_value', {}).update(src)
-        
-
-class DynamicSourceNAT(NATElement):
-    typeof = 'dynamic_src_nat'
-    
-    @property
-    def original_value(self):
-        pass
-    
-    @property
-    def translated_value(self):
+        :return: NATValue or None
+        :rtype: NATValue
         """
-        The translated value for source NAT is the IP address (or element)
-        which will be the translated address for the source. Typically referred
-        to as the outbound NAT address.
-
-        When setting a new translated address, input should be a string type
-        specifying either the IP address to translate to, or can be a valid
-        network element from :py:class:`smc.elements.network`. If translated
-        ports are not specified, source NAT will the original ports defined or
-        if this is a new object will use a dynamic port range of 1024-65535. 
-
-        :param str value: ipaddress or :py:class:`smc.elements.network` object
-        :return: str translated address or name
-        """
-        for value in self.get(self.typeof, {}).get(
-            'translation_values', []):
-            if 'ip_descriptor' in value:
-                return value['ip_descriptor']
-            elif 'element' in value:
-                return value['element']
-    
-    @translated_value.setter
-    def translated_value(self, value):
-        try:
-            src = {'element': value.href}
-        except AttributeError:
-            src = {'ip_descriptor': value}
-        
-        values = self.setdefault(self.typeof, {'translation_values': []})
-        if values.get('translation_values'):
-            values['translation_values'][0].update(src)
-        else:
-            values['translation_values'].append(src)
-    
-    @property
-    def translated_ports(self):
-        """
-        Translated ports allows custom configuration for PAT on the 
-        source NAT configuration.
-
-        :param tuple min_port,max_port: starting and ending port for source NAT (PAT)
-        :return tuple value: min and max ports defined
-        """
-        values = self.get(self.typeof, {}).get(
-                    'translation_values', [])
-        if values and 'min_port' in values[0]:
-            return (values[0].get('min_port'),
-                    values[0].get('max_port'))
-    
-    @translated_ports.setter
-    def translated_ports(self, value):
-        if not isinstance(value, tuple) or len(value) != 2:
-            raise ValueError("Input must be tuple and length 2")
-        min_port, max_port = value
-        ports = {'min_port': min_port,
-                 'max_port': max_port}
-        
-        values = self.setdefault(self.typeof, {'translation_values': []})
-        if values.get('translation_values'):
-            values['translation_values'][0].update(ports)
-        else:
-            values['translation_values'].append(ports)
+        if self.typeof in self:
+            return NATValue(self.get(self.typeof, {}).get(
+                'translated_value'))
 
 
 class StaticSourceNAT(NATElement):
@@ -243,89 +285,190 @@ class StaticSourceNAT(NATElement):
 
     """
     typeof = 'static_src_nat'
-
+    
 
 class StaticDestNAT(NATElement):
-    """
-    Destination NAT provides the ability to translate the destination address
-    to a specified location. The NAT rules destination field will be the
-    match and the static destination nat address defines how the request is
-    rewritten.
-
-    Example of changing an existing NAT rule to use a different NAT destination
-    and map port 80 to 8080::
-
-        for rule in policy.fw_ipv4_nat_rules:
-            if rule.name == 'destnat':
-                rule.static_dst_nat.translated_value = '30.30.30.30'
-                rule.static_dst_nat.translated_ports = (80, 8080)
-                rule.save()
-
-    """
     typeof = 'static_dst_nat'
-
-    @property
-    def translated_ports(self):
+    
+    def update_field(self, element_or_ip_address=None, 
+            original_port=None, translated_port=None, **kw):
         """
-        Translated ports for destination NAT can be either single source
-        to single destination port, or ranges of ports to translate.
-        The format for single ports is: (source_port, destination_port),
-        or (80, 443) - translate source port 80 to 443 (single ports can
-        also be in string format, i.e. ('80', '443').
+        Update the destination NAT translation on this rule. You must call
+        `save` or `update` on the rule to make this modification. The
+        destination field in the NAT rule determines which destination is
+        the target of the NAT. To change the target, call the
+        rule.destinations.update_field(...) method. This will automatically
+        update the NAT value. This method should be used when you want to
+        change the translated value port mappings for the service.
+        
+        Translated Port values can be used to provide port redirection for
+        the service specified in the NAT rule. These should be provided as a
+        string format either in single port format, or as a port range.
+        
+        For example, providing redirection from port 80 to port 8080::
+        
+            original_port='80'
+            translated_port='8080'
+        
         You can also use a range format although port range sizes much
         then match in size. The format for range of ports is:
-        ('80-100', '6000-6020') - port 80 translates to 6000, etc.
-
-        :param tuple value: (source_port/s, destination_port/s)
-        :raises ValueError: Invalid tuple format for port definition
-        :return tuple value: ports used for destination PAT
+        '80-100', '6000-6020' - port 80 translates to 6000, etc.
+        
+        For example, doing port range redirection using a range of ports::
+         
+            original_port='80-90'
+            translated_port='200-210'
+             
+        .. note:: When using a range of ports for static destination translation, you
+            must use a port range of equal length or the update will be ignored.
+        
+        :param str,Element element_or_ip_address: Element or IP address that
+            is the NAT target
+        :param str,int original_port: The original port is based on the service port
+        :param str,int translated_port: The port to translate the original port to
+        :param bool automatic_proxy: whether to enable proxy ARP (default: True)
+        :return: boolean indicating whether the rule was modified
+        :rtype: bool
         """
-        orig_value = self.get(self.typeof, {}).get('original_value')
-        tran_value = self.get(self.typeof, {}).get('translated_value')
+        updated = False
+        src = _resolve_nat_element(element_or_ip_address) if \
+            element_or_ip_address else {}
         
-        if not orig_value or not tran_value:
-            return None
+        automatic_proxy = kw.pop('automatic_proxy', None)
+        # Original value is only used when creating a rule for static src NAT.
+        # This should be the href of the source field to properly create
+        # TODO: The SMC API should autofill this based on source field
+        _original_value = kw.pop('original_value', None)
         
-        sport = extract_ports(orig_value)
-        dport = extract_ports(tran_value)
-        return ('-'.join(sport), '-'.join(dport))
-
-    @translated_ports.setter
-    def translated_ports(self, value):
-        if not isinstance(value, tuple) or len(value) != 2:
-            raise ValueError("Input must be tuple and length 2")
+        src.update(kw)
+        if translated_port is not None:
+            src.update(_extract_ports(translated_port))
         
-        sport, dport = map(str, value)
-        
-        p = self.setdefault(self.typeof, {})
-        p.setdefault('original_value', {}).update(add_ports(sport))
-        p.setdefault('translated_value', {}).update(add_ports(dport))
-        
-
-def extract_ports(value_dict):
+        if not self.translated_value:
+            # Adding to a rule
+            self.setdefault(self.typeof, {}).update(
+                automatic_proxy=automatic_proxy if automatic_proxy else True,
+                **self._translated_value(src))
+            
+            if self.rule and self.rule.destinations.all_as_href():
+                original_value={'element': self.rule.destinations.all_as_href()[0]}
+            else:
+                # If creating, original_value should be href of resource
+                original_value={'element': _original_value}
+            
+            if original_port is not None:
+                original_value.update(_extract_ports(original_port))
+            
+            self.setdefault(self.typeof, {}).update(
+                original_value=original_value)
+            
+            updated = True
+        else:
+            if self.translated_value._update_field(NATValue(src)):
+                updated = True
+            
+            if original_port:
+                if self.original_value._update_field(NATValue(
+                    _extract_ports(original_port))):
+                    updated = True
+            
+        if automatic_proxy is not None and self.automatic_proxy \
+            != automatic_proxy:
+            self.automatic_proxy = automatic_proxy
+            updated = True
+            
+        return updated
+    
+    @property
+    def original_value(self):
+        if self.typeof in self:
+            return NATValue(self.get(self.typeof, {}).get(
+                'original_value'))
+    
+       
+class DynamicSourceNAT(NATElement):
     """
-    Extract min/max ports from NAT config
+    Dynamic source NAT is typically used for outbound traffic and
+    typically uses a range of ports to perform PAT operations.
+    
     """
-    seen = []
-    keys = ('min_port', 'max_port')
-    for key in keys:
-        if value_dict.get(key) not in seen:
-            seen.append(value_dict[key])
-    return map(str, seen)
-
-
-def add_ports(value_str):
-    """        
-    Add min/max ports to NAT config
-    """
-    if '-' in value_str:
-        port_min, port_max = value_str.split('-')
-        return {'min_port': port_min,
-                'max_port': port_max}
+    typeof = 'dynamic_src_nat'
+    
+    @property
+    def original_value(self):
+        pass
+    
+    @property
+    def start_port(self):
+        """
+        Start port for dynamic source NAT (PAT)
         
-    else:
-        return {'min_port': value_str,
-                'max_port': value_str}
+        :rtype: int
+        """
+        if self.has_nat:
+            return self.translated_value.min_port
+    
+    @property
+    def end_port(self):
+        """
+        Ending port specified for outbound dynamic source NAT (PAT)
+        
+        :rtype: int
+        """
+        if self.has_nat:
+            return self.translated_value.max_port
+    
+    def _translated_value(self, src_dict):
+        return {'translation_values': [src_dict]}
+    
+    @property
+    def translated_value(self):
+        """
+        The translated value for this NAT type. If this rule
+        does not have a NAT value defined, this will return
+        None.
+        
+        :return: NATValue or None
+        :rtype: NATValue
+        """
+        if self.typeof in self:
+            return NATValue(self.get(self.typeof, {}).get(
+                'translation_values')[0])
+    
+
+def _resolve_nat_element(element_or_ip_address):
+    """
+    NAT elements can be referenced by either IP address or as type
+    Element. Resolve that to the right dict structure for the rule
+    
+    :param str,Element element_or_ip_address: Element or IP string
+    :rtype: dict
+    """
+    try:
+        src = {'element': element_or_ip_address.href}
+    except AttributeError:
+        src = {'ip_descriptor': element_or_ip_address}
+
+    return src
+
+
+def _extract_ports(port_string):
+    """
+    Return a dict for translated_value based on a string or int
+    value.
+    
+    Value could be 80, or '80' or '80-90'.
+    
+    Will be returned as {'min_port': 80, 'max_port': 80} or 
+    {'min_port': 80, 'max_port': 90}
+    
+    :rtype: dict
+    """
+    _ports = str(port_string)
+    if '-' in _ports:
+        start, end = _ports.split('-')
+        return {'min_port': start, 'max_port': end}
+    return {'min_port': _ports, 'max_port': _ports}
 
     
     
@@ -376,7 +519,7 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
                                         destinations=[Alias('$$ Interface ID 0.ip')], 
                                         services='any', 
                                         static_dst_nat='1.1.1.1', 
-                                        static_dst_nat_ports=(2222, 22),
+                                        static_dst_nat_ports=(2222,22),
                                         used_on=engine.href)
 
     Create an any/any no NAT rule from host 'kali'::
@@ -418,8 +561,8 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
             and destination ports (only needed if a different destination port
             is used and does not match the rules service port)
         :param bool is_disabled: whether to disable rule or not
-        :param str used_on: href or Element (of security engine) where this
-            NAT rule applies, Default: Any
+        :param str,href used_on: Can be a str href of an Element or Element of type
+            AddressRange('ANY'), AddressRange('NONE') or an engine element.
         :type used_on: str,Element
         :param int add_pos: position to insert the rule, starting with position 1. If
             the position value is greater than the number of rules, the rule is inserted at
@@ -438,43 +581,49 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name, comment=comment)
         rule_values.update(is_disabled=is_disabled)
-
-        options = LogOptions()
-
+        
+        rule_values.update(used_on=element_resolver(used_on) if used_on else used_on)
+        #rule_values.update(used_on=element_resolver(AddressRange('ANY') if not \
+        #    used_on else element_resolver(used_on)))
+        
         if dynamic_src_nat:
-            nat = DynamicSourceNAT(options)
-            nat.translated_value = dynamic_src_nat
-            nat.translated_ports = (dynamic_src_nat_ports)
-            options.update(nat.data)
-            rule_values.update(options=options.data)
+            nat = DynamicSourceNAT()
+            start_port, end_port = dynamic_src_nat_ports
+            nat.update_field(dynamic_src_nat, start_port=start_port,
+                end_port=end_port)
+            rule_values.update(options=nat)
         
         elif static_src_nat:
-            nat = StaticSourceNAT(options)
-            nat.translated_value = static_src_nat
-            nat.original_value = sources[0].href
-            options.update(nat.data)
-            rule_values.update(options=options.data)
-
+            sources = rule_values['sources']
+            if 'any' in sources or 'none' in sources:
+                raise InvalidRuleValue('Source field cannot be none or any for '
+                    'static source NAT.')
+            
+            nat = StaticSourceNAT()
+            nat.update_field(static_src_nat,
+                original_value=sources.get('src')[0])
+            rule_values.update(options=nat)
+        
         if static_dst_nat:
             destinations = rule_values['destinations']
             if 'any' in destinations or 'none' in destinations:
                 raise InvalidRuleValue('Destination field cannot be none or any for '
-                                       'destination NAT.')
-            destination = Destination()
-            destination.add_many(destinations.get('dst'))
+                    'destination NAT.')
             
-            nat = StaticDestNAT(options)
-            nat.translated_value = static_dst_nat
-            nat.original_value = destination.all_as_href()[0]
+            nat = StaticDestNAT()
+            original_port, translated_port = None, None
             if static_dst_nat_ports:
-                nat.translated_ports = static_dst_nat_ports
-            options.update(nat.data)
-            rule_values.update(options=options.data)
-        
-        if 'options' not in rule_values:  # No NAT
-            rule_values.update(options=options.data)
+                original_port, translated_port = static_dst_nat_ports
+            
+            nat.update_field(static_dst_nat,
+                original_value=destinations.get('dst')[0],
+                original_port=original_port,
+                translated_port=translated_port)
+            
+            rule_values.setdefault('options', {}).update(nat)
 
-        rule_values.update(used_on=used_on)
+        if 'options' not in rule_values:  # No NAT
+            rule_values.update(options=LogOptions())
         
         params = None
         href = self.href

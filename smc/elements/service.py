@@ -1,23 +1,18 @@
 """
-Module reprenting service related elements in the SMC
+Module providing service configuration and creation.
+
+Some services may be generic services while others might provide more
+in depth functionality using protocol agents. A protocol agent provides
+layer 7 configuration capabilities specific to the protocol it defines.
+If a given service inherits the ProtocolAgentMixin, this service type is
+eligible to have a protocol agent attached.
+
+.. seealso:: :py:mod:`smc.elements.protocols`
+
 """
 from smc.base.model import Element, ElementCreator
-
-
-class ProtocolAgentMixin(object):
-    """
-    ProtocolAgentMixin is used by services that allow a protocol
-    agent. 
-    """
-    @property
-    def protocol_agent(self):
-        """ Protocol Agent for this service
-
-        :return: :py:class:`smc.elements.service.Protocol` or None
-        """
-        href = self.data.get('protocol_agent_ref')
-        if href:
-            return Element.from_href(href)
+from smc.elements.protocols import ProtocolAgentMixin
+from smc.base.util import element_resolver
 
 
 class TCPService(ProtocolAgentMixin, Element):
@@ -31,7 +26,7 @@ class TCPService(ProtocolAgentMixin, Element):
 
         >>> TCPService.create('tcpservice', 5000, comment='my service')
         TCPService(name=tcpservice)
-        
+    
     Available attributes:
     
     :ivar int min_dst_port: starting destination port for this service. If the
@@ -42,8 +37,8 @@ class TCPService(ProtocolAgentMixin, Element):
     typeof = 'tcp_service'
 
     @classmethod
-    def create(cls, name, min_dst_port, max_dst_port=None,
-               min_src_port=None, max_src_port=None, comment=None):
+    def create(cls, name, min_dst_port, max_dst_port=None, min_src_port=None,
+               max_src_port=None, protocol_agent=None, comment=None):
         """
         Create the TCP service
 
@@ -52,6 +47,9 @@ class TCPService(ProtocolAgentMixin, Element):
         :param int max_dst_port: maximum destination port value
         :param int min_src_port: minimum source port value
         :param int max_src_port: maximum source port value
+        :param str,ProtocolAgent protocol_agent: optional protocol agent for
+            this service
+        :param str comment: optional comment for service
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
         :rtype: TCPService
@@ -62,6 +60,7 @@ class TCPService(ProtocolAgentMixin, Element):
                 'max_dst_port': max_dst_port,
                 'min_src_port': min_src_port,
                 'max_src_port': max_src_port,
+                'protocol_agent_ref': element_resolver(protocol_agent) or None,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -88,8 +87,8 @@ class UDPService(ProtocolAgentMixin, Element):
     typeof = 'udp_service'
 
     @classmethod
-    def create(cls, name, min_dst_port, max_dst_port=None,
-               min_src_port=None, max_src_port=None, comment=None):
+    def create(cls, name, min_dst_port, max_dst_port=None, min_src_port=None,
+               max_src_port=None, protocol_agent=None, comment=None):
         """
         Create the UDP Service
 
@@ -98,6 +97,9 @@ class UDPService(ProtocolAgentMixin, Element):
         :param int max_dst_port: maximum destination port value
         :param int min_src_port: minimum source port value
         :param int max_src_port: maximum source port value
+        :param str,ProtocolAgent protocol_agent: optional protocol agent for
+            this service
+        :param str comment: optional comment
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
         :rtype: UDPService
@@ -108,6 +110,7 @@ class UDPService(ProtocolAgentMixin, Element):
                 'max_dst_port': max_dst_port,
                 'min_src_port': min_src_port,
                 'max_src_port': max_src_port,
+                'protocol_agent_ref': element_resolver(protocol_agent) or None,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -132,18 +135,22 @@ class IPService(ProtocolAgentMixin, Element):
     typeof = 'ip_service'
 
     @classmethod
-    def create(cls, name, protocol_number, comment=None):
+    def create(cls, name, protocol_number, protocol_agent=None, comment=None):
         """
         Create the IP Service
 
         :param str name: name of ip-service
         :param int protocol_number: ip proto number for this service
+        :param str,ProtocolAgent protocol_agent: optional protocol agent for
+            this service
+        :param str comment: optional comment
         :raises CreateElementFailed: failure creating element with reason
         :return: instance with meta
         :rtype: IPService
         """
         json = {'name': name,
                 'protocol_number': protocol_number,
+                'protocol_agent_ref': element_resolver(protocol_agent) or None,
                 'comment': comment}
 
         return ElementCreator(cls, json)
@@ -206,14 +213,6 @@ class EthernetService(Element):
     def value1(self, value):
         if 'value1' in self.data:
             self.data['value1'] = int(value, 16)
-
-
-class Protocol(Element):
-    """ 
-    Represents a protocol module in SMC 
-    Add is not possible 
-    """
-    typeof = 'protocol'
 
 
 class RPCService(Element):
@@ -311,7 +310,7 @@ class ApplicationSituation(Element):
 
 class URLCategory(Element):
     """
-    Represents a URL Category for policy. This class is read only. To make
-    whitelist or blacklists, use :class:`smc.elements.network.IPList`.
+    Represents a URL Category for policy. URL Categories are read only.
+    To make whitelist or blacklists, use :class:`smc.elements.network.IPList`.
     """
     typeof = 'url_category'

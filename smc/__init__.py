@@ -1,12 +1,12 @@
 import logging
 import smc.api.session
 
-__author__ = 'David LePage'
-__version__ = '0.6.1'
+from .__version__ import __description__, __url__, __version__
+from .__version__ import __author__, __author_email__, __license__
+
 
 # Default SMC Session
 session = smc.api.session.Session()
-
 
 
 # Set default logging handler to avoid "No handler found" warnings.

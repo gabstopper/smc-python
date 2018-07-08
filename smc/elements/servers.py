@@ -258,14 +258,16 @@ class ProxyServer(Element):
     
     Inspected services take a list of keys `service_type` and `port`. Service type key values
     are 'HTTP', 'HTTPS', 'FTP' and 'SMTP'. Port value is the port for the respective protocol.
+    
+    :param str http_proxy: type of proxy configuration, either generic or forcepoint_ap-web_cloud
     """     
     typeof = 'proxy_server'
     
     @classmethod
-    def create(cls, name, address, secondary=None, balancing_mode='ha',
-               proxy_service='generic', location=None, comment=None,
-               add_x_forwarded_for=False, trust_host_header=False,
-               inspected_service=None, **kw):
+    def create(cls, name, address, inspected_service, secondary=None,
+               balancing_mode='ha', proxy_service='generic', location=None,
+               comment=None, add_x_forwarded_for=False, trust_host_header=False,
+               **kw):
         """
         Create a Proxy Server element
         
@@ -316,15 +318,22 @@ class ProxyServer(Element):
 
     @classmethod
     def update_or_create(cls, with_status=False, **kwargs):
-        if 'proxy_service' in kwargs:
-            kwargs.update(http_proxy=kwargs.pop('proxy_service'))
-        if 'address' in kwargs and ',' in kwargs.get('address'):
-            addresses = kwargs.pop('address').split(',')
-            kwargs.update(address=addresses.pop(0))
-            kwargs.update(ip_address=addresses)          
         element, updated, created = super(ProxyServer, cls).update_or_create(
             defer_update=True, **kwargs)
+        
         if not created:
+            if 'proxy_service' in element.data and element.http_proxy != element.data['proxy_service']:
+                element.data['http_proxy'] = element.data.pop('proxy_service')
+                updated = True
+            if 'address' in kwargs:
+                if ',' in element.data.get('address'):
+                    addresses = element.data.pop('address').split(',')
+                    element.data['address'] = addresses.pop(0)
+                    # Remainder is ip_address attribute
+                    if set(addresses) ^ set(element.data.get('ip_address', [])):
+                        element.data['ip_address'] = addresses
+                    updated = True
+                    
             inspected_service = kwargs.pop('inspected_service', None)
             if inspected_service is not None:
                 service_keys = set([k.get('service_type') for k in inspected_service])
@@ -339,3 +348,41 @@ class ProxyServer(Element):
         if with_status:
             return element, updated, created
         return element
+    
+    @property
+    def inspected_services(self):
+        """
+        The specified services for inspection. An inspected service is a
+        reference to a protocol that can be forwarded for inspection, such
+        as HTTP, HTTPS, FTP and SMTP.
+        
+        :rtype: list(InspectedService)
+        """
+        return [InspectedService(**service) for service in self.make_request(
+            resource='inspected_services')]
+
+    
+class InspectedService(SubElement):
+    """
+    This represents the service defined for inspection for a
+    ProxyServer element.
+    
+    :ivar str service_type: the service type for inspection
+    :ivar int port: the port for this service 
+    """
+    pass
+
+#     @classmethod
+#     def create(cls, service_type, port, comment=None):
+#         """
+#         Create a service type defintion for a proxy server protocol.
+#         
+#         :param str service_type: service type to use, HTTP, HTTPS, FTP or
+#             SMTP
+#         :param str,int port: port for this service
+#         :param str comment: optional comment
+#         """
+#         json = {'service_type': service_type.upper(),
+#             'port': port, 'comment': comment}
+#         data = ElementCache(data=json)
+#         return type(cls.__name__, (cls,), {'data': data})()

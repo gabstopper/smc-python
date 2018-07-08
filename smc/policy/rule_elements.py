@@ -139,6 +139,12 @@ class RuleElement(object):
                 if set(self.all_as_href()) ^ set(_elements):
                     self.data[self.typeof] = _elements
                     changed = True
+        
+        if changed and self.rule and (isinstance(self, (Source, Destination)) and \
+            self.rule.typeof in ('fw_ipv4_nat_rule', 'fw_ipv6_nat_rule')):
+            # Modify NAT cell if necessary
+            self.rule._update_nat_field(self)
+            
         return changed
     
     def all_as_href(self):
@@ -180,10 +186,9 @@ class Destination(RuleElement, NestedDict):
     typeof = 'dst'
 
     def __init__(self, rule=None):
-        if rule is None:
-            dests = dict(none=True)
-        else:
-            dests = rule.data.get('destinations')
+        dests = dict(none=True) if not rule else \
+            rule.data.get('destinations')
+        self.rule = rule
         super(Destination, self).__init__(data=dests)
     
     
@@ -194,12 +199,11 @@ class Source(RuleElement, NestedDict):
     typeof = 'src'
         
     def __init__(self, rule=None):
-        if rule is None:
-            sources = dict(none=True)
-        else:
-            sources = rule.data.get('sources')
+        sources = dict(none=True) if not rule else \
+            rule.data.get('sources')
+        self.rule = rule
         super(Source, self).__init__(data=sources)
-            
+
 
 class Service(RuleElement, NestedDict):
     """
@@ -208,10 +212,9 @@ class Service(RuleElement, NestedDict):
     typeof = 'service'
 
     def __init__(self, rule=None):
-        if rule is None:
-            services = dict(none=True)
-        else:
-            services = rule.data.get('services')
+        services = dict(none=True) if not rule else \
+            rule.data.get('services')
+        self.rule = rule
         super(Service, self).__init__(data=services)    
 
         

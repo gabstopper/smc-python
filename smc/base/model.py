@@ -649,9 +649,6 @@ class Element(ElementBase):
             
             if updated and not defer_update:
                 element.update()
-            #if params:
-            #    element.update(**params)
-            #    updated = True
         
         if with_status:
             return element, updated, created

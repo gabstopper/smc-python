@@ -13,21 +13,22 @@ Session
 Element
 -------
 
-.. automodule:: smc.base.model
-	:members:
-
-.. autoclass:: ElementBase
+.. autoclass:: smc.base.model.ElementBase
 	:members:
 	:exclude-members: get_relation, from_meta, from_href
 
-.. autoclass:: Element
+.. autoclass:: smc.base.model.Element
 	:members:
 	:show-inheritance:
 	:exclude-members: from_meta, from_href
 
 	.. automethod:: objects(self)
 
-.. autoclass:: SubElement
+.. autoclass:: smc.base.model.SubElement
+	:members:
+	:show-inheritance:
+	
+.. autoclass:: smc.base.model.UserElement
 	:members:
 	:show-inheritance:
 
@@ -281,13 +282,6 @@ IPService
    :members:
    :show-inheritance:
 
-Protocol
-********
-
-.. autoclass:: Protocol
-   :members:
-   :show-inheritance:
-
 TCPService
 **********
 
@@ -308,6 +302,13 @@ URLCategory
 .. autoclass:: URLCategory
    :members:
    :show-inheritance:
+
+With Protocol
+*************
+
+.. automodule:: smc.elements.protocols
+	:members:
+	:show-inheritance:
 
 
 Groups
@@ -396,6 +397,13 @@ ManagementServer
 .. autoclass:: ManagementServer
 	:members: add_contact_address, remove_contact_address, contact_addresses
 
+ProxyServer
+***********
+
+.. autoclass:: ProxyServer
+	:members:
+	:show-inheritance:
+
 Other
 +++++
 
@@ -449,6 +457,14 @@ MacAddress
 .. autoclass:: MacAddress
    :members:
    :show-inheritance:
+   
+HTTPSInspectionExceptions
+*************************
+
+.. autoclass:: HTTPSInspectionExceptions
+   :members:
+   :show-inheritance:
+
 
 Profiles
 ++++++++

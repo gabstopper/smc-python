@@ -40,6 +40,7 @@ Specify a DNS server to handle specific domains::
 """
 from smc.base.model import Element, ElementCreator
 from smc.api.exceptions import ElementNotFound
+from smc.base.util import element_resolver
 
 
 class DNSRule(object):
@@ -253,8 +254,20 @@ class SNMPAgent(Element):
 
 class SandboxService(Element):
     typeof = 'sandbox_service'
-
     
+    @classmethod
+    def create(cls, name, sandbox_data_center, portal_username=None, comment=None):
+        """
+        Create a Sandbox Service element
+        """
+        json = {
+            'name': name,
+            'sandbox_data_center': element_resolver(sandbox_data_center),
+            'portal_username': portal_username if portal_username else '',
+            'comment': comment}
+        return ElementCreator(cls, json)
+        
+  
 class SandboxDataCenter(Element):
     typeof = 'sandbox_data_center'
 

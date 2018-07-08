@@ -395,6 +395,20 @@ class Blacklist(object):
         self.entries.setdefault('entries', []).append(json)
 
 
+class HTTPSInspectionExceptions(Element):
+    """
+    The HTTPS Inspection Exceptions element is a list of domains that are
+    excluded from decryption and inspection. HTTPS Inspection Exceptions are
+    used in a custom HTTPS service to define a list of domains for which HTTPS
+    traffic is not decrypted. The custom HTTPS service must be used in a rule,
+    and only traffic that matches the rule is excluded from decryption and
+    inspection.
+    
+    .. note:: As of SMC 6.4.3, this is a read-only element
+    """
+    typeof = 'tls_inspection_policy'
+    
+
 def prepare_blacklist(src, dst, duration=3600, src_port1=None,
                       src_port2=None, src_proto='predefined_tcp',
                       dst_port1=None, dst_port2=None,

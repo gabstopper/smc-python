@@ -303,7 +303,6 @@ class Session(object):
                     r = session.put(self.entry_points.get('logout'))
                     if r.status_code == 204:
                         logger.info('Logged out of domain: %s successfully', domain)
-                        logger.debug('Call counters: %s' % smc.api.web.counters)
                     else:
                         logger.error('Logout status was unexpected. Received response '
                                      'with status code: %s', (r.status_code))
@@ -313,8 +312,11 @@ class Session(object):
                 except requests.exceptions.ConnectionError as e:
                     logger.error('Connection error on logout: %s', e)
             
+            logger.debug('Call counters: %s' % smc.api.web.counters)
+            
             self.entry_points.clear()
             self._session = None
+            self._sessions = {}
 
     def refresh(self):
         """
@@ -351,10 +353,11 @@ class Session(object):
         if self.domain != domain:
             # Do we already have a session
             if domain not in self._sessions:
-                logger.info('Creating session for domain: %s', domain)
+                logger.info('Switching to domain: %r and creating new session', domain)
                 credentials = self._get_login_params()
                 credentials.update(domain=domain)
                 self.login(**credentials)
+                logger.debug('Domain context session map: %s' % self._sessions)
             else:
                 logger.info('Switching to existing domain session: %s', domain)
                 self._session = self._sessions.get(domain)

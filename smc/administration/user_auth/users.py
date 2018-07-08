@@ -46,7 +46,9 @@ Find all users in specific LDAP user group::
 
 
 Internal domains, groups and users are configured statically within the SMC. By default, the SMC
-comes with an example `InternalDomain` domain configured.
+comes with an example `InternalDomain` domain configured. 
+
+.. note:: The SMC only supports a single Internal User Domain
 
 Example of fetching an internal domain, browsing it's contents and iterating over the
 users and groups to delete a user named 'testuser'::
@@ -127,21 +129,12 @@ class Browseable(object):
 
 class InternalUserDomain(Browseable, Element):
     """
-    An internal user domain specifies users that are created and reside
-    on the SMC.
+    This represents the default internal user Domain. There is one internal
+    user domain per SMC. This domain can be used to create users and groups
+    that would allow authentication when not using external authentication
+    through ExternalLdapUserDomain's.
     """
     typeof = 'internal_user_domain'
-   
-    @classmethod
-    def create(cls, name, comment=None):
-        """
-        Create an internal domain for storage within the SMC.
-        
-        :param str name: name of domain
-        :param str comment: optional comment
-        :rtype: InternalDomain
-        """
-        return ElementCreator(cls, json={'name': name, 'comment': comment})
         
 
 class ExternalLdapUserDomain(Browseable, Element):
@@ -154,13 +147,13 @@ class ExternalLdapUserDomain(Browseable, Element):
         retrieving user and groups from the configured LDAP server/s. If you
         have multiple authentication methods supported for your LDAP server,
         or have none configured, you can set the `auth_method` to
-        a supported AuthenticationService.
+        a supported AuthenticationMethod.
         
         :param str name: name of external LDAP domain
         :param list(str,ActiveDirectoryServer) ldap_server: list of existing
             authentication servers in href or element format
         :param bool isdefault: set this to 'Default LDAP domain'
-        :param str,AuthenticationService auth_method: authentication method to
+        :param str,AuthenticationMethod auth_method: authentication method to
             use. Usually set when multiple are defined in LDAP service or
             none are defined.
         :param str comment: optional comment
@@ -199,7 +192,7 @@ class ExternalLdapUserDomain(Browseable, Element):
         Default authentication method for this LDAP User Domain. Can
         also be set on the LDAP server as well.
         
-        :rtype: AuthenticationService
+        :rtype: AuthenticationMethod
         """
         return Element.from_href(self.data.get('auth_method'))
     
@@ -260,7 +253,7 @@ class InternalUser(UserElement):
     typeof = 'internal_user'
 
     @classmethod
-    def create(cls, name, user_dn, user_group=None):
+    def create(cls, name, user_dn):
         """
         Create an internal user. When creating a user be sure to include
         the internal domain as `domain=` to map to the proper group.
@@ -280,7 +273,6 @@ class InternalUser(UserElement):
         """
         #TODO: Can't add user to user group
         json = {'name': name, 'unique_id': user_dn}
-        
         return ElementCreator(cls, json)
 
         
@@ -324,4 +316,4 @@ class InternalUserGroup(Browseable, UserElement):
         :rtype: InternalUserGroup
         """
         return ElementCreator(cls, json={'name': name, 'unique_id': user_dn})
-           
+    

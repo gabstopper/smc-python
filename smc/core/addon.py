@@ -354,8 +354,8 @@ class Sandbox(NestedDict):
         self.pop('sandbox_settings', None)
     
     def enable(self, license_key, license_token,
-               sandbox_type='cloud_sandbox', service='US Data Centers',
-               http_proxy=None):
+               sandbox_type='cloud_sandbox', service='Automatic',
+               http_proxy=None, sandbox_data_center='Automatic'):
         """
         Enable sandbox on this engine. Provide a valid license key
         and license token obtained from your engine licensing.
@@ -369,10 +369,13 @@ class Sandbox(NestedDict):
         :param str,SandboxService service: a sandbox service element from SMC. The service
             defines which location the engine is in and which data centers to use.
             The default is to use the 'US Data Centers' profile if undefined.
+        :param str,SandboxDataCenter sandbox_data_center: sandbox data center to use
+            if the service specified does not exist. Requires SMC >= 6.4.3
         :return: None
         """
         service = element_resolver(SandboxService(service), do_raise=False) or \
-            element_resolver(SandboxDataCenter(service))
+            element_resolver(SandboxService.create(name=service,
+                sandbox_data_center=SandboxDataCenter(sandbox_data_center)))
             
         self.update(sandbox_license_key=license_key,
                     sandbox_license_token=license_token,

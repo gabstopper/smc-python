@@ -198,6 +198,12 @@ class ModificationAborted(SMCException):
     """
 
 
+class MissingDependency(SMCException):
+    """
+    A dependency is missing for the given operation.
+    """
+    
+
 class ActionCommandFailed(SMCException):
     """
     Action type commands use this exception

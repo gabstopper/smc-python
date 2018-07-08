@@ -445,3 +445,13 @@ class RouteMap(Element):
         return rule_collection( 
             self.get_relation('route_map_rules'), RouteMapRule)
     
+    def search_rule(self, search):
+        """
+        Search the RouteMap policy using a search string
+        
+        :param str search: search string for a contains match against
+            the rule name and comments field
+        :rtype: list(RouteMapRule)
+        """
+        return [RouteMapRule(**rule) for rule in self.make_request( 
+            resource='search_rule', params={'filter': search})]
