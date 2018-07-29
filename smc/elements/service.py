@@ -174,7 +174,7 @@ class EthernetService(Element):
     which will be converted to decimal format.
 
     Create an ethernet rule representing the presence of an IEEE
-    802.1Q tag:
+    802.1Q tag::
 
         >>> EthernetService.create(name='8021q frame', value1='0x8100')
         EthernetService(name=8021q frame)

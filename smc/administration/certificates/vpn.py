@@ -5,7 +5,7 @@ a VPN CA and uses the default internal CA by default.
 """
 
 from smc.base.model import Element, ElementCreator, SubElement,\
-    SubElementCreator
+    SubElementCreator, ElementRef
 from smc.administration.certificates.tls_common import ImportExportCertificate
 from smc.api.exceptions import CertificateError
 from smc.base.util import element_resolver
@@ -50,8 +50,11 @@ class GatewayCertificate(SubElement):
     is set on the engine. However you can also optionally force
     renew a gateway certificate, export, check the expiration, or
     find the certificate authority that signed this gateway certificate.
+    
+    :ivar certificate_authority: CA for this GatewayCertificate
     """
     typeof = 'gateway_certificate'
+    certificate_authority = ElementRef('certificate_authority')
     
     @staticmethod
     def _create(self, common_name, public_key_algorithm='rsa',
@@ -76,10 +79,6 @@ class GatewayCertificate(SubElement):
                 'signature_algorithm': signature_algorithm,
                 'public_key_length': key_length,
                 'certificate_authority_href': cert_auth})
-
-    @property
-    def certificate_authority(self):
-        return Element.from_href(self.data.get('certificate_authority'))
     
     @property
     def certificate(self):

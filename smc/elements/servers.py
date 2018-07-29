@@ -1,94 +1,155 @@
 """
 Module that represents server based configurations
 """
-from smc.base.model import SubElement, ElementCreator
+from smc.base.model import SubElement, ElementCreator, Element, ElementRef
 from smc.elements.helpers import location_helper
-from smc.base.model import Element
-from smc.base.structs import SerializedIterable
+from smc.elements.other import ContactAddress
 from smc.api.exceptions import CreateElementFailed
 from smc.base.util import element_resolver
-
-    
-    
-class ContactAddress(object):
-    """
-    A ContactAddress for server elements such as Management Server and
-    Log Server.
-    """
-    def __init__(self, **kwargs):
-        self.data = kwargs
-    
-    @property
-    def addresses(self):
-        """
-        List of addresses set as contact address
-        
-        :rtype: list
-        """
-        return self.data['addresses']
-    
-    @property
-    def location_ref(self):
-        return self.data['location_ref']
-
-    @property
-    def location(self):
-        """
-        Location name for contact address
-        
-        :rtype: str
-        """
-        return Element.from_href(self.location_ref).name
-    
-    def __repr__(self):
-        return '{}(location={},addresses={})'.format(
-            self.__class__.__name__, self.location,
-            self.addresses)
-
+            
 
 class MultiContactAddress(SubElement):
-    def __len__(self):
-        return len(self.data.get('multi_contact_addresses', []))
+    """ 
+    A MultiContactAddress is a location and contact address pair which
+    can have multiple addresses. Server elements such as Management
+    and Log Server can have configured locations with mutliple addresses
+    per location.
+    
+    Use this server reference to create, add or remove contact addresses
+    from servers::
+    
+        mgt_server = ManagementServer.objects.first()
+        mgt_server.contact_addresses.update_or_create(
+            location='mylocation', addresses=['1.1.1.1', '1.1.1.2'])
+    
+    Or remove by location::
+    
+        mgt_server.contact_addresses.delete('mylocation')
+    
+    """
+    @property
+    def _cas(self):
+        return self.data.get('multi_contact_addresses', [])
     
     def __iter__(self):
-        for ca in SerializedIterable(
-            self.data.get('multi_contact_addresses', []), ContactAddress):
-            yield ca
+        for address in self._cas:
+            yield ContactAddress(**address)
     
-    def add(self, contact_address, location):
-        location = location_helper(location)
-        updated = False
-        for loc in self:
-            if loc.location_ref == location:
-                if contact_address not in loc.addresses:
-                    loc.data['addresses'].append(contact_address)
-                updated = True
-        if not updated:
-            self.data.setdefault('multi_contact_addresses', []).append(
-                dict(addresses=[contact_address],
-                     location_ref=location))
-        self.update()
-
-    def remove_by_location(self, location):
-        if len(self.data):
-            location = location_helper(location)
-            data = [loc.data for loc in self
-                    if loc.location_ref != location]
-            self.data['multi_contact_addresses'] = data
-            self.update()
-
+    def __contains__(self, location_href):
+        for location in self._cas:
+            if location.get('location_ref') == location_href:
+                return True
+        return False
+    
+    def get(self, location_name):
+        """
+        Get a contact address by location name
         
-class ServerCommon(object):
+        :param str location_name: name of location
+        :return: return contact address element or None
+        :rtype: ContactAddress
+        """
+        location_ref = location_helper(location_name, search_only=True)
+        if location_ref:
+            for location in self:
+                if location.location_ref == location_ref:
+                    return location
+    
+    def delete(self, location_name):
+        """
+        Remove a given location by location name. This operation is
+        performed only if the given location is valid, and if so,
+        `update` is called automatically.
+        
+        :param str location: location name or location ref
+        :raises UpdateElementFailed: failed to update element with reason
+        :rtype: bool
+        """
+        updated = False
+        location_ref = location_helper(location_name, search_only=True)
+        if location_ref in self:
+            self._cas[:] = [loc for loc in self
+                if loc.location_ref != location_ref]
+            self.update()
+            updated = True
+        return updated
+
+    def update_or_create(self, location, contact_addresses, with_status=False,
+            overwrite_existing=False, **kw):
+        """
+        Update or create a contact address and location pair. If the
+        location does not exist it will be automatically created. If the
+        server already has a location assigned with the same name, the
+        contact address specified will be added if it doesn't already
+        exist (Management and Log Server can have multiple address for a
+        single location).
+        
+        :param list(str) contact_addresses: list of contact addresses for
+            the specified location
+        :param str location: location to place the contact address in
+        :param bool overwrite_existing: if you want to replace existing
+            location to address mappings set this to True. Otherwise if
+            the location exists, only new addresses are appended
+        :param bool with_status: if set to True, a 3-tuple is returned with 
+            (Element, modified, created), where the second and third tuple
+            items are booleans indicating the status
+        :raises UpdateElementFailed: failed to update element with reason
+        :rtype: MultiContactAddress
+        """
+        updated, created = False, False
+        location_ref = location_helper(location)
+        if location_ref in self:
+            for loc in self:
+                if loc.location_ref == location_ref:
+                    if overwrite_existing:
+                        loc['addresses'][:] = contact_addresses
+                        updated = True
+                    else:
+                        for ca in contact_addresses:
+                            if ca not in loc.addresses:
+                                loc['addresses'].append(ca)
+                                updated = True
+        else:
+            self.data.setdefault('multi_contact_addresses', []).append(
+                dict(addresses=contact_addresses, location_ref=location_ref))
+            created = True
+        
+        if updated or created:
+            self.update()
+        if with_status:
+            return self, updated, created
+        return self
+        
+
+class ContactAddressMixin(object):
+    """
+    Mixin class to provide an interface to contact addresses on the
+    management and log server.
+    Contact addresses on servers can contain multiple IP's for a single
+    location.
+    """
+    @property
     def contact_addresses(self):
         """
-        View contact addresses for this management server. To add contact
-        addresses, call :py:func:`add_contact_address`
-
-        :return: contact addresses
-        :rtype: list(ContactAddress)
+        Provides a reference to contact addresses used by this server.
+        
+        Obtain a reference to manipulate or iterate existing contact
+        addresses::
+        
+            >>> from smc.elements.servers import ManagementServer
+            >>> mgt_server = ManagementServer.objects.first()
+            >>> for contact_address in mgt_server.contact_addresses:
+            ...   contact_address
+            ... 
+            ContactAddress(location=Default,addresses=[u'1.1.1.1'])
+            ContactAddress(location=foolocation,addresses=[u'12.12.12.12'])
+        
+        :rtype: MultiContactAddress
         """
         return MultiContactAddress(
-            href=self.get_relation('contact_addresses'))
+            href=self.get_relation('contact_addresses'),
+            type=self.typeof,
+            name=self.name)
         
     def add_contact_address(self, contact_address, location):
         """
@@ -103,8 +164,7 @@ class ServerCommon(object):
         :raises ModificationFailed: failed adding contact address
         :return: None
         """
-        contact = self.contact_addresses()
-        contact.add(contact_address, location)
+        return self.contact_addresses.update_or_create(location, [contact_address])
 
     def remove_contact_address(self, location):
         """
@@ -116,11 +176,10 @@ class ServerCommon(object):
         :raises ModificationFailed: failed removing contact address
         :return: None
         """
-        contact = self.contact_addresses()
-        contact.remove_by_location(location)
+        return self.contact_addresses.delete(location)
 
-       
-class ManagementServer(ServerCommon, Element):
+   
+class ManagementServer(ContactAddressMixin, Element):
     """
     Management Server configuration. Most configuration settings are better set
     through the SMC UI, such as HA, however this object can be used to do simple
@@ -139,7 +198,7 @@ class ManagementServer(ServerCommon, Element):
     typeof = 'mgt_server'
 
 
-class LogServer(ServerCommon, Element):
+class LogServer(ContactAddressMixin, Element):
     """
     Log Server elements are used to receive log data from the security engines
     Most settings on Log Server generally do not need to be changed, however it
@@ -238,7 +297,7 @@ class DNSServer(Element):
         return ElementCreator(cls, json)
 
    
-class ProxyServer(Element):
+class ProxyServer(ContactAddressMixin, Element):
     """
     A ProxyServer element is used in the firewall policy to provide the ability to
     send HTTP, HTTPS, FTP or SMTP traffic to a next hop proxy.
@@ -262,6 +321,7 @@ class ProxyServer(Element):
     :param str http_proxy: type of proxy configuration, either generic or forcepoint_ap-web_cloud
     """     
     typeof = 'proxy_server'
+    location = ElementRef('location_ref')
     
     @classmethod
     def create(cls, name, address, inspected_service, secondary=None,
@@ -315,6 +375,15 @@ class ProxyServer(Element):
                 json[key] = kw.get(key)
         
         return ElementCreator(cls, json)
+    
+    @property
+    def proxy_service(self):
+        """
+        The proxy service for this proxy server configuration
+        
+        :rtype: str
+        """
+        return self.data.get('http_proxy')
 
     @classmethod
     def update_or_create(cls, with_status=False, **kwargs):

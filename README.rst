@@ -64,7 +64,16 @@ unzip and run:
 
 ``python setup.py install``
 
-*The master branch is used as a dev branch, installing from this branch will pull the latest code commit. All commits are still tested before being uploaded.*
+Branches
+--------
+
+As of version 0.6.2, the master branch will be the released version code base. This version will also have a corresponding package on
+pypi. 
+The develop branch is used for ongoing updates and will be merged into the master branch at release time.
+
+If installing the develop branch, use the following:
+
+``pip install git+https://github.com/gabstopper/smc-python.git@develop``
 
 Testing
 -------

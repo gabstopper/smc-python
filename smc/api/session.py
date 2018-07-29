@@ -1,15 +1,20 @@
 """
 Session module for tracking existing connection state to SMC
 """
+import copy
 import json
 import logging
 import requests
+import collections
 
 import smc.api.web
 from smc.api.entry_point import Resource
-from smc.elements.user import ApiClient
-from smc.api.exceptions import ConfigLoadError, SMCConnectionError
 from smc.api.configloader import load_from_file, load_from_environ
+from smc.api.common import SMCRequest
+from smc.base.decorators import cached_property
+from smc.api.exceptions import ConfigLoadError, SMCConnectionError,\
+    UnsupportedEntryPoint, SessionManagerNotFound, SessionNotFound
+from smc.base.model import ElementFactory
 # requests.packages.urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
@@ -34,74 +39,292 @@ class SSLAdapter(HTTPAdapter):
             maxsize=maxsize,
             block=block,
             ssl_version=self.ssl_version)
-'''
+'''            
+
+#from threading import local
+
+class SessionManager(object):
+    """
+    The SessionManager keeps track of sessions created within smc-python.
+    In most cases, this is transparent functionality as most scripts will
+    use only a single session for it's lifetime.
+    
+    By default a single Session Manager is created that will be used
+    when processing all requests to the SMC. 
+    
+    Session Manager also has a hook that can be called that will change the
+    way the session manager retrieves the session from the manager.
+    An example might be that you are using smc-python in a web application
+    and authenticating the user to the SMC. Each web session stores the
+    name of the authenticated user. You want to use that to map to the 
+    SMC session by retrieving the user from the web session ID and then
+    from the SessionManager.
+    
+    A function hook can be registered that will retrieve use some external
+    criteria to determine which session to retrieve from the SessionManager.
+    .. seealso:: :meth:`~register_hook`.
+    
+    Creating your own session manager might be useful if you needed custom
+    functionality or needed to extend the default. Create a new manager
+    and call mount to set it on the global request object::
+    
+        manager = SessionManager()
+        manager.mount()    
+    
+    ..note:: By default, a single session is maintained and considered the
+        `default` session.
+    
+    :param list(Session) sessions: list of sessions
+    """
+    _session_hook = None
+    
+    def __init__(self, sessions=None):
+        self._sessions = collections.OrderedDict()
+        sessions = sessions or []
+        for session in sessions:
+            self._register(session)
+        #self._connections = local() #TODO: Make self._sessions an attribute of threading local
+    
+    @classmethod
+    def create(cls, sessions=None):
+        """
+        A session manager will be mounted to the SMCRequest class through
+        this classmethod. If there is already an existing SessionManager,
+        that is returned instead.
+        
+        :param list sessions: a list of Session objects
+        :rtype: SessionManager
+        """
+        manager = getattr(SMCRequest, '_session_manager')
+        if manager is not None:
+            return manager
+        manager = SessionManager(sessions)
+        manager.mount()
+        return manager
+    
+    def mount(self): 
+        """   
+        Mount this session manager on the request class, making this
+        the global manager for processing requests
+        
+        :return: None
+        """
+        setattr(SMCRequest, '_session_manager', self)
+    
+    def register_hook(self, hook):
+        """
+        Add a hook that specifies how to retrieve the session from the
+        session manager. A hook must be a callable that takes one argument
+        (the SessionManager) and extracts the session based on some criteria.
+        An example of using a hook::
+        
+            from smc import manager
+            def retrieve_session(session_manager):
+                ...
+                admin = session_manager.get_session('admin')
+                return admin if admin.is_active else session_manager.get_default_session()
+        
+            manager.register_hook(retrieve_session)
+           
+        Hooks can be used when your application requires multiple sessions
+        within the same python interpreter. For example, in a web app, you
+        might use the SMC administrator account to log in and store the session
+        within the web application which allows you to also store and retrieve
+        that SMC based session for further operations.
+        """
+        if callable(hook):
+            self._session_hook = hook
+    
+    def __contains__(self, session):
+        """
+        A session is considered to exist if the current user attached to
+        the session matches. In SMC, an administrative account must be
+        unique even if it only exists in a specific domain.
+        
+        :rtype: bool
+        """
+        return session in self.sessions
+    
+    @property
+    def sessions(self):
+        """
+        All available sessions in this session manager
+
+        :rtype: list(Session)
+        """
+        return list(self._sessions.values())
+        
+    def get_default_session(self):
+        """
+        The default session is nothing more than the first session added
+        into the session handler pool. This will likely change in the future
+        but for now each session identifies the domain and also manages
+        domain switching within a single session.
+        
+        :rtype: Session
+        """
+        if self._sessions:
+            return self.get_session(next(iter(self._sessions)))
+        return self.get_session()
+    
+    def get_session(self, user=None):
+        """
+        Retrieve the session based on user, or return and empty session.
+        Note that an empty session is not inserted into the Session Manager
+        until `login` has been successfully called on the session.
+        
+        :param str user: optional user to find in the session manager
+        :raises SessionNotFound: session was not found in manager
+        :rtype: Session
+        """
+        return self._sessions.get(user, Session())
+#         raise SessionNotFound('Session specified by name: %s does not currently '
+#             'exist.' % user)
+    
+    def close_all(self):
+        for admin_session in list(self._sessions.keys()):
+            self._sessions[admin_session].logout()
+        self._sessions.clear()
+    
+    def _get_session_key(self, session):
+        for name, _session in self._sessions.items():
+            if _session == session:
+                return name  
+    
+    def _register(self, session):
+        """
+        Register a session
+        """
+        if session.session_id:
+            self._sessions[session.name] = session
+        
+    def _deregister(self, session):
+        """
+        Deregister a session. 
+        """
+        if session in self:
+            self._sessions.pop(self._get_session_key(session), None)    
+        
 
 class Session(object):
     """
-    Session represents the clients session to the SMC. As session is obtained
+    Session represents the clients session to the SMC. A session is obtained
     by calling login(). If sessions need to be long lived as might be the case
     when running under a web platform, a session is automatically refreshed
     when it expires. Best practice is to call logout() after to clear the
     session from the SMC.
     """
-    _MODS_LOADED = False
-    
-    #: The default format string to use when configuring the logger
-    LOG_FORMAT = '%(asctime)s - %(name)s - [%(levelname)s] - %(message)s'
-    
-    def __init__(self):
-        self._api_version = None
-        self._session = None # Python requests session object
+    def __init__(self, manager=None):
+        self._params = {} # Retrieved from login
+        self._session = None # requests.Session
         self._connection = None # SMCAPIConnection
-        self._url = None
-        self._timeout = 10
-        self._domain = 'Shared Domain'
-        # Extra args are collected and used if provided. These are generally
-        # not needed but may be needed to enable visibility of beta features
-        self._extra_args = {}
-        # Resource provides an interface to entry points
-        self._resource = Resource()
-        self.credential = Credential()
-        # Added to support domain switching. Sessions store a dict of
-        # {'domain': session} to allow for switching domains within a
-        # single session
-        self._sessions = {}
+        
+        self._resource = None # Entry points
+        
+        self._manager = manager # Session Manager that tracks this session
+        
+        # Transactions are supported in version 0.6.2 and beyond. When
+        # run with atomic, this session parameter indicates whether the
+        # operation in process is within an atomic block or not
+        self.in_atomic_block = False
+        # Savepoint indicates a nested context manager block
+        self.is_savepoint = False
+        # Transactions that are within the given atomic block
+        self.transactions = []
     
     @property
+    def manager(self):
+        """
+        Return the session manager for this session
+        
+        :rtype: SessionManager
+        """
+        manager = SMCRequest._session_manager if not self._manager \
+            else self._manager
+        if not manager:
+            raise SessionManagerNotFound('A session manager was not found. '
+                'This is an initialization error binding the SessionManager. ')
+        return manager
+    
+    @property
+    def is_active(self):
+        """
+        Is this session active. Active means there is a stored session ID for
+        the SMC using the current account. This does not specify whether the
+        session ID has been timed out on the server but does indicate the
+        account has not called logout.
+        
+        :rtype: bool
+        """
+        return self._session is not None and 'JSESSIONID' in self._session.cookies
+    
+    @property
+    def _extra_args(self):
+        """
+        Extra args are collected from login and used if provided. These are
+        generally not needed but may be used to enable visibility of beta
+        features or set special settings
+        """
+        return self._params.get('kwargs', {})
+        
+    @property
     def entry_points(self):
-        if not len(self._resource):
-            raise SMCConnectionError(
-                "No entry points found, it is likely there is no valid "
-                "login session.")
+        """
+        Entry points that are bound to this session. Entry points are exposed
+        by the SMC API and provide links to top level resources
+        
+        :rtype: Resource
+        """
+        if not self._resource:
+            raise SMCConnectionError('No entry points found, it is likely '
+                'there is no valid login session.')
         return self._resource
 
     @property
     def api_version(self):
-        """ API Version """
-        return self._api_version
+        """
+        Current API Version
+        
+        :rtype: str
+        """
+        return self._params.get('api_version')
 
     @property
     def session(self):
-        """ Session for this interpreter """
         return self._session
-
-    @property
-    def session_id(self):
-        """ The session ID in header type format. Can be inserted
-        into a connection if necessary using
-        {'Cookie': session.session_id}
-        """
-        return 'JSESSIONID=%s' % self.session.cookies.get('JSESSIONID')\
-            if self.session else None
 
     @property
     def connection(self):
         return self._connection
 
     @property
+    def session_id(self):
+        """
+        The session ID in header type format. Can be inserted into a
+        connection if necessary using::
+        
+            {'Cookie': session.session_id}
+        
+        :rtype: str
+        """
+        return None if not self.session or 'JSESSIONID' not in \
+            self.session.cookies else 'JSESSIONID={}'.format(
+                self.session.cookies['JSESSIONID'])
+
+    @property
+    def credential(self):
+        # Login credentials
+        return Credential(**{k: self._params.get(k)
+            for k in ('api_key', 'login', 'pwd')})
+    
+    @property
     def url(self):
-        """ SMC URL """
-        return self._url
+        """
+        The fully qualified SMC URL in use, includes the port number
+        
+        :rtype: str
+        """
+        return self._params.get('url', '')
     
     @property
     def web_socket_url(self):
@@ -111,19 +334,51 @@ class Session(object):
     
     @property
     def is_ssl(self):
+        """
+        Is this an SSL connection
+        
+        :rtype: bool
+        """
         return self.url.startswith('https') if self.session else False
 
     @property
     def timeout(self):
-        """ Session timeout """
-        return self._timeout
+        """
+        Session timeout in seconds
+        
+        :rtype: int
+        """
+        return self._params.get('timeout', 30)
 
     @property
     def domain(self):
-        """ Logged in domain """
-        return self._domain
-
+        """
+        Logged in SMC domain
+        
+        :rtype: str
+        """
+        return self._params.get('domain', 'Shared Domain')
+        
     @property
+    def name(self):
+        """
+        Return the administrator name for this session. Can be None if
+        the session has not yet been established.
+        
+        .. note:: The administrator name was introduced in SMC version
+            6.4. Previous versions will show the unique session
+            identifier for this session.
+        
+        :rtype: str
+        """
+        if self.session: # protect cached property from being set before session
+            try:
+                return self.current_user.name
+            except AttributeError: # TODO: Catch ConnectionError? No session
+                pass
+        return hash(self)
+    
+    @cached_property
     def current_user(self):
         """
         .. versionadded:: 0.6.0
@@ -133,18 +388,28 @@ class Session(object):
         
         :raises UnsupportedEntryPoint: Current user is only supported with SMC
             version >= 6.4
-        :rtype: ApiClient
+        :rtype: Element
         """
         if self.session:
-            response = self.session.get(self.entry_points.get('current_user'))
-            if response.status_code in (200, 201):
-                return ApiClient.from_href(response.json().get('value'))
+            try:
+                response = self.session.get(self.entry_points.get('current_user'))
+                if response.status_code in (200, 201):
+                    admin_href=response.json().get('value')
+                    request = SMCRequest(admin_href)
+                    smcresult = self.connection.send_request('get', request)
+                    return ElementFactory(admin_href, smcresult)
+            except UnsupportedEntryPoint:
+                pass
     
-    def login(self, url=None, api_key=None, login=None, pwd=None, api_version=None,
-              timeout=None, verify=True, alt_filepath=None, domain=None, **kwargs):
+    def login(self, url=None, api_key=None, login=None, pwd=None,
+            api_version=None, timeout=None, verify=True, alt_filepath=None,
+            domain=None, **kwargs):
         """
         Login to SMC API and retrieve a valid session.
-        Session will be re-used when multiple queries are required.
+        Sessions use a pool connection manager to provide dynamic scalability
+        during times of increased load. Each session is managed by a global
+        session manager making it possible to have more than one session per
+        interpreter.
 
         An example login and logout session::
 
@@ -162,7 +427,7 @@ class Session(object):
         :param str|boolean verify: verify SSL connections using cert (default: verify=True)
             You can pass verify the path to a CA_BUNDLE file or directory with certificates
             of trusted CAs
-        :param str alt_filepath: If using .smcrc, alternate file+path
+        :param str alt_filepath: If using .smcrc, alternate path+filename
         :param str domain: domain to log in to. If domains are not configured, this
             field will be ignored and api client logged in to 'Shared Domain'.
         :param bool retry_on_busy: pass as kwarg with boolean if you want to add retries
@@ -187,67 +452,75 @@ class Session(object):
             to the SMC API. It is still possible to use an API Client by providing the api_key
             in the login call.
         """
+        params = {}
         if not url or (not api_key and not (login and pwd)):
-            # First try load from file
-            try:
-                cfg = load_from_file(alt_filepath) if alt_filepath\
+            try: # First try load from file
+                params = load_from_file(alt_filepath) if alt_filepath\
                     is not None else load_from_file()
-                logger.debug('Read config data from file: %s', cfg)
+                logger.debug('Read config data from file: %s', params)
             except ConfigLoadError:
                 # Last ditch effort, try to load from environment
-                cfg = load_from_environ()
-                logger.debug('Read config data from environ: %s', cfg)
-                
-            url = cfg.get('url')
-            api_key = cfg.get('api_key')
-            api_version = cfg.get('api_version')
-            verify = cfg.get('verify')
-            timeout = cfg.get('timeout')
-            domain = cfg.get('domain')
-            kwargs = cfg.get('kwargs', {})
+                params = load_from_environ()
+                logger.debug('Read config data from environ: %s', params)
         
-        self._timeout = timeout or self._timeout
-        self._domain = domain or self._domain
-        self._url = url
+        params = params or dict(
+            url=url,
+            api_key=api_key,
+            login=login,
+            pwd=pwd,
+            api_version=api_version,
+            verify=verify,
+            timeout=timeout,
+            domain=domain,
+            kwargs=kwargs or {})
+        
+        # Check to see if a session already exists with the same user
+        # (SMC >= 6.4) or session ID. A single session by user supported which
+        # means if an existing session does exist, it will be logged out and a
+        # new session created
+        if self.manager and (self.session and self in self.manager):
+            logger.info('An attempt to log in occurred when a session already '
+                'exists, bypassing login for session: %s' % self)
+            return
+        
+        self._params = {k: v for k, v in params.items() if v is not None}
+        
+        verify_ssl = self._params.get('verify', True)
         
         # Determine and set the API version we will use.
-        self._api_version = get_api_version(url, api_version, timeout, verify)
+        self._params.update(
+            api_version=get_api_version(
+                self.url, self.api_version, self.timeout, verify_ssl))
         
-        # Set the auth provider which will determine what type of login this is
-        self.credential = Credential(api_key, login, pwd)
+        extra_args = self._params.get('kwargs', {})
         
-        # Retries configured generically
-        retry_on_busy = kwargs.pop('retry_on_busy', False)
+        # Retries configured
+        retry_on_busy = extra_args.pop('retry_on_busy', False)
         
-        request = self._build_auth_request(verify=verify, **kwargs)
-        
+        request = self._build_auth_request(verify_ssl, **extra_args)
+            
         # This will raise if session login fails...
         self._session = self._get_session(request)
-        self.session.verify = verify
-        
-        logger.debug('Login succeeded and session retrieved: %s, domain: %s',
-            self.session_id, self.domain)
-        
+        self.session.verify = verify_ssl
+
         if retry_on_busy:
             self.set_retry_on_busy()
         
-        self._sessions[self.domain] = self.session
-        if self.connection is None:
-            self._connection = smc.api.web.SMCAPIConnection(self)
-             
+        # Set up new API connection reference
+        self._connection = smc.api.web.SMCAPIConnection(self)
+        
         # Load entry points
         load_entry_points(self)
-
-        if not self._MODS_LOADED:
-            logger.debug('Registering class mappings.')
-            # Load the modules to register needed classes
-            for pkg in ('smc.policy', 'smc.elements', 'smc.routing',
-                        'smc.vpn', 'smc.administration', 'smc.core',
-                        'smc.administration.user_auth'):
-                import_submodules(pkg, recursive=False)
-
-            self._MODS_LOADED = True
-    
+        
+        # Put session in manager
+        self.manager._register(self)
+        
+        logger.debug('Login succeeded for admin: %s in domain: %s, session: %s',
+            self.name, self.domain, self.session_id)
+   
+    def __repr__(self):
+        return 'Session(name=%s,domain=%s)' % (self.name, self.domain)
+        
     def _build_auth_request(self, verify=False, **kwargs):
         """
         Build the authentication request to SMC
@@ -256,11 +529,15 @@ class Session(object):
             'domain': self.domain
         }
         
+        credential = self.credential
         params = {}
-        if self.credential.provider_name.startswith('lms'):
-            params = self.credential.get_credentials()
+        
+        if credential.provider_name.startswith('lms'):
+            params = dict(
+                login=credential._login,
+                pwd=credential._pwd)
         else:
-            json.update(authenticationkey=self.credential._api_key)
+            json.update(authenticationkey=credential._api_key)
         
         if kwargs:
             json.update(**kwargs)
@@ -296,50 +573,63 @@ class Session(object):
         return _session
 
     def logout(self):
-        """ Logout session from SMC """
-        if self._sessions:
-            for domain, session in self._sessions.items():
-                try:
-                    r = session.put(self.entry_points.get('logout'))
-                    if r.status_code == 204:
-                        logger.info('Logged out of domain: %s successfully', domain)
-                    else:
-                        logger.error('Logout status was unexpected. Received response '
-                                     'with status code: %s', (r.status_code))
+        """ 
+        Logout session from SMC
+        
+        :return: None
+        """
+        if not self.session:
+            self.manager._deregister(self)
+            return
+        try:
+            r = self.session.put(self.entry_points.get('logout'))
+            if r.status_code == 204:
+                logger.info('Logged out admin: %s of domain: %s successfully',
+                    self.name, self.domain)
+            else:
+                logger.error('Logout status was unexpected. Received response '
+                    'with status code: %s', (r.status_code))
 
-                except requests.exceptions.SSLError as e:
-                    logger.error('SSL exception thrown during logout: %s', e)
-                except requests.exceptions.ConnectionError as e:
-                    logger.error('Connection error on logout: %s', e)
-            
-            logger.debug('Call counters: %s' % smc.api.web.counters)
-            
+        except requests.exceptions.SSLError as e:
+            logger.error('SSL exception thrown during logout: %s', e)
+        except requests.exceptions.ConnectionError as e:
+            logger.error('Connection error on logout: %s', e)
+        finally:
             self.entry_points.clear()
+            self.manager._deregister(self)
             self._session = None
-            self._sessions = {}
-
+            try:
+                delattr(self, 'current_user')
+            except AttributeError:
+                pass
+        
+        logger.debug('Call counters: %s' % smc.api.web.counters)    
+        
     def refresh(self):
         """
-        Refresh session on 401. Wrap this in a loop with retries.
+        Refresh session on 401. This is called automatically if your existing
+        session times out and resends the operation/s which returned the
+        error.
 
         :raises SMCConnectionError: Problem re-authenticating using existing
             api credentials
         """
-        # Did we already have a session that just timed out
-        if self.session and self.credential.has_credentials and self.url:
-            # Try relogging in to refresh, otherwise fail
+        if self.session and self.session_id: # Did session timeout?
             logger.info('Session timed out, will try obtaining a new session using '
                 'previously saved credential information.')
-            self.login(**self._get_login_params())
-            return
+            self.logout() # Force log out session just in case
+            return self.login(**self.copy())
         raise SMCConnectionError('Session expired and attempted refresh failed.')        
     
     def switch_domain(self, domain):
         """
-        Switch from one domain to another. You can call session.login() with a domain
-        key value to log directly into the domain of choice or alternatively switch
-        from domain to domain. The user must have permissions to the domain or
-        unauthorized will be returned. 
+        Switch from one domain to another. You can call session.login() with
+        a domain key value to log directly into the domain of choice or alternatively
+        switch from domain to domain. The user must have permissions to the domain or
+        unauthorized will be returned. In addition, when switching domains, you will
+        be logged out of the current domain to close the connection pool associated
+        with the previous session. This prevents potentially excessive open
+        connections to SMC
         ::
         
             session.login() # Log in to 'Shared Domain'
@@ -351,44 +641,12 @@ class Session(object):
             user does not have privileges to that domain.
         """
         if self.domain != domain:
-            # Do we already have a session
-            if domain not in self._sessions:
-                logger.info('Switching to domain: %r and creating new session', domain)
-                credentials = self._get_login_params()
-                credentials.update(domain=domain)
-                self.login(**credentials)
-                logger.debug('Domain context session map: %s' % self._sessions)
-            else:
-                logger.info('Switching to existing domain session: %s', domain)
-                self._session = self._sessions.get(domain)
-                self._domain = domain
-
-    def set_file_logger(self, path, log_level=logging.DEBUG, format_string=None, logger_name='smc'):
-        """
-        Convenience function to quickly configure any level of logging
-        to a file.
-    
-        :param int log_level: A log level as specified in the `logging` module
-        :param str format_string: Optional format string as specified in the 
-            `logging` module
-        :param str path: Path to the log file.  The file will be created
-            if it doesn't already exist.
-        """
-        if format_string is None: 
-            format_string = self.LOG_FORMAT
-        
-        log = logging.getLogger(logger_name)
-        log.setLevel(log_level)
-
-        # create file handler and set level
-        ch = logging.FileHandler(path)
-        ch.setLevel(log_level)
-        # create formatter
-        formatter = logging.Formatter(format_string)
-        # add formatter to ch
-        ch.setFormatter(formatter)
-        # add ch to logger
-        log.addHandler(ch)
+            if self in self.manager: # Exit current domain
+                self.logout()
+            logger.info('Switching to domain: %r and creating new session', domain)
+            params = self.copy()
+            params.update(domain=domain)
+            self.login(**params)
     
     def set_retry_on_busy(self, total=5, backoff_factor=0.1, status_forcelist=None, **kwargs):
         """
@@ -420,43 +678,14 @@ class Session(object):
             for proto_str in ('http://', 'https://'):
                 self.session.mount(proto_str, HTTPAdapter(max_retries=retry))
             logger.debug('Mounting retry object to HTTP session: %s' % retry) 
-        
-    def set_stream_logger(self, log_level=logging.DEBUG, format_string=None, logger_name='smc'): 
-        """ 
-        Stream logger convenience function to log to console
-        
-        :param int log_level: A log level as specified in the `logging` module
-        :param str format_string: Optional format string as specified in the 
-            `logging` module
-        """ 
-        if format_string is None: 
-            format_string = self.LOG_FORMAT
-     
-        logger = logging.getLogger(logger_name) 
-        logger.setLevel(log_level)
-        
-        # create console handler and set level
-        ch = logging.StreamHandler() 
-        ch.setLevel(log_level)
-        # create formatter
-        formatter = logging.Formatter(format_string)
-        # add formatter to ch
-        ch.setFormatter(formatter) 
-        logger.addHandler(ch) 
     
-    def _get_login_params(self):
-        """
-        Spec for login parameters
-        """
-        credentials = dict(
-            url=self.url,
-            api_version=self.api_version,
-            timeout=self.timeout,
-            verify=self._session.verify,
-            domain=self.domain)
-        credentials.update(self.credential.get_credentials())
-        credentials.update(**self._extra_args)
-        return credentials
+    def copy(self):
+        # Copy the relevant parameters to make another session login
+        # using the existing information
+        params = copy.copy(self._params)
+        kwargs = params.pop('kwargs', {})
+        params.update(**kwargs)
+        return params
     
     def _get_log_schema(self):
         """
@@ -493,17 +722,17 @@ class Credential(object):
         self._api_key = api_key
         self._login = login
         self._pwd = pwd
-
+    
     @property
     def provider_name(self):
-        if self._api_key:
-            return 'login'
-        return 'lms_login'
+        return 'login' if self._api_key else 'lms_login'
     
     def get_provider_entry_point(self, url, api_version):
         return '{url}/{api_version}/{provider_name}'.format(
-            url=url, api_version=api_version, provider_name=self.provider_name)
-    
+            url=url,
+            api_version=api_version,
+            provider_name=self.provider_name)
+
     @property
     def has_credentials(self):
         """
@@ -511,41 +740,20 @@ class Credential(object):
         
         :rtype: bool
         """
-        if self._api_key is not None:
-            return True
-        elif self._login is not None and self._pwd is not None:
-            return True
-        return False
-    
-    def get_credentials(self):
-        """
-        Return credentials as a dict
-        
-        :rtype: dict
-        """
-        if self.has_credentials:
-            if self._api_key:
-                return dict(
-                    api_key=self._api_key)
-            else:
-                return dict(
-                    login=self._login,
-                    pwd=self._pwd)
-        return {}
+        return all([
+            getattr(self, '_%s' % field, None) is not None
+            for field in self.CredentialMap.get(self.provider_name)])
 
 
-def load_entry_points(session):
+def load_entry_points(self):
     try:
-        r = session.session.get('{url}/{api_version}/api'.format(
-                url=session.url, api_version=session.api_version))
+        r = self.session.get('{url}/{api_version}/api'.format(
+                url=self.url, api_version=self.api_version))
         
         if r.status_code == 200:
             result_list = json.loads(r.text)
-            
-            if session._resource:
-                session.entry_points.clear()
-            
-            session._resource.add(result_list['entry_point'])
+
+            self._resource = Resource(result_list['entry_point'])
             logger.debug("Loaded entry points with obtained session.")
         
         else:
@@ -601,25 +809,3 @@ def get_api_version(base_url, api_version=None, timeout=10, verify=True):
     
     return api_version
 
-
-def import_submodules(package, recursive=True):
-    """
-    Import all submodules of a module, recursively,
-    including subpackages.
-
-    From http://stackoverflow.com/questions/3365740/how-to-import-all-submodules
-
-    :param package: package (name or actual module)
-    :type package: str | module
-    :rtype: dict[str, types.ModuleType]
-    """
-    import importlib
-    import pkgutil
-    if isinstance(package, str):
-        package = importlib.import_module(package)
-    results = {}
-    for _loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
-        full_name = package.__name__ + '.' + name
-        results[full_name] = importlib.import_module(full_name)
-        if recursive and is_pkg:
-            results.update(import_submodules(full_name))

@@ -92,6 +92,27 @@ TLSServerCredential
 	:members:
 	:show-inheritance:
 
+TLSProfile
+**********
+
+.. autoclass:: TLSProfile
+	:members:
+	:show-inheritance:
+
+TLSIdentity
+***********
+
+.. autoclass:: TLSIdentity
+	:members:
+	:show-inheritance:
+
+TLSCryptographySuite
+********************
+
+.. autoclass:: TLSCryptographySuite
+	:members:
+	:show-inheritance:
+
 ClientProtectionCA
 ******************
 
@@ -370,7 +391,21 @@ Servers
 +++++++
 
 .. automodule:: smc.elements.servers
-	:members: ContactAddress
+	:members: MultiContactAddress, ContactAddressMixin
+
+LogServer
+*********
+
+.. autoclass:: LogServer
+	:members: 
+	:show-inheritance:
+
+ManagementServer
+****************
+
+.. autoclass:: ManagementServer
+	:members: 
+	:show-inheritance:
 
 DNSServer
 *********
@@ -383,19 +418,6 @@ HttpProxy
 
 .. autoclass:: HttpProxy
 	:members:
-
-LogServer
-*********
-
-.. autoclass:: LogServer
-	:members: add_contact_address, remove_contact_address, contact_addresses
-	:show-inheritance:
-
-ManagementServer
-****************
-
-.. autoclass:: ManagementServer
-	:members: add_contact_address, remove_contact_address, contact_addresses
 
 ProxyServer
 ***********
@@ -534,13 +556,6 @@ TLSInspection
 
 .. autoclass:: smc.core.addon.TLSInspection
 	:members:
-
-ContactAddress
-++++++++++++++
-
-.. automodule:: smc.core.contact_address
-	:members:
-	:show-inheritance:
 
 Dynamic Routing
 +++++++++++++++
@@ -768,6 +783,13 @@ Sub-Interfaces
 	:members:
 	:exclude-members: create
 
+InterfaceContactAddress
+***********************
+
+.. automodule:: smc.core.contact_address
+	:members: 
+	:show-inheritance:
+	
 Node
 ++++
 

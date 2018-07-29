@@ -72,7 +72,11 @@ Lastly, to commit this change to SMC, you must still call `update` on the servic
 
     service.update()
 
-.. note:: You can unset a ProxyServer by setting the proxy_server field to None and updating
+
+You can unset a ProxyServer by setting the proxy_server field to None and updating::
+
+    service.update_protocol_agent(None)
+    service.update()
 
 """
 from smc.base.model import Element, SubElement, ElementCache
@@ -97,7 +101,7 @@ class ProtocolAgentMixin(object):
         :rtype: ProtocolAgent
         """
         if 'protocol_agent_ref' in self.data:
-            return Element.from_href(self.data['protocol_agent_ref'])
+            return Element.from_href(self.protocol_agent_ref)
     
     @property
     def protocol_agent_values(self):

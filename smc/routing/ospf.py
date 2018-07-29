@@ -251,14 +251,14 @@ class OSPFArea(Element):
         return ElementCreator(cls, json)
 
     @classmethod
-    def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
+    def update_or_create(cls, with_status=False, **kwargs):
         if 'inbound_filters' in kwargs:
             kwargs.update(inbound_filters_ref=
                 element_resolver(kwargs.pop('inbound_filters')))
         if 'outbound_filters' in kwargs:
             kwargs.update(outbound_filters_ref=
                 element_resolver(kwargs.pop('outbound_filters')))
-        return super(OSPFArea, cls).update_or_create(filter_key, with_status, **kwargs)
+        return super(OSPFArea, cls).update_or_create(with_status=with_status, **kwargs)
 
     @property
     def inbound_filters(self):

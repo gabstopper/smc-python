@@ -54,7 +54,8 @@ Then create the multilink specifying the multilink members::
 
 .. seealso:: :class:`~Multilink`    
 """
-from smc.base.model import Element, ElementCreator, ElementCache
+from smc.base.model import Element, ElementCreator, ElementCache, ElementRef,\
+    ElementList
 from smc.base.util import element_resolver
 from smc.core.general import RankedDNSAddress
 
@@ -65,6 +66,10 @@ class StaticNetlink(Element):
     route to a destination. It is typically used when you have fixed IP
     interfaces versus using DHCP (use a Dynamic NetLink).
     
+    :ivar Router,Engine gateway: gateway for this netlink. Should be
+        the 'next hop' element associated with the netlink
+    :ivar list(Network) network: list of networks associated with this
+        netlink
     :ivar int input_speed: input speed in Kbps, used for ratio-based
             load-balancing
     :ivar int output_speed: output speed in Kbps,  used for ratio-based
@@ -79,6 +84,8 @@ class StaticNetlink(Element):
     :ivar int active_mode_timeout: probe timeout in seconds
     """
     typeof = 'netlink'
+    gateway = ElementRef('gateway_ref')
+    network = ElementList('ref')
 
     @classmethod
     def create(cls, name, gateway, network, input_speed=None,
@@ -99,7 +106,7 @@ class StaticNetlink(Element):
             load-balancing
         :param int output_speed: output speed in Kbps,  used for ratio-based
             load-balancing
-        :param list domain_server_address: dns address for netlink. Engine
+        :param list domain_server_address: dns addresses for netlink. Engine
             DNS can override this field
         :type dns_addresses: list(str,Element)
         :param str provider_name: optional name to identify provider for this
@@ -144,75 +151,29 @@ class StaticNetlink(Element):
     @classmethod
     def update_or_create(cls, with_status=False, **kwargs):
         """
-        Update or create static netlink. 
+        Update or create static netlink. DNS entry differences are not
+        resolved, instead any entries provided will be the final state
+        for this netlink. If the intent is to add/remove DNS entries
+        you can use the :meth:`~domain_server_address` method to add
+        or remove.
         
-        :param dict kwargs: kwargs to satisfy the `create` constructor arguments
-            if the element doesn't exist or attributes to change
         :raises CreateElementFailed: failed creating element
         :return: element instance by type or 3-tuple if with_status set
         """
-        updated = False
-        element, created = super(StaticNetlink, cls).get_or_create(with_status=True, **kwargs)
+        dns_address = kwargs.pop('domain_server_address', [])
+        element, updated, created = super(StaticNetlink, cls).update_or_create(
+            with_status=True, defer_update=True, **kwargs)
         if not created:
-            if 'domain_server_address' in kwargs:
-                dns = kwargs.pop('domain_server_address', [])
-                current_dns = element.domain_server_address
+            if dns_address:
                 new_entries = RankedDNSAddress([])
-                new_entries.add(dns)
-                if len(new_entries) != len(current_dns):
-                    element.update(domain_server_address=new_entries.entries)
-                    updated = True
-                else:
-                    if any(entry for entry in dns if entry not in current_dns):
-                        element.update(domain_server_address=new_entries.entries)
-                        updated = True
-            
-            gateway = element_resolver(kwargs.pop('gateway', None))
-            if gateway and gateway != element.data.get('gateway_ref'):
-                element.data.update(gateway_ref=gateway)
+                new_entries.add(dns_address)
+                element.data.update(domain_server_address=new_entries.entries)
                 updated = True
-            network = element_resolver(kwargs.pop('network', []))
-            if network and set(element.data.get('ref')) ^ set(network):    
-                element.data.update(ref=network)
-                updated = True
-            
-            for name, value in kwargs.items():
-                if element.data.get(name) != value:
-                    element.data[name] = value
-                    updated = True
-            
-            if updated:
-                element.update()
-             
+        if updated:
+            element.update()
         if with_status:
             return element, updated, created
-        
         return element
-
-    def add_network(self, network):
-        """
-        Add an additional network to this netlink. The network should be 
-        an element of type Network or str href. Update to this will be 
-        done after calling this method.
-        
-        :param str,Element network: network element to add to this static
-            netlink
-        :raises UpdateElementFailed: if update fails
-        :return: None
-        """
-        network = element_resolver(network)
-        self.data.get('ref', []).append(network)
-        self.update()
-    
-    @property
-    def network(self):
-        """
-        List of networks this static netlink uses.
-
-        :return: networks associated with this netlink, as Element
-        :rtype: Element
-        """
-        return [self.from_href(elem) for elem in self.data.get('ref')]
 
     @property
     def domain_server_address(self):
@@ -226,28 +187,8 @@ class StaticNetlink(Element):
         return RankedDNSAddress(self.data.get('domain_server_address'))
     
     @property
-    def gateway(self):
-        """
-        The gateway (engine) that this netlink is used on. You can set
-        the gateway by providing an element of type Engine or Router.
-
-        :rtype: Element
-        """
-        return Element.from_href(self.data.get('gateway_ref'))
-    
-    @gateway.setter
-    def gateway(self, value):
-        self.data.update(gateway_ref=element_resolver(value))
-    
-    @property
     def networks(self):
         return self.network
-
-#     def __setattr__(self, name, value):
-#         if name in ('_meta', '_name') or name in dir(self):
-#             return super(StaticNetlink, self).__setattr__(name, value)
-#         else:
-#             self.data[name] = value
 
 
 class DynamicNetlink(Element):
@@ -444,7 +385,23 @@ class Multilink(Element):
             multilink_members.append(m)
         
         return cls.create(name, multilink_members, **kwargs)
-        
+    
+    @classmethod
+    def update_or_create(cls, with_status=False, **kwargs):
+        element, updated, created = super(Multilink, cls).update_or_create(
+            with_status=True, defer_update=True, **kwargs)
+        if not created:
+            multilink_members = kwargs.pop('multilink_members', [])
+            if multilink_members:
+                if set(multilink_members) ^ set(element.members):
+                    element.data['multilink_member'] = multilink_members    
+                    updated = True
+        if updated:
+            element.update()
+        if with_status:
+            return element, updated, created
+        return element
+            
     @property
     def members(self):
         """
@@ -464,9 +421,30 @@ class MultilinkMember(object):
     optionally QoS.
     Use this class to create mutlilink members that are required for
     creating a Multilink element.
+    
+    :ivar Network network: network element reference specifying netlink subnet
+    :ivar StaticNetlink,DynamicNetlink netlink: netlink element reference
     """
+    network = ElementRef('network_ref')
+    netlink = ElementRef('netlink_ref')
+    
     def __init__(self, kwargs):
         self.data = ElementCache(kwargs)
+    
+    def __eq__(self, other):
+        return all([
+            self.ip_range == other.ip_range,
+            self.netlink_role == other.netlink_role,
+            self.data.get('network_ref') == other.data.get('network_ref'),
+            self.data.get('netlink_ref') == other.data.get('netlink_ref')
+            ])
+    
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash((self.ip_range, self.netlink_role,
+            self.data.get('network_ref'), self.data.get('netlink_ref')))
     
     @property
     def ip_range(self):
@@ -501,30 +479,6 @@ class MultilinkMember(object):
     def netlink_role(self, value):
         if value in ('standby', 'active'):
             self.data.update(netlink_role=value)
-    
-    @property
-    def network(self):
-        """
-        Specifies the Network element that represents the IP address
-        space in the directly connected external network of the network
-        link. Can also be set.
-        
-        :rtype: Network
-        """
-        return Element.from_href(self.data.get('network_ref'))
-    
-    @network.setter
-    def network(self, value):
-        self.data.update(network_ref=element_resolver(value))
-    
-    @property
-    def netlink(self):
-        """
-        The static netlink referenced in this multilink member
-        
-        :rtype: StaticNetlink
-        """
-        return Element.from_href(self.data.get('netlink_ref'))
 
     @classmethod
     def create(cls, netlink, ip_range=None, netlink_role='active'):

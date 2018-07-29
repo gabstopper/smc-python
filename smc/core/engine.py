@@ -522,7 +522,7 @@ class Engine(Element):
         """
         alias_list = list(Alias.objects.all())
         for alias in self.make_request(resource='alias_resolving'):
-            yield Alias.from_engine(alias, alias_list)
+            yield Alias._from_engine(alias, alias_list)
 
     def blacklist(self, src, dst, duration=3600, **kw):
         """
@@ -811,15 +811,18 @@ class Engine(Element):
             >>> for ca in engine.contact_addresses:
             ...   ca
             ... 
-            ContactAddressInterface(interface_id=11, interface_ip=10.10.10.20)
-            ContactAddressInterface(interface_id=120, interface_ip=120.120.120.100)
-            ContactAddressInterface(interface_id=0, interface_ip=1.1.1.1)
-            ContactAddressInterface(interface_id=12, interface_ip=3.3.3.3)
-            ContactAddressInterface(interface_id=12, interface_ip=17.17.17.17)
+            ContactAddressNode(interface_id=11, interface_ip=10.10.10.20)
+            ContactAddressNode(interface_id=120, interface_ip=120.120.120.100)
+            ContactAddressNode(interface_id=0, interface_ip=1.1.1.1)
+            ContactAddressNode(interface_id=12, interface_ip=3.3.3.3)
+            ContactAddressNode(interface_id=12, interface_ip=17.17.17.17)
         
         .. seealso:: :py:mod:`smc.core.contact_address`
-
-        :rtype: ContactAddressCollection(ContactInterfaceAddress)
+        
+        This is set to a private method because the logic doesn't make sense with
+        respects to how this is configured under the SMC.
+        
+        :rtype: ContactAddressCollection(ContactAddressNode)
         """
         return ContactAddressCollection(
             self.get_relation('contact_addresses'))        

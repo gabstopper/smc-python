@@ -6,9 +6,11 @@ used by API functions or methods.
 For example, Blacklist can be applied to an engine directly or system wide. This class
 will define the format when calling blacklist functions.
 """
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, ElementList
 from smc.api.exceptions import ModificationFailed
 from smc.base.util import element_resolver
+from smc.base.structs import NestedDict
+from smc.base.decorators import cached_property
 
 
 class Category(Element):
@@ -23,9 +25,12 @@ class Category(Element):
         >>> from smc.elements.other import Category
         >>> Category.create(name='footag', comment='test tag')
         Category(name=footag)
+    
+    :ivar list(CategoryTag) categories: category tags for this category
     """
     typeof = 'category_tag'
-
+    categories = ElementList('category_parent_ref')
+    
     @classmethod
     def create(cls, name, comment=None):
         """
@@ -118,18 +123,6 @@ class Category(Element):
 
     def add_category(self, tags):
         pass
-    
-    @property
-    def categories(self):
-        """
-        Categories can be children of category tags (groups). Show category
-        tags that have this category as a member.
-        
-        :return: category tag/s for this category
-        :rtype: list
-        """
-        return [Element.from_href(tag)
-                for tag in self.data.get('category_parent_ref')]
 
 
 class CategoryTag(Element):
@@ -137,8 +130,13 @@ class CategoryTag(Element):
     A Category Tag is a grouping of categories within SMC. Category Tags
     are used as filters (typically in the SMC UI) to change the view based
     on the tag.
+    
+    :ivar list(Category,CategoryTag) child_categories: child categories
+    :ivar list(Category,CategoryTag) parent_categories: parent categories
     """
     typeof = 'category_group_tag'
+    child_categories = ElementList('category_child_ref')
+    parent_categories = ElementList('parent_categories')
     
     @classmethod
     def create(cls, name, comment=None):
@@ -170,30 +168,6 @@ class CategoryTag(Element):
         diff = [category for category in self.data['category_child_ref']
                 if category not in categories]
         self.update(category_child_ref=diff)
-
-    @property
-    def child_categories(self):
-        """
-        Return categories or category tag's that are children of this category
-        tag.
-        
-        :return: child categories and/or category tag elements
-        :rtype: list
-        """
-        return [Element.from_href(category)
-                for category in self.data.get('category_child_ref')]
-    
-    @property
-    def parent_categories(self):
-        """
-        If this category tag is a nested elment, return parent category tags
-        that are linked.
-        
-        :return: linked parent category tags (groups)
-        :rtype: list
-        """
-        return [Element.from_href(category)
-                for category in self.data.get('category_parent_ref')]
 
 
 class FilterExpression(Element):
@@ -310,17 +284,58 @@ class MacAddress(Element):
         return ElementCreator(cls, json)
 
 
+class ContactAddress(NestedDict):
+    """
+    A contact address is used by elements to provide an alternative
+    IP or FQDN mapping based on a location
+    """    
+    @property
+    def addresses(self):
+        """
+        List of addresses set as contact address
+         
+        :rtype: list
+        """
+        return self.data['addresses']
+     
+    @property
+    def location_ref(self):
+        return self.data['location_ref']
+     
+    @property
+    def name(self):
+        """
+        Location name for this contact address
+         
+        :rtype: str
+        """
+        return self.location.name
+     
+    @cached_property
+    def location(self):
+        """
+        Location name for contact address
+         
+        :rtype: str
+        """
+        return Element.from_href(self.location_ref)
+     
+    def __repr__(self):
+        return '{}(location={},addresses={})'.format(
+            self.__class__.__name__, self.name, self.addresses)
+
+
 class Blacklist(object):
     """
     Blacklist provides a simple container to add multiple blacklist
-    entries. Pass this to :class:`smc.core.engine.blacklist_bulk` to
-    upload to the engine.
+    entries. Pass an instance of this to :class:`smc.core.engine.blacklist_bulk`
+    to upload to the engine.
     
     """
     def __init__(self):
         self.entries = {}
     
-    def prepare_blacklist(self, src, dst, duration=3600, src_port1=None,
+    def add_entry(self, src, dst, duration=3600, src_port1=None,
                   src_port2=None, src_proto='predefined_tcp',
                   dst_port1=None, dst_port2=None,
                   dst_proto='predefined_tcp'):
@@ -363,36 +378,9 @@ class Blacklist(object):
             src_portX but not dst_portX (or vice versa), the undefined port
             side definition will default to all ports.
         """
-    
-        json = {}
-        end_point1 = {'address_mode': 'address', 'ip_network': src} if 'any' not in \
-            src.lower() else {'address_mode': 'any'}
-
-        if src_port1:
-            if not src_port2:
-                src_port2 = src_port1
-            
-            end_point1.update(
-                port1=src_port1,
-                port2=src_port2,
-                port_mode=src_proto)
-        
-        end_point2 = {'address_mode': 'address', 'ip_network': dst} if 'any' not in \
-            dst.lower() else {'address_mode': 'any'} 
-        
-        if dst_port1:
-            if not dst_port2:
-                dst_port2 = dst_port1
-            
-            end_point2.update(
-                port1=dst_port1,
-                port2=dst_port2,
-                port_mode=dst_proto)
-        
-        json.update(
-            duration=duration, end_point1=end_point1,
-            end_point2=end_point2)
-        self.entries.setdefault('entries', []).append(json)
+        self.entries.setdefault('entries', []).append(prepare_blacklist(
+            src, dst, duration, src_port1, src_port2, src_proto, dst_port1,
+            dst_port2, dst_proto))
 
 
 class HTTPSInspectionExceptions(Element):
@@ -454,39 +442,24 @@ def prepare_blacklist(src, dst, duration=3600, src_port1=None,
     """
 
     json = {}
-    if 'any' in src.lower():
-        end_point1={
-            'address_mode': 'any'}
-    else:
-        end_point1={
-            'address_mode': 'address',
-            'ip_network': src}
     
+    directions = {src: 'end_point1', dst: 'end_point2'}
+    
+    for direction, key in directions.items():
+        json[key] = {'address_mode': 'any'} if \
+            'any' in direction.lower() else {'address_mode': 'address', 'ip_network': direction}
+        
     if src_port1:
-        if not src_port2:
-            src_port2 = src_port1
-        
-        end_point1.update(port1=src_port1,
-                          port2=src_port2,
-                          port_mode=src_proto)
-        
-    if 'any' in dst.lower():
-        end_point2={
-            'address_mode': 'any'}
-    else:
-        end_point2 = {
-            'address_mode': 'address',
-            'ip_network': dst}
-    
+        json.setdefault('end_point1').update(
+            port1=src_port1,
+            port2=src_port2 or src_port1,
+            port_mode=src_proto)
+
     if dst_port1:
-        if not dst_port2:
-            dst_port2 = dst_port1
-        
-        end_point2.update(port1=dst_port1,
-                          port2=dst_port2,
-                          port_mode=dst_proto)
+        json.setdefault('end_point2').update(
+            port1=dst_port1,
+            port2=dst_port2 or dst_port1,
+            port_mode=dst_proto)
     
     json.update(duration=duration)
-    json.update(end_point1=end_point1)
-    json.update(end_point2=end_point2)
     return json

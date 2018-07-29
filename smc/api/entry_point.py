@@ -3,23 +3,7 @@ Module storing entry points for a session
 """
 
 import collections
-from smc.base.structs import SerializedIterable
 from smc.api.exceptions import UnsupportedEntryPoint
-
-
-class _EntryPoint(SerializedIterable):
-    def __init__(self, entry_points):
-        super(_EntryPoint, self).__init__(entry_points, EntryPoint)
-    
-    def get(self, rel):
-        for link in iter(self):
-            if link.rel == rel:
-                return link.href
-        raise UnsupportedEntryPoint(
-            "The specified entry point '{}' was not found in this "
-            "version of the SMC API. Check the element documentation "
-            "to determine the correct version and specify the api_version "
-            "parameter during session.login() if necessary.".format(rel))
 
 
 EntryPoint = collections.namedtuple('EntryPoint', 'href rel method')
@@ -27,28 +11,18 @@ EntryPoint.__new__.__defaults__ = (None,) * len(EntryPoint._fields) # Version 5.
 
 
 class Resource(object):
-    entry_point = _EntryPoint([])
+    def __init__(self, entry_point_list):
+        self._entry_points = entry_point_list
+        
+    def __iter__(self):
+        for entry in self._entry_points:
+            yield EntryPoint(**entry)
     
     def __len__(self):
-        return len(self.entry_point)
+        return len(self._entry_points)
     
-    @classmethod
-    def add(cls, entry_points):
-        cls.entry_point = _EntryPoint(entry_points)
-    
-    @classmethod
-    def clear(cls):
-        cls.entry_point = _EntryPoint([])
-    
-    def get(self, rel_name):
-        """
-        Get the resource by rel name
-        
-        :param str rel_name: name of rel
-        :raises UnsupportedEntryPoint: entry point not found in this version
-            of the API
-        """
-        return self.entry_point.get(rel_name)
+    def clear(self):
+        self._entry_points[:] = []
     
     def all(self):
         """
@@ -56,7 +30,7 @@ class Resource(object):
         
         :rtype: EntryPoint
         """
-        for resource in self.entry_point:
+        for resource in self:
             yield resource
     
     def all_by_name(self):
@@ -65,6 +39,22 @@ class Resource(object):
         
         :rtype: str
         """
-        for resource in self.entry_point:
+        for resource in self:
             yield resource.rel
     
+    def get(self, rel):
+        """
+        Get the resource by rel name
+        
+        :param str rel_name: name of rel
+        :raises UnsupportedEntryPoint: entry point not found in this version
+            of the API
+        """
+        for link in self._entry_points:
+            if link.get('rel') == rel:
+                return link.get('href')
+        raise UnsupportedEntryPoint(
+            "The specified entry point '{}' was not found in this "
+            "version of the SMC API. Check the element documentation "
+            "to determine the correct version and specify the api_version "
+            "parameter during session.login() if necessary.".format(rel))

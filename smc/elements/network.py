@@ -4,6 +4,7 @@ Module representing network elements used within the SMC
 from smc.base.model import Element, ElementCreator
 from smc.api.exceptions import MissingRequiredInput, CreateElementFailed,\
     ElementNotFound, FetchElementFailed
+from smc.base.util import element_resolver
 
 
 class Host(Element):
@@ -590,19 +591,23 @@ class Alias(Element):
     or loading directly if you know the alias name:
     ::
 
+        >>> from smc.elements.network import Alias
         >>> list(Alias.objects.all())
         [Alias(name=$$ Interface ID 46.net), Alias(name=$$ Interface ID 45.net), etc]
-
-        >>> from smc.elements.network import Alias
-        >>> alias = Alias('$$ Interface ID 0.ip')
-        >>> print(alias)
-        Alias(name=$$ Interface ID 0.ip)
         
-    Resolve this to a specific engine::
+    Resolve an alias to a specific engine::
     
         >>> alias = Alias('$$ Interface ID 0.ip')
         >>> alias.resolve('myfirewall')
-        [u'10.10.0.1']  
+        [u'10.10.0.1']
+    
+    Create an alias and assign values specific to an engine::
+    
+        >>> alias = Alias.update_or_create(
+            name='fooalias', engine=Layer3Firewall('vm'), translation_values=[Host('foo')])
+        >>> alias
+        Alias(name=fooalias)
+        
     """
     typeof = 'alias'
 
@@ -611,7 +616,77 @@ class Alias(Element):
         self.resolved_value = [] #: resolved value for alias
 
     @classmethod
-    def from_engine(cls, data, alias_list):
+    def create(cls, name, comment=None):
+        """
+        Create an alias.
+        
+        :param str name: name of alias
+        :param str comment: comment for this alias
+        :raises CreateElementFailed: create failed with reason
+        :rtype: Alias
+        """
+        return ElementCreator(cls,
+            json={'name': name,
+                  'comment': comment})
+    
+    @classmethod
+    def update_or_create(cls, name, engine, translation_values=None, with_status=False):
+        """
+        Update or create an Alias and it's mappings.
+        
+        :param str name: name of alias
+        :param Engine engine: engine to modify alias translation values
+        :param list(str,Element) translation_values: translation values
+            as elements. Can be None if you want to unset any existing values
+        :param bool with_status: if set to True, a 3-tuple is returned with
+            (Element, modified, created), where the second and third tuple
+            items are booleans indicating the status
+        :raises ElementNotFound: specified engine or translation values are not
+            found in the SMC
+        :raises UpdateElementFailed: update failed with reason
+        :raises CreateElementFailed: create failed with reason
+        :rtype: Element
+        """
+        updated, created = False, False
+        alias = cls.get(name, raise_exc=False)
+        if not alias:
+            alias = cls.create(name)
+            created = True
+        
+        elements = element_resolver(translation_values) if translation_values \
+            else []
+        
+        if not created: # possible update
+            # Does alias already exist with a value
+            alias_value = [_alias
+                for _alias in engine.data.get('alias_value', [])
+                if _alias.get('alias_ref') == alias.href]
+            
+            if alias_value:
+                if not elements:
+                    alias_value[0].update(translated_element=None)
+                    updated = True
+                else:
+                    t_values = alias_value[0].get('translated_element')
+                    if set(t_values) ^ set(elements):
+                        t_values[:] = elements
+                        updated = True
+        
+        if elements and (created or not updated):
+            engine.data.setdefault('alias_value', []).append(
+                {'alias_ref': alias.href,
+                 'translated_element': elements})
+            updated = True
+         
+        if updated:
+            engine.update()
+
+        if with_status:
+            return alias, updated, created
+        return alias
+    
+    @classmethod
+    def _from_engine(cls, data, alias_list):
         """
         Return an alias for the engine. The data is dict provided
         when calling engine.alias_resolving(). The alias list is

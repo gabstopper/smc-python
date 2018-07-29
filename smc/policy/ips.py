@@ -119,7 +119,7 @@ class IPSPolicy(IPSRule, Policy):
             raise CreatePolicyFailed(err)
 
 
-class IPSTemplatePolicy(IPSRule, Policy):
+class IPSTemplatePolicy(IPSPolicy):
     """
     All IPS Policies will reference an IPS policy template.
 

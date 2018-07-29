@@ -90,7 +90,7 @@ class SMCAPIConnection(object):
                         data=json.dumps(request.json, cls=CacheEncoder),
                         headers=request.headers,
                         params=request.params)
-                
+                    
                     response.encoding = 'utf-8'
 
                     counters.update(create=1)
@@ -155,9 +155,8 @@ class SMCAPIConnection(object):
                 raise error
             except requests.exceptions.RequestException as e:
                 raise SMCConnectionError(
-                    'Connection problem to SMC, ensure the '
-                    'API service is running and host is correct: %s, '
-                    'exiting.' % e)
+                    'Connection problem to SMC, ensure the API service is running '
+                    'and host is correct: %s, exiting.' % e)
             else:
                 return SMCResult(response, domain=self.session_domain)
         else:

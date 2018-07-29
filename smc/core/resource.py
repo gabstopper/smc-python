@@ -121,9 +121,12 @@ class ChangeRecord(collections.namedtuple(
         return Element.from_href(self.element)
 
 
-class History(collections.namedtuple(
-        'History', 'creation_time creator is_locked is_obsolete is_trashed '
-            'last_modification_time modifier')):
+_History = collections.namedtuple('History', 'creation_time creator creator_name '
+    'is_locked is_obsolete is_trashed last_modification_time modifier') 
+_History.__new__.__defaults__ = (None,) * len(_History._fields) # Version 5.10 compat 
+
+
+class History(_History):
     """
     History description of this element. This will provide basic information
     about the element such as when it was created, last modified along with

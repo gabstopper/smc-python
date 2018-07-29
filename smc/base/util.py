@@ -103,23 +103,6 @@ def element_resolver(elements, do_raise=True):
             raise
 
 
-def find_link_by_name(link_name, linklist):
-    """
-    Utility method to find the reference link based on
-    the link name and provided the list of link references
-    provided by the SMC API
-
-    :param link_name: name of link
-    :param list linklist: list of references
-    :return fully qualified href
-    """
-    for entry in linklist:
-        if entry.get('rel') == link_name:
-            return entry.get('href')
-    raise smc.api.exceptions.ResourceNotFound(
-        'Resource link {} not found.'.format(link_name))
-
-
 def find_type_from_self(linklist):
     """
     Return the type of element from self. This is primarily
@@ -199,3 +182,27 @@ def bytes_to_unicode(s, encoding='utf-8', errors='replace'):
     if compat.PY3:
         return str(s, 'utf-8') if isinstance(s, bytes) else s
     return s if isinstance(s, unicode) else s.decode(encoding, errors)
+        
+
+def import_submodules(package, recursive=True):
+    """
+    Import all submodules of a module, recursively,
+    including subpackages.
+
+    From http://stackoverflow.com/questions/3365740/how-to-import-all-submodules
+
+    :param package: package (name or actual module)
+    :type package: str | module
+    :rtype: dict[str, types.ModuleType]
+    """
+    import importlib
+    import pkgutil
+    if isinstance(package, str):
+        package = importlib.import_module(package)
+    results = {}
+    for _loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
+        full_name = package.__name__ + '.' + name
+        results[full_name] = importlib.import_module(full_name)
+        if recursive and is_pkg:
+            results.update(import_submodules(full_name))
+    return results

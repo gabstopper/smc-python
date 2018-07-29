@@ -19,7 +19,6 @@ with open('HISTORY.rst', encoding='utf-8') as f:
 
     
 setup(name='smc-python',
-      #version='0.6.1',
       version=about['__version__'],
       description=about['__description__'],
       long_description=readme + '\n\n' + history,

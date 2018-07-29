@@ -408,6 +408,35 @@ class Interface(SubElement):
         return addresses
     
     @property
+    def contact_addresses(self):
+        """
+        Configure an interface contact address for this interface.
+        Note that an interface may have multiple IP addresses assigned
+        so you may need to iterate through contact addresses.
+        Example usage::
+        
+            >>> itf = engine.interface.get(0)
+            >>> itf.contact_addresses
+            [ContactAddressNode(interface_id=0, interface_ip=1.1.1.10),
+             ContactAddressNode(interface_id=0, interface_ip=1.1.1.25)]
+            >>> for ca in itf.contact_addresses:
+            ...   print("IP: %s, addresses: %s" % (ca.interface_ip, list(ca)))
+            ... 
+            IP: 1.1.1.10, addresses: []
+            IP: 1.1.1.25, addresses: [InterfaceContactAddress(address=172.18.1.20, location=Default)]
+
+            >>> for ca in itf.contact_addresses:
+            ...   if ca.interface_ip == '1.1.1.10':
+            ...     ca.add_contact_address('10.5.5.5', location='remote')
+            
+        :return: list of interface contact addresses
+        :rtype: ContactAddressNode
+
+        .. seealso:: :py:mod:`smc.core.contact_address`
+        """
+        return self._engine.contact_addresses.get(self.interface_id)
+    
+    @property
     def has_multiple_addresses(self):
         if len(self.cluster_virtual_interface) > 1:
             return True
@@ -421,35 +450,6 @@ class Interface(SubElement):
                 if getattr(interface, 'typeof', None) == \
                 'cluster_virtual_interface']
          
-    @property
-    def contact_addresses(self):
-        """
-        Configure an interface contact address for this interface.
-        Note that an interface may have multiple IP addresses assigned
-        so you may need to iterate through contact addresses.
-        Example usage::
-        
-            >>> itf = engine.interface.get(0)
-            >>> itf.contact_addresses
-            [ContactAddressInterface(interface_id=0, interface_ip=1.1.1.10),
-             ContactAddressInterface(interface_id=0, interface_ip=1.1.1.25)]
-            >>> for ca in itf.contact_addresses:
-            ...   print("IP: %s, addresses: %s" % (ca.interface_ip, list(ca)))
-            ... 
-            IP: 1.1.1.10, addresses: []
-            IP: 1.1.1.25, addresses: [ContactAddress(address=172.18.1.20, location=Default)]
-
-            >>> for ca in itf.contact_addresses:
-            ...   if ca.interface_ip == '1.1.1.10':
-            ...     ca.add_contact_address('10.5.5.5', location='remote')
-            
-        :return: list of interface contact addresses
-        :rtype: ContactAddressInterface
-
-        .. seealso:: :py:mod:`smc.core.contact_address`
-        """
-        return self._engine.contact_addresses.get(self.interface_id)
-
     @property
     def has_vlan(self):
         """
@@ -646,7 +646,7 @@ class Interface(SubElement):
         interfaces. If a VLAN interface is defined in the other interface
         and it doesn't exist on the existing interface, it will be created.
         
-        :param other_interface ClusterPhysicalInterface: an instance of an
+        :param other_interface Interface: an instance of an
             interface where values in this interface will be used to as the
             template to determine changes. This only has to provide attributes
             that need to change (or not).
@@ -661,7 +661,7 @@ class Interface(SubElement):
         base_updated = self._update_interface(other_interface)
         
         mgmt = ('auth_request', 'backup_heartbeat', 'backup_mgt',
-                'primary_mgt', 'primary_heartbeat', 'outgoing')
+            'primary_mgt', 'primary_heartbeat', 'outgoing')
         
         updated = False
         invalid_routes = []
@@ -1832,10 +1832,6 @@ class InterfaceEditor(object):
     
     def __len__(self):
         return len(self.engine.data.get('physicalInterfaces'))
-    
-    @property
-    def data(self):
-        return self.engine.data
 
     def find_mgmt_interface(self, mgmt):
         """

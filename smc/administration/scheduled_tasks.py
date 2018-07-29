@@ -88,7 +88,7 @@ date::
     for obtaining millisecond times for scheduled tasks.
 """
 
-from smc.base.model import Element, SubElement, ElementCreator
+from smc.base.model import Element, SubElement, ElementCreator, ElementRef
 from smc.api.exceptions import ActionCommandFailed
 from smc.administration.tasks import Task
 from smc.elements.servers import ManagementServer, LogServer
@@ -445,8 +445,11 @@ class ValidatePolicyTask(ScheduledTaskMixin, Element):
     Run a policy validation task. This does not perform a policy push.
     This may be useful if you want to validate any pending changes before
     a future policy push.
+    
+    :ivar Element policy: The policy associated with this task
     """
     typeof = 'validate_policy_task'
+    policy = ElementRef('policy')
     
     @classmethod
     def create(cls, name, engines, policy=None, comment=None, **kwargs):
@@ -477,16 +480,6 @@ class ValidatePolicyTask(ScheduledTaskMixin, Element):
             json.update(policy_validation_settings(**kwargs))
         
         return ElementCreator(cls, json)
-    
-    @property
-    def policy(self):
-        """
-        Policy associated with this task
-        
-        :return: Policy as element
-        :rtype: Element
-        """
-        return Element.from_href(self.data.get('policy'))
     
 
 class RefreshMasterEnginePolicyTask(ScheduledTaskMixin, Element):

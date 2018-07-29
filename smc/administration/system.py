@@ -19,13 +19,13 @@ To load the configuration for system, do::
 
 """
 from smc.elements.other import prepare_blacklist
-from smc.api.entry_point import Resource
 from smc.base.model import SubElement, Element, ElementCreator
 from smc.administration.updates import EngineUpgrade, UpdatePackage
 from smc.administration.license import Licenses
 from smc.administration.tasks import Task
 from smc.base.util import millis_to_utc
 from smc.base.collection import sub_collection
+from smc.api.common import fetch_entry_point
 
 
 class System(SubElement):
@@ -35,7 +35,7 @@ class System(SubElement):
     """
 
     def __init__(self):
-        entry = Resource.entry_point.get('system')
+        entry = fetch_entry_point('system')
         super(System, self).__init__(href=entry)
 
     @property

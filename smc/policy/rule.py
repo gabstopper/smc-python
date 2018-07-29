@@ -171,7 +171,13 @@ class Rule(object):
 
     @property
     def is_rule_section(self):
-        return 'action' not in self.data
+        """
+        Is this rule considered a rule section
+        
+        :rtype: bool
+        """
+        return not any(field for field in ('sources', 'destinations')
+            if field in self.data)
     
     @property
     def is_disabled(self):

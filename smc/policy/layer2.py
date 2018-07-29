@@ -150,7 +150,7 @@ class Layer2Policy(Layer2Rule, Policy):
             raise CreatePolicyFailed(err)
 
 
-class Layer2TemplatePolicy(Layer2Rule, Policy):
+class Layer2TemplatePolicy(Layer2Policy):
     """
     All Layer 2 Firewall Policies will reference a firewall policy template.
 

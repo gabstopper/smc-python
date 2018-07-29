@@ -20,9 +20,9 @@ import re
 import copy
 from itertools import islice
 import smc.base.model
-from smc.api.entry_point import Resource
 from smc.base.decorators import cached_property, classproperty
 from smc.api.exceptions import FetchElementFailed, InvalidSearchFilter
+from smc.api.common import entry_point
     
 
 class SubElementCollection(object):
@@ -740,7 +740,7 @@ class Search(ElementCollection):
 
     def __init__(self, **params):
         super(Search, self).__init__(**params)
-        self._resource = Resource()
+        self._resource = entry_point()
     
     @classproperty
     def objects(self):
@@ -811,6 +811,6 @@ class Search(ElementCollection):
         # Return all elements from the root of the API nested under elements URI
         #element_uri = str(
         types = [element.rel
-                 for element in Resource.entry_point]
+                 for element in entry_point()]
         types.extend(list(CONTEXTS))
         return types

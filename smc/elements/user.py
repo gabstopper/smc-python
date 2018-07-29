@@ -162,13 +162,22 @@ class AdminUser(UserMixin, Element):
     @classmethod
     def create(cls, name, local_admin=False, allow_sudo=False,
                superuser=False, enabled=True, engine_target=None,
-               comment=None):
+               can_use_api=True, console_superuser=False,
+               allowed_to_login_in_shared=True, comment=None):
         """
         Create an admin user account.
+        
+        .. versionadded:: 0.6.2
+            Added can_use_api, console_superuser, and allowed_to_login_in_shared.
+            Requires SMC >= SMC 6.4
 
         :param str name: name of account
         :param bool local_admin: is a local admin only
         :param bool allow_sudo: allow sudo on engines
+        :param bool can_use_api: can log in to SMC API
+        :param bool console_superuser: can this user sudo via SSH/console
+        :param bool allowed_to_login_in_shared: can this user log in to the
+            shared domain
         :param bool superuser: is a super administrator
         :param bool enabled: is account enabled
         :param list engine_target: engine to allow remote access to
@@ -181,9 +190,12 @@ class AdminUser(UserMixin, Element):
         json = {'name': name,
                 'enabled': enabled,
                 'allow_sudo': allow_sudo,
+                'console_superuser': console_superuser,
+                'allowed_to_login_in_shared': allowed_to_login_in_shared,
                 'engine_target': engines,
                 'local_admin': local_admin,
                 'superuser': superuser,
+                'can_use_api': can_use_api,
                 'comment': comment}
         
         return ElementCreator(cls, json)

@@ -211,21 +211,22 @@ environment variable:
 Logging helper
 ++++++++++++++
 		  
-To enable logging from smc-python, convenience methods are provided on the session. These are
-typically called before session login:
+To enable logging from smc-python, you can utilize the standard python logger or use
+convenience methods provided. These are typically called before session login:
 
 .. code-block:: python
 
-   session.set_file_logger(log_level=10, path='/Users/foo/smc-test.log')
-   session.login()
+   from smc import set_file_logger
+   set_file_logger(log_level=10, path='/Users/foo/smc-test.log')
    ...
    
 Or use a stream logger and also optionally enable urllib3 messages:
 
 .. code-block:: python
 
-   session.set_stream_logger(log_level=logging.DEBUG)
-   session.set_stream_logger(log_level=logging.DEBUG, logger_name='urllib3')
+   from smc import set_stream_logger
+   set_stream_logger(log_level=logging.DEBUG)
+   set_stream_logger(log_level=logging.DEBUG, logger_name='urllib3')
    
 
 Another logging option is to add the following lines to your script:

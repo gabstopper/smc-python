@@ -9,6 +9,22 @@ class SMCException(Exception):
     """ Base class for exceptions """
 
 
+class SessionNotFound(SMCException):
+    """
+    Retrieving a session by name did not succeed because the session did
+    not already exist
+    """
+
+
+class SessionManagerNotFound(Exception):
+    def __init__(self, message=''):
+        msg = 'A session manager was not found for this session. This generally means '\
+        'the session was not obtained through the standard session factory or the session '\
+        'manager may have been replaced. '
+        _msg = message or msg
+        super(SessionManagerNotFound, self).__init__(_msg)
+
+
 class ConfigLoadError(SMCException):
     """
     Thrown when there was a problem reading credential information from

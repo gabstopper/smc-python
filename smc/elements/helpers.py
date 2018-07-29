@@ -6,9 +6,10 @@ from smc.elements.network import Zone
 from smc.administration.system import AdminDomain
 from smc.elements.other import LogicalInterface, Location
 from smc.api.exceptions import ElementNotFound
+from smc.base.collection import Search
     
 
-def location_helper(name):
+def location_helper(name, search_only=False):
     """
     Location finder by name. If location doesn't exist, create it
     and return the href
@@ -17,7 +18,10 @@ def location_helper(name):
         by name, it will be retrieved or created, if href, returned
         and if Location, href returned. If None, settings an elements
         location to None will set it to the Default location.
-    :return str href: href of location
+    :param bool search_only: only search for the location, if not found
+        do not create
+    :return str href: href of location if search_only is not False
+    :rtype: str or None
     """ 
     try:
         return name.href
@@ -25,17 +29,18 @@ def location_helper(name):
         if name and name.startswith('http'):
             return name
     except ElementNotFound:
-        return Location.get_or_create(name=name.name).href
+        return Location.create(name=name.name).href if not \
+            search_only else None
         
-    # Get all locations; tmp to support earlier 6.x versions
+    # Get all locations; tmp to support earlier 6.x versions.
     if name is not None:
-        locations = [location 
-                     for location in Location.objects.all()
-                     if location.name == name]
+        locations = [location for location in Search.objects.entry_point(
+            'location') if location.name == name]
         if not locations:
-            return Location.create(name=name).href
-
+            return Location.create(name=name).href if not search_only \
+                else None
         return locations[0].href
+        
 
 def zone_helper(zone):
     """

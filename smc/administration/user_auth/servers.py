@@ -42,10 +42,11 @@ an LDAP domain called 'myldapdomain'.
 
 """
 
-from smc.base.model import ElementCreator, Element
-from smc.api.exceptions import CreateElementFailed, SMCConnectionError
+from smc.base.model import ElementCreator, Element, ElementRef, ElementList
+from smc.api.exceptions import CreateElementFailed
 from smc.base.structs import NestedDict
 from smc.base.util import element_resolver
+from smc.elements.servers import ContactAddressMixin
 
 
 class AuthenticationMethod(Element):
@@ -80,15 +81,13 @@ class DomainController(NestedDict):
         return False
     
     def __ne__(self, other):
-        return not self.__eq__(other)
+        return not self == other
     
     def __repr__(self):
         return 'DomainController(ipaddress={})'.format(self.ipaddress)
 
-    
-#TODO: Implement TLS Identity
 
-class ActiveDirectoryServer(Element):
+class ActiveDirectoryServer(ContactAddressMixin, Element):
     """
     Create an Active Directory Element.
     
@@ -99,6 +98,7 @@ class ActiveDirectoryServer(Element):
     You can also pass kwargs to customize aspects of the AD server configuration.
     Valid kwargs are:
     
+    :param TLSProfile tls_profile: TLS profile used when ldaps or start_tls specified
     :param str user_id_attr: The name that the server uses for the UserID Attribute
         (default: sAMAccountName)
     :param str user_principal_name: The name of the attribute for storing the users UPN
@@ -129,12 +129,14 @@ class ActiveDirectoryServer(Element):
         RADIUS or TACACS+ authentication server if the connection fails (default: 2)
     """
     typeof = 'active_directory_server'
+    tls_profile = ElementRef('tls_profile_ref')
+    supported_method = ElementList('supported_method')
     
     @classmethod
     def create(cls, name, address, base_dn, bind_user_id=None, bind_password=None,
-        port=389, protocol='ldap', tls_profile=None, domain_controller=None,
-        supported_method=None, timeout=10, max_search_result=0, page_size=0,
-        internet_auth_service_enabled=False, **kwargs):
+        port=389, protocol='ldap', tls_profile=None, tls_identity=None,
+        domain_controller=None, supported_method=None, timeout=10, max_search_result=0,
+        page_size=0, internet_auth_service_enabled=False, **kwargs):
         """
         Create an AD server element using basic settings. You can also provide additional
         kwargs documented in the class description::
@@ -167,6 +169,7 @@ class ActiveDirectoryServer(Element):
             ldaps or ldap_tls is used, you must provide a tls_profile element (default: ldap)
         :param str,TLSProfile tls_profile by element of str href. Used when protocol is set
             to ldaps or ldap_tls
+        :param str,TLSIdentity tls_identity: check server identity when establishing TLS connection
         :param list(DomainController) domain_controller: list of domain controller objects to
             add an additional domain controllers for AD communication
         :param list(AuthenticationMethod) supported_method: authentication services allowed
@@ -182,29 +185,29 @@ class ActiveDirectoryServer(Element):
         :raises CreateElementFailed: failed creating element
         :rtype: ActiveDirectoryServer
         """
-        group_obj_class = kwargs.pop('group_object_class', [])
-        user_obj_class = kwargs.pop('user_object_class', [])
-        
         json={'name': name, 'address': address, 'base_dn': base_dn,
               'bind_user_id': bind_user_id, 'bind_password': bind_password,
               'port': port, 'protocol': protocol, 'timeout': timeout,
-              'domain_controller': domain_controller if domain_controller else [],
+              'domain_controller': domain_controller or [],
               'max_search_result': max_search_result, 'page_size': page_size,
-              'group_object_class': group_obj_class, 'user_object_class': user_obj_class,
               'internet_auth_service_enabled': internet_auth_service_enabled,
-              'supported_method': [] if not supported_method else element_resolver(
-                  supported_method)}
+              'supported_method': element_resolver(supported_method) or []}
+        
+        for obj_class in ('group_object_class', 'user_object_class'):
+            json[obj_class] = kwargs.pop(obj_class, [])
         
         if protocol in ('ldaps', 'ldap_tls'):
             if not tls_profile:
                 raise CreateElementFailed('You must provide a TLS Profile when TLS '
                     'connections are configured to the AD controller.')
-            json.update(tls_profile_ref=element_resolver(tls_profile))
+            json.update(tls_profile_ref=element_resolver(tls_profile),
+                        tls_identity=tls_identity)
         
         if internet_auth_service_enabled:
             ias = {'auth_port': kwargs.pop('auth_port', 1812),
                    'auth_ipaddress': kwargs.pop('auth_ipaddress', ''),
-                   'shared_secret': '', 'retries': kwargs.pop('retries', 2)}
+                   'shared_secret': kwargs.pop('shared_secret'),
+                   'retries': kwargs.pop('retries', 2)}
             json.update(ias)
         
         json.update(kwargs)
@@ -220,16 +223,14 @@ class ActiveDirectoryServer(Element):
         :raises CreateElementFailed: failed creating element
         :return: element instance by type or 3-tuple if with_status set
         """
-        if 'supported_method' in kwargs:
-            kwargs.update(supported_method=element_resolver(kwargs.pop('supported_method')))
-        
         element, updated, created = super(ActiveDirectoryServer, cls).update_or_create(
             defer_update=True, **kwargs)
         
         if not created:
-            if 'domain_controller' in kwargs:
+            domain_controller = kwargs.pop('domain_controller', [])
+            if domain_controller:
                 current_dc_list = element.domain_controller
-            for dc in kwargs.pop('domain_controller', []):
+            for dc in domain_controller:
                 if dc not in current_dc_list:
                     element.data.setdefault('domain_controller', []).append(dc.data)
                     updated = True
@@ -239,17 +240,7 @@ class ActiveDirectoryServer(Element):
         if with_status:
             return element, updated, created
         return element
-    
-    @property
-    def supported_method(self):
-        """
-        Supported authentication methods for this Active Directory service
-        
-        :rtype: AuthenticationMethod
-        """
-        return [AuthenticationMethod.from_href(method) for method in
-            self.data.get('supported_method', [])]
-        
+
     @property
     def domain_controller(self):
         """
@@ -268,8 +259,6 @@ class ActiveDirectoryServer(Element):
         :raises ActionCommandFailed: failed to check connectivity with reason
         :rtype: bool
         """
-        try:
-            return self.make_request(
-                href=self.get_relation('check_connectivity')) is None
-        except SMCConnectionError:
-            return False
+        return self.make_request(
+            href=self.get_relation('check_connectivity')) is None
+        

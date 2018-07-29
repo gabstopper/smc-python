@@ -356,11 +356,11 @@ class AutonomousSystem(Element):
         return int(self.data.get('as_number'))
     
     @classmethod
-    def update_or_create(cls, filter_key=None, with_status=False, **kwargs):
+    def update_or_create(cls, with_status=False, **kwargs):
         if '.' in str(kwargs.get('as_number')):
             kwargs.update(as_number=int(as_dotted(kwargs['as_number'])))
         return super(AutonomousSystem, cls).update_or_create(
-            filter_key, with_status, **kwargs)
+            with_status=with_status, **kwargs)
     
 
 class BGPProfile(Element):
@@ -549,7 +549,7 @@ class BGPPeering(Element):
     """
     typeof = 'bgp_peering'
     connection_profile = ElementRef('connection_profile')
-
+    
     @classmethod
     def create(cls, name, connection_profile_ref=None,
                md5_password=None, local_as_option='not_set',

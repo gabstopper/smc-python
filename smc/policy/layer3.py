@@ -198,7 +198,7 @@ class FirewallSubPolicy(Policy):
             IPv4Rule)
 
 
-class FirewallTemplatePolicy(FirewallRule, Policy):
+class FirewallTemplatePolicy(FirewallPolicy):
     """
     All Firewall Policies will reference a firewall policy template.
 

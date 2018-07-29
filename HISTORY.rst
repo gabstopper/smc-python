@@ -52,9 +52,7 @@ Release History
   the query: Host.objects.filter('myhost', case_sensitive=False). Default: case_sensitive=True.
 - Optimize retrieval of nodes by serializing engine node data versus making a call to the engine links. This eliminates
   the query to get the node links and a query for each node that needs to be operated on, or node payload required.
-- Add `smc.core.node.ApplianceInfo` and link on node to retrieve appliance related info:
-	appliance = node.appliance_info()
-	...
+- Add ApplianceInfo and link on node to retrieve appliance related info
 - GatewayTunnel implemented on PolicyVPN for setting preshared key, enabling/disabling specific tunnel endpoints
 - BGP node added to engine. Add full create/modify/delete capability by reference: engine.bgp.is_enabled, etc. Added to
   provide modular configuration to BGP.
@@ -89,7 +87,7 @@ Release History
 - remove_vlan on interface no longer requires the interface reference, however now requires the interface context to run. Before:
   engine.physical_interface.remove_vlan(interface_id=100, vlan_id=1), now you need to load the interface, then delete the
   vlan: interface = engine.interface.get(100); interface.remove_vlan(1)
-- history property on Element added
+- History property on Element added
   
  **Bugfixes**
  
@@ -152,9 +150,17 @@ Release History
 0.6.2
 -----
 
-- Added support for ProxyServer network element
+- Added support for ProxyServer, TLSProfile and TLSIdentity network elements
 - Elements for Internal Domain users and External LDAP Domain configurations
-- Active Directory elements
+- Active Directory elements with ability to specify LDAPS and TLS Identity in AD profile
+- Changed Blacklist.prepare_blacklist method to Blacklist.add_entry
+- Refactor contact addresses for management and log server
+- Interface contact addresses remove_contact_address modified to take location as key for deleting
+- Introduce SessionManager to allow for multiple SMC API client sessions within the same python interpreter
+  SessionManager can also be hooked to allow user authentication data to come from a different source such as
+  a web application session
+- Create Alias elements and assign to engine (Aliases were previously read-only)
+- All template policies inherit from their related type to support creating templates
 
  
 

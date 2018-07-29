@@ -99,9 +99,154 @@ from smc.base.model import Element, ElementCreator
 from smc.administration.certificates.tls_common import ImportExportCertificate, \
     ImportPrivateKey, ImportExportIntermediate, load_cert_chain, pem_as_string
 from smc.api.exceptions import CertificateImportError, ActionCommandFailed
-from smc.base.util import datetime_from_ms
+from smc.base.util import datetime_from_ms, element_resolver
+from smc.base.structs import NestedDict
     
+
+class TLSProfile(Element):
+    """
+    .. versionadded:: 0.6.2
+        Requires SMC >= 6.4
     
+    Represents a TLS Profile.
+    Contains common parameters for establishing TLS based connections.
+    TLS Profiles are used in various configuration areas such as SSL
+    VPN portal and Active Directory (when using TLS) connections.
+    """
+    typeof = 'tls_profile'
+
+    @classmethod
+    def create(cls, name, tls_version, use_only_subject_alt_name=False,
+        accept_wildcard=False, check_revocation=True, tls_cryptography_suites=None,
+        crl_delay=0, ocsp_delay=0, ignore_network_issues=False,
+        tls_trusted_ca_ref=None, comment=None):
+        """
+        Create a TLS Profile. By default the SMC will have a default NIST
+        TLS Profile but it is also possible to create a custom profile to
+        provide special TLS handling.
+        
+        :param str name: name of TLS Profile
+        :param str tls_verison: supported tls verison, valid options are
+            TLSv1.1, TLSv1.2, TLSv1.3
+        :param bool use_only_subject_alt_name: Use Only Subject Alt Name
+            when the TLS identity is a DNS name
+        :param bool accept_wildcard: Does server identity check accept wildcards
+        :param bool check_revocation: Is certificate revocation checked
+        :param str,TLSCryptographySuite tls_cryptography_suites: allowed cryptography
+            suites for this profile. Uses NIST profile if not specified
+        :param int crl_delay: Delay time (hours) for fetching CRL
+        :param int ocsp_delay: Ignore OCSP failure for (hours)
+        :param bool ignore_network_issues: Ignore revocation check failures
+            due to network issues
+        :param list tls_trusted_ca_ref: Trusted Certificate Authorities, empty
+            list means trust any
+        :param str comment: optional comment
+        :raises CreateElementFailed: failed to create element with reason
+        :raises ElementNotFound: specified element reference was not found
+        :rtype: TLSProfile
+        """
+        json = {
+            'name': name,
+            'tls_version': tls_version,
+            'use_only_subject_alt_name': use_only_subject_alt_name,
+            'accept_wildcard': accept_wildcard,
+            'check_revocation': check_revocation,
+            'tls_cryptography_suites': element_resolver(tls_cryptography_suites) or \
+                element_resolver(TLSCryptographySuite.objects.filter('NIST').first()),
+            'crl_delay': crl_delay,
+            'ocsp_delay': ocsp_delay,
+            'ignore_network_issues': ignore_network_issues,
+            'tls_trusted_ca_ref': element_resolver(tls_trusted_ca_ref) or [],
+            'comment': comment}
+    
+        return ElementCreator(cls, json)
+
+
+class TLSIdentity(NestedDict):
+    """
+    .. versionadded:: 0.6.2
+        Requires SMC >= 6.4
+    
+    A TLS Identity represents a field and value pair that will
+    be used to validate a TLS certificate. This can be used in
+    various areas where TLS is used such as VPN.
+    
+    Valid tls field types are:
+        
+        DNSName
+        IPAddress
+        CommonName
+        DistinguishedName
+        SHA-1
+        SHA-256
+        SHA-512
+        MD5
+        Email
+        user_principal_name
+    
+    """
+    def __init__(self, tls_field, tls_value):
+        data = {'tls_field': tls_field, 'tls_value': tls_value}
+        super(TLSIdentity, self).__init__(data=data)
+        
+
+class TLSCryptographySuite(Element):
+    """
+    This represents a TLS Cryptography Suite Set used in various
+    configurations that require a TLS Profile such as SSL VPN
+    Tunneling, Reverse Web Proxy, ActiveDirectory TLS, etc.
+    """
+    typeof = 'tls_cryptography_suite_set'
+
+    @staticmethod
+    def ciphers(from_suite=None):
+        """
+        This is a helper method that will return all of the cipher
+        strings used in a specified TLSCryptographySuite or returns
+        the system default NIST profile list of ciphers. This can
+        be used as a helper to identify the ciphers to specify/add
+        when creating a new TLSCryptographySuite.
+        
+        :rtype: dict
+        """
+        suite = from_suite or TLSCryptographySuite.objects.filter(
+            'NIST').first()
+        return suite.data.get('tls_cryptography_suites')
+    
+    @classmethod
+    def create(cls, name, comment=None, **ciphers):
+        """
+        Create a new TLSCryptographySuite. The ciphers kwargs should
+        be a dict with the cipher suite string as key and boolean value
+        to indicate if this cipher should be enabled.
+        To obtain the valid cipher suite string name, use the following
+        method::
+        
+            cipher_strings = TLSCryptographySuite.ciphers()
+            
+        Then to create a custom cipher suite, provide the ciphers as a
+        dict of kwargs. In this example, create a TLS Crypto Suite that
+        only enables AES 256 bit ciphers::
+        
+            only256 = dict(((cipher, True) for cipher in TLSCryptographySuite.ciphers()
+                if 'aes_256' in cipher))
+            
+            mytls = TLSCryptographySuite.create(name='mytls', **only256)
+        
+        :param str name: name of this TLS Crypto suite
+        :param dict ciphers: dict of ciphers with cipher string as key and
+            bool as value, True enables the cipher
+        :raises CreateElementFailed: failed to create element with reason
+        :rtype: TLSCryptographySuite
+        """
+        json = {
+            'name': name,
+            'comment': comment,
+            'tls_cryptography_suites': ciphers}
+        
+        return ElementCreator(cls, json) 
+            
+
 class TLSCertificateAuthority(ImportExportCertificate, Element):
     """
     TLS Certificate authorities. When using TLS Server Credentials for

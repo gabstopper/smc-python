@@ -1,8 +1,7 @@
 [run]
 omit = 
 	__init__.py
-	smc/actions/test.py
-	smc/actions/shortcuts.py
+	smc/actions
 
 [report]
 # Regexes for lines to exclude from consideration
@@ -22,4 +21,5 @@ exclude_lines =
     unicode = unicode 
     def deprecated
     def memoize
+    continue
 
