@@ -138,11 +138,13 @@ class FirewallPolicy(FirewallRule, Policy):
             FirewallPolicy('newpolicy')
         """
         try:
-            fw_template = FirewallTemplatePolicy(template).href
+            if cls.typeof == 'fw_template_policy' and template is None:
+                fw_template = None
+            else:
+                fw_template = FirewallTemplatePolicy(template).href
         except ElementNotFound:
             raise LoadPolicyFailed(
-                'Cannot find specified firewall template: {}'
-                .format(template))
+                'Cannot find specified firewall template: {}'.format(template))
         json = {
             'name': name,
             'template': fw_template}

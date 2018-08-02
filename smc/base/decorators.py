@@ -97,10 +97,10 @@ def create_hook(function):
             return json
     """
     @functools.wraps(function)
-    def run(cls, json):
+    def run(cls, json, **kwargs):
         if hasattr(cls, '_create_hook'):
             json = cls._create_hook(json)
-        return function(cls, json)
+        return function(cls, json, **kwargs)
     return run
 
 

@@ -46,7 +46,8 @@ Only Layer3Firewall and Layer3VirtualEngine types can support running OSPF.
              :py:class:`smc.core.engines.Layer3VirtualEngine`
 
 """
-from smc.base.model import Element, ElementCreator, ElementCache, ElementRef
+from smc.base.model import Element, ElementCreator, ElementCache, ElementRef,\
+    ElementList
 from smc.base.util import element_resolver
 
 
@@ -94,8 +95,7 @@ class OSPF(object):
 
         :return: None
         """
-        self.data.update(
-            enabled=False)
+        self.data.update(enabled=False)
 
     def enable(self, ospf_profile=None, router_id=None):
         """
@@ -195,11 +195,17 @@ class OSPFArea(Element):
                      'substitute_type': 'aggregate'}])
     
     :ivar OSPFInterfaceSetting interface_settings_ref: reference to the OSPFInterfaceSetting
-        element
+    :ivar list(IPPrefixList,IPAccessList) inbound_filters: Inbound filters attached to this
+        OSPF Area.
+    :ivar list(IPPrefixList,IPAccessList) outbound_filters: Outbound filter attached to this
+        OSPF Area.
     """
     typeof = 'ospfv2_area'
     interface_settings_ref = ElementRef('interface_settings_ref')
-
+    inbound_filters = ElementList('inbound_filters_ref')
+    outbound_filters = ElementList('outbound_filters_ref')
+    
+    
     @classmethod
     def create(cls, name, interface_settings_ref=None, area_id=1,
                area_type='normal', outbound_filters=None,
@@ -259,28 +265,6 @@ class OSPFArea(Element):
             kwargs.update(outbound_filters_ref=
                 element_resolver(kwargs.pop('outbound_filters')))
         return super(OSPFArea, cls).update_or_create(with_status=with_status, **kwargs)
-
-    @property
-    def inbound_filters(self):
-        """
-        Inbound filters attached to this OSPF Area. Filters can be type
-        IPPrefixList or IPAccessList
-        
-        :rtype: list
-        """
-        return [Element.from_href(filt)
-            for filt in self.data.get('inbound_filters_ref', [])]
-    
-    @property
-    def outbound_filters(self):
-        """
-        Outbound filters attached to this OSPF Area. Filters can be type
-        IPPrefixList or IPAccessList
-        
-        :rtype: list
-        """
-        return [Element.from_href(filt)
-            for filt in self.data.get('outbound_filters_ref', [])]
 
 
 class OSPFInterfaceSetting(Element):

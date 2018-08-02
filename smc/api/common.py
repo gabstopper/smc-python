@@ -4,12 +4,9 @@ Middle tier helper module to wrap CRUD operations and catch exceptions
 SMCRequest is the general data structure that is sent to the send_request
 method in smc.api.web.SMCConnection to submit the data to the SMC.
 """
-import logging
+from smc.api.web import send_request
 from smc.api.exceptions import SMCOperationFailure, SMCConnectionError, \
     SessionManagerNotFound
-
-
-logger = logging.getLogger(__name__)
 
 
 def _get_session(session_manager=None):
@@ -24,33 +21,7 @@ def _get_session(session_manager=None):
         raise SessionManagerNotFound
 
 
-class _RequestHandler(object):
-    def _make_request(self, method):
-        err = None
-        result = None
-        try:
-            session = _get_session(getattr(self, '_session_manager', None))
-            if method == 'GET':
-                if not self.href:
-                    self.href = session.entry_points.get('elements')
-            result = session.connection.send_request(method, self)
-
-        except SMCOperationFailure as e:
-            result = e.smcresult
-            try:
-                err = self.exception(result.msg)  # Exception set
-            except AttributeError:
-                pass
-        except (SessionManagerNotFound, SMCConnectionError,
-                IOError, TypeError) as e:
-            err = e
-        finally:
-            if err:
-                raise err
-            return result
-
-
-class SMCRequest(_RequestHandler):
+class SMCRequest(object):
     """
     SMCRequest represents the data structure that will be submitted to the web
     layer for submission to the SMC API.
@@ -64,7 +35,7 @@ class SMCRequest(_RequestHandler):
     _session_manager = None
     
     def __init__(self, href=None, json=None, params=None, filename=None,
-                 etag=None, **kwargs):
+                 etag=None, user_session=None, **kwargs):
         
         #: Filename if a file download is requested
         self.filename = filename
@@ -72,7 +43,7 @@ class SMCRequest(_RequestHandler):
         self.params = params
         #: href for this request
         self.href = href
-        #: ETag for PUT request modifications
+        #: ETag for PUT or DELETE request modifications
         self.etag = etag
         #: JSON data to send in request
         self.json = {} if json is None else json
@@ -81,6 +52,9 @@ class SMCRequest(_RequestHandler):
         self.files = None
         #: Default headers
         self.headers = {'Content-Type': 'application/json'}
+        
+        # Optional user session for this request
+        #self.user_session = user_session # smc.api.session.Session
         
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -99,6 +73,34 @@ class SMCRequest(_RequestHandler):
 
     def read(self):
         return self._make_request(method='GET')
+    
+    def _make_request(self, method):
+        err = None
+        result = None
+        try:
+            # Obtain the session
+            session = _get_session(getattr(self, '_session_manager', None))
+            #print("Calling Session---> %s, self: %s" % (session, vars(self)))
+            
+            if method == 'GET':
+                if not self.href:
+                    self.href = session.entry_points.get('elements')
+            
+            result = send_request(session, method, self)
+            
+        except SMCOperationFailure as e:
+            result = e.smcresult
+            try:
+                err = self.exception(result.msg)  # Exception set
+            except AttributeError:
+                pass
+        except (SessionManagerNotFound, SMCConnectionError,
+                IOError, TypeError) as e:
+            err = e
+        finally:
+            if err:
+                raise err
+            return result
 
     def __str__(self):
         sb = []
@@ -142,7 +144,7 @@ def fetch_meta_by_name(name, filter_context=None, exact_match=True):
         'services_and_applications'
     :param bool exact_match: Do an exact match by name, note this still can
         return multiple entries
-    :return: :py:class:`smc.api.web.SMCResult`
+    :rtype: SMCResult
     """
     result = SMCRequest(
         params={'filter': name,

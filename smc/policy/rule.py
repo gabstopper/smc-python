@@ -70,7 +70,7 @@ Examples of rule operations::
     IPv4Rule(name=discard at bottom) discard at bottom discard
 
 """
-from smc.base.model import Element, SubElement, SubElementCreator
+from smc.base.model import Element, SubElement, ElementCreator
 from smc.elements.other import LogicalInterface
 from smc.api.exceptions import ElementNotFound, MissingRequiredInput,\
     CreateRuleFailed, PolicyCommandFailed
@@ -323,12 +323,12 @@ class RuleCommon(object):
             href = self.add_at_position(add_pos)
         elif before or after: 
             params = self.add_before_after(before, after) 
-    
-        return SubElementCreator( 
-            self.__class__, 
-            CreateRuleFailed, 
-            href=href, 
-            params=params, 
+        
+        return ElementCreator(
+            self.__class__,
+            exception=CreateRuleFailed,
+            href=href,
+            params=params,
             json={'comment': name})
     
     def add_at_position(self, pos):
@@ -566,14 +566,13 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
             href = self.add_at_position(add_pos)
         elif before or after:
             params = self.add_before_after(before, after)
-    
-        return SubElementCreator(
+        
+        return ElementCreator(
             self.__class__,
-            CreateRuleFailed,
+            exception=CreateRuleFailed,
             href=href,
             params=params,
             json=rule_values)
-
     
 class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
     """
@@ -648,10 +647,10 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
             href = self.add_at_position(add_pos)
         elif before or after:
             params = self.add_before_after(before, after)
- 
-        return SubElementCreator(
+        
+        return ElementCreator(
             self.__class__,
-            CreateRuleFailed,
+            exception=CreateRuleFailed,
             href=href,
             params=params,
             json=rule_values)
@@ -732,10 +731,10 @@ class EthernetRule(RuleCommon, Rule, SubElement):
             href = self.add_at_position(add_pos)
         else:
             params = self.add_before_after(before, after)
-
-        return SubElementCreator(
+        
+        return ElementCreator(
             self.__class__,
-            CreateRuleFailed,
+            exception=CreateRuleFailed,
             href=href,
             params=params,
             json=rule_values)

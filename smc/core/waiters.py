@@ -83,8 +83,10 @@ class NodeWaiter(threading.Thread):
 
     def _get_status(self):
         # Raises NodeCommandFailed
-        latest = getattr(self._resource.status(), self.value)
-        return latest
+        # Modified in 0.6.2 to support SMC 6.5 where the attribute name changed
+        status = self._resource.status()
+        latest = [getattr(status, attr) for attr in self.value if getattr(status, attr)]
+        return latest[0] or None
 
     def finished(self):
         return self._done.is_set() or \
@@ -149,7 +151,7 @@ class ConfigurationStatusWaiter(NodeWaiter):
         status. If thrown after the thread has started, it is caught
         and returned in the ``result`` after ending the thread.
     """
-    value = 'configuration_status'
+    value = ('configuration_status',)
 
     def __init__(self, resource, status, **kw):
         if status not in CFG_STATUS:
@@ -170,7 +172,10 @@ class NodeStatusWaiter(NodeWaiter):
         status. If thrown after the thread has started, it is caught
         and returned in the ``result`` after ending the thread.
     """
-    value = 'status'
+    # Node status changed in SMC 6.5 from status to monitoring_status so
+    # value was changed to an iterable to check for a status other than
+    # None for both attributes 
+    value = ('status', 'monitoring_status')
 
     def __init__(self, resource, status, **kw):
         if status not in STATUS:
@@ -191,7 +196,7 @@ class NodeStateWaiter(NodeWaiter):
         status. If thrown after the thread has started, it is caught
         and returned in the ``result`` after ending the thread.
     """
-    value = 'state'
+    value = ('state', 'monitoring_state')
 
     def __init__(self, resource, status, **kw):
         if status not in STATE:

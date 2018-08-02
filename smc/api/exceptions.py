@@ -76,7 +76,6 @@ class SMCOperationFailure(SMCException):
             except ValueError:
                 message = 'No valid message returned from SMC server'
             else:
-                #status = data.get('status', None)
                 message = data.get('message', None)
                 details = data.get('details', None)
         else:  # it's not json

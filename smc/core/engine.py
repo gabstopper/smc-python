@@ -1,7 +1,6 @@
 from collections import namedtuple
 from smc.elements.helpers import domain_helper, location_helper
-from smc.base.model import Element, \
-    SubElement, lookup_class, SubElementCreator
+from smc.base.model import Element, SubElement, lookup_class, ElementCreator
 from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, EngineCommandFailed, SMCConnectionError
 from smc.core.node import Node, NodeCollection
@@ -1501,11 +1500,8 @@ class VirtualResource(SubElement):
                 'vfw_id': vfw_id,
                 'comment': comment,
                 'allocated_domain_ref': allocated_domain}
-
-        return SubElementCreator(
-            self.__class__,
-            href=self.href,
-            json=json)
+        
+        return ElementCreator(self.__class__, json=json, href=self.href)
         
     @property
     def allocated_domain_ref(self):

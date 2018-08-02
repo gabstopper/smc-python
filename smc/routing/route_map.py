@@ -71,8 +71,7 @@ Or by the name::
 .. seealso:: :class:`smc.base.collection.rule_collection`
 """
 import collections
-from smc.base.model import Element, ElementCreator, SubElement,\
-    SubElementCreator
+from smc.base.model import Element, ElementCreator, SubElement
 from smc.base.collection import rule_collection
 from smc.policy.rule import RuleCommon
 from smc.api.exceptions import CreateRuleFailed
@@ -299,14 +298,14 @@ class RouteMapRule(RuleCommon, SubElement):
             href = self.add_at_position(add_pos) 
         elif before or after: 
             params = self.add_before_after(before, after)
-            
-        return SubElementCreator(
+        
+        return ElementCreator(
             self.__class__,
-            CreateRuleFailed, 
+            exception=CreateRuleFailed, 
             href=href,
             params=params, 
             json=json)
-    
+
     @property
     def comment(self):
         """

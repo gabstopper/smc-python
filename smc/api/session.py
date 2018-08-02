@@ -7,7 +7,8 @@ import logging
 import requests
 import collections
 
-import smc.api.web
+#import smc.api.web
+from smc.api.web import send_request, counters
 from smc.api.entry_point import Resource
 from smc.api.configloader import load_from_file, load_from_environ
 from smc.api.common import SMCRequest
@@ -212,14 +213,18 @@ class Session(object):
     by calling login(). If sessions need to be long lived as might be the case
     when running under a web platform, a session is automatically refreshed
     when it expires. Best practice is to call logout() after to clear the
-    session from the SMC.
+    session from the SMC. A session will be automatically closed once the
+    python interpreter closes.
+    
+    Each session will also have a single connection pool associated with
+    it. This results in a single persistent connection to the SMC that will
+    be re-used as needed.
     """
     def __init__(self, manager=None):
         self._params = {} # Retrieved from login
         self._session = None # requests.Session
-        self._connection = None # SMCAPIConnection
         
-        self._resource = None # Entry points
+        self._resource = None # smc.api.entry_point.Resource
         
         self._manager = manager # Session Manager that tracks this session
         
@@ -227,8 +232,6 @@ class Session(object):
         # run with atomic, this session parameter indicates whether the
         # operation in process is within an atomic block or not
         self.in_atomic_block = False
-        # Savepoint indicates a nested context manager block
-        self.is_savepoint = False
         # Transactions that are within the given atomic block
         self.transactions = []
     
@@ -294,10 +297,6 @@ class Session(object):
         return self._session
 
     @property
-    def connection(self):
-        return self._connection
-
-    @property
     def session_id(self):
         """
         The session ID in header type format. Can be inserted into a
@@ -357,7 +356,8 @@ class Session(object):
         
         :rtype: str
         """
-        return self._params.get('domain', 'Shared Domain')
+        return 'Shared Domain' if not self._params.get('domain') else \
+            self._params.get('domain')
         
     @property
     def name(self):
@@ -395,8 +395,8 @@ class Session(object):
                 response = self.session.get(self.entry_points.get('current_user'))
                 if response.status_code in (200, 201):
                     admin_href=response.json().get('value')
-                    request = SMCRequest(admin_href)
-                    smcresult = self.connection.send_request('get', request)
+                    request = SMCRequest(href=admin_href)
+                    smcresult = send_request(self, 'get', request)
                     return ElementFactory(admin_href, smcresult)
             except UnsupportedEntryPoint:
                 pass
@@ -448,9 +448,9 @@ class Session(object):
         Logout should be called to remove the session immediately from the
         SMC server.
         
-        .. note:: As of SMC 6.4 it is possible to give a standard Administrative user access
-            to the SMC API. It is still possible to use an API Client by providing the api_key
-            in the login call.
+        .. note:: As of SMC 6.4 it is possible to give a standard Administrative user
+            access to the SMC API. It is still possible to use an API Client by
+            providing the api_key in the login call.
         """
         params = {}
         if not url or (not api_key and not (login and pwd)):
@@ -474,10 +474,10 @@ class Session(object):
             domain=domain,
             kwargs=kwargs or {})
         
-        # Check to see if a session already exists with the same user
-        # (SMC >= 6.4) or session ID. A single session by user supported which
-        # means if an existing session does exist, it will be logged out and a
-        # new session created
+        # Check to see this session is already logged in. If so, return.
+        # The session object represents a single connection. Log out to
+        # re-use the same session object or get_session() from the
+        # SessionManager to track multiple sessions.
         if self.manager and (self.session and self in self.manager):
             logger.info('An attempt to log in occurred when a session already '
                 'exists, bypassing login for session: %s' % self)
@@ -505,9 +505,6 @@ class Session(object):
 
         if retry_on_busy:
             self.set_retry_on_busy()
-        
-        # Set up new API connection reference
-        self._connection = smc.api.web.SMCAPIConnection(self)
         
         # Load entry points
         load_entry_points(self)
@@ -603,7 +600,7 @@ class Session(object):
             except AttributeError:
                 pass
         
-        logger.debug('Call counters: %s' % smc.api.web.counters)    
+        logger.debug('Call counters: %s' % counters)    
         
     def refresh(self):
         """

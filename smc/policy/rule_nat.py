@@ -1,5 +1,5 @@
 from smc.policy.rule import Rule, RuleCommon
-from smc.base.model import Element, SubElement, SubElementCreator
+from smc.base.model import Element, SubElement, ElementCreator
 from smc.policy.rule_elements import LogOptions
 from smc.api.exceptions import ElementNotFound, InvalidRuleValue,\
     CreateRuleFailed
@@ -631,10 +631,10 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
             href = self.add_at_position(add_pos)
         elif before or after:
             params = self.add_before_after(before, after)
-            
-        return SubElementCreator(
+        
+        return ElementCreator(
             self.__class__,
-            CreateRuleFailed,
+            exception=CreateRuleFailed,
             href=href,
             params=params,
             json=rule_values)

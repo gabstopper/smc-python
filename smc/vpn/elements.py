@@ -44,8 +44,7 @@ configurations::
 """
 
 from smc.api.exceptions import ElementNotFound
-from smc.base.model import SubElement, SubElementCreator, ElementRef
-from smc.base.model import Element, ElementCreator
+from smc.base.model import SubElement, Element, ElementRef, ElementCreator
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
 
@@ -311,7 +310,7 @@ class ExternalEndpoint(SubElement):
                 ike_phase1_id_type=ike_phase1_id_type,
                 ike_phase1_id_value=ike_phase1_id_value)
         
-        return SubElementCreator(
+        return ElementCreator(
             self.__class__,
             href=self.href,
             json=json)
@@ -450,7 +449,7 @@ class VPNSite(SubElement):
             'name': name,
             'site_element': site_element}
         
-        return SubElementCreator(
+        return ElementCreator(
             self.__class__,
             href=self.href,
             json=json)

@@ -4,8 +4,7 @@ and other VPN related connections. Each gateway certificate is signed by
 a VPN CA and uses the default internal CA by default.
 """
 
-from smc.base.model import Element, ElementCreator, SubElement,\
-    SubElementCreator, ElementRef
+from smc.base.model import Element, ElementCreator, SubElement, ElementRef
 from smc.administration.certificates.tls_common import ImportExportCertificate
 from smc.api.exceptions import CertificateError
 from smc.base.util import element_resolver
@@ -69,9 +68,9 @@ class GatewayCertificate(SubElement):
         
         cert_auth = element_resolver(signing_ca)
         
-        return SubElementCreator(
+        return ElementCreator(
             GatewayCertificate,
-            CertificateError,
+            exception=CertificateError,
             href=self.internal_gateway.get_relation('generate_certificate'),
             json={
                 'common_name': common_name,

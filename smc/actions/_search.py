@@ -23,8 +23,7 @@ All elements by type::
     smc.actions.search.all_elements_by_type('host')
 """
 import logging
-from smc.api.common import fetch_href_by_name, fetch_json_by_href,\
-    fetch_json_by_name, fetch_entry_point, fetch_json_by_post
+from smc.api.common import fetch_meta_by_name, fetch_entry_point, SMCRequest
 from smc import session
 from smc.api.exceptions import UnsupportedEntryPoint
 
@@ -49,7 +48,7 @@ def element_href(name):
     :return: string href location of object, else None
     """
     if name:
-        element = fetch_href_by_name(name)
+        element = fetch_meta_by_name(name)
         if element.href:
             return element.href
 
@@ -106,7 +105,7 @@ def element_info_as_json(name):
     :return: list dict with meta (href, name, type) if found, otherwise None
     """
     if name:
-        element = fetch_href_by_name(name)
+        element = fetch_meta_by_name(name)
         if element.json:
             return element.json
 
@@ -120,7 +119,7 @@ def element_info_as_json_with_filter(name, _filter):
     :return: list dict with metadata, otherwise None
     """
     if name and _filter:
-        element = fetch_href_by_name(name, filter_context=_filter)
+        element = fetch_meta_by_name(name, filter_context=_filter)
         if element.json:
             return element.json
 
@@ -133,7 +132,7 @@ def element_href_use_wildcard(name):
     :return: list of matched elements
     """
     if name:
-        element = fetch_href_by_name(name, exact_match=False)
+        element = fetch_meta_by_name(name, exact_match=False)
         return element.json
 
 
@@ -148,7 +147,7 @@ def element_href_use_filter(name, _filter):
     :return: element href (if found), else None
     """
     if name and _filter:
-        element = fetch_href_by_name(name, filter_context=_filter)
+        element = fetch_meta_by_name(name, filter_context=_filter)
         if element.json:
             return element.json.pop().get('href')
 
@@ -253,7 +252,7 @@ def element_as_smcresult_use_filter(name, _filter):
     :return: :py:class:`smc.api.web.SMCResult`
     """
     if name:
-        element = fetch_href_by_name(name, filter_context=_filter)
+        element = fetch_meta_by_name(name, filter_context=_filter)
         if element.msg:
             return element
         if element.json:
@@ -340,31 +339,34 @@ def search_duplicate():
     return element_by_href_as_json(fetch_entry_point('search_duplicate'))
 
 
-def element_references(element_href):
+def fetch_json_by_name(name):
     """
-    Return references for an element given the element href. The result is
-    filtered based on the SMCResult. If error, empty list is returned
+    Fetch json based on the element name
+    First gets the href based on a search by name, then makes a
+    second query to obtain the element json
 
-    :param str element_href: element reference
-    :return: list list of references where element is used
-    """
-    href = fetch_entry_point('references_by_element')
-    result = fetch_json_by_post(href=href,
-                                json={'value': element_href})
-    if result.json:
-        return result.json
-    return []
-
-
-def element_references_as_smcresult(element_href):
-    """
-    Return references for an element given the element href. The
-    return is the full SMCResult object.
-
-    :param str element_href: element reference
+    :method: GET
+    :param str name: element name
     :return: :py:class:`smc.api.web.SMCResult`
     """
-    href = fetch_entry_point('references_by_element')
-    return fetch_json_by_post(href=href,
-                              json={'value': element_href})
+    result = fetch_meta_by_name(name)
+    if result.href:
+        result = fetch_json_by_href(result.href)
+    return result
+
+
+def fetch_json_by_href(href, params=None):
+    """
+    Fetch json for element by using href. Params should be key/value
+    pairs. For example {'filter': 'myfilter'}
+
+    :method: GET
+    :param str href: href of the element
+    :params dict params: optional search query parameters
+    :return: :py:class:`smc.api.web.SMCResult`
+    """
+    result = SMCRequest(href=href, params=params).read()
+    if result:
+        result.href = href
+    return result
 

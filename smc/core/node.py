@@ -338,7 +338,7 @@ class Node(SubElement):
         result = self.make_request(
             NodeCommandFailed,
             resource='status')
-
+        
         return ApplianceStatus(**result)
 
     def go_online(self, comment=None):
@@ -597,8 +597,9 @@ class Node(SubElement):
 
 
 ApplianceStatus = collections.namedtuple('ApplianceStatus', 
-    'configuration_status dyn_up installed_policy name platform state status version')      
-
+    'configuration_status dyn_up installed_policy name platform state status version '
+    'engine_node_status monitoring_state monitoring_status')      
+ 
 """
 Appliance status attributes define specifics about the hardware platform
 itself, including version, dynamic package, current configuration status
@@ -633,6 +634,10 @@ Retrieve appliance status for engine nodes::
     Valid values:
         INITIAL/READY/ERROR/SERVER_ERROR/NO_STATUS/TIMEOUT/
         DELETED/DUMMY
+        
+.. versionchanged:: 0.6.2
+    Attribute status changed to monitoring_status and state to monitoring_state
+    in SMC 6.5
 """
 ApplianceStatus.__new__.__defaults__ = (None,) * len(ApplianceStatus._fields)
 

@@ -112,7 +112,7 @@ class Layer2Policy(Layer2Rule, Policy):
     typeof = 'layer2_policy'
 
     @classmethod
-    def create(cls, name, template):
+    def create(cls, name, template='Layer 2 Firewall Inspection Template'):
         """ 
         Create Layer 2 Firewall Policy. Template policy is required for 
         the policy. The template parameter should be the name of the
@@ -136,10 +136,13 @@ class Layer2Policy(Layer2Rule, Policy):
         :return: Layer2Policy
         """
         try:
-            fw_template = Layer2TemplatePolicy(template).href
+            if cls.typeof == 'layer2_template_policy' and template is None:
+                fw_template = None
+            else:
+                fw_template = Layer2TemplatePolicy(template).href
         except ElementNotFound:
             raise LoadPolicyFailed(
-                'Cannot find specified layer2 firewall template: {}'
+                'Cannot find specified L2 firewall template: {}'
                 .format(template))
         json = {
             'name': name,

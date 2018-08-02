@@ -92,80 +92,66 @@ def LoadElement(href, only_etag=False):
         return result.etag
     return ElementCache(
         result.json, etag=result.etag)
-    
+
 
 @create_hook
-def ElementCreator(cls, json):
+def ElementCreator(cls, json, **kwargs):
     """
-    Helper method for create classmethods. Returns the href if
-    creation is successful. This is a lazy load that will provide
-    only the meta for the element. Additional attribute access
+    Helper method for creating elements. If the created element type is
+    a SubElement class type, provide href value as kwargs since that class
+    type does not have a direct entry point. This is a lazy load that will
+    provide only the meta for the element. Additional attribute access
     will load the full data.
 
+    :param Element,SubElement cls: class for creating
+    :param dict json: json payload
+    :param SMCException exception: exception class to override
     :return: instance of type Element with meta
     :rtype: Element
     """
+    if 'exception' not in kwargs:
+        kwargs.update(exception=CreateElementFailed)
+    href = kwargs.pop('href') if 'href' in kwargs else cls.href
+    
     result = SMCRequest(
-        href=cls.href,
-        json=json).create()
+        href=href,
+        json=json,
+        **kwargs).create()
     
-    if result.msg:
-        raise CreateElementFailed(result.msg)
-    return cls(json.get('name'),
-               type=cls.typeof,
-               href=result.href)
-
-
-def SubElementCreator(cls, *exception, **kwargs):
-    """
-    Helper method for creating sub elements. SubElements do not
-    have direct entry points in the SMC API and require a direct
-    href reference. This is a lazy load that will provide
-    only the meta for the element. Additional attribute access
-    will load the full data.
-
-    :return: instance of type SubElement with meta
-    :rtype: SubElement
-    """
-    exc = exception[0] if exception else CreateElementFailed
-    if 'href' not in kwargs:
-        raise exc('Cannot create SubElement: %s. Missing the href value'
-            % cls.__name__)
+    element = cls(
+        name=json.get('name'),
+        type=cls.typeof,
+        href=result.href)
     
-    result = SMCRequest(**kwargs).create()
-    if result.msg:
-        raise exc(result.msg)
-    
-    name = kwargs.get('json')
-    return cls(name=name.get('name'),
-               type=cls.typeof,
-               href=result.href)
+    if result.user_session.in_atomic_block:
+        result.user_session.transactions.append(element)
+    return element
 
 
-def ElementFactory(href, element=None, raise_exc=None):
+def ElementFactory(href, smcresult=None, raise_exc=None):
     """
     Factory returns an object of type Element when only
     the href is provided.
     
     :param str href: string href to fetch
-    :param SMCResult element: optional SMCResult. If provided,
+    :param SMCResult smcresult: optional SMCResult. If provided,
         the request fetch will be skipped
     :param Exception raise_exc: exception to raise if fetch
         failed
     """
-    if element is None:
-        element = SMCRequest(href=href).read()
-    if element.json:
-        istype = find_type_from_self(element.json.get('link'))
+    if smcresult is None:
+        smcresult = SMCRequest(href=href).read()
+    if smcresult.json:
+        istype = find_type_from_self(smcresult.json.get('link'))
         typeof = lookup_class(istype)
-        e = typeof(name=element.json.get('name'),
+        e = typeof(name=smcresult.json.get('name'),
                    href=href,
                    type=istype)
         e.data = ElementCache(
-            element.json, etag=element.etag)
+            smcresult.json, etag=smcresult.etag)
         return e
-    if raise_exc and element.msg:
-        raise raise_exc(element.msg)
+    if raise_exc and smcresult.msg:
+        raise raise_exc(smcresult.msg)
 
 
 class ElementCache(NestedDict):

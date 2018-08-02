@@ -23,7 +23,7 @@ overidden.
 import collections
 from smc.api.exceptions import PolicyCommandFailed
 from smc.administration.tasks import Task
-from smc.base.model import Element, lookup_class
+from smc.base.model import Element, lookup_class, ElementRef
 
 
 class Policy(Element):
@@ -36,8 +36,15 @@ class Policy(Element):
 
     All generic methods that are policy level, such as 'open', 'save', 'force_unlock',
     'export', and 'upload' are encapsulated into this base class.
+    
+    :ivar Element template: The template associated with this policy. Can be None
+    :ivar InspectionPolicy inspection_policy: related inspection policy
+    :ivar FileFilteringPolicy file_filtering_policy: related file policy
     """
-
+    template = ElementRef('template')
+    inspection_policy = ElementRef('inspection_policy')
+    file_filtering_policy = ElementRef('file_filtering_policy')
+    
     def upload(self, engine, timeout=5, wait_for_finish=False, **kw):
         """
         Upload policy to specific device. Using wait for finish
@@ -101,38 +108,6 @@ class Policy(Element):
             return results
         return []
 
-    @property
-    def template(self):
-        """
-        Each policy is based on a system level template policy that will
-        be inherited.
-
-        :return: Template policy based on policy type
-        """
-        return Element.from_href(self.data.get('template'))
-
-    @property
-    def inspection_policy(self):
-        """
-        Each policy is required to have a reference to an InspectionPolicy.
-        The policy may be "No Inspection" but will still exist as a
-        reference.
-
-        :return: :py:class:`smc.policy.inspection_policy.InspectionPolicy`
-        """
-        return Element.from_href(self.data.get('inspection_policy'))
-
-    @property
-    def file_filtering_policy(self):
-        """
-        Each policy is required to have a reference to a File Filtering
-        Policy. To use you will need a rule in the policy that has an
-        action with file filtering turned on.
-        
-        :return :class:`smc.policy.file_filtering.FileFilteringPolicy`
-        """
-        return Element.from_href(self.data.get('file_filtering_policy'))
-    
     def rule_counters(self, engine, duration_type='one_week',
             duration=0, start_time=0):
         """

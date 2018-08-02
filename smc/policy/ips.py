@@ -95,7 +95,7 @@ class IPSPolicy(IPSRule, Policy):
     typeof = 'ips_policy'
 
     @classmethod
-    def create(cls, name, template):
+    def create(cls, name, template='High-Security IPS Template'):
         """
         Create an IPS Policy
 
@@ -105,11 +105,13 @@ class IPSPolicy(IPSRule, Policy):
         :return: IPSPolicy
         """
         try:
-            fw_template = IPSTemplatePolicy(template).href
+            if cls.typeof == 'ips_template_policy' and template is None:
+                fw_template = None
+            else:
+                fw_template = IPSTemplatePolicy(template).href
         except ElementNotFound:
             raise LoadPolicyFailed(
-                'Cannot find specified firewall template: {}'
-                .format(template))
+                'Cannot find specified firewall template: {}'.format(template))
         json = {
             'name': name,
             'template': fw_template}

@@ -123,7 +123,7 @@ class ChangeRecord(collections.namedtuple(
 
 _History = collections.namedtuple('History', 'creation_time creator creator_name '
     'is_locked is_obsolete is_trashed last_modification_time modifier') 
-_History.__new__.__defaults__ = (None,) * len(_History._fields) # Version 5.10 compat 
+_History.__new__.__defaults__ = (None,) * len(_History._fields) 
 
 
 class History(_History):

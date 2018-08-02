@@ -242,6 +242,7 @@ class TaskSchedule(SubElement):
         else:
             raise ActionCommandFailed('Task is already suspended. Call activate '
                 'to reactivate.')
+
             
 class ScheduledTaskMixin(object):
     """
