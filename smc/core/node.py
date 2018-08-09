@@ -15,33 +15,10 @@ For example, to load an engine and run node level commands::
 """
 import collections
 from smc.base.util import save_to_file, b64encode
-from smc.base.model import SubElement, ElementCache
+from smc.base.model import SubElement
 from smc.core.sub_interfaces import LoopbackInterface
 from smc.api.exceptions import LicenseError, NodeCommandFailed
-from smc.base.structs import SerializedIterable, BaseIterable
-
-
-class NodeCollection(BaseIterable):
-    """
-    Node Collection provides a simplified interface to retrieving
-    nodes from an engine reference::
-    
-        engine.nodes.get(0)
-        engine.nodes.all()
-    
-    :rtype: Node
-    """
-    def __init__(self, engine):
-        nodes = Node._load(engine)
-        super(NodeCollection, self).__init__(nodes)
-    
-    def get(self, nodeid):
-        """
-        Get a node by Node ID
-        
-        :rtype: Node
-        """
-        return super(NodeCollection, self).get(nodeid=nodeid)
+from smc.base.structs import SerializedIterable
         
 
 class Node(SubElement):
@@ -96,20 +73,6 @@ class Node(SubElement):
         # Delete cache from engine reference
         super(Node, self).update(*args, **kw)
         self._engine._del_cache()
-    
-    @classmethod
-    def _load(cls, engine):
-        nodes = []
-        for node in engine.data.get('nodes', []):
-            for typeof, data in node.items():
-                cache = ElementCache(data)
-                node = Node(name=cache.get('name'),
-                            href=cache.get_link('self'),
-                            type=typeof)
-                node.data = cache
-                node._engine = engine
-                nodes.append(node)
-        return nodes
 
     @classmethod
     def _create(cls, name, node_type, nodeid=1,

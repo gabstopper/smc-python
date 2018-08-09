@@ -80,7 +80,6 @@ class SMCRequest(object):
         try:
             # Obtain the session
             session = _get_session(getattr(self, '_session_manager', None))
-            #print("Calling Session---> %s, self: %s" % (session, vars(self)))
             
             if method == 'GET':
                 if not self.href:

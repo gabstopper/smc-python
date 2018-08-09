@@ -3,7 +3,7 @@ from smc.elements.helpers import domain_helper, location_helper
 from smc.base.model import Element, SubElement, lookup_class, ElementCreator
 from smc.api.exceptions import UnsupportedEngineFeature,\
     UnsupportedInterfaceType, EngineCommandFailed, SMCConnectionError
-from smc.core.node import Node, NodeCollection
+from smc.core.node import Node
 from smc.core.resource import Snapshot, PendingChanges
 from smc.core.interfaces import InterfaceOptions, PhysicalInterface
 from smc.core.collection import InterfaceCollection, LoopbackCollection,\
@@ -452,9 +452,15 @@ class Engine(Element):
             
         
         :return: nodes for this engine
-        :rtype: NodeCollection
+        :rtype: SubElementCollection(Node)
         """
-        return NodeCollection(self)
+        resource = sub_collection(
+            self.get_relation( 
+                'nodes'), 
+            Node) 
+        resource._load_from_engine(self, 'nodes') 
+        return resource
+        
 
     @property
     def permissions(self):
@@ -786,11 +792,13 @@ class Engine(Element):
         :raises UnsupportedEngineFeature: master engine only
         :rtype: CreateCollection(VirtualResource)
         """
-        return create_collection(
+        resource = create_collection(
             self.get_relation(
                 'virtual_resources',
                 UnsupportedEngineFeature),
             VirtualResource)
+        resource._load_from_engine(self, 'virtualResources')
+        return resource
 
     @property
     def contact_addresses(self):
@@ -1543,3 +1551,4 @@ class VirtualResource(SubElement):
         :rtype: int
         """
         return self.data.get('vfw_id')
+    

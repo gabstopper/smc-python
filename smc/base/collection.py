@@ -72,7 +72,24 @@ class SubElementCollection(object):
     def __iter__(self):
         self._fetch_all()
         return iter(self._result_cache)
-
+    
+    def __getitem__(self, key):
+        return self._result_cache[key]
+    
+    def _load_from_engine(self, engine, reference):
+        resources = []
+        for r in engine.data.get(reference, []):
+            for _, data in r.items():    
+                cache = smc.base.model.ElementCache(data)
+                res = self.cls(
+                    name=cache.get('name'),
+                    href=cache.get_link('self'),
+                    type=cache.type)
+                res.data = cache
+                res._engine = engine
+                resources.append(res)
+        self._result_cache = resources
+    
     def _fetch_all(self):
         if self._result_cache is None:
             results = smc.base.model.prepared_request(

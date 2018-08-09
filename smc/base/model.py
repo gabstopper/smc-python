@@ -142,14 +142,14 @@ def ElementFactory(href, smcresult=None, raise_exc=None):
     if smcresult is None:
         smcresult = SMCRequest(href=href).read()
     if smcresult.json:
-        istype = find_type_from_self(smcresult.json.get('link'))
-        typeof = lookup_class(istype)
-        e = typeof(name=smcresult.json.get('name'),
-                   href=href,
-                   type=istype)
-        e.data = ElementCache(
-            smcresult.json, etag=smcresult.etag)
-        return e
+        cache = ElementCache(smcresult.json, etag=smcresult.etag)
+        typeof = lookup_class(cache.type)
+        instance = typeof(
+            name=cache.get('name'),
+            href=href,
+            type=cache.type)
+        instance.data = cache
+        return instance
     if raise_exc and smcresult.msg:
         raise raise_exc(smcresult.msg)
 
@@ -172,6 +172,12 @@ class ElementCache(NestedDict):
     @cached_property
     def links(self):
         return {link['rel']:link['href'] for link in self['link']}
+    
+    @property
+    def type(self):
+        for link in self.get('link', []):
+            if link.get('rel') == 'self':
+                return link.get('type')
     
     def get_link(self, rel):
         """

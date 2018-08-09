@@ -7,6 +7,8 @@ from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
 from smc.core.node import Node
 from smc.base.util import element_resolver
 from smc.core.engine import Engine
+from smc.administration.tasks import Task
+from smc.base.collection import sub_collection
 
 
 class VSSContainer(MasterEngine):
@@ -41,9 +43,22 @@ class VSSContainer(MasterEngine):
         return ElementCreator(cls, json)
 
     @property
+    def nodes(self):
+        """
+        Return the nodes for this VSS Container
+        
+        :rtype: SubElementCollection(VSSContainerNode)
+        """
+        resource = sub_collection(
+            self.get_relation( 
+                'vss_container_node'), 
+            VSSContainerNode) 
+        resource._load_from_engine(self, 'nodes') 
+        return resource
+
+    @property
     def container_node(self):
-        return [VSSContainerNode(**node)
-                for node in self.make_request(resource='vss_container_node')]
+        return self.nodes
 
     @property
     def default_settings(self):
@@ -53,14 +68,18 @@ class VSSContainer(MasterEngine):
     def isc_settings(self):
         """
         ISC Settings provide top level information about the VSS
-        container.
-
+        container. For the native NSX implementation, only the
+        `isc_virtual_connector_name` and `isc_vss_id` fields are
+        used. The virtual_connector_name is the NSX service name
+        i.e. (service-520). The isc_vss_id is the NSX service
+        instance (deployment) name i.e.(serviceinstance-508).
+        
             {'isc_virtual_connector_name': 'nsx',
              'isc_ovf_appliance_version': '6.2.1.20170614095114',
              'isc_vss_id': '94', 'isc_ovf_appliance_model':
              'NGFW-CLOUD', 'isc_ip_address': '172.18.1.42'}
         """
-        return self.make_request(resource='isc_settings')
+        return self.data.get('vss_isc', {})
 
     @property
     def vss_contexts(self):
@@ -70,12 +89,12 @@ class VSSContainer(MasterEngine):
         :return list VSSContext
         """
         return [VSSContext(**context)
-                for context in self.make_request(resource='vss_contexts')]
+            for context in self.make_request(resource='vss_contexts')]
 
     @property
     def security_groups(self):
         return [SecurityGroup(**group)
-                for group in self.make_request(resource='security_groups')]
+            for group in self.make_request(resource='security_groups')]
 
     def remove_security_group(self, name):
         """
@@ -125,21 +144,16 @@ class VSSContainerNode(Node):
 
     def __init__(self, **meta):
         super(VSSContainerNode, self).__init__(**meta)
-
+    
     @classmethod
     def create(cls, name, vss_container, vss_node_def,
                comment=None):
         """
         Create VSS node. This is the engines dvFilter management
         interface within the NSX agent.
-
-        vss_node_def dict has the following definition:
-
-            {"management_ip": '1.1.1.1',
-             "management_netmask": '24',
-             "isc_hypervisor": "default",
-             "management_gateway": '1.1.1.254',
-             "contact_ip": None}
+        
+        .. seealso:: `~.isc_settings` for documentation on the
+            vss_node_def dict
 
         :param str name: name of node
         :param VSSContainer vss_container: container to nest this node
@@ -160,16 +174,24 @@ class VSSContainerNode(Node):
     @property
     def isc_settings(self):
         """
-        Return ISC settings for this node
-
-        {'contact_ip': '4.4.4.6',
-         'isc_hypervisor': 'default',
-         'management_gateway': '2.2.2.1',
-         'management_ip': '4.4.4.6',
-         'management_netmask': 24}
+        Return ISC settings for this node. These are set during the
+        create process.
+        
+            {'contact_ip': '4.4.4.6',
+             'isc_hypervisor': 'default',
+             'management_gateway': '2.2.2.1',
+             'management_ip': '4.4.4.6',
+             'management_netmask': 24}
+        
+        :param str contact_ip: ip address for this node used as management
+        :param str isc_hypervisor: unused
+        :param str management_gateway: gateway as set by the NSX agent
+        :param str management_ip: management IP
+        :param str management_netmask: CIDR netmask for management IP
+        :rtype: dict
         """
-        return self.make_request(resource='isc_settings')
-
+        return self.data.get('vss_node_isc')
+        
 
 class VSSContext(Engine):
     typeof = 'vss_context'
@@ -206,7 +228,23 @@ class VSSContext(Engine):
         
         # Element will be automatically named so retrieve it
         return Element.from_href(href)
-
+    
+    def remove_from_master_node(self, wait_for_finish=False, timeout=20, **kw):
+        """
+        Remove this VSS Context from it's parent VSS Container.
+        This is required before calling VSSContext.delete(). It preps
+        the engine for removal.
+        
+        :param bool wait_for_finish: wait for the task to finish
+        :param int timeout: how long to wait if delay
+        :type: TaskOperationPoller
+        """
+        return Task.execute(self, 'remove_from_master_node',
+            timeout=timeout, wait_for_finish=wait_for_finish, **kw)
+    
+    def move_to_master_node(self, master):
+        pass
+    
     @property
     def isc_settings(self):
         """
@@ -219,7 +257,7 @@ class VSSContext(Engine):
                    'isc_policy_id': 17,
                    'isc_traffic_tag': 'serviceprofile-145'},
         """
-        return self.make_request(resource='isc_settings')
+        return self.data.get('vc_isc')
 
 
 class SecurityGroup(Element):
@@ -240,6 +278,15 @@ class SecurityGroup(Element):
     def create(cls, name, isc_id, vss_container):
         """
         Create a new security group.
+        
+        Find a security group::
+        
+            SecurityGroup.objects.filter(name)
+        
+        .. note:: The isc_id (securitygroup-10, etc) represents the
+            internal NSX reference for the Security Composer group.
+            This is placed in the comment field which makes it
+            a searchable field using search collections
 
         :param str name: name of group
         :param str isc_id: NSX Security Group objectId
@@ -252,7 +299,8 @@ class SecurityGroup(Element):
         json = {
             'name': name,
             'isc_name': name,
-            'isc_id': isc_id
+            'isc_id': isc_id,
+            'comment': isc_id
         }
         href = prepared_request(
             CreateElementFailed,
