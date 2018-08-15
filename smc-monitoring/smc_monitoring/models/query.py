@@ -262,7 +262,7 @@ class Query(object):
             for result in protocol.receive():
                 yield result
     
-    def fetch_raw(self, max_recv=1, **kw):
+    def fetch_raw(self, max_recv=2, **kw):
         """
         Fetch the records for this query. This is a single fetch that will
         return results max_recv number of iterations. A recv is defined as a
@@ -281,16 +281,12 @@ class Query(object):
         :return: list of query results
         :rtype: list(dict)
         """
-        iteration = 0
+        self.sockopt.update(max_recv=max_recv)
         with SMCSocketProtocol(self, **self.sockopt) as protocol:
             for result in protocol.receive():
                 if 'records' in result and result['records'].get('added'):
                     yield result['records']['added']
-                    iteration += 1
-                
-                if iteration == max_recv:
-                    protocol.abort()
-
+    
     def fetch_batch(self, formatter=TableFormat, **kw):
         """
         Fetch and return in the specified format. Output format is a formatter

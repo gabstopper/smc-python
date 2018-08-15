@@ -1,14 +1,14 @@
 """
 Classes for VSS Containers
 """
-from smc.base.model import Element, ElementCreator, prepared_request
+from smc.base.model import Element, ElementCreator
 from smc.core.engines import MasterEngine
-from smc.api.exceptions import CreateEngineFailed, CreateElementFailed
 from smc.core.node import Node
 from smc.base.util import element_resolver
 from smc.core.engine import Engine
 from smc.administration.tasks import Task
 from smc.base.collection import sub_collection
+from smc.api.common import fetch_entry_point
 
 
 class VSSContainer(MasterEngine):
@@ -50,8 +50,7 @@ class VSSContainer(MasterEngine):
         :rtype: SubElementCollection(VSSContainerNode)
         """
         resource = sub_collection(
-            self.get_relation( 
-                'vss_container_node'), 
+            self.get_relation('vss_container_node'), 
             VSSContainerNode) 
         resource._load_from_engine(self, 'nodes') 
         return resource
@@ -80,7 +79,7 @@ class VSSContainer(MasterEngine):
              'NGFW-CLOUD', 'isc_ip_address': '172.18.1.42'}
         """
         return self.data.get('vss_isc', {})
-
+  
     @property
     def vss_contexts(self):
         """
@@ -88,11 +87,22 @@ class VSSContainer(MasterEngine):
 
         :return list VSSContext
         """
-        return [VSSContext(**context)
-            for context in self.make_request(resource='vss_contexts')]
+        result = self.make_request(
+            href=fetch_entry_point('visible_virtual_engine_mapping'),
+            params={'filter': self.name})
+        if result.get('mapping', []):
+            return [Element.from_href(ve)
+                for ve in result['mapping'][0].get('virtual_engine', [])]
+        return []
 
     @property
     def security_groups(self):
+        """
+        Security Groups for this VSS container. Security Groups are added
+        automatically based on assigned NSX groups in vCenter Security Policy.
+        
+        :rtype: list(SecurityGroup)
+        """
         return [SecurityGroup(**group)
             for group in self.make_request(resource='security_groups')]
 
@@ -129,11 +139,29 @@ class VSSContainer(MasterEngine):
         :raises CreateEngineFailed: failed to create
         :return: VSSContext
          """
-        return VSSContext.create(
-            isc_name=isc_name,
-            isc_policy_id=isc_policy_id,
-            isc_traffic_tag=isc_traffic_tag,
-            vss_container=self)
+        if 'add_context' in self.data.links: # SMC >=6.5
+            element = ElementCreator(
+                VSSContext,
+                href=self.get_relation('add_context'),
+                json = {
+                    'name': isc_name,
+                    'vc_isc': {
+                        'isc_name': isc_name,
+                        'isc_policy_id': isc_policy_id,
+                        'isc_traffic_tag': isc_traffic_tag
+                    }
+                })
+        else: # SMC < 6.5
+            element = VSSContext.create(
+                isc_name=isc_name,
+                isc_policy_id=isc_policy_id,
+                isc_traffic_tag=isc_traffic_tag,
+                vss_container=self)
+        
+        # Delete cache since the virtualResources node is attached to
+        # the engine json
+        self._del_cache()
+        return element
 
     @property
     def upload_result(self):
@@ -141,7 +169,8 @@ class VSSContainer(MasterEngine):
 
 
 class VSSContainerNode(Node):
-
+    typeof = 'vss_container_node'
+    
     def __init__(self, **meta):
         super(VSSContainerNode, self).__init__(**meta)
     
@@ -159,17 +188,13 @@ class VSSContainerNode(Node):
         :param VSSContainer vss_container: container to nest this node
         :param dict vss_node_def: node definition settings
         """
-        json = {
-            'name': name,
-            'vss_node_isc': vss_node_def,
-            'comment': comment
-        }
-        node = prepared_request(
-            CreateEngineFailed,
+        return ElementCreator(cls,
             href=vss_container.get_relation('vss_container_node'),
-            json=json).create().href
-
-        return VSSContainerNode(name=json['name'], href=node)
+            json={
+                'name': name,
+                'vss_node_isc': vss_node_def,
+                'comment': comment
+            })
 
     @property
     def isc_settings(self):
@@ -213,21 +238,15 @@ class VSSContext(Engine):
         :rtype: VSSContext
          """
         container = element_resolver(vss_container)
-        json = {
-            'vc_isc': {
-                'isc_name': isc_name,
-                'isc_policy_id': isc_policy_id,
-                'isc_traffic_tag': isc_traffic_tag
-            }
-        }
-
-        href = prepared_request(
-            CreateEngineFailed,
+        return ElementCreator(cls,
             href=container + '/vss_context',
-            json=json).create().href
-        
-        # Element will be automatically named so retrieve it
-        return Element.from_href(href)
+            json = {
+                'vc_isc': {
+                    'isc_name': isc_name,
+                    'isc_policy_id': isc_policy_id,
+                    'isc_traffic_tag': isc_traffic_tag
+                }
+            })
     
     def remove_from_master_node(self, wait_for_finish=False, timeout=20, **kw):
         """
@@ -296,16 +315,11 @@ class SecurityGroup(Element):
         :raises: CreateElementFailed
         :return SecurityGroup
         """
-        json = {
-            'name': name,
-            'isc_name': name,
-            'isc_id': isc_id,
-            'comment': isc_id
-        }
-        href = prepared_request(
-            CreateElementFailed,
+        return ElementCreator(cls,
             href=vss_container.get_relation('security_groups'),
-            json=json).create().href
-
-        return Element.from_href(href)
-
+            json = {
+                'name': name,
+                'isc_name': name,
+                'isc_id': isc_id,
+                'comment': isc_id
+            })

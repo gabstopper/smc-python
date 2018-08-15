@@ -199,16 +199,19 @@ def file_upload(user_session, method, request):
     logger.debug('Upload: %s', vars(request))
     http_command = getattr(user_session.session, method.lower())
     
-    response = http_command(
-        request.href,
-        params=request.params,
-        files=request.files)
-
-    if response.status_code in (201, 202, 204):
-        logger.debug('Success sending file in elapsed time: %s', response.elapsed)
-        return SMCResult(response, user_session=user_session)
-
-    raise SMCOperationFailure(response)                
+    try:
+        response = http_command(
+            request.href,
+            params=request.params,
+            files=request.files)
+    except AttributeError:
+        raise TypeError('File specified in request was not readable: %s' % request.files)
+    else:
+        if response.status_code in (200, 201, 202, 204):
+            logger.debug('Success sending file in elapsed time: %s', response.elapsed)
+            return SMCResult(response, user_session=user_session)
+        
+        raise SMCOperationFailure(response)                
 
     
 class SMCResult(object):
@@ -286,7 +289,7 @@ def debug(response):
         logger.debug('\t%r: %r', k, v)
     logger.debug('Response content:')
     logger.debug('%s', response.text)
-
+    
                     
 counters = collections.Counter(
     {'read': 0, 'create': 0, 'update': 0, 'delete': 0, 'cache': 0})

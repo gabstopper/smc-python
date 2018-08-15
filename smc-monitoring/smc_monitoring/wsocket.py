@@ -54,9 +54,8 @@ class SMCSocketProtocol(websocket.WebSocket):
         :param int sock_timeout: length of time to wait on a select call
             before trying to receive data. For LogQueries, this should be
             short, i.e. 1 second. For other queries the default is 3 sec.
-        :param int max_iterations: for queries that are not 'live', set
-            this to supply a max wait time. Calculation is max_iterations *
-            sock_timeout.
+        :param int max_recv: for queries that are not 'live', set
+            this to supply a max number of receive iterations.
         :param kw: supported keyword args:
             cert_reqs: ssl.CERT_NONE|ssl.CERT_REQUIRED|ssl.CERT_OPTIONAL
             check_hostname: True|False
@@ -109,6 +108,7 @@ class SMCSocketProtocol(websocket.WebSocket):
         self.fetch_id = None
         # Inner thread used to keep socket select alive
         self.thread = None
+        self.max_recv = kw.get('max_recv', 0)
         self.event = threading.Event()
         self.sock_timeout = sock_timeout
             
@@ -172,6 +172,7 @@ class SMCSocketProtocol(websocket.WebSocket):
         will come as they are received.
         """
         try:
+            itr = 0
             while self.connected:
                 r, w, e = select.select(
                     (self.sock, ), (), (), 10)
@@ -192,13 +193,18 @@ class SMCSocketProtocol(websocket.WebSocket):
                             num = len(message['records'])
                         
                         logger.debug('Query returned %s records.', num)
-                    
+                        if self.max_recv:
+                            itr += 1
+                        
                     if 'end' in message:
                         logger.debug('Received end message: %s' % message['end'])
                         yield message
                         break
         
                     yield message
+                    if self.max_recv and self.max_recv <= itr:
+                        break   
+
     
         except (Exception, KeyboardInterrupt, SystemExit, FetchAborted) as e:
             logger.info('Caught exception in receive: %s', type(e))

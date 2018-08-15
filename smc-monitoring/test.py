@@ -49,10 +49,11 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
-    session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
-                  verify=False)
+    #session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
+    #              verify=False)
+    
     #pprint(session._get_log_schema())
     #if session.session.verify and session.session.verify 
 
@@ -85,13 +86,13 @@ if __name__ == '__main__':
     engine = Engine('sg_vm')
     #for bl in engine.blacklist_show(max_recv=5):
     #    print(bl)
-    query = VPNSAQuery('vm')
+    #query = VPNSAQuery('vm')
     #for record in query.fetch_raw():
     #    print(record)
      
-    for record in query.fetch_as_element():
-        print(record, record.href)
-        record.delete()
+    #for record in query.fetch_as_element():
+    #    print(record, record.href)
+    #    record.delete()
     
     
     #    print(vars(record))
@@ -230,6 +231,10 @@ if __name__ == '__main__':
                            'type': 'texts'},
                 'query': {'definition': 'BLACKLIST', 'target': 'sg_vm'}}
     
+    
+    query = ConnectionQuery('ve-4')
+    for record in query.fetch_batch(CSVFormat, max_recv=2):
+        print('%s' % record)
     #pprint(vars(query))
     #query.request = request2
     #for record in query.fetch_as_element():

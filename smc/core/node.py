@@ -209,7 +209,17 @@ class Node(SubElement):
                         'Error occurred when attempting to save initial '
                         'contact to file: {}'.format(e))
         return result.content
-
+    
+    def dynamic_element_update(self, name_cache_object):
+        """
+        """
+        return self.make_request(
+            NodeCommandFailed,
+            method='create',
+            resource='dynamic_element_update',
+            headers = {'content-type': 'multipart/form-data'},
+            files = {'update_file': name_cache_object.serialize()})
+        
     @property
     def interface_status(self):
         """
