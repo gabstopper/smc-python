@@ -1,7 +1,7 @@
 """
 Classes for VSS Containers
 """
-from smc.base.model import Element, ElementCreator
+from smc.base.model import Element, ElementCreator, ElementRef
 from smc.core.engines import MasterEngine
 from smc.core.node import Node
 from smc.base.util import element_resolver
@@ -188,13 +188,15 @@ class VSSContainerNode(Node):
         :param VSSContainer vss_container: container to nest this node
         :param dict vss_node_def: node definition settings
         """
-        return ElementCreator(cls,
+        element = ElementCreator(cls,
             href=vss_container.get_relation('vss_container_node'),
             json={
                 'name': name,
                 'vss_node_isc': vss_node_def,
                 'comment': comment
             })
+        vss_container._del_cache() # Removes references to linked container
+        return element
 
     @property
     def isc_settings(self):
@@ -220,7 +222,8 @@ class VSSContainerNode(Node):
 
 class VSSContext(Engine):
     typeof = 'vss_context'
-
+    virtual_resource = ElementRef('virtual_resource')
+    
     def __init__(self, name, **meta):
         super(VSSContext, self).__init__(name, **meta)
 

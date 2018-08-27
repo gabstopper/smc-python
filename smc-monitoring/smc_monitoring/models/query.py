@@ -262,7 +262,7 @@ class Query(object):
             for result in protocol.receive():
                 yield result
     
-    def fetch_raw(self, max_recv=2, **kw):
+    def fetch_raw(self, max_recv=0, **kw):
         """
         Fetch the records for this query. This is a single fetch that will
         return results max_recv number of iterations. A recv is defined as a

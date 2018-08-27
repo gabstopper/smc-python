@@ -34,10 +34,10 @@ def TaskHistory():
     Task history retrieves a list of tasks in an event queue.
     
     :return: list of task events
-    :rtype: TaskProgress
+    :rtype: list(TaskProgress)
     """
     events = Search.objects.entry_point('task_progress')
-    return [event.task for event in events]
+    return [event for event in events]
         
 
 class TaskProgress(Element):

@@ -19,12 +19,22 @@ from smc_monitoring.models.formatters import TableFormat, CSVFormat, RawDictForm
 from smc_monitoring.models.formats import TextFormat, CombinedFormat
 from smc_monitoring.monitors.alerts import ActiveAlertQuery
 from smc_monitoring.models.formats import DetailedFormat
-from smc_monitoring.wsocket import SMCSocketProtocol, SessionNotFound, websocket
+from smc_monitoring.wsocket import SMCSocketProtocol, SessionNotFound, websocket,\
+    websocket_debug
 import smc_monitoring
 from smc_monitoring.models.calendar import datetime_from_ms
 from smc.core.engines import Layer3Firewall
 from smc.core.engine import Engine
 from smc_monitoring.models.query import Query
+
+import logging
+from pprint import pprint
+from StdSuites.AppleScript_Suite import event
+    
+logging.getLogger()
+logging.basicConfig(
+    level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
+    
 
 def print_fields(number):
     ids = Query.resolve_field_ids(list(range(number)))
@@ -39,30 +49,56 @@ def get_field_schema_by_name(fields, max_ids=2000):
         yield id
 
 
-if __name__ == '__main__':
-    import logging
-    from pprint import pprint
+def subscriber():
+    """
+    Subscriber that hears events related to layer 2 policies.
+    We only care about creating and deleting events.
     
-    logging.getLogger()
-    logging.basicConfig(
-        level=logging.DEBUG, format='%(asctime)s %(levelname)s %(name)s.%(funcName)s: %(message)s')
+    Once we have those, synchronize the policy with the service
+    templates in NSX.
+    """
+    notification = Notification('layer2_policy')
+    for published in notification.notify(as_type=Event):
+        if published.action == 'create':
+            add_policy(published.element)
+        elif published.action == 'trashed':
+            remove_policy(published.element)
+                
+                
+
+from smc_monitoring.pubsub.subscribers import Notification, Event        
+import threading
+import time
+
+
+
+        
+if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
-    #session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
-    #              verify=False)
+    session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
+                  verify=False)
     
     #pprint(session._get_log_schema())
-    #if session.session.verify and session.session.verify 
-
-    pprint(session._get_log_schema())
+    
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
-    #import websocket
+    
     websocket.enableTrace(True)
   
-    #https://stackoverflow.com/questions/38501531/forcing-requests-library-to-use-tlsv1-1-or-tlsv1-2-in-python
+    
+    #os.kill(os.getpid(), signal.SIGTERM)
+    #print(os.getpid())
+    
+    #subscribe_policy()    
+    
+    
+    import sys
+    sys.exit(1)
+    
+    
     #from smc_monitoring.models.query import Query
     #query = ConnectionQuery('sg_vm')
     #for log in query.fetch_live():
@@ -232,16 +268,32 @@ if __name__ == '__main__':
                 'query': {'definition': 'BLACKLIST', 'target': 'sg_vm'}}
     
     
-    query = ConnectionQuery('ve-4')
-    for record in query.fetch_batch(CSVFormat, max_recv=2):
-        print('%s' % record)
+#     query = ConnectionQuery('ve-4', max_recv=4)
+#     for record in query.fetch_batch():
+#         print('%s' % record)
+    
+    
     #pprint(vars(query))
     #query.request = request2
     #for record in query.fetch_as_element():
     #    print(record, record.vulnerability_refs)
     #for record in query.fetch_raw(max_recv=3):
-    #for record in query.fetch_batch():
-    #    print(record)
+    #for record in query.fetch
+    
+    import time
+    import threading
+    
+    
+        
+    websocket_debug()
+    
+
+            
+    #subscribe_policy()
+    #t.start()
+    #t.join()
+    #t.terminate()
+    #threading.Thread.__init__(self)   
     
     #pprint(query.resolve_field_ids(query.field_ids))
     #query.request = {"query": {
@@ -274,4 +326,4 @@ if __name__ == '__main__':
     #    pprint(record)
     
     
-    session.logout()
+    #session.logout()

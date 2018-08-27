@@ -101,7 +101,7 @@ class SMCSocketProtocol(websocket.WebSocket):
         # Enable multithread locking
         if 'enable_multithread' not in kw:
             kw.update(enable_multithread=True)
-           
+        
         super(SMCSocketProtocol, self).__init__(sslopt=sslopt, **kw)
         
         self.query = query
@@ -116,7 +116,6 @@ class SMCSocketProtocol(websocket.WebSocket):
         self.connect(
             url=session.web_socket_url + self.query.location,
             cookie=session.session_id)
-        
         if self.connected:
             self.settimeout(self.sock_timeout)
             self.on_open()
@@ -139,9 +138,9 @@ class SMCSocketProtocol(websocket.WebSocket):
             logger.debug(pformat(self.query.request))
             self.send(json.dumps(self.query.request))
             while not self.event.is_set():
-                #print('Waiting around on the socket')
+                #print('Waiting around on the socket: %s' % self.gettimeout())
                 self.event.wait(self.gettimeout())
-            
+                
             logger.debug('Event loop terminating.')
     
         self.thread = threading.Thread(
@@ -169,13 +168,16 @@ class SMCSocketProtocol(websocket.WebSocket):
     def receive(self):
         """
         Generator yielding results from the web socket. Results
-        will come as they are received.
+        will come as they are received. Even though socket select
+        has a timeout, the SMC will not reply with a message more
+        than every two minutes.
         """
         try:
             itr = 0
             while self.connected:
+                
                 r, w, e = select.select(
-                    (self.sock, ), (), (), 10)
+                    (self.sock, ), (), (), 10.0)
                 
                 if r:
                     message = json.loads(self.recv())
@@ -200,14 +202,13 @@ class SMCSocketProtocol(websocket.WebSocket):
                         logger.debug('Received end message: %s' % message['end'])
                         yield message
                         break
-        
+                    
                     yield message
                     if self.max_recv and self.max_recv <= itr:
                         break   
 
-    
         except (Exception, KeyboardInterrupt, SystemExit, FetchAborted) as e:
-            logger.info('Caught exception in receive: %s', type(e))
+            logger.info('Caught exception in receive: %s -> %s', type(e), str(e))
             if isinstance(e, (SystemExit, InvalidFetch)):
                 # propagate SystemExit, InvalidFetch
                 raise
@@ -216,7 +217,7 @@ class SMCSocketProtocol(websocket.WebSocket):
                 if self.fetch_id:
                     self.send(json.dumps({'abort': self.fetch_id}))
                 self.close()
-    
+            
             if self.thread:
                 self.event.set()
                 while self.thread.isAlive():

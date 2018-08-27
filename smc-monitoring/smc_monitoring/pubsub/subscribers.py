@@ -80,17 +80,17 @@ class Notification(object):
         self.subscriptions = []
         self.subscription_map = {}
         self.sockopt = kw
-    
+        
     def subscribe(self, entry_point):
         self.subscriptions.append(Notification(entry_point))
-                
+           
     def run_forever(self):
         with SMCSocketProtocol(self, **self.sockopt) as sock:
             for subscription in self.subscriptions:
                 sock.send_message(subscription)
             for result in sock.receive():
-                yield result  
-        
+                yield result
+
     def notify(self, as_type=None):
         for result in self.run_forever():
             if 'success' in result:
@@ -104,7 +104,7 @@ class Notification(object):
                         yield as_type(**event)
                 else:
                     yield result
-                    
+    
      
 class Event(object):
     """

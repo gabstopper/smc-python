@@ -26,6 +26,7 @@ from smc.administration.tasks import Task
 from smc.base.util import millis_to_utc
 from smc.base.collection import sub_collection
 from smc.api.common import fetch_entry_point
+from smc.api.exceptions import ResourceNotFound
 
 
 class System(SubElement):
@@ -224,15 +225,33 @@ class System(SubElement):
     def delete_license(self):
         raise NotImplementedError
 
-    def visible_virtual_engine_mapping(self):
+    def visible_virtual_engine_mapping(self, filter=None):  # @ReservedAssignment
         """
         Mappings for master engines and virtual engines
 
+        :param str filter: filter to search by engine name
         :raises ActionCommandFailed: failure to retrieve resource
         :return: list of dict items related to master engines and virtual
             engine mappings
         """
-        return self.make_request(resource='visible_virtual_engine_mapping')
+        return self.make_request(resource='visible_virtual_engine_mapping',
+                params={'filter': filter})
+    
+    def visible_security_group_mapping(self, filter=None):  # @ReservedAssignment
+        """
+        Return all security groups assigned to VSS container types. This
+        is only available on SMC >= 6.5.
+        
+        :param str filter: filter for searching by name
+        :raises ActionCommandFailed: element not found on this version of SMC
+        :raises ResourceNotFound: unsupported method on SMC < 6.5
+        :return: dict
+        """
+        if 'visible_security_group_mapping' not in self.data.links:
+            raise ResourceNotFound('This entry point is only supported on SMC >= 6.5')
+        
+        return self.make_request(resource='visible_security_group_mapping',
+                params={'filter': filter})
 
     def references_by_element(self, element_href):
         """
