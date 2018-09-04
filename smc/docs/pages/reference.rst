@@ -717,6 +717,13 @@ InterfaceOptions
 
 .. autoclass:: InterfaceOptions
     :members:
+    
+QoS
+***
+
+.. autoclass:: QoS
+    :members:
+
 
 LoopbackInterface
 *****************
@@ -1087,13 +1094,28 @@ OSPFInterfaceSetting
 
 
 
-
 Policies
 --------
 
 .. automodule:: smc.policy.policy
    :members: Policy
    :show-inheritance:
+
+InterfacePolicy
++++++++++++++++
+
+.. automodule:: smc.policy.interface
+   :members:
+   :show-inheritance:
+
+
+FileFilteringPolicy
++++++++++++++++++++
+
+.. automodule:: smc.policy.file_filtering
+   :members:
+   :show-inheritance:
+   
 
 FirewallPolicy
 ++++++++++++++
@@ -1103,10 +1125,10 @@ FirewallPolicy
    :show-inheritance:
 
 
-InterfacePolicy
-+++++++++++++++
+InspectionPolicy
+++++++++++++++++
 
-.. automodule:: smc.policy.interface
+.. autoclass:: smc.policy.policy.InspectionPolicy
    :members:
    :show-inheritance:
 
@@ -1117,7 +1139,8 @@ IPSPolicy
 .. automodule:: smc.policy.ips
    :members:
    :show-inheritance:
-   
+
+ 
 Layer2Policy
 ++++++++++++
 
@@ -1125,17 +1148,10 @@ Layer2Policy
    :members:
    :show-inheritance:
 
-InspectionPolicy
-++++++++++++++++
+QoSPolicy
++++++++++
 
-.. autoclass:: smc.policy.policy.InspectionPolicy
-   :members:
-   :show-inheritance:
-
-FileFilteringPolicy
-+++++++++++++++++++
-
-.. automodule:: smc.policy.file_filtering
+.. automodule:: smc.policy.qos
    :members:
    :show-inheritance:
 

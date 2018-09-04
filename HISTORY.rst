@@ -156,11 +156,13 @@ Release History
 - Changed Blacklist.prepare_blacklist method to Blacklist.add_entry
 - Refactor contact addresses for management and log server
 - Interface contact addresses remove_contact_address modified to take location as key for deleting
+- Interface QoS settings on layer 3, tunnel interfaces and layer 3 VLANs
 - Introduce SessionManager to allow for multiple SMC API client sessions within the same python interpreter
   SessionManager can also be hooked to allow user authentication data to come from a different source such as
   a web application session
 - Create Alias elements and assign to engine (Aliases were previously read-only)
 - All template policies inherit from their related type to support creating templates
+- Deprecate support for python 3.4, add support for python 3.6.6
 
 
  

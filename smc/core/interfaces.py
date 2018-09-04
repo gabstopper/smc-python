@@ -38,6 +38,7 @@ from smc.core.sub_interfaces import (
 from smc.compat import string_types
 from smc.elements.helpers import zone_helper, logical_intf_helper
 from smc.base.structs import BaseIterable
+from smc.policy.qos import QoSPolicy
 
 
 class InterfaceOptions(object):
@@ -268,6 +269,113 @@ class InterfaceOptions(object):
         """
         self.interface.set_unset(interface_id, 'outgoing')
         self._engine.update()
+            
+
+class QoS(object):
+    """
+    QoS can be placed on physical interfaces, physical VLAN interfaces
+    and tunnel interfaces. It is possible to have multiple QoS policies
+    defined if using VLANs on a physical interface as QoS can be attached
+    directly at the interface level or VLAN level. You obtain the QoS
+    reference after retrieving the interface::
+    
+        itf = engine.interface.get(0)
+        itf.qos.full_qos(100000, QoSPolicy('testqos'))
+        itf.update()
+        
+    Disable QoS::
+    
+        itf = engine.interface.get(0)
+        itf.qos.disable()
+        itf.update()
+        
+    On a tunnel interface::
+    
+        itf = engine.interface.get(1000)
+        itf.qos.full_qos(100000, QoSPolicy('testqos'))
+        itf.update()
+        
+    Or a VLAN::
+    
+        itf = engine.interface.get('1.100')
+        itf.qos.full_qos(100000, QoSPolicy('testqos'))
+        itf.update()
+        
+    .. note:: You must call `update` on the interface to commit the change
+    """
+    def __init__(self, interface):
+        self._interface = interface
+         
+    def disable(self):
+        """
+        Disable QoS on this interface
+        """
+        self._interface.data.update(qos_limit=-1, qos_mode='no_qos',
+            qos_policy_ref=None)
+    
+    @property
+    def qos_policy(self):
+        """
+        QoS Policy for this interface/vlan. A QoS policy will only
+        be present if DSCP throttling or Full QoS is specified.
+        
+        :rtype: QoSPolicy
+        """
+        return QoSPolicy.from_href(self._interface.data.get(
+            'qos_policy_ref', None))
+    
+    @property
+    def qos_mode(self):
+        """
+        QoS mode in string format
+        
+        :rtype: str
+        """
+        return self._interface.data.get('qos_mode', 'no_qos')
+    
+    @property
+    def qos_limit(self):
+        """
+        QoS Limit for this interface. The limit represents the number in
+        bps. For example, 100000 represents 100Mbps.
+        
+        :rtype: int
+        """
+        return self._interface.data.get('qos_limit', -1)
+     
+    def statistics_only(self):
+        """
+        Set interface to collect QoS statistics only. No enforcement is being
+        done but visiblity will be provided in dashboards against applications
+        tagged by QoS.
+        """
+        self._interface.data.update(qos_limit=-1, qos_mode='statistics_only',
+            qos_policy_ref=None)
+         
+    def full_qos(self, qos_limit, qos_policy):
+        """
+        Enable full QoS on the interface. Full QoS requires that you set a 
+        bandwidth limit (in Mbps) for the interface. You must also provide a
+        QoS policy to which identifies the parameters for prioritizing traffic.
+        
+        :param int qos_limit: max bandwidth in Mbps
+        :param QoSPolicy qos_policy: the qos policy to apply to the interface
+        """
+        self._interface.data.update(qos_limit=qos_limit,
+            qos_mode='full_qos',
+            qos_policy_ref=qos_policy.href)
+ 
+    def dscp_marking_and_throttling(self, qos_policy):
+        """
+        Enable DSCP marking and throttling on the interface. This requires that
+        you provide a QoS policy to which identifies DSCP tags and how to prioritize
+        that traffic.
+        
+        :param QoSPolicy qos_policy: the qos policy to apply to the interface
+        """
+        self._interface.data.update(qos_limit=-1,
+            qos_mode='dscp',
+            qos_policy_ref=qos_policy.href)
             
 
 class Interface(SubElement):
@@ -856,7 +964,16 @@ class TunnelInterface(Interface):
                         sni = SingleNodeInterface.create(interface_id, **node)
                         base_interface.setdefault('interfaces', []).append(
                             {sni.typeof: sni.data})
-
+    
+    @property
+    def qos(self):
+        """
+        The QoS settings for this tunnel interface
+        
+        :rtype: QoS
+        """
+        return QoS(self)
+    
     @property
     def ndi_interfaces(self):
         return []
@@ -908,7 +1025,16 @@ class PhysicalInterface(Interface):
                 interfaces=[],
                 vlanInterfaces=[])
             self._add_interface(mgt=mgt, **interface) 
-
+    
+    @property
+    def qos(self):
+        """
+        The QoS settings for this physical interface
+        
+        :rtype: QoS
+        """
+        return QoS(self)
+    
     @property
     def is_primary_mgt(self):
         """
@@ -1153,12 +1279,8 @@ class PhysicalInterface(Interface):
         :param int value: vfw_id
         :rtype: int
         """
-        if self.data.get('virtual_mapping'):
-            return int(self.data.get('virtual_mapping'))
-
-    @virtual_mapping.setter
-    def virtual_mapping(self, value):
-        self.data['virtual_mapping'] = value
+        if 'virtual_mapping' in self.data:
+            return int(self.data['virtual_mapping'])
 
     @property
     def virtual_resource_name(self):
@@ -1171,10 +1293,6 @@ class PhysicalInterface(Interface):
         """
         return self.data.get('virtual_resource_name')
 
-    @virtual_resource_name.setter
-    def virtual_resource_name(self, value):
-        self.data['virtual_resource_name'] = value
-
     @property
     def virtual_engine_vlan_ok(self):
         """
@@ -1185,10 +1303,6 @@ class PhysicalInterface(Interface):
         :rtype: bool
         """
         return self.data.get('virtual_engine_vlan_ok')
-
-    @virtual_engine_vlan_ok.setter
-    def virtual_engine_vlan_ok(self, value):
-        self.data['virtual_engine_vlan_ok'] = value
 
 
 class Layer2PhysicalInterface(PhysicalInterface):
@@ -1612,6 +1726,17 @@ class VlanInterface(object):
     def __ne__(self, other):
         return not self.__eq__(other)
     
+    @property
+    def qos(self):
+        """
+        QoS on VLANs is only supported for Layer3PhysicalInterface
+        types.
+        
+        :rtype: QoS
+        """
+        if isinstance(self._parent, (Layer3PhysicalInterface, ClusterPhysicalInterface)):
+            return QoS(self)
+    
     def delete(self):
         """
         Delete this Vlan interface from the parent interface.
@@ -1624,10 +1749,13 @@ class VlanInterface(object):
             self._parent.data['vlanInterfaces'] = [
                 v for v in self._parent.vlan_interface
                 if v != self]
-            self._parent.update()
+            self.update()
             for route in self._parent._engine.routing:
                 if route.to_delete:
                     route.delete()
+    
+    def update(self):
+        self._parent.update()
     
     @property
     def vlan_id(self):
@@ -1653,7 +1781,7 @@ class VlanInterface(object):
         self.interface_id = '{}.{}'.format(intf_id, vlan_id)
         for interface in self.interfaces:
             interface.change_vlan_id(vlan_id)
-        self._parent.update()
+        self.update()
 
 
 class VirtualPhysicalInterface(Layer3PhysicalInterface):

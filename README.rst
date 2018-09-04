@@ -35,7 +35,7 @@ Requirements
 
 Python 2.7
 
-Python 3.4, 3.5
+Python 3.5, 3.6
 
 Requests >= 2.12.0
 

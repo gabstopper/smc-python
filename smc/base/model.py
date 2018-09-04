@@ -61,8 +61,7 @@ from smc.api.exceptions import ElementNotFound, \
     CreateElementFailed, ModificationFailed, ResourceNotFound,\
     DeleteElementFailed, FetchElementFailed, UpdateElementFailed,\
     UnsupportedEntryPoint
-from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts,\
-    find_type_from_self
+from .util import bytes_to_unicode, unicode_to_bytes, merge_dicts
 from smc.base.mixins import RequestAction, UnicodeMixin
 from smc.base.util import element_resolver
 

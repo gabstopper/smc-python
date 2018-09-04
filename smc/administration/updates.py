@@ -107,6 +107,8 @@ class UpdatePackage(PackageMixin, SubElement):
     def activation_date(self):
         """
         Date this update was activated, if any
+        
+        :rtype: str
         """
         return self.data.get('activation_date')
 
@@ -115,6 +117,8 @@ class UpdatePackage(PackageMixin, SubElement):
         """
         ID of the package. These will increment as new versions
         are released.
+        
+        :rtype: str
         """
         return self.data.get('package_id')
 
@@ -122,12 +126,18 @@ class UpdatePackage(PackageMixin, SubElement):
     def release_date(self):
         """
         Date of release
+        
+        :rtype: str
         """
         return self.data.get('release_date')
 
     @property
     def state(self):
         """
-        State of this package, i.e. Active, available
+        State of this package as string. Valid states are available, imported, active.
+        If the package is available, you can execute a download. If the package is
+        imported, you can activate.
+        
+        :rtype: str
         """
         return self.data.get('state')

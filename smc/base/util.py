@@ -103,20 +103,6 @@ def element_resolver(elements, do_raise=True):
             raise
 
 
-def find_type_from_self(linklist):
-    """
-    Return the type of element from self. This is primarily
-    used when dynamically creating the Element from only
-    the href. Returned value maps to class 'typeof' attribute.
-
-    :return: str element type
-    """
-    for link in linklist:
-        if link.get('rel') == 'self':
-            return link.get('type')
-    raise smc.api.exceptions.ResourceNotFound('Self link not found.')
-
-
 def merge_dicts(dict1, dict2, append_lists=False):
     """
     Merge the second dict into the first
