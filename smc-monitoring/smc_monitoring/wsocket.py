@@ -102,13 +102,15 @@ class SMCSocketProtocol(websocket.WebSocket):
         if 'enable_multithread' not in kw:
             kw.update(enable_multithread=True)
         
+        # Max number of receives, configurable for batching
+        self.max_recv = kw.pop('max_recv', 0)
+        
         super(SMCSocketProtocol, self).__init__(sslopt=sslopt, **kw)
         
         self.query = query
         self.fetch_id = None
         # Inner thread used to keep socket select alive
         self.thread = None
-        self.max_recv = kw.get('max_recv', 0)
         self.event = threading.Event()
         self.sock_timeout = sock_timeout
             

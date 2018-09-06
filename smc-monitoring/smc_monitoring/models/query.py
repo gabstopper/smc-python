@@ -262,26 +262,24 @@ class Query(object):
             for result in protocol.receive():
                 yield result
     
-    def fetch_raw(self, max_recv=0, **kw):
+    def fetch_raw(self, **kw):
         """
-        Fetch the records for this query. This is a single fetch that will
-        return results max_recv number of iterations. A recv is defined as a
-        result returned that has records in the batch (versus fetch update
-        information). By default, the fetch will abort after the first set
-        of results are returned. 
+        Fetch the records for this query. This fetch type will return the
+        results in raw dict format. It is possible to limit the number of
+        receives on the socket that return results before exiting by providing
+        max_recv.
         
         This fetch should be used if you want to return only the result records
         returned from the query in raw dict format. Any other dict key/values
         from the raw query are ignored.
         
-        :param int sock_timeout: event loop interval
         :param int max_recv: max number of socket receive calls before
             returning from this query. If you want to wait longer for
-            results before returning, increase max_iterations (default: 1)
+            results before returning, increase max_iterations (default: 0)
         :return: list of query results
         :rtype: list(dict)
         """
-        self.sockopt.update(max_recv=max_recv)
+        self.sockopt.update(kw)
         with SMCSocketProtocol(self, **self.sockopt) as protocol:
             for result in protocol.receive():
                 if 'records' in result and result['records'].get('added'):
@@ -303,6 +301,8 @@ class Query(object):
             see :py:mod:`smc_monitoring.models.formatters` for more info.
         """
         fmt = formatter(self)
+        if 'max_recv' not in kw:
+            kw.update(max_recv=1)
         for result in self.fetch_raw(**kw):
             yield fmt.formatted(result)
     

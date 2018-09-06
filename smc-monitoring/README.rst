@@ -33,12 +33,12 @@ Compatibility
 
 Requires Security Management Center version 6.2 or newer.
 
-This package has been tested with Python 2.7, 3.4 and 3.5.
+This package has been tested with Python 2.7, 3.5 and 3.6.
 
 Requirements
 ============
 
-smc-python >= v0.5.6
+smc-python >= v0.6.1
 
 websocket-client
 

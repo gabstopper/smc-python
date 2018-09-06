@@ -7,7 +7,7 @@ from smc_monitoring.monitors.blacklist import BlacklistQuery
 from smc_monitoring.models.filters import InFilter
 from smc_monitoring.models.constants import LogField, Actions, Alerts, DataType
 from smc_monitoring.models.values import FieldValue, IPValue, ServiceValue,\
-    ElementValue, StringValue, ConstantValue
+    ElementValue, StringValue, ConstantValue, Value
 from smc import session
 from smc_monitoring.monitors.connections import ConnectionQuery
 from smc_monitoring.monitors.logs import LogQuery
@@ -29,7 +29,7 @@ from smc_monitoring.models.query import Query
 
 import logging
 from pprint import pprint
-from StdSuites.AppleScript_Suite import event
+
     
 logging.getLogger()
 logging.basicConfig(
@@ -77,12 +77,12 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    #session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
     
-    session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
-                  verify=False)
+    #session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
+    #              verify=False)
     
-    #pprint(session._get_log_schema())
+    pprint(session._get_log_schema())
     
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
     
@@ -93,7 +93,19 @@ if __name__ == '__main__':
     #print(os.getpid())
     
     #subscribe_policy()    
+    field_ids = ConnectionQuery.field_ids
+    field_ids.remove(LogField.TIMESTAMP)
+    field_ids.remove(LogField.NODEID)
+    field_ids.extend((LogField.NATSRC, LogField.NATDPORT))
     
+    query = ConnectionQuery('sg_vm')
+    query.format.field_ids(field_ids)
+    ports = [Value([{'type': 'number', 'value': p} for p in (9999, 3000)])]
+    query.add_in_filter(FieldValue(LogField.DPORT), ports)
+    
+    pprint(vars(query))       
+    for batch in query.fetch_batch(CSVFormat, max_recv=1):   # is max_recv mandatory?
+        print(batch)
     
     import sys
     sys.exit(1)

@@ -28,5 +28,11 @@ Release History
 
 - Set max_recv on queries to terminate the websocket after a specified number of receives
 
+1.3.1
++++++
+
+- Remove kwargs from websocket call to super to support older versions of websocket-client
+- Fixed fetch_batch to only return a single payload, previous versions were unlimited
+
 
 
