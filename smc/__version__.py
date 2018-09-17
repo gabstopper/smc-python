@@ -1,4 +1,4 @@
-__version__ = '0.6.2-rc.7'
+__version__ = '0.6.2-rc.8'
 __author__ = 'David LePage'
 __description__ = 'Python based API to Stonesoft Security Management Center'
 __url__ = 'http://github.com/gabstopper/smc-python'

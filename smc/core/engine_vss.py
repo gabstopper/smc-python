@@ -33,6 +33,8 @@ class VSSContainer(MasterEngine):
 
         :param str name: name of container
         :param dict vss_def: dict of optional settings
+        :raises CreateElementFailed: failed creating with reason
+        :rtype: VSSContainer
         """
         vss_def = {} if vss_def is None else vss_def
         json = {
@@ -136,9 +138,9 @@ class VSSContainer(MasterEngine):
         :param str isc_name: ISC name, possibly append policy name??
         :param str isc_policy_id: Policy ID in SMC (the 'key' attribute)
         :param str isc_traffic_tag: NSX groupId (serviceprofile-145)
-        :raises CreateEngineFailed: failed to create
+        :raises CreateElementFailed: failed to create
         :return: VSSContext
-         """
+        """
         if 'add_context' in self.data.links: # SMC >=6.5
             element = ElementCreator(
                 VSSContext,
@@ -187,6 +189,8 @@ class VSSContainerNode(Node):
         :param str name: name of node
         :param VSSContainer vss_container: container to nest this node
         :param dict vss_node_def: node definition settings
+        :raises CreateElementFailed: created failed with reason
+        :rtype: VSSContainerNode
         """
         element = ElementCreator(cls,
             href=vss_container.get_relation('vss_container_node'),
@@ -237,7 +241,7 @@ class VSSContext(Engine):
         :param str isc_traffic_tag: NSX groupId (serviceprofile-145)
         :param VSSContainer vss_container: VSS Container to get create
             context
-        :raises CreateEngineFailed
+        :raises CreateElementFailed
         :rtype: VSSContext
          """
         container = element_resolver(vss_container)

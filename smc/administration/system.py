@@ -316,7 +316,13 @@ class System(SubElement):
             files={
                 'import_file': open(import_file, 'rb')
                 })
-
+    
+    def force_unlock(self, element):
+        return self.make_request(
+            method='create',
+            resource='force_unlock',
+            json={'value': element.href})
+    
     def unlicensed_components(self):
         raise NotImplementedError
     
