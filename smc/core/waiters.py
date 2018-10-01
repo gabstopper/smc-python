@@ -37,14 +37,16 @@ to block input while waiting for the engine to reach a specific status::
 import time
 import threading
 
+#: Configuration status constant values
 CFG_STATUS = frozenset(['Initial', 'Declared', 'Configured', 'Installed'])
 
-
+#: Node status constant values
 STATUS = frozenset(['Not Monitored', 'Unknown', 'Online', 'Going Online',
                     'Locked Online', 'Going Locked Online','Offline','Going Offline',
                     'Locked Offline', 'Going Locked Offline','Standby','Going Standby',
                     'No Policy Installed', 'Policy Out Of Date'])
 
+#: Node state constant values
 STATE = frozenset(['INITIAL', 'READY', 'ERROR', 'SERVER_ERROR', 'NO_STATUS',
                    'TIMEOUT', 'DELETED', 'DUMMY'])
 

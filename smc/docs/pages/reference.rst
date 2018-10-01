@@ -21,8 +21,20 @@ Element
 	:members:
 	:show-inheritance:
 	:exclude-members: from_meta, from_href
-
-	.. automethod:: objects(self)
+	
+	objects(self):
+		Interface to element collections. All classes inheriting from `Element` can
+		access collections through this class property::
+		
+			for host in Host.objects.all():
+				...
+		
+		Fetch a single entry::
+		
+			host = Host.objects.filter('myhost')
+			...
+		
+		For more information on collections, see: :py:mod:`smc.base.collection.CollectionManager`
 
 .. autoclass:: smc.base.model.SubElement
 	:members:
@@ -487,6 +499,12 @@ HTTPSInspectionExceptions
    :members:
    :show-inheritance:
 
+Situations
+++++++++++
+
+.. automodule:: smc.elements.situations
+	:members:
+	:show-inheritance:
 
 Profiles
 ++++++++
@@ -801,8 +819,8 @@ Node
 ++++
 
 .. automodule:: smc.core.node
-   :members: Node, NodeCollection
-   :exclude-members: create, update
+   :members: Node
+   :exclude-members: update
    :show-inheritance:
 
 Appliance Info
