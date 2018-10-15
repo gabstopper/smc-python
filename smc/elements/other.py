@@ -170,6 +170,15 @@ class CategoryTag(Element):
         self.update(category_child_ref=diff)
 
 
+class SituationTag(Category):
+    """
+    A situation tag is used to categorize situations based on some sort
+    of user defined criteria such as Botnet, Attacks, etc. These can help
+    with categorization of specific threat event types.
+    """
+    typeof = 'situation_tag'
+        
+
 class FilterExpression(Element):
     """
     A filter expression defines either a system element filter or a 

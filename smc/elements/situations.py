@@ -93,6 +93,7 @@ to match within a Text File Stream::
 from smc.base.model import Element, ElementRef, ElementList, SubElement,\
     ElementCache, ElementCreator
 from smc.api.exceptions import CreateElementFailed, ElementNotFound
+from smc.elements.other import SituationTag
 
 
 SEVERITY = {10: 'critical', 7: 'high', 4: 'low', 1: 'information'}
@@ -312,7 +313,8 @@ class InspectionSituation(Situation):
     
     @classmethod
     def create(cls, name, situation_context, attacker=None, target=None,
-               severity='information', description=None, comment=None):
+               severity='information', situation_type=None, description=None,
+               comment=None):
         """
         Create an inspection situation.
         
@@ -340,13 +342,16 @@ class InspectionSituation(Situation):
                 'situation_context_ref': situation_context.href,
                 'attacker': attacker, 'victim': target,
                 'severity': _severity_by_name(severity)}
-        
+            
+            element = ElementCreator(cls, json)
+            tag = situation_type or SituationTag('User Defined Situations')
+            tag.add_element(element)
+            return element
+            
         except ElementNotFound as e:
             raise CreateElementFailed('{}. Inspection Situation Contexts require SMC '
                 'version 6.5 and above.'.format(str(e)))
         
-        return ElementCreator(cls, json)
-
     def create_regular_expression(self, regexp):
         """
         Create a regular expression for this inspection situation
@@ -361,12 +366,13 @@ class InspectionSituation(Situation):
                 return self.add_parameter_value(
                     'reg_exp_situation_parameter_values',
                     **{'parameter_ref': parameter.href,
-                       'reg_exp': regexp})
+                       'reg_exp': regexp}) # Treat as raw string
 
         raise CreateElementFailed('The situation does not support a regular '
             'expression as a context value.')
 
     def add_parameter_value(self, resource, **value):
+        print(resource, value)
         return self.make_request(
             CreateElementFailed,
             method='create', 
