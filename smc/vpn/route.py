@@ -21,7 +21,7 @@ party remote GW::
         interface_id=1, address='10.10.10.10', network_value='10.10.10.0/24', zone_ref='vpn')
     
     engine.tunnel_interface.add_layer3_interface(
-        tunnel_id=1000, 
+        interface_id=1000, 
         address='2.2.2.2', 
         network_value='2.2.2.0/24')
     
@@ -75,7 +75,7 @@ Create a GRE Tunnel Mode RBVPN with a remote gateway (non-SMC managed)::
      
     # Create a new Tunnel Interface for the engine 
     engine.tunnel_interface.add_layer3_interface( 
-        tunnel_id=3000, address='30.30.30.30', network_value='30.30.30.0/24') 
+        interface_id=3000, address='30.30.30.30', network_value='30.30.30.0/24') 
     
     tunnel_interface =  engine.tunnel_interface.get(3000)
     local_endpoint = TunnelEndpoint.create_gre_tunnel_endpoint( 
@@ -98,7 +98,7 @@ Create a no-encryption GRE route based VPN between two managed NGFWs::
 
     engine1 = Layer3Firewall.create(name='engine1', mgmt_ip='1.1.1.1', mgmt_network='1.1.1.0/24')
     engine1.tunnel_interface.add_layer3_interface( 
-        tunnel_id=1000, 
+        interface_id=1000, 
         address='2.2.2.2', 
         network_value='2.2.2.0/24')
     
@@ -113,7 +113,7 @@ Create a no-encryption GRE route based VPN between two managed NGFWs::
     
     engine2 = Layer3Firewall.create(name='engine2', mgmt_ip='1.1.1.1', mgmt_network='1.1.1.0/24')
     engine2.tunnel_interface.add_layer3_interface( 
-        tunnel_id=1000, 
+        interface_id=1000, 
         address='2.2.2.2', 
         network_value='2.2.2.0/24')
     
@@ -405,10 +405,11 @@ class TunnelEndpoint(object):
         InternalGateway.
         
         :return: internal endpoint where VPN is enabled
-        :rtype: InternalEndpoint
+        :rtype: InternalEndpoint,ExternalGateway
         """
-        if self.endpoint_ref:
+        if self.endpoint_ref and self.tunnel_interface_ref:
             return InternalEndpoint(href=self.endpoint_ref)
+        return Element.from_href(self.endpoint_ref)
     
     @property
     def tunnel_interface(self):

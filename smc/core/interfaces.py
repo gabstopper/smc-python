@@ -37,6 +37,7 @@ from smc.core.sub_interfaces import (
     InlineInterface, CaptureInterface, get_sub_interface, SubInterfaceCollection)
 from smc.compat import string_types
 from smc.elements.helpers import zone_helper, logical_intf_helper
+from smc.elements.network import Zone
 from smc.base.structs import BaseIterable
 from smc.policy.qos import QoSPolicy
 
@@ -860,6 +861,15 @@ class Interface(SubElement):
     @comment.setter
     def comment(self, value):
         self.data['comment'] = value if value is not None else ''
+    
+    @property
+    def zone(self):
+        """
+        Return the Zone for this interface, otherwise None
+        
+        :return: Zone or None
+        """
+        return Zone.from_href(self.zone_ref)
     
     @property
     def zone_ref(self):
