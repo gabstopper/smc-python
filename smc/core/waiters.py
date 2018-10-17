@@ -88,7 +88,10 @@ class NodeWaiter(threading.Thread):
         # Modified in 0.6.2 to support SMC 6.5 where the attribute name changed
         status = self._resource.status()
         latest = [getattr(status, attr) for attr in self.value if getattr(status, attr)]
-        return latest[0] or None
+        if self._desired_status in latest:
+            return self._desired_status
+        else:
+            return latest[0] or None
 
     def finished(self):
         return self._done.is_set() or \
@@ -104,8 +107,7 @@ class NodeWaiter(threading.Thread):
         :param callable callback
         """
         if self._done.is_set():
-            raise ValueError(
-                'Thread has already terminated, cannot add callback.')
+            raise ValueError('Thread has already terminated, cannot add callback.')
         if callable(callback):
             self.callbacks.append(callback)
 
@@ -177,7 +179,7 @@ class NodeStatusWaiter(NodeWaiter):
     # Node status changed in SMC 6.5 from status to monitoring_status so
     # value was changed to an iterable to check for a status other than
     # None for both attributes 
-    value = ('status', 'monitoring_status')
+    value = ('status', 'monitoring_status', 'engine_node_status')
 
     def __init__(self, resource, status, **kw):
         if status not in STATUS:

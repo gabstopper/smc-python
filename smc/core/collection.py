@@ -311,7 +311,7 @@ class TunnelInterfaceCollection(InterfaceCollection):
             Add a tunnel CVI and NDI:
 
             engine.tunnel_interface.add_cluster_virtual_interface(
-                tunnel_id=3000,
+                interface_id_id=3000,
                 cluster_virtual='4.4.4.1',
                 network_value='4.4.4.0/24',
                 nodes=nodes)
@@ -319,22 +319,23 @@ class TunnelInterfaceCollection(InterfaceCollection):
             Add tunnel NDI's only:
 
             engine.tunnel_interface.add_cluster_virtual_interface(
-                tunnel_id=3000,
+                interface_id=3000,
                 nodes=nodes)
 
             Add tunnel CVI only:
 
             engine.tunnel_interface.add_cluster_virtual_interface(
-                tunnel_id=3000,
+                interface_id=3000,
                 cluster_virtual='31.31.31.31',
                 network_value='31.31.31.0/24',
                 zone_ref='myzone')
 
-        :param str,int tunnel_id: tunnel identifier (akin to interface_id)
+        :param str,int interface_id: tunnel identifier (akin to interface_id)
         :param str cluster_virtual: CVI ipaddress (optional)
         :param str network_value: CVI network; required if ``cluster_virtual`` set
         :param list nodes: nodes for clustered engine with address,network_value,nodeid
         :param str zone_ref: zone reference, can be name, href or Zone
+        :param str comment: optional comment
         """
         interfaces = [{'cluster_virtual': cluster_virtual, 'network_value': network_value,
                        'nodes': nodes if nodes else []}]
@@ -350,10 +351,11 @@ class TunnelInterfaceCollection(InterfaceCollection):
         Creates a tunnel interface with sub-type single_node_interface. This is
         to be used for single layer 3 firewall instances.
 
-        :param str,int tunnel_id: the tunnel id for the interface, used as nicid also
+        :param str,int interface_id: the tunnel id for the interface, used as nicid also
         :param str address: ip address of interface
         :param str network_value: network cidr for interface; format: 1.1.1.0/24
         :param str zone_ref: zone reference for interface can be name, href or Zone
+        :param str comment: optional comment
         :raises EngineCommandFailed: failure during creation
         :return: None
         """
@@ -464,13 +466,26 @@ class PhysicalInterfaceCollection(InterfaceCollection):
     
     def add_layer3_vlan_interface(self, interface_id, vlan_id, address=None,
         network_value=None, virtual_mapping=None, virtual_resource_name=None,
-        zone_ref=None, comment=None):
+        zone_ref=None, comment=None, **kw):
         """
         Add a Layer 3 VLAN interface. Optionally specify an address and network if
         assigning an IP to the VLAN. This method will also assign an IP address to
         an existing VLAN, or add an additional address to an existing VLAN. This
         method may commonly be used on a Master Engine to create VLANs for virtual
         firewall engines.
+        
+        Example of creating a VLAN and passing kwargs to define a DHCP server
+        service on the VLAN interface::
+        
+            engine = Engine('engine1')
+            engine.physical_interface.add_layer3_vlan_interface(interface_id=20, vlan_id=20,
+                address='20.20.20.20', network_value='20.20.20.0/24', comment='foocomment',
+                dhcp_server_on_interface={
+                    'default_gateway': '20.20.20.1',
+                    'default_lease_time': 7200,
+                    'dhcp_address_range': '20.20.20.101-20.20.20.120',
+                    'dhcp_range_per_node': [],
+                    'primary_dns_server': '8.8.8.8'})
         
         :param str,int interface_id: interface identifier
         :param int vlan_id: vlan identifier
@@ -483,12 +498,16 @@ class PhysicalInterfaceCollection(InterfaceCollection):
                See :class:`smc.core.engine.VirtualResource.vfw_id`
         :param str virtual_resource_name: name of virtual resource
                See :class:`smc.core.engine.VirtualResource.name`
+        :param dict kw: keyword arguments are passed to top level of VLAN interface,
+            not the base level physical interface. This is useful if you want to
+            pass in a configuration that enables the DHCP server on a VLAN for example.
         :raises EngineCommandFailed: failure creating interface
         :return: None
         """
         interfaces = {'nodes': [{'address': address, 'network_value': network_value}] if address
             and network_value else [], 'zone_ref': zone_ref, 'virtual_mapping': virtual_mapping,
             'virtual_resource_name': virtual_resource_name, 'comment': comment}
+        interfaces.update(**kw)
         _interface = {'interface_id': interface_id, 'interfaces': [interfaces]}
         
         if 'single_fw' in self._engine.type: # L2FW / IPS
@@ -581,7 +600,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
             
     def add_layer3_vlan_cluster_interface(self, interface_id, vlan_id,
             nodes=None, cluster_virtual=None, network_value=None, macaddress=None,
-            cvi_mode='packetdispatch', zone_ref=None, comment=None):
+            cvi_mode='packetdispatch', zone_ref=None, comment=None, **kw):
         """
         Add IP addresses to VLANs on a firewall cluster. The minimum params
         required are ``interface_id`` and ``vlan_id``.
@@ -607,6 +626,9 @@ class PhysicalInterfaceCollection(InterfaceCollection):
             to participate in load balancing.
         :param str cvi_mode: cvi mode for cluster interface (default: packetdispatch)
         :param zone_ref: zone to assign, can be name, str href or Zone
+        :param dict kw: keyword arguments are passed to top level of VLAN interface,
+            not the base level physical interface. This is useful if you want to
+            pass in a configuration that enables the DHCP server on a VLAN for example.
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
@@ -616,6 +638,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         """
         interfaces = {'nodes': nodes if nodes else [],
             'cluster_virtual': cluster_virtual, 'network_value': network_value}
+        interfaces.update(**kw)
         _interface = {'interface_id': interface_id, 'interfaces': [interfaces],
             'macaddress': macaddress, 'cvi_mode': cvi_mode if macaddress else 'none',
             'zone_ref': zone_ref, 'comment': comment}
@@ -882,7 +905,7 @@ class VirtualPhysicalInterfaceCollection(InterfaceCollection):
         """
         Creates a tunnel interface for a virtual engine.
 
-        :param str,int tunnel_id: the tunnel id for the interface, used as nicid also
+        :param str,int interface_id: the tunnel id for the interface, used as nicid also
         :param str address: ip address of interface
         :param str network_value: network cidr for interface; format: 1.1.1.0/24
         :param str zone_ref: zone reference for interface can be name, href or Zone

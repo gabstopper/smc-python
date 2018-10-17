@@ -1764,7 +1764,9 @@ class VlanInterface(object):
                 if route.to_delete:
                     route.delete()
     
-    def update(self):
+    def update(self, **kw):
+        if kw:
+            self.data.update(**kw)
         self._parent.update()
     
     @property
