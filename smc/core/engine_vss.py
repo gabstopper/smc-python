@@ -116,7 +116,7 @@ class VSSContainer(MasterEngine):
             if group.isc_name == name:
                 group.delete()
 
-    def add_security_group(self, name, isc_id):
+    def add_security_group(self, name, isc_id, comment=None):
         """
         Create a new security group.
 
@@ -129,7 +129,8 @@ class VSSContainer(MasterEngine):
         return SecurityGroup.create(
             name=name,
             isc_id=isc_id,
-            vss_container=self)
+            vss_container=self,
+            comment=comment)
 
     def add_context(self, isc_name, isc_policy_id, isc_traffic_tag):
         """
@@ -301,7 +302,7 @@ class SecurityGroup(Element):
         super(SecurityGroup, self).__init__(name, **meta)
 
     @classmethod
-    def create(cls, name, isc_id, vss_container):
+    def create(cls, name, isc_id, vss_container, comment=None):
         """
         Create a new security group.
         
@@ -319,6 +320,7 @@ class SecurityGroup(Element):
         :param str isc_name: NSX Security Group name
         :param VSSContainer vss_container: VSS Container to add the
             security group to.
+        :param str comment: comment, making this searchable
         :raises: CreateElementFailed
         :return SecurityGroup
         """
@@ -328,5 +330,5 @@ class SecurityGroup(Element):
                 'name': name,
                 'isc_name': name,
                 'isc_id': isc_id,
-                'comment': isc_id
+                'comment': comment or isc_id
             })

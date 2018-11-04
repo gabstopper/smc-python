@@ -86,6 +86,12 @@ if __name__ == '__main__':
     
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
     
+    
+    query = LogQuery(http_proxy_host='1.1.1.1')
+    for log in query.fetch_live():
+        print(log)
+        
+    sys.exit(1)
     websocket.enableTrace(True)
   
     
