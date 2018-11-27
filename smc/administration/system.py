@@ -251,7 +251,7 @@ class System(SubElement):
             raise ResourceNotFound('This entry point is only supported on SMC >= 6.5')
         
         return self.make_request(resource='visible_security_group_mapping',
-                params={'filter': filter})
+            params={'filter': filter})
 
     def references_by_element(self, element_href):
         """

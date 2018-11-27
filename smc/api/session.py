@@ -614,8 +614,15 @@ class Session(object):
         if self.session and self.session_id: # Did session timeout?
             logger.info('Session timed out, will try obtaining a new session using '
                 'previously saved credential information.')
+            # Preserve any custom session adapters attached to original session
+            transport_adapters = self.session.adapters
             self.logout() # Force log out session just in case
-            return self.login(**self.copy())
+            self.login(**self.copy())
+            if self.session:
+                for req, transport in transport_adapters.items():
+                    self.session.mount(req, transport)
+                return
+            #return self.login(**self.copy())
         raise SMCConnectionError('Session expired and attempted refresh failed.')        
     
     def switch_domain(self, domain):

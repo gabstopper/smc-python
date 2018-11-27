@@ -14,17 +14,25 @@ class NATRule(Rule):
         Used on specific whether this NAT rule has a specific engine that
         this rule applies to. Default is ANY (unspecified).
 
-        :param str,Element value: :py:class:`smc.elements.network` element to
-               apply to this NAT rule, or str href
-        :return: Element value: name of element this NAT rule is applied on
+        :param str,Element value: Can be the strings 'ANY' or 'NONE' or an
+            Engine element type.
+        :return: 'ANY', 'NONE' or the Engine element
         """
-        if 'used_on' in self.data:
-            return Element.from_href(self.data.get('used_on'))
-
+        used_on = self.data.get('used_on', {})
+        if 'firewall_ref' in used_on:
+            return Element.from_href(used_on.get('firewall_ref'))
+        return 'ANY' if used_on.get('any') else 'NONE'
+    
     @used_on.setter
     def used_on(self, value):
         try:
-            self.data['used_on'] = element_resolver(value)
+            used_on = element_resolver(value)
+            if used_on == 'ANY':
+                self.data.update(used_on={'any': True})
+            elif used_on is 'NONE':
+                self.data.update(used_on={'none': True})
+            else:
+                self.data.update(used_on={'firewall_ref': used_on})
         except ElementNotFound:
             pass
     
@@ -535,8 +543,8 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
     def create(self, name, sources=None, destinations=None, services=None,
                dynamic_src_nat=None, dynamic_src_nat_ports=(1024, 65535),
                static_src_nat=None, static_dst_nat=None,
-               static_dst_nat_ports=None, is_disabled=False, used_on=None,
-               add_pos=None, after=None, before=None, comment=None):
+               static_dst_nat_ports=None, is_disabled=False, used_on='ANY',
+               add_pos=None, after=None, before=None, comment=None, validate=True):
         """
         Create a NAT rule.
 
@@ -561,8 +569,8 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
             and destination ports (only needed if a different destination port
             is used and does not match the rules service port)
         :param bool is_disabled: whether to disable rule or not
-        :param str,href used_on: Can be a str href of an Element or Element of type
-            AddressRange('ANY'), AddressRange('NONE') or an engine element.
+        :param str,Engine used_on: Can be None, 'ANY' or and Engine element. Default
+            is 'ANY'.
         :type used_on: str,Element
         :param int add_pos: position to insert the rule, starting with position 1. If
             the position value is greater than the number of rules, the rule is inserted at
@@ -573,18 +581,18 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
         :param str comment: optional comment for the NAT rule
+        :param bool validate: validate the inspection policy during rule creation. Default: True
         :raises InvalidRuleValue: if rule requirements are not met
         :raises CreateRuleFailed: rule creation failure
         :return: newly created NAT rule
         :rtype: IPv4NATRule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name, comment=comment)
-        rule_values.update(is_disabled=is_disabled)
+        rule_values.update(name=name, comment=comment, is_disabled=is_disabled)
         
-        rule_values.update(used_on=element_resolver(used_on) if used_on else used_on)
-        #rule_values.update(used_on=element_resolver(AddressRange('ANY') if not \
-        #    used_on else element_resolver(used_on)))
+#         rule_values.update(used_on={'any': True} if used_on == 'ANY' else \
+#             element_resolver(used_on))
+#         rule_values.update(used_on=element_resolver(used_on) if used_on else None)
         
         if dynamic_src_nat:
             nat = DynamicSourceNAT()
@@ -625,12 +633,13 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         if 'options' not in rule_values:  # No NAT
             rule_values.update(options=LogOptions())
         
-        params = None
+        params = {'validate': False} if not validate else {}
+        
         href = self.href
         if add_pos is not None:
             href = self.add_at_position(add_pos)
         elif before or after:
-            params = self.add_before_after(before, after)
+            params.update(**self.add_before_after(before, after))
         
         return ElementCreator(
             self.__class__,

@@ -1,3 +1,15 @@
+Enable API on SMC
+-----------------
+
+In order to allow inbound API connections to the SMC, you must first enable the API service on the SMC management server.
+To do this, open the SMC and edit the properties of the Management Server/s.
+
+Under API Client, enable the API.
+If SSL connections are required, import or self sign (SMC >= 6.4) a certificate for use with the API service.
+
+.. warning:: Do not check the "Use SSL for session ID" parameter when using this library. This setting is incompatible
+	as the sessions are tracked using client sessions (for both HTTP and HTTPS)
+
 Creating the session
 --------------------
 

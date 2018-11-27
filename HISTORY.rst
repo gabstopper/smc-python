@@ -164,6 +164,11 @@ Release History
 - All template policies inherit from their related type to support creating templates
 - Deprecate support for python 3.4, add support for python 3.6.6
 
+0.7.0
+-----
+
+- Add validate flag to all rule creation parameters and update parameters. Validate=False will circumvent validating
+  the inspection policy during rule creation, making add operations faster when bulk loading rules
 
  
 

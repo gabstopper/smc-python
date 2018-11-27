@@ -418,6 +418,7 @@ class ElementCollection(object):
                 href=self._params.get('href'),
                 params=params,
                 ).read().json
+
         except FetchElementFailed:
             _list = list()
         return _list  
@@ -827,7 +828,6 @@ class Search(ElementCollection):
         """
         # Return all elements from the root of the API nested under elements URI
         #element_uri = str(
-        types = [element.rel
-                 for element in entry_point()]
+        types = [element.rel for element in entry_point()]
         types.extend(list(CONTEXTS))
         return types

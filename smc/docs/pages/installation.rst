@@ -5,7 +5,7 @@ Install the package by using a package manager such as pip.
 
 .. code-block:: python
 
-   pip install git+https://github.com/gabstopper/smc-python.git
+   pip install smc-python
 
 Or optionally download the latest tarball (windows): smc-python_, unzip and run:
 

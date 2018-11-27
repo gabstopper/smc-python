@@ -104,7 +104,7 @@ class ImportExportCertificate(object):
         if filename is not None:
             save_to_file(filename, result.content)
             return
-    
+        
         return result.content
     
 

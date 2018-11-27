@@ -487,9 +487,7 @@ class RefreshMasterEnginePolicyTask(ScheduledTaskMixin, Element):
     """
     Refresh a Master Engine and virtual policy task. 
     
-    .. note:: This task is only relevant for engines that are
-        Master Engines. This does not apply to standard single FW
-        or clustered FW's.
+    .. note:: This task is only relevant for Master Engines types.
     """
     typeof = 'refresh_master_and_virtual_policy_task'
     
@@ -502,7 +500,8 @@ class RefreshMasterEnginePolicyTask(ScheduledTaskMixin, Element):
         :param master_engines: list of master engines for this task
         :type master_engines: list(MasterEngine)
         :param str comment: optional comment
-        :raises CreateElementFailed: failed to create the task
+        :raises CreateElementFailed: failed to create the task, i.e. no
+            valid engines provided
         :return: the task
         :rtype: RefreshMasterEnginePolicyTask
         """

@@ -270,9 +270,9 @@ class ExternalEndpoint(SubElement):
     """
     typeof = 'external_endpoint'
     
-    def create(self, name, address=None, enabled=True, balancing_mode='active',
-               ipsec_vpn=True, nat_t=False, force_nat_t=False, dynamic=False,
-               ike_phase1_id_type=None, ike_phase1_id_value=None):
+    def create(self, name, address=None, enabled=True, ipsec_vpn=True,
+               nat_t=False, force_nat_t=False, dynamic=False,
+               ike_phase1_id_type=None, ike_phase1_id_value=None, **kw):
         """
         Create an test_external endpoint. Define common settings for that
         specify the address, enabled, nat_t, name, etc. You can also omit
@@ -282,7 +282,6 @@ class ExternalEndpoint(SubElement):
         :param str name: name of test_external endpoint
         :param str address: address of remote host
         :param bool enabled: True|False (default: True)
-        :param str balancing_mode: active
         :param bool ipsec_vpn: True|False (default: True)
         :param bool nat_t: True|False (default: False)
         :param bool force_nat_t: True|False (default: False)
@@ -291,19 +290,21 @@ class ExternalEndpoint(SubElement):
             set this value. Valid options: 0=DNS name, 1=Email, 2=DN, 3=IP Address
         :param str ike_phase1_id_value: value of ike_phase1_id. Required if
             ike_phase1_id_type and dynamic set.
+        :param ConnectionType connection_type: SMC>=6.5 setting. Specifies the
+            mode for this endpoint
         :raises CreateElementFailed: create element with reason
         :return: newly created element
         :rtype: ExternalEndpoint
         """
         json = {'name': name,
                 'address': address,
-                'balancing_mode': balancing_mode,
                 'dynamic': dynamic,
                 'enabled': enabled,
                 'nat_t': nat_t,
                 'force_nat_t': force_nat_t,
                 'ipsec_vpn': ipsec_vpn}
         
+        json.update(kw)
         if dynamic:
             json.pop('address')
             json.update(
@@ -387,11 +388,8 @@ class ExternalEndpoint(SubElement):
 
         :return: None
         """
-        if self.enabled:
-            self.data['enabled'] = False
-        else:
-            self.data['enabled'] = True
-        self.update()
+        self.update(enabled=True) if not self.enabled else \
+            self.update(enabled=False)
 
     def enable_disable_force_nat_t(self):
         """
@@ -400,11 +398,8 @@ class ExternalEndpoint(SubElement):
 
         :return: None
         """
-        if self.force_nat_t:
-            self.data['force_nat_t'] = False
-        else:
-            self.data['force_nat_t'] = True
-        self.update()
+        self.update(force_nat_t=True) if not self.force_nat_t else \
+            self.update(force_nat_t=False)
 
 
 class VPNSite(SubElement):
@@ -532,5 +527,28 @@ class VPNProfile(Element):
     """
     typeof = 'vpn_profile'
 
+
+class ConnectionType(Element):
+    """
+    .. versionadded:: 0.7.0
+        Introduced in SMC 6.5 to provide a way to group VPN element types
+    
+    ConnectionTypes are used in various VPN configurations such as an
+    ExternalGateway endpoint element to define how the endpoint should
+    be treated, i.e. active, aggregate or standby.
+    
+    :ivar int connectivity_group: connectivity group for this connection type
+    :ivar str mode: mode, valid options: 'active', 'aggregate', 'standby'
+    """
+    typeof = 'connection_type'
+    
+    @classmethod
+    def create(cls, name, mode='active', connectivity_group=1, comment=None):
+        return ElementCreator(cls,
+            json={'name': name,
+                  'mode': mode,
+                  'comment': comment,
+                  'connectivity_group': connectivity_group})
+        
 
         

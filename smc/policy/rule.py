@@ -254,14 +254,29 @@ class Rule(object):
         sending to SMC.
 
         :raises PolicyCommandFailed: failed to save with reason
-        :return: None
+        :return: href of this rule
+        :rtype: str
         """
-        self.update(PolicyCommandFailed)
+        return self.update()
+        
+
+    def update(self, validate=True, **kwargs):
+        """
+        Override update on rules to allow validate=False be passed
+        
+        :param bool validate: validate the policy before update; default True
+        :return: href of this rule
+        :rtype: str
+        """
+        if not validate:
+            kwargs.update(params={'validate': False})
+        result = super(Rule, self).update(PolicyCommandFailed, **kwargs)
         try:
             del self._cache
         except AttributeError:
             pass
-
+        return result
+        
     @property
     def tag(self):
         """
@@ -383,7 +398,6 @@ class RuleCommon(object):
             service.set_none()
     
         e = {}
-        #e.update(source())
         e.update(sources=source.data)
         e.update(destinations=destination.data)
         e.update(services=service.data)
@@ -471,7 +485,7 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
                authentication_options=None, connection_tracking=None,
                is_disabled=False, vpn_policy=None, mobile_vpn=False,
                add_pos=None, after=None, before=None,
-               sub_policy=None, comment=None, **kw):
+               sub_policy=None, comment=None, validate=True, **kw):
         """ 
         Create a layer 3 firewall rule
 
@@ -504,6 +518,7 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
         :param str comment: optional comment for this rule
+        :param bool validate: validate the inspection policy during rule creation. Default: True
         :raises MissingRequiredInput: when options are specified the need additional 
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -544,8 +559,6 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
                 raise MissingRequiredInput('Cannot find sub policy specified: {} '
                     .format(sub_policy))
         
-        #rule_values.update(action=rule_action.data)
-
         log_options = LogOptions() if not log_options else log_options
         
         if connection_tracking is not None:
@@ -560,12 +573,12 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
             authentication_options=auth_options.data,
             is_disabled=is_disabled)
 
-        params = None
+        params = {'validate': False} if not validate else {}
         href = self.href
         if add_pos is not None:
             href = self.add_at_position(add_pos)
         elif before or after:
-            params = self.add_before_after(before, after)
+            params.update(**self.add_before_after(before, after))
         
         return ElementCreator(
             self.__class__,
@@ -593,7 +606,7 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
-               after=None, before=None, comment=None):
+               after=None, before=None, comment=None, validate=True):
         """
         Create an IPv4 Layer 2 FW rule
 
@@ -616,6 +629,7 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
         :param str comment: optional comment for this rule
+        :param bool validate: validate the inspection policy during rule creation. Default: True
         :raises MissingRequiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -623,9 +637,8 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
         :rtype: IPv4Layer2Rule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name)
-        rule_values.update(is_disabled=is_disabled)
-
+        rule_values.update(name=name, comment=comment)
+        
         if isinstance(action, Action):
             rule_action = action
         else:
@@ -636,17 +649,17 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
             raise CreateRuleFailed('Action specified is not valid for this '
                 'rule type; action: {}'.format(rule_action.action))
 
-        rule_values.update(action=rule_action.data)
+        rule_values.update(action=rule_action.data, is_disabled=is_disabled)
 
         rule_values.update(self.update_logical_if(logical_interfaces))
 
-        params = None
+        params = {'validate': False} if not validate else {}
         
         href = self.href
         if add_pos is not None:
             href = self.add_at_position(add_pos)
         elif before or after:
-            params = self.add_before_after(before, after)
+            params.update(**self.add_before_after(before, after))
         
         return ElementCreator(
             self.__class__,
@@ -677,7 +690,7 @@ class EthernetRule(RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
-               after=None, before=None, comment=None):
+               after=None, before=None, comment=None, validate=True):
         """
         Create an Ethernet rule
 
@@ -699,6 +712,7 @@ class EthernetRule(RuleCommon, Rule, SubElement):
             and ``before`` params.
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
+        :param bool validate: validate the inspection policy during rule creation. Default: True
         :raises MissingReuqiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
@@ -707,8 +721,7 @@ class EthernetRule(RuleCommon, Rule, SubElement):
         """
         rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name, comment=comment)
-        rule_values.update(is_disabled=is_disabled)
-
+        
         if isinstance(action, Action):
             rule_action = action
         else:
@@ -720,17 +733,17 @@ class EthernetRule(RuleCommon, Rule, SubElement):
                                    'rule type; action: {}'
                                    .format(rule_action.action))
 
-        rule_values.update(action=rule_action.data)
+        rule_values.update(action=rule_action.data, is_disabled=is_disabled)
 
         rule_values.update(self.update_logical_if(logical_interfaces))
 
-        params = None
+        params = {'validate': False} if not validate else {}
         
         href = self.href
         if add_pos is not None:
             href = self.add_at_position(add_pos)
-        else:
-            params = self.add_before_after(before, after)
+        elif before or after:
+            params.update(**self.add_before_after(before, after))
         
         return ElementCreator(
             self.__class__,

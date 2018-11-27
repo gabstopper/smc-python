@@ -246,7 +246,9 @@ class SMCResult(object):
             self.code = response.status_code
             self.href = response.headers.get('location')
             self.etag = response.headers.get('ETag')
-            if response.headers.get('content-type') == 'application/json':
+            content_type = response.headers.get('content-type', '')
+            
+            if content_type == 'application/json':
                 try:
                     result = response.json()
                 except ValueError:
@@ -261,8 +263,9 @@ class SMCResult(object):
                 else:
                     self.json = result  # Empty dict
                 return self.json
-            elif response.headers.get('content-type') in \
-                ('application/octet-stream', 'text/plain'):
+            
+            elif 'text/plain' in content_type or 'application/octet-stream' in \
+                content_type:
                 self.content = response.text if response.text else None
             
     def __str__(self):

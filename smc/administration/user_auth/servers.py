@@ -67,6 +67,11 @@ class DomainController(NestedDict):
     :param str user: username for authentication
     :param str ipaddress: ip address for domain controller
     :param str password: password for AD domain controller
+    :param str server_type: required for SMC version >=6.5. Value can be
+        'dc' or 'exchange'.
+    :param int expiration_time: required for SMC version >=6.5. Value
+        specifies how long how user ID should be considered valid. For
+        example 28800 is 8 hours
     """
     def __init__(self, user, ipaddress, password, **kw):
         dc = dict(user=user,

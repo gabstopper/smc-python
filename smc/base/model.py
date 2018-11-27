@@ -403,14 +403,14 @@ class ElementBase(RequestAction, UnicodeMixin):
         attributes will force a new fetch to obtain the latest copy.
         
         Calling update() with no args will assume the element has already
-        been modified directly and the data cache will be used to update.
-        You can also override the following attributes: href, etag and
-        json. If json is sent, it is expected to the be a complete payload
+        been modified directly and the `data` cache will be used to update.
+        You can also override the following attributes: href, etag, json and
+        params. If json is sent, it is expected to the be a complete payload
         to satisfy the update.
         
         For kwargs, if attribute values are a list, you can pass
         'append_lists=True' to add to an existing list, otherwise overwrite
-        (default: overwrite)
+        the existing (default: overwrite)
 
         .. seealso:: To see different ways to utilize this method for updating,
             see: :ref:`update-elements-label`.
@@ -423,8 +423,7 @@ class ElementBase(RequestAction, UnicodeMixin):
         :rtype: str
         """
         if self.data.get('system', False):
-            raise ModificationFailed(
-                'Cannot modify system element: %s' % self.name)
+            raise ModificationFailed('Cannot modify system element: %s' % self.name)
         
         if not exception:
             exception = UpdateElementFailed
@@ -435,7 +434,8 @@ class ElementBase(RequestAction, UnicodeMixin):
             'href': self.href,
             'etag': self.etag
         }
-
+        params.update(params=kwargs.pop('params', {})) # URI strings
+        
         if 'href' in kwargs:
             params.update(href=kwargs.pop('href'))
 

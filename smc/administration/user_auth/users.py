@@ -258,4 +258,14 @@ class InternalUserGroup(Browseable, UserElement):
             json.update(member=element_resolver(member))
     
         return ElementCreator(cls, json)
-            
+    
+    @property
+    def members(self):
+        """        
+        Members of the InternalUserGroup. Members will be a list elements of
+        type InternalUser or InternalGroup.
+        
+        :rtype: list
+        """
+        return [Element.from_href(member)
+            for member in self.data.get('member')]
