@@ -39,7 +39,7 @@ Python 3.5, 3.6
 
 Requests >= 2.12.0
 
-Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2, 6.2.1, 6.3.x
+Security Management Center version 6.0, 6.1, 6.1.1, 6.1.2, 6.2, 6.2.1, 6.3.x, 6.4.x
 
 Getting Started
 ---------------
@@ -52,7 +52,7 @@ Use pip to get latest released version:
 
 Specific version:
 
-``pip install smc-python>=0.5.8``
+``pip install smc-python>=0.6.2``
 
 From git:
 
@@ -136,7 +136,7 @@ Please see the read-the-docs documentation above for a full explanation
 and technical reference on available API classes.
 
 `View Documentation on Read The
-Docs <http://smc-python.readthedocs.io/en/latest/?badge=develop>`__
+Docs <http://smc-python.readthedocs.io/en/latest/?badge=latest>`__
 
 .. |Documentation Status| image:: https://readthedocs.org/projects/smc-python/badge/?version=develop
    :target: http://smc-python.readthedocs.io/en/develop/?badge=develop

@@ -107,8 +107,8 @@ class Policy(Element):
                 results.append(klazz(**data))
             return results
         return []
-
-    def rule_counters(self, engine, duration_type='one_week',
+        
+    def rule_counters(self, engine=None, duration_type='one_week',
             duration=0, start_time=0):
         """
         .. versionadded:: 0.5.6
@@ -129,7 +129,9 @@ class Policy(Element):
         :return: list of rule counter objects
         :rtype: RuleCounter
         """
-        json = {'target_ref': engine.href, 'duration_type': duration_type}
+        json = {'duration_type': duration_type, 'target_ref': engine.href
+            if engine else None, 'duration': duration}
+        
         return [RuleCounter(**rule)
                 for rule in self.make_request(
                     method='create',
@@ -157,7 +159,9 @@ class RuleCounter(collections.namedtuple(
     """
     Rule counter representing hits for a specific rule.
     
-    :param int hits: hits for this given rule
+    :param int hits: The number of times where the rule has been used on
+        the engine. If not specified, that means the rule has not been uploaded
+        or unknown on the engine.
     :param rule_ref: rule reference to obtain the rule
     :param Rule rule: resolved rule_ref to element
     :param total_hits: total number of hits over the duration

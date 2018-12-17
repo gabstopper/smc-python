@@ -78,6 +78,7 @@ from smc.policy.rule_elements import Action, LogOptions, Destination, Source,\
     Service, AuthenticationOptions, TimeRange
 from smc.base.util import element_resolver
 from smc.base.decorators import cacheable_resource
+from smc.core.resource import History
 
 
 class Rule(object):
@@ -96,7 +97,23 @@ class Rule(object):
         """
         return self._meta.name if self._meta.name else \
             'Rule @%s' % self.tag
-
+    
+    @property
+    def history(self):
+        """
+        .. versionadded:: 0.6.3
+            Requires SMC version >= 6.5
+        
+        Obtain the history of this element. This will not chronicle every
+        modification made over time, but instead a current snapshot with
+        historical information such as when the element was created, by
+        whom, when it was last modified and it's current state.
+        
+        :raises ResourceNotFound: If not running SMC version >= 6.5
+        :rtype: History
+        """
+        return History(**self.make_request(resource='history'))
+    
     def move_rule_after(self, other_rule):
         """
         Add this rule after another. This process will make a copy of
@@ -258,7 +275,6 @@ class Rule(object):
         :rtype: str
         """
         return self.update()
-        
 
     def update(self, validate=True, **kwargs):
         """
