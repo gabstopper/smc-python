@@ -267,12 +267,21 @@ class ExternalEndpoint(SubElement):
         gw = ExternalGateway('aws')
         gw.external_endpoint.create(name='aws01', address='2.2.2.2')
     
+    .. versionchanged:: 0.7.0
+    
+        When using SMC >= 6.5, you should also provide a value for connection_type_ref when
+        creating the element, for example::
+    
+            gw = ExternalGateway('aws')
+            gw.external_endpoint.create(name='aws01', address='2.2.2.2', connection_type=ConnectionType('Active'))
+    
     """
     typeof = 'external_endpoint'
     
     def create(self, name, address=None, enabled=True, ipsec_vpn=True,
                nat_t=False, force_nat_t=False, dynamic=False,
-               ike_phase1_id_type=None, ike_phase1_id_value=None, **kw):
+               ike_phase1_id_type=None, ike_phase1_id_value=None,
+               connection_type_ref=None, **kw):
         """
         Create an test_external endpoint. Define common settings for that
         specify the address, enabled, nat_t, name, etc. You can also omit
@@ -290,8 +299,8 @@ class ExternalEndpoint(SubElement):
             set this value. Valid options: 0=DNS name, 1=Email, 2=DN, 3=IP Address
         :param str ike_phase1_id_value: value of ike_phase1_id. Required if
             ike_phase1_id_type and dynamic set.
-        :param ConnectionType connection_type: SMC>=6.5 setting. Specifies the
-            mode for this endpoint
+        :param ConnectionType connection_type_ref: SMC>=6.5 setting. Specifies the
+            mode for this endpoint; i.e. Active, Aggregate, Standby
         :raises CreateElementFailed: create element with reason
         :return: newly created element
         :rtype: ExternalEndpoint
@@ -310,6 +319,9 @@ class ExternalEndpoint(SubElement):
             json.update(
                 ike_phase1_id_type=ike_phase1_id_type,
                 ike_phase1_id_value=ike_phase1_id_value)
+        
+        if connection_type_ref:
+            json.update(connection_type_ref=element_resolver(connection_type_ref))
         
         return ElementCreator(
             self.__class__,
@@ -348,6 +360,9 @@ class ExternalEndpoint(SubElement):
         updated = False
         created = False
         if external_endpoint:  # Check for changes
+            if 'connection_type_ref' in kw: # 6.5 only
+                kw.update(connection_type_ref=element_resolver(kw.pop('connection_type_ref')))
+            
             for name, value in kw.items(): # Check for differences before updating
                 if getattr(external_endpoint, name, None) != value:
                     external_endpoint.data[name] = value

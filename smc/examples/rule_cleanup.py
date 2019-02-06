@@ -38,14 +38,18 @@ if __name__ == '__main__':
     Obtain the policy based on it's type. This example uses a FirewallPolicy
     type but all policy types are supported, i.e: IPSPolicy or Layer2Policy; as
     well as templates, i.e: IPSTemplatePolicy, FirewallTemplatePolicy, Layer2TemplatePolicy
+    
+    .. note:: NAT rules and IPv6 rules are included in the output and do not need
+        to be handled separately.
     """
     
     policy = FirewallPolicy.get('Standard Firewall Policy with Inspection')
-    #policy = get_firewall_policy('Standard*') # <-- Only returns first match
+    #policy = get_firewall_policy('Standard*') # <-- Wildcard will only return first match
     
     """
     Rule counters on a given policy can be obtained for all engines using
-    the specified policy:
+    the specified policy. This is equivalent to running the rule counters in the
+    SMC without a "Target" specified.
       
     :rtype: list(smc.policy.policy.RuleCounter)
     """
@@ -54,7 +58,7 @@ if __name__ == '__main__':
         print(counter)
       
     """
-    Get rule counters by engine target
+    Get rule counters by specific engine
       
     :param Engine engine: the engine specified as element
     :rtype: list(smc.policy.policy.RuleCounter)
@@ -111,11 +115,13 @@ if __name__ == '__main__':
         print("Rule: %s -> Last modified: %s" % (rule, history.last_modified))
          
     """
-    Disable all rules that have not been hit 6 months
+    Disable all rules that have not been hit 6 months.
+    For this example, simply print the rule object and the parent policy it's associated with
+    
     """
     for counter in policy.rule_counters(engine=Engine('sg_vm'), duration_type='six_months'):
         if counter.hits == 0:
-            print("Disable: %s" % counter.rule)
+            print("Disable: %s from policy: %s" % (counter.rule, counter.rule.parent_policy))
             # counter.rule.update(is_disabled=True, comment='Disabled due to 90 days of no usage') # <-- Disable the rule
   
     """
