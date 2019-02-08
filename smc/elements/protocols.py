@@ -288,7 +288,7 @@ class ProxyServiceValue(ProtocolParameterValue):
         # reference. We need to find the Proxy Server from this ref.
         if self._inspected_service_ref:
             for proxy in ProxyServer.objects.all():
-                if self._inspected_service_ref.startswith(proxy.href):
+                if self._inspected_service_ref.startswith(proxy.href+'/'):
                     return proxy
     
     def _update(self, **kwargs):
