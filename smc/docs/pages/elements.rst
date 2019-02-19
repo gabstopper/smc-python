@@ -104,15 +104,6 @@ done in update by providing kwargs::
 		comment='something about this host')
 
 
-There is also a generic modify_attribute on :class:`smc.base.model.Element` which is
-essentially the same as calling .update(kwargs) above::
-
-	host = Host('kali')
-	host.modify_attribute(
-		address='3.3.3.3',
-		secondary=['12.12.12.12'],
-		comment='something about this host')
-
 A much more low-level way of modifying an element is to modify the data in cache (dict)
 directly. After making the modifications, you must also call .update() to submit the change.
 
@@ -122,7 +113,7 @@ Modifying a service element after reviewing the element cache::
 	>>> service
 	TCPService(name=aservice)
 	...
-	>>> pprint(service.data)
+	>>> pprint(vars(service.data))
 	{u'key': 3551,
 	 u'link': [{u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551',
 	            u'rel': u'self',
@@ -140,7 +131,7 @@ Modifying a service element after reviewing the element cache::
 	>>> service.update()	# Submit to SMC, cache is refreshed
 	'http://172.18.1.150:8082/6.2/elements/tcp_service/3551'
 	...
-	>>> pprint(service.data)
+	>>> pprint(vars(service.data))
 	{u'key': 3551,
 	 u'link': [{u'href': u'http://172.18.1.150:8082/6.2/elements/tcp_service/3551',
 	            u'rel': u'self',

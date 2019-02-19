@@ -1011,12 +1011,13 @@ class Engine(Element):
         determine the status of the task.
         ::
 
-            poller = engine.refresh()
+            poller = engine.refresh(wait_for_finish=True)
             while not poller.done():
                 poller.wait(5)
                 print('Percentage complete {}%'.format(poller.task.progress))
-
+        
         :param int timeout: timeout between queries
+        :param bool wait_for_finish: poll the task waiting for status
         :raises TaskRunFailed: refresh failed, possibly locked policy
         :rtype: TaskOperationPoller
         """
@@ -1034,12 +1035,13 @@ class Engine(Element):
         name is not known::
 
             engine = Engine('myfw')
-            task = engine.upload('Amazon*')
+            task = engine.upload('Amazon*', wait_for_finish=True)
             for message in task.wait():
                 print(message)
 
         :param str policy: name of policy to upload to engine; if None, current
             policy
+        :param bool wait_for_finish: poll the task waiting for status
         :param int timeout: timeout between queries
         :raises TaskRunFailed: upload failed with reason
         :rtype: TaskOperationPoller
