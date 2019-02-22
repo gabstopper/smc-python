@@ -104,8 +104,14 @@ class PendingChanges(SerializedIterable):
             resource='disapprove_all_changes')
 
 
-class ChangeRecord(collections.namedtuple(
-        'ChangeRecord', 'approved_on changed_on element event_type modifier')):
+_ChangeRecord = collections.namedtuple('ChangeRecord', 'approved_on changed_on '
+        'element element_name event_type modifier')
+_ChangeRecord.__new__.__defaults__ = (None,) * len(_ChangeRecord._fields) 
+
+
+class ChangeRecord(_ChangeRecord):
+# class ChangeRecord(collections.namedtuple(
+#         'ChangeRecord', 'approved_on changed_on element element_name event_type modifier')):
     """
     Change record details for any pending changes.
     
@@ -114,6 +120,7 @@ class ChangeRecord(collections.namedtuple(
     :param element: element affected
     :param event_type: type of change, update, delete, etc.
     :param modifier: account making the modification
+    :param element_name: name of the element (only present in SMC >= 6.5)
     """
     __slots__ = ()
     @property
