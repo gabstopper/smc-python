@@ -542,6 +542,9 @@ class VPNProfile(Element):
     """
     typeof = 'vpn_profile'
 
+    @classmethod
+    def create(cls, name):
+        return ElementCreator(cls, json={'name': name})
 
 class ConnectionType(Element):
     """
