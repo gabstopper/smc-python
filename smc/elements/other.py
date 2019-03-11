@@ -305,7 +305,7 @@ class ContactAddress(NestedDict):
          
         :rtype: list
         """
-        return self.data['addresses']
+        return self.data.get('addresses') or self.data.get('address')
      
     @property
     def location_ref(self):

@@ -47,6 +47,9 @@ from smc.api.exceptions import ElementNotFound
 from smc.base.model import SubElement, Element, ElementRef, ElementCreator
 from smc.base.collection import create_collection
 from smc.base.util import element_resolver
+from smc.elements.helpers import location_helper
+from smc.base.structs import SerializedIterable
+from smc.elements.other import ContactAddress
 
 
 class GatewaySettings(Element):
@@ -255,6 +258,89 @@ class ExternalGateway(Element):
         return self.data.get('trust_all_cas')
 
 
+class ElementContactAddress(SerializedIterable):
+    def __init__(self, smcresult, subelement):
+        self._subelement = subelement # Original element
+        self._etag = smcresult.etag
+        super(ElementContactAddress, self).__init__(smcresult.json.get(
+            'contact_addresses', []), ContactAddress)
+    
+    def create(self, location_ref, address, dynamic=False, overwrite_existing=False):
+        """
+        Create a contact address for the given element. Address is always
+        a required field. If the contact address should be dynamic, then
+        the value of the address field should be assigned by the DHCP
+        interface name, i.e.::
+        
+            external_endpoint.contact_addresses.create(
+                location=Location('foo'),
+                address='First DHCP Interface ip', dynamic=True)
+                
+        :param str,Location location_ref: href or Location element
+        :param address: string repesenting address
+        :param bool dynamic: whether address is dynamic or static
+        :param bool overwrite_existing: whether to keep existing locations or
+            to overwrite default: False
+        :return: None
+        :raises: ActionCommandFailed
+        """
+        json=[{'location_ref': location_helper(location_ref),
+              'address': address,
+              'dynamic': dynamic}]
+        
+        if not overwrite_existing:
+            json.extend(addr.data for addr in self.items)
+        
+        return self._subelement.make_request(
+            resource='contact_addresses',
+            method='update',
+            etag=self._etag,
+            json={'contact_addresses': json})
+#     
+#     def create_many(self, list_of_addresses, preserve_existing=False, **kw):
+#         """
+#         Create many contact addresses. If preserve_existing is set
+#         to true, any existing contact addresses will be preserved,
+#         otherwise overwritten.
+#         
+#         Args should be a list in the following format::
+#         
+#             {
+#               "multi_contact_addresses" : [ {
+#                 "location_ref" : "...",
+#                 "addresses" : [ "...", "..." ]
+#               }, {
+#                 "location_ref" : "...",
+#                 "addresses" : [ "...", "..." ]
+#               } ]
+#             }
+#         
+#             external_endpoint.contact_addresses.create_many(
+#                 [{'location_ref': Location, 'addresses': ['1.1.1.1'], 'dynamic': False},
+#                  {'location_ref': Location2, 'addresses': ['2.2.2.2', '2.2.2.3'], 'dynamic': False}]
+#         
+#         :param bool preserve_existing: preserve any existing contact addresses,
+#             otherwise overwrite
+#         :param list kw: list of individual contact addresses in same format as
+#             `create` constructor
+#         :return: None
+#         :raises: ActionCommandFailed
+#         """
+#         if preserve_existing:
+#             print("Preserve the existing!")
+#         
+#         return self._subelement.make_request(
+#             resource='contact_addresses',
+#             method='update',
+#             etag=self._etag,
+#             json={'multi_contact_addresses': list_of_addresses})
+             
+    def delete(self, location=None, address=None):
+        if location or address:
+            pass
+
+
+    
 class ExternalEndpoint(SubElement):
     """
     External Endpoint is used by the External Gateway and defines the IP
@@ -415,6 +501,17 @@ class ExternalEndpoint(SubElement):
         """
         self.update(force_nat_t=True) if not self.force_nat_t else \
             self.update(force_nat_t=False)
+    
+    @property
+    def contact_addresses(self):
+        """
+        Contact Addresses are a mutable collection of contact addresses
+        assigned to a supported element.
+        
+        :rtype: ElementContactAddress
+        """
+        return ElementContactAddress(self.make_request(
+            resource='contact_addresses', raw_result=True), self)
 
 
 class VPNSite(SubElement):

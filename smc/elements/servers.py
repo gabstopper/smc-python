@@ -29,7 +29,8 @@ class MultiContactAddress(SubElement):
     """
     @property
     def _cas(self):
-        return self.data.get('multi_contact_addresses', [])
+        return self.data.get('multi_contact_addresses', []) or \
+            self.data.get('contact_addresses', [])
     
     def __iter__(self):
         for address in self._cas:
