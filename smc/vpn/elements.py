@@ -635,9 +635,59 @@ class VPNSite(SubElement):
        
 class VPNProfile(Element):
     """
-    Represents a VPNProfile configuration used by the PolicyVPN
+    A VPN Profile is used to specify cryptography and other Policy VPN specific
+    features. Every PolicyVPN requires a VPNProfile. The system will provide
+    common profiles labeled as System Element that can be used without
+    modification.
     """
     typeof = 'vpn_profile'
+
+    @classmethod
+    def create(cls, name, comment=None, **kw):
+        """
+        Create a VPN Profile. There are a variety of kwargs that can
+        can be and also retrieved about a VPN Profile. Keyword parameters
+        are specified below. To access a valid keyword, use the standard
+        dot notation.
+        
+        To validate supported keyword attributes for a VPN Profile, consult
+        the native SMC API docs for your version of SMC. You can also optionally
+        print the element contents after retrieving the element and use
+        `update` to modify the element.
+        
+        For example::
+        
+            vpn = VPNProfile.create(name='mySecureVPN', comment='test comment')
+            pprint(vars(vpn.data))
+        
+        Then once identifying the attribute, update the relevant top level
+        attribute values::
+        
+            vpn.update(sa_life_time=128000, tunnel_life_time_seconds=57600)
+        
+        :param str name: Name of profile
+        :param str comment: optional comment
+        :raises CreateElementFailed: failed creating element with reason
+        :rtype: VPNProfile
+        """
+        kw.update(name=name, comment=comment)
+        return ElementCreator(cls, json=kw)
+    
+    @property
+    def capabilities(self):
+        """
+        Capabilities are all boolean values that specify features or
+        cryptography features to enable or disable on this VPN profile.
+        To update or change these values, you can use the built in `update`
+        with a key of 'capabilities' and dict value of attributes, i.e::
+        
+            vpn = VPNProfile('mySecureVPN')
+            pprint(vpn.capabilities) # <-- show all options
+            vpn.update(capabilities={'sha2_for_ipsec': True, 'sha2_for_ike': True})
+        
+        :rtype: dict
+        """
+        return self.data.get('capabilities', {})
 
 
 class ConnectionType(Element):
