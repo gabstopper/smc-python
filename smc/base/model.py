@@ -914,5 +914,5 @@ class Meta(collections.namedtuple('Meta', 'name href type')):
     Meta allows elements to be lazy loaded as they can be fetched to validate
     their existence without fetching the payload from the href location.
     """
-    def __new__(cls, name=None, href=None, type=None):  # @ReservedAssignment
+    def __new__(cls, name=None, href=None, type=None, etag=None):  # @ReservedAssignment
         return super(Meta, cls).__new__(cls, name, href, type)
