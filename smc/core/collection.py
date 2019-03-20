@@ -345,7 +345,7 @@ class TunnelInterfaceCollection(InterfaceCollection):
         tunnel_interface = TunnelInterface(**interface)
         self._engine.add_interface(tunnel_interface)
         
-    def add_layer3_interface(self, interface_id, address, network_value,
+    def add_layer3_interface(self, interface_id, address=None, network_value=None,
                              zone_ref=None, comment=None):
         """
         Creates a tunnel interface with sub-type single_node_interface. This is
@@ -359,7 +359,9 @@ class TunnelInterfaceCollection(InterfaceCollection):
         :raises EngineCommandFailed: failure during creation
         :return: None
         """
-        interfaces = [{'nodes': [{'address': address, 'network_value': network_value}]}]
+        interfaces = None
+        if address:
+            interfaces = [{'nodes': [{'address': address, 'network_value': network_value}]}]
         interface = {'interface_id': interface_id, 'interfaces': interfaces,
             'zone_ref': zone_ref, 'comment': comment}
         tunnel_interface = TunnelInterface(**interface)
