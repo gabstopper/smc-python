@@ -857,8 +857,7 @@ class SubElement(ElementBase):
 
 class UserElement(ElementBase):
     """
-    User element mixin for LDAP of Internal Domains. Provides comparison and
-    encoding/decoding of the DN used in URIs.
+    User element mixin for LDAP of Internal Domains.
     """
     href = ElementLocator()
     

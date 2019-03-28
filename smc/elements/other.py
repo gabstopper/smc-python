@@ -291,7 +291,7 @@ class MacAddress(Element):
                 'comment': comment}
 
         return ElementCreator(cls, json)
-
+    
 
 class ContactAddress(NestedDict):
     """

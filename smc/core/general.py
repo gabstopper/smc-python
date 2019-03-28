@@ -236,9 +236,9 @@ class RankedDNSAddress(object):
     A RankedDNSAddress represents a list of DNS entries used as a ranked list to
     provide an ordered way to perform DNS queries.
     DNS entries can be added as raw IP addresses, or as elements of type
-    :class:`smc.elements.network.Host` or :class:`smc.elements.servers.DNSServer`
-    (or combination of both). This is an iterable class yielding namedtuples of
-    type :class:`.DNSEntry`.
+    :class:`smc.elements.network.Host`, :class:`smc.elements.servers.DNSServer`
+    or a dynamic_interface_alias (or combination of all). This is an iterable
+    class yielding namedtuples of type :class:`.DNSEntry`.
     
     Normal access is done through an engine reference::
     

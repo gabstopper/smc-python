@@ -590,9 +590,8 @@ class IPv4NATRule(RuleCommon, NATRule, SubElement):
         rule_values = self.update_targets(sources, destinations, services)
         rule_values.update(name=name, comment=comment, is_disabled=is_disabled)
         
-#         rule_values.update(used_on={'any': True} if used_on == 'ANY' else \
-#             element_resolver(used_on))
-#         rule_values.update(used_on=element_resolver(used_on) if used_on else None)
+        rule_values.update(used_on={'any': True} if used_on == 'ANY' else \
+            element_resolver(used_on))
         
         if dynamic_src_nat:
             nat = DynamicSourceNAT()

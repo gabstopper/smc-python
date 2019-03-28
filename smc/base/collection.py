@@ -618,7 +618,29 @@ class ElementCollection(object):
         """
         return len(self)
 
-
+    def between(self, start, end):
+        """
+        Specify a batch of records to return. Start and end correlate to
+        which records to return from a batch. Convenience method to capture
+        only a specific number of records, i.e::
+        
+            >>> objects = situation.objects.between(1, 2)
+            >>> print(list(objects))
+            >>>
+            [InspectionSituation(name=MySQL_Oracle-MySQL-Dumpfile-DLL-Upload)]
+        
+        .. note:: Limit is ignored if also chained to the iterator query.
+        
+        :param str,int start: starting record
+        :param str,int end: ending record
+        :return: :class:`.ElementCollection`
+        """
+        return self._clone(start=start, end=end)
+        
+    def flatten(self):
+        return self._clone(flatten=True)
+    
+    
 class CollectionManager(object):
     """
     CollectionManager takes a class type as input and dynamically
@@ -682,7 +704,15 @@ class CollectionManager(object):
     def all(self):
         return self.iterator()
     all.__doc__ = ElementCollection.all.__doc__
-
+    
+    def between(self, start, end):
+        return self.iterator(start=start, end=end)
+    between.__doc__ = ElementCollection.between.__doc__
+    
+    def flatten(self):
+        return self.iterator(flatten=True)
+    flatten.__doc__ = ElementCollection.flatten.__doc__
+    
     def filter(self, *filter, **kw): # @ReservedAssignment
         iexact = None
         if filter:

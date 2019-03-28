@@ -392,7 +392,8 @@ class NodeInterface(SubInterface):
         :rtype: str
         """
         nicid = self.nicid
-        if nicid:
+        #if nicid:
+        if nicid and not nicid.startswith('SWP_'): # Ignore switch physical interface
             v = nicid.split('.')
             if len(v) > 1:
                 return nicid.split('.')[1]

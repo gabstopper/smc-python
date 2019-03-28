@@ -26,7 +26,7 @@ Or iterate all interfaces which will also return their types::
     Layer2PhysicalInterface(name=Interface 7 (Capture))
     ModemInterfaceDynamic(name=Modem 0)
     TunnelInterface(name=Tunnel Interface 1030)
-    SwitchPhysicalInterfaceDynamic(name=Switch 0)
+    SwitchPhysicalInterface(name=Switch 0)
     ...        
     
 Accessing interface methods for creating interfaces can also be done in multiple
@@ -199,11 +199,21 @@ class InterfaceCollection(BaseIterable):
     
         for interface in engine.physical_interfaces:
             print(interface)
-   
+    
+    Get switch interfaces and associated port groups::
+    
+        for interface in engine.switch_physical_interface:
+            print(interface, interface.port_groups)
+            
     Get a specific interface directly::
         
         engine.interface.get(10)
-            
+    
+    Switch interface direct fetching must include the 'SWP_' prefix as well.
+    To get switch interface 0::
+    
+        engine.interface.get('SWP_0')
+    
     Or use delegation to create interfaces::
         
         engine.physical_interface.add(2)
@@ -255,6 +265,9 @@ class InterfaceCollection(BaseIterable):
             else:
                 yield interface
     
+    def __len__(self):
+        return sum(1 for _ in self)
+    
     def __contains__(self, interface_id):
         try:
             return self.get(interface_id)
@@ -290,6 +303,53 @@ class InterfaceCollection(BaseIterable):
             created = True
         
         return interface, modified, created
+
+
+class SwitchInterfaceCollection(InterfaceCollection):
+    """
+    SwitchInterfaceCollection provides an interface to retrieving existing
+    interfaces and helper methods to shortcut the creation of a switch.
+    Note that switch interfaces are only supported on specific engine types
+    and require that the top level switch is created and port groups are
+    created (although you can use one single port group for the entire
+    switch configuration.
+    
+    Get specific switch interfaces assigned on the given engine::
+    
+        for interface in engine.switch_physical_interface:
+            print(interface, interface.port_groups)
+    
+    You can also retrieve a switch directly by referencing it using the
+    switch interface id. Switch interfaces will always have a name starting
+    with 'SWP_'. For example, SWP_0 specifies physical switch port 0::
+    
+        engine.switch_physical_interface.get('SWP_0')
+    
+    You can also get port_group_interfaces of a switch through a linked
+    collection::
+    
+        interface = engine.switch_physical_interface.get('SWP_0')
+        port_group = interface.port_group_interface.get('SWP_0.1')
+    """
+    def __init__(self, engine):
+        super(SwitchInterfaceCollection, self).__init__(engine, 'switch_physical_interface')
+        
+    def add_switch_interface(self, interface_id, appliance_switch_module='110',
+                        comment=None, **kwargs):
+        """
+        In case of Switch Physical/Port Group interfaces, the interface ID must
+        be prefixed by "SWP_". For example, for switch ID 1 and Port Group ID 1.2
+        you must enter SWP_1 for the switch and SWP_1.2 for the Port Group.
+        
+        :param str interface_id: Name of the interface, must be prefixed with
+            'SWP_'
+        :param str appliance_switch_module: appliance switch module which specifies
+            the hardware module (default: '110')
+        :param str comment: optional comment
+        :param dict kwargs: optional kwargs conforming to the port group dict
+            format if port groups need to be created
+        """
+        pass
 
 
 class TunnelInterfaceCollection(InterfaceCollection):
@@ -345,11 +405,14 @@ class TunnelInterfaceCollection(InterfaceCollection):
         tunnel_interface = TunnelInterface(**interface)
         self._engine.add_interface(tunnel_interface)
         
-    def add_layer3_interface(self, interface_id, address, network_value,
+    def add_layer3_interface(self, interface_id, address=None, network_value=None,
                              zone_ref=None, comment=None):
         """
         Creates a tunnel interface with sub-type single_node_interface. This is
         to be used for single layer 3 firewall instances.
+        
+        .. note:: If no address or network_value is provided, an unconfigured tunnel
+            interface will be created
 
         :param str,int interface_id: the tunnel id for the interface, used as nicid also
         :param str address: ip address of interface
@@ -359,7 +422,8 @@ class TunnelInterfaceCollection(InterfaceCollection):
         :raises EngineCommandFailed: failure during creation
         :return: None
         """
-        interfaces = [{'nodes': [{'address': address, 'network_value': network_value}]}]
+        interfaces = [{'nodes': [{'address': address, 'network_value': network_value}]}] \
+            if address and network_value else []
         interface = {'interface_id': interface_id, 'interfaces': interfaces,
             'zone_ref': zone_ref, 'comment': comment}
         tunnel_interface = TunnelInterface(**interface)

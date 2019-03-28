@@ -40,6 +40,7 @@ from smc.elements.helpers import zone_helper, logical_intf_helper
 from smc.elements.network import Zone
 from smc.base.structs import BaseIterable
 from smc.policy.qos import QoSPolicy
+from smc.core.hardware import ApplianceSwitchModule
 
 
 class InterfaceOptions(object):
@@ -989,6 +990,114 @@ class TunnelInterface(Interface):
         return []
 
 
+class SwitchPhysicalInterface(Interface):
+    """
+    A switch physical interface is a new dedicated physical module supported
+    on N110 appliances at the time of this document. Check the latest updated
+    spec sheets to determine if your physical appliance currently supports
+    this module
+    
+    :ivar ApplianceSwitchModule switch_physical_module: appliance module type
+    """
+    typeof = 'switch_physical_interface'
+    
+    def __init__(self, engine=None, meta=None, **interface):
+        if not meta:
+            meta = {key: interface.pop(key)
+                for key in ('href', 'type', 'name')
+                if key in interface}
+        super(SwitchPhysicalInterface, self).__init__(engine=engine, meta=meta)
+        if interface:
+            self._add_interface(**interface)
+        
+    def _add_interface(self, interface_id, **kw):
+        """
+        Create a tunnel interface. Kw argument list is as follows
+        """
+        port_group_interfaces = kw.pop('port_group_interface', [])
+        # Clustering not supported on switch interfaces therefore no
+        # need for primary/secondary heartbeat
+        primary_mgt = kw.pop('primary_mgt', None)
+        backup_mgt = kw.pop('backup_mgt', None)
+        auth_request = kw.pop('auth_request', None)
+
+        # Everything else is top level
+        base_interface = ElementCache()
+        
+        base_interface.update(switch_physical_interface_switch_module_ref=
+            getattr(ApplianceSwitchModule.objects.filter(
+                kw.pop('appliance_switch_module', None), exact_match=False).first(), 'href', None),
+            interface_id=interface_id, **kw)
+
+        self.data = base_interface
+        
+        for interface in port_group_interfaces:
+            interfaces = interface.pop('interfaces', [])
+            
+            sub_interface = {}
+            zone_ref = interface.pop('zone_ref', None)
+            if zone_ref:
+                sub_interface.update(zone_ref=zone_helper(zone_ref))
+            # Rest goes to next layer interface
+            sub_interface.update(interface)
+            
+            for _interface in interfaces:
+                interface_id = interface.get('interface_id')
+                is_mgt = interface_id == primary_mgt
+                is_backup = interface_id == backup_mgt
+                is_auth_request = interface_id == auth_request
+                
+                for node in _interface.get('nodes', []):
+                    node.update(primary_mgt=is_mgt, backup_mgt=is_backup, auth_request=is_auth_request)
+                    sni = SingleNodeInterface.create(interface_id, **node)
+                    sub_interface.setdefault('interfaces', []).append(
+                            {sni.typeof: sni.data})
+
+            base_interface.setdefault('port_group_interface', []).append(sub_interface)
+    
+    def update_interface(self, other_interface, ignore_mgmt=True):
+        """
+        Update a switch physical interface with another interface. You can provide
+        only partial interface data, for example, if you have an existing port group
+        and you want to add additional ports. Or if you want to change the zone
+        assigned to a single port group. There is nothing that can be modified on
+        the top level switch interface itself, only the nested port groups.
+        
+        :param SwitchPhysicalInterface other_interface: interface to use for
+            modifications
+        :param bool ignore_mgmt: ignore management settings
+        """
+        updated = False
+        for port_group in other_interface.port_group_interface:
+            try:
+                this_port_group = self.port_group_interface.get(port_group.interface_id)
+                if port_group != this_port_group:
+                    print("Not equal: %s" % this_port_group)
+            except InterfaceNotFound:
+                print("Create the interface because it doesnt exist: %s" % port_group.interface_id)
+            
+            
+    @property
+    def appliance_switch_module(self):
+        """
+        Return the appliance module used for this switch physical interface.
+        
+        :rtype: ApplianceSwitchModule
+        """
+        return ApplianceSwitchModule.from_href(self.data.get(
+            'switch_physical_interface_switch_module_ref'))
+          
+    @property
+    def port_group_interface(self):
+        """
+        The associated port group interfaces for this switch physical
+        interface.
+        
+        :rtype: PortGroupInterfaceCollection(PortGroupInterface)
+        """
+        return PortGroupInterfaceCollection(self)
+
+    
 class PhysicalInterface(Interface):
     """
     Physical Interfaces on NGFW. This represents the following base configuration for
@@ -1029,6 +1138,13 @@ class PhysicalInterface(Interface):
                 backup_mgt=interface.pop('backup_mgt', None),
                 primary_heartbeat=interface.pop('primary_heartbeat', None),
                 backup_heartbeat=interface.pop('backup_heartbeat', None))
+            
+            auth_request = interface.pop('auth_request', None)
+            if auth_request is not None:
+                mgt.update(auth_request=auth_request)
+            else:
+                mgt.update(auth_request=mgt.get('primary_mgt'))
+            
             self.data = ElementCache()
             self.data.update(
                 interface_id=interface.get('interface_id'),
@@ -1522,7 +1638,8 @@ class Layer3PhysicalInterface(PhysicalInterface):
                 _node = if_mgt.copy() # Each node should be treated independently
                 _node.update(
                     outgoing=True if if_mgt.get('primary_mgt') else False,
-                    auth_request=True if if_mgt.get('primary_mgt') else False)
+                    #auth_request=True if if_mgt.get('primary_mgt') else False)
+                    auth_request=if_mgt.get('auth_request', False))
                 # Add node specific key/value pairs set on the node. This can
                 # also be used to override management settings
                 _node.update(node)
@@ -1649,13 +1766,14 @@ class ClusterPhysicalInterface(PhysicalInterface):
             _interface = []
             if_mgt = {k: str(v) == str(_interface_id) for k, v in mgt.items()}
             
+            # Auth_request sits on CVI unless there is no CVI
             if 'cluster_virtual' in interface and 'network_value' in interface:
                 cluster_virtual = interface.pop('cluster_virtual')
                 network_value = interface.pop('network_value')
                 if cluster_virtual and network_value:
                     cvi = ClusterVirtualInterface.create(
                         _interface_id, cluster_virtual, network_value,
-                        auth_request=True if if_mgt.get('primary_mgt') else False)
+                        auth_request=if_mgt.pop('auth_request', False))
                       
                     _interface.append({cvi.typeof: cvi.data})
     
@@ -1722,8 +1840,62 @@ class ClusterPhysicalInterface(PhysicalInterface):
     def __str__(self):
         return '{}(name={})'.format(self.__class__.__name__, self.name
             if self.name else 'Interface %s' % self.interface_id)
+    
 
+class VirtualPhysicalInterface(Layer3PhysicalInterface):
+    """
+    VirtualPhysicalInterface
+    This interface type is used by virtual engines and has subtle differences
+    to a normal interface. For a VE in layer 3 firewall, it also specifies a
+    Single Node Interface as the physical interface sub-type.
+    When creating the VE, one of the interfaces must be designated as the source
+    for Auth Requests and Outgoing.
+    """
+    typeof = 'virtual_physical_interface'
+    
 
+class PortGroupInterface(object):
+    """
+    A PortGroupInterface is a group of ports associated with a switch physical
+    interface. Port group interfaces can have IP addresses assigned and treated
+    like normal interfaces or can be grouped as normal switch ports.
+    
+    This class inherits from Interface and is generated dynamically by the
+    collection.
+    """
+    def __eq__(self, other):
+        """
+        Compare two port group interfaces
+        """
+        if len(self.switch_physical_interface_port) != len(
+            other.switch_physical_interface_port):
+            return False
+        
+#         for this, that in zip(self.switch_physical_interface_port,
+#                 other.switch_physical_interface_port):
+#             print this, that
+#         ports = zip(self.switch_physical_interface_port, 
+#             other.switch_physical_interface_port)
+#         print(ports)
+#         print(any(x != y for x, y in ports))
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    @property
+    def switch_physical_interface_port(self):
+        """
+        Return a raw dict of the switch port configuration which is a list of
+        dict with a comment field and interface port number, i.e::
+            
+            [{'switch_physical_interface_port_comment': 'some comment',
+              'switch_physical_interface_port_number': 0}]
+        
+        :rtype: dict
+        """
+        return self.data.get('switch_physical_interface_port', [])
+    
+    
 class VlanInterface(object):
     """
     VlanInterface is a dynamic class generated by collections referencing
@@ -1796,17 +1968,7 @@ class VlanInterface(object):
         self.update()
 
 
-class VirtualPhysicalInterface(Layer3PhysicalInterface):
-    """
-    VirtualPhysicalInterface
-    This interface type is used by virtual engines and has subtle differences
-    to a normal interface. For a VE in layer 3 firewall, it also specifies a
-    Single Node Interface as the physical interface sub-type.
-    When creating the VE, one of the interfaces must be designated as the source
-    for Auth Requests and Outgoing.
-    """
-    typeof = 'virtual_physical_interface'
-
+#### Collections ####
 
 class AllInterfaces(BaseIterable):
     """
@@ -1934,6 +2096,39 @@ class VlanCollection(BaseIterable):
                     return item
                 
 
+class PortGroupInterfaceCollection(BaseIterable):
+    """
+    A port group interface collection tracks all port groups defined under a
+    switch physical interface.
+    This collection returns a list of PortGroupInterface definitions which
+    have an MRO of Interface -> PortGroupInterface
+    
+    :rtype: PortGroupInterface(Interface)
+    """
+    def __init__(self, interface):
+        data = [type('PortGroupInterface', (PortGroupInterface, Interface,), {
+            'data': ElementCache(port_interface), '_parent': interface})()
+            for port_interface in interface.data.get('port_group_interface', [])]
+        super(PortGroupInterfaceCollection, self).__init__(data)
+        
+    def get(self, interface_id):
+        """
+        Get a specific port group interface from the collection. Port group names
+        will be in the format::
+        
+            SWP_0.1
+            
+        Where 0 indicates the switch physical interface number (i.e. the hardware
+        switch module) and 1 is the port group number.
+        
+        """
+        for port_group_interface in self:
+            if interface_id == port_group_interface.interface_id:
+                return port_group_interface
+        raise InterfaceNotFound('Port Group {} was not found on this engine.'
+            .format(interface_id))
+        
+        
 class InterfaceEditor(object):
     def __init__(self, engine):
         self.engine = engine

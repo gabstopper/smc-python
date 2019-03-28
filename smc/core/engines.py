@@ -1,5 +1,5 @@
 from smc.core.interfaces import ClusterPhysicalInterface, TunnelInterface,\
-    Layer3PhysicalInterface, Layer2PhysicalInterface
+    Layer3PhysicalInterface, Layer2PhysicalInterface, SwitchPhysicalInterface
 from smc.core.sub_interfaces import LoopbackInterface
 from smc.core.engine import Engine
 from smc.api.exceptions import CreateEngineFailed, CreateElementFailed,\
@@ -20,7 +20,7 @@ class Layer3Firewall(Engine):
     @classmethod
     def create_bulk(cls, name, interfaces=None,
                    primary_mgt=None, backup_mgt=None,
-                   log_server_ref=None,
+                   auth_request=None, log_server_ref=None,
                    domain_server_address=None,
                    location_ref=None, default_nat=False,
                    enable_antivirus=False, enable_gti=False,
@@ -54,6 +54,31 @@ class Layer3Firewall(Engine):
                  'interfaces': [{'nodes': [{'address': '10.10.10.1', 'network_value': '10.10.10.0/24'}]}],
                  'type': 'tunnel_interface'}]
         
+        Sample of creating a simple two interface firewall::
+        
+            firewall_def = {
+                'name': 'firewall',
+                'domain_server_address': ['192.168.122.1'],
+                'primary_mgt': 0,
+                'interfaces': [
+                    {'interface_id': 0,
+                     'interfaces': [{'nodes': [{'address': '192.168.122.100', 'network_value': '192.168.122.0/24', 'auth_request': False}]}
+                                    ]
+                     },
+                    {'interface_id': 1,
+                     'interfaces': [{'nodes': [{'address': '10.0.0.254', 'network_value': '10.0.0.0/24', 'auth_request': True}]}
+                                    ]
+                     }
+                ]
+            }
+            fw = Layer3Firewall.create_bulk(**firewall_def)
+        
+        .. note:: You can set primary_mgt, backup_mgt, outgoing, and auth_request within the
+            interface definition itself to specify interface options. If provided in the constructor,
+            this will be passed to the interface creation factory. You should use one or the other
+            method, not both.
+        
+        See :class:`smc.core.interfaces.Layer3PhysicalInterface` for more advanced examples
         """
         physical_interfaces = []
         for interface in interfaces:
@@ -64,10 +89,15 @@ class Layer3Firewall(Engine):
                 tunnel_interface = TunnelInterface(**interface)
                 physical_interfaces.append(
                     {'tunnel_interface': tunnel_interface})
+            elif interface.get('type', None) == 'switch_physical_interface':
+                physical_interfaces.append(
+                    {'switch_physical_interface': SwitchPhysicalInterface(
+                        primary_mgt=primary_mgt, backup_mgt=backup_mgt,
+                        auth_request=auth_request, **interface)})
             else:
                 interface.update(interface='single_node_interface')
                 interface = Layer3PhysicalInterface(primary_mgt=primary_mgt,
-                    backup_mgt=backup_mgt, **interface)
+                      backup_mgt=backup_mgt, auth_request=auth_request, **interface)
                 physical_interfaces.append(
                     {'physical_interface': interface})
 
@@ -98,7 +128,7 @@ class Layer3Firewall(Engine):
                 ospf_profile=ospf_profile,
                 snmp_agent=snmp_agent if snmp else None,
                 comment=comment)
-            
+
             return ElementCreator(cls, json=engine)
         
         except (ElementNotFound, CreateElementFailed) as e:
@@ -498,6 +528,9 @@ class FirewallCluster(Engine):
             default_nat=False, enable_antivirus=False, enable_gti=False, comment=None,
             snmp=None, **kw):
         """
+        Create bulk is called by the `create` constructor when creating a cluster FW.
+        This allows for multiple interfaces to be defined and passed in during element
+        creation.
         
         :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
             `snmp_interface` which is a list of interface IDs, and optionally `snmp_location` which

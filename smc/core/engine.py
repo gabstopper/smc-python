@@ -8,7 +8,7 @@ from smc.core.resource import Snapshot, PendingChanges
 from smc.core.interfaces import InterfaceOptions, PhysicalInterface
 from smc.core.collection import InterfaceCollection, LoopbackCollection,\
     PhysicalInterfaceCollection, TunnelInterfaceCollection,\
-    VirtualPhysicalInterfaceCollection
+    VirtualPhysicalInterfaceCollection, SwitchInterfaceCollection
 from smc.administration.tasks import Task
 from smc.elements.other import prepare_blacklist
 from smc.elements.network import Alias
@@ -974,15 +974,26 @@ class Engine(Element):
     def switch_physical_interface(self):
         """
         Get only switch physical interfaces for this engine node.
-
-        :raises UnsupportedInterfaceType: wireless interfaces are only
-            supported on layer 3 engines
+        This is an iterable property::
+        
+            for interface in engine.switch_physical_interface:
+                ...
+        
+        Or you can fetch a switch port interface/module directly
+        by using the generic interface property::
+        
+            engine.interface.get('SWP_0')
+        
+        Or through this property directly::
+        
+            engine.switch_physical_interface.get('SWP_0')
+        
+        :raises UnsupportedInterfaceType: switch interfaces are only
+            supported on specific firewall models
         :return: list of dict entries with href,name,type, or None
         """
-        return self.make_request(
-            UnsupportedInterfaceType,
-            resource='switch_physical_interface')
-    
+        return SwitchInterfaceCollection(self)
+        
     def add_interface(self, interface):
         """
         Add interface is a lower level option to adding interfaces directly

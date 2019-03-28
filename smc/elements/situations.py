@@ -244,6 +244,7 @@ class Situation(Element):
     Situation defines a common interface for inspection and correlated
     situations.
     """
+    typeof = 'situations'
     situation_context = ElementRef('situation_context_ref')
     
     @property
@@ -372,7 +373,6 @@ class InspectionSituation(Situation):
             'expression as a context value.')
 
     def add_parameter_value(self, resource, **value):
-        print(resource, value)
         return self.make_request(
             CreateElementFailed,
             method='create', 
@@ -380,7 +380,7 @@ class InspectionSituation(Situation):
             json=value)
     
     def find_vulnerabilities(self):
-        pass
+        pass # Not yet implemented
         
     @property
     def vulnerability_references(self):
@@ -404,8 +404,8 @@ class CorrelationSituation(Situation):
     """
     typeof = 'correlation_situation'
     
-    @classmethod
-    def create(cls):
-        pass
+#     @classmethod
+#     def create(cls, **kw):
+#         return ElementCreator(json=kw)
     
 
