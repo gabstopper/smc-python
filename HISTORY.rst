@@ -169,7 +169,9 @@ Release History
 
 - Add validate flag to all rule creation parameters and update parameters. Validate=False will circumvent validating
   the inspection policy during rule creation, making add operations faster when bulk loading rules
-
+- SwitchPhysicalInterface implemented
+- VPNProfile implemented
+- VPN Mobile Gateways for Policy VPN
  
 
  

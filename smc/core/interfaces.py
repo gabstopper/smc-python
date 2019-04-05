@@ -41,6 +41,7 @@ from smc.elements.network import Zone
 from smc.base.structs import BaseIterable
 from smc.policy.qos import QoSPolicy
 from smc.core.hardware import ApplianceSwitchModule
+from smc.base.util import is_subdict
 
 
 class InterfaceOptions(object):
@@ -807,6 +808,7 @@ class Interface(SubElement):
                     current.data.setdefault('interfaces', []).append(
                         {interface.typeof: interface.data})
                     updated = True
+
             return updated, invalid_routes
 
         # Handle VLANs
@@ -833,13 +835,13 @@ class Interface(SubElement):
             _updated, routes = process_interfaces(self, other_interface)
             if _updated: updated = True
             invalid_routes.extend(routes)
-            
+        
         interface = self
         if updated or base_updated:
             interface = self.update()
             if invalid_routes: # Interface updated, check the routes
                 del_invalid_routes(self._engine, invalid_routes)
-            
+           
         return interface, base_updated or updated
 
     @property
@@ -997,6 +999,38 @@ class SwitchPhysicalInterface(Interface):
     spec sheets to determine if your physical appliance currently supports
     this module
     
+    Represents a routed layer 3 interface on an any engine type.
+    
+    Example interface::
+    
+        {'interface_id': u'SWP_0.1',
+         'interfaces': [{'nodes': [{'dynamic': True,
+                                    'dynamic_index': 2}]}],
+         'switch_physical_interface_port': [{u'switch_physical_interface_port_comment': u'',
+                                             u'switch_physical_interface_port_number': 0}],
+         'zone_ref': u'External'},
+        {'interface_id': u'SWP_0.2',
+         'interfaces': [{'nodes': [{'dynamic': True,
+                                    'dynamic_index': 3}]}],
+         'switch_physical_interface_port': [{u'switch_physical_interface_port_comment': u'',
+                                             u'switch_physical_interface_port_number': 1}],
+         'zone_ref': u'External'},
+        {'interface_id': u'SWP_0.3',
+         'interfaces': [{'nodes': [{'dynamic': True,
+                                    'dynamic_index': 4}]}],
+         'switch_physical_interface_port': [{u'switch_physical_interface_port_comment': u'',
+                                             u'switch_physical_interface_port_number': 3}],
+         'zone_ref': u'External'},
+        {'interface_id': u'SWP_0.4',
+         'switch_physical_interface_port': [{u'switch_physical_interface_port_comment': u'port 2',
+                                             u'switch_physical_interface_port_number': 2},
+                                            {u'switch_physical_interface_port_comment': u'',
+                                             u'switch_physical_interface_port_number': 4},
+                                            {u'switch_physical_interface_port_comment': u'',
+                                             u'switch_physical_interface_port_number': 5},
+                                            {u'switch_physical_interface_port_comment': u'',
+                                             u'switch_physical_interface_port_number': 6}]}
+                                                                       
     :ivar ApplianceSwitchModule switch_physical_module: appliance module type
     """
     typeof = 'switch_physical_interface'
@@ -1017,10 +1051,11 @@ class SwitchPhysicalInterface(Interface):
         port_group_interfaces = kw.pop('port_group_interface', [])
         # Clustering not supported on switch interfaces therefore no
         # need for primary/secondary heartbeat
-        primary_mgt = kw.pop('primary_mgt', None)
-        backup_mgt = kw.pop('backup_mgt', None)
-        auth_request = kw.pop('auth_request', None)
-
+        mgt = dict( 
+            primary_mgt = kw.pop('primary_mgt', None),
+            backup_mgt = kw.pop('backup_mgt', None),
+            auth_request = kw.pop('auth_request', None))
+        
         # Everything else is top level
         base_interface = ElementCache()
         
@@ -1043,13 +1078,12 @@ class SwitchPhysicalInterface(Interface):
             
             for _interface in interfaces:
                 interface_id = interface.get('interface_id')
-                is_mgt = interface_id == primary_mgt
-                is_backup = interface_id == backup_mgt
-                is_auth_request = interface_id == auth_request
-                
+                if_mgt = {k: str(v) == str(interface_id) for k, v in mgt.items()}
+
                 for node in _interface.get('nodes', []):
-                    node.update(primary_mgt=is_mgt, backup_mgt=is_backup, auth_request=is_auth_request)
-                    sni = SingleNodeInterface.create(interface_id, **node)
+                    _node = if_mgt.copy()
+                    _node.update(node) # Override management if set within interface
+                    sni = SingleNodeInterface.create(interface_id, **_node)
                     sub_interface.setdefault('interfaces', []).append(
                             {sni.typeof: sni.data})
 
@@ -1063,20 +1097,81 @@ class SwitchPhysicalInterface(Interface):
         assigned to a single port group. There is nothing that can be modified on
         the top level switch interface itself, only the nested port groups.
         
+        If the intent is to delete a port_group, retrieve the port group interface
+        and call delete().
+        
         :param SwitchPhysicalInterface other_interface: interface to use for
             modifications
         :param bool ignore_mgmt: ignore management settings
         """
         updated = False
-        for port_group in other_interface.port_group_interface:
+        invalid_routes = []
+        
+        mgmt = ('auth_request', 'backup_mgt', 'primary_mgt', 'outgoing')
+        
+        for other in other_interface.port_group_interface:
             try:
-                this_port_group = self.port_group_interface.get(port_group.interface_id)
-                if port_group != this_port_group:
-                    print("Not equal: %s" % this_port_group)
+                this = self.port_group_interface.get(other.interface_id)
+                if len(this.switch_physical_interface_port) != len(
+                    other.switch_physical_interface_port):
+                    this.data.update(switch_physical_interface_port=other.switch_physical_interface_port)
+                    updated = True
+                
+                if this.zone_ref != other.zone_ref: # Zone compare
+                    this.zone_ref = other.zone_ref
+                    updated = True
+                
+                # Are port groups and comments alike. Switch port count matches, but value/s
+                # within the existing changed so take new setting
+                val = ('switch_physical_interface_port_number', 
+                       'switch_physical_interface_port_comment')
+                
+                if set(
+                        [(d.get(val[0]),d.get(val[1])) for d in this.switch_physical_interface_port]) ^ \
+                    set(
+                        [(d.get(val[0]),d.get(val[1])) for d in other.switch_physical_interface_port]):
+                    
+                    this.data.update(switch_physical_interface_port=other.switch_physical_interface_port)
+                    updated = True
+                
+                # If there is more than 1 interfaces (IP's assigned) on any given
+                # interface, update. Or update if interface counts differ.
+                if len(this.interfaces) != len(other.interfaces) or \
+                    len(this.interfaces) > 1 or len(other.interfaces) > 1:
+                    this.data.update(interfaces=[{sni.typeof: sni} for sni in other.interfaces])
+                    invalid_routes.append(this)
+                    updated = True
+                else:
+                    for interface in this.interfaces:
+                        for _other in other.interfaces:
+                            # SMC-20479; cannot change from dynamic to static
+                            # Dynamic to address or address to dynamic
+                            #if getattr(_other, 'dynamic', None) and getattr(interface, 'address', None):
+                            #    interface.pop('address')
+                            #    interface.pop('network_value') 
+                            #if getattr(_other, 'address', None) and getattr(interface, 'dynamic', None):
+                            #    interface.pop('dynamic_index')
+                            for name, value in _other.data.items():
+                                if getattr(interface, name) != value:
+                                    if ignore_mgmt and name in mgmt:
+                                        pass
+                                    else:
+                                        interface[name] = value
+                                        updated = True
+                                        invalid_routes.append(this)
+                
             except InterfaceNotFound:
-                print("Create the interface because it doesnt exist: %s" % port_group.interface_id)
+                self.data.setdefault('port_group_interface', []).append(other)
+                updated = True
+                
+        if updated:
+            self.update()
+        
+        for interface in invalid_routes:
+            del_invalid_routes(self._engine, interface.interface_id)
             
-            
+        return self, updated  
+      
     @property
     def appliance_switch_module(self):
         """
@@ -1638,7 +1733,6 @@ class Layer3PhysicalInterface(PhysicalInterface):
                 _node = if_mgt.copy() # Each node should be treated independently
                 _node.update(
                     outgoing=True if if_mgt.get('primary_mgt') else False,
-                    #auth_request=True if if_mgt.get('primary_mgt') else False)
                     auth_request=if_mgt.get('auth_request', False))
                 # Add node specific key/value pairs set on the node. This can
                 # also be used to override management settings
@@ -1862,26 +1956,13 @@ class PortGroupInterface(object):
     
     This class inherits from Interface and is generated dynamically by the
     collection.
+    Retrieve a port group interface by reference to the switch::
+    
+        engine = Engine('azure')
+        switch = engine.interface.get('SWP_0')
+        for port_group in switch.port_group_interface:
+            ...
     """
-    def __eq__(self, other):
-        """
-        Compare two port group interfaces
-        """
-        if len(self.switch_physical_interface_port) != len(
-            other.switch_physical_interface_port):
-            return False
-        
-#         for this, that in zip(self.switch_physical_interface_port,
-#                 other.switch_physical_interface_port):
-#             print this, that
-#         ports = zip(self.switch_physical_interface_port, 
-#             other.switch_physical_interface_port)
-#         print(ports)
-#         print(any(x != y for x, y in ports))
-    
-    def __ne__(self, other):
-        return not self.__eq__(other)
-    
     @property
     def switch_physical_interface_port(self):
         """

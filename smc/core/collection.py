@@ -58,8 +58,7 @@ Example of creating a VirtualPhysicalInterface for a virtual engine manually::
 Pass this to update_or_create in the event that you want to potentially modify an existing
 interface should the same interface ID exist::
 
-    engine.virtual_physical_interface.update_or_create(
-        vinterface)
+    engine.virtual_physical_interface.update_or_create(vinterface)
 
 Or create a new interface (this will fail if the interface exists)::
 
@@ -98,7 +97,8 @@ booleans indicating the operations performed::
 """
 from smc.core.interfaces import TunnelInterface, \
    InterfaceEditor, Layer3PhysicalInterface,\
-    ClusterPhysicalInterface, Layer2PhysicalInterface, VirtualPhysicalInterface
+    ClusterPhysicalInterface, Layer2PhysicalInterface, VirtualPhysicalInterface,\
+    SwitchPhysicalInterface
 from smc.core.sub_interfaces import LoopbackClusterInterface, LoopbackInterface
 from smc.base.structs import BaseIterable
 from smc.api.exceptions import UnsupportedInterfaceType, InterfaceNotFound
@@ -283,7 +283,7 @@ class InterfaceCollection(BaseIterable):
         adds as necessary.
         
         :param Interface interface: an instance of an interface type, either
-            PhysicalInterface or TunnelInterface
+            PhysicalInterface, TunnelInterface or SwitchPhysicalInterface
         :raises EngineCommandFailed: Failed to create new interface
         :raises UpdateElementFailed: Failure to update element with reason
         :rtype: tuple
@@ -348,10 +348,54 @@ class SwitchInterfaceCollection(InterfaceCollection):
         :param str comment: optional comment
         :param dict kwargs: optional kwargs conforming to the port group dict
             format if port groups need to be created
+        :raises EngineCommandFailed: failure during creation
+        :return: None
         """
-        pass
+        interface = SwitchPhysicalInterface(engine=self._engine,
+            interface_id=interface_id, appliance_switch_module=appliance_switch_module,
+            comment=comment, **kwargs)
+        self._engine.add_interface(interface)
+    
+    def add_port_group_interface(self, interface_id, port_group_id, interface_ports,
+                interfaces=None, zone_ref=None):
+        """
+        Add a port group to an existing switch physical interface. If the switch
+        port should have an address assigned, use the following format::
+        
+            engine.switch_physical_interface.add_port_group_interface('SWP_1', 1, [1],
+                    interfaces=[{'nodes': [{'address': '12.12.12.12',
+                                            'network_value': '12.12.12.0/24',
+                                            'nodeid': 1}]}])
+        
+        To create a generic switch port group without IP addresses assigned with port
+        group ID 1 and using physical port numbers 2,3,4,5::
+        
+            engine.switch_physical_interface.add_port_group_interface('SWP_1', 1, [2,3,4,5])
+        
+        .. note:: If the port group ID exists, this method will modify the existing port
+            group with the specified settings
+        
+        :param str interface_id: The top level switch, naming convention should be
+            SWP_0, SWP_1, etc.
+        :param int port_group_id: Port group number encapsulating switch port/s
+        :param list interface_ports: list of interface ports to add to this port
+            group. If the port group.
+        :param list interfaces: list of interface node definitions if the switch port
+            should have IP address/es assigned
+        :param str zone_ref: zone reference, can be name, href or Zone, will be
+            created if it doesn't exist
+        :raises InterfaceNotFound: invalid switch interface_id specified
+        :return: None
+        """
+        switch = self._engine.interface.get(interface_id)
+        switch_port = {'interface_id': '{}.{}'.format(switch.interface_id, port_group_id),
+            'switch_physical_interface_port': [{'switch_physical_interface_port_number': port} 
+                for port in interface_ports], 'zone_ref': zone_ref}
+        switch_port.update(interfaces=interfaces if interfaces else [])
+        interface = {'interface_id': switch.interface_id, 'port_group_interface': [switch_port]}
+        switch.update_interface(SwitchPhysicalInterface(**interface))
 
-
+        
 class TunnelInterfaceCollection(InterfaceCollection):
     """
     TunnelInterface Collection provides an interface to retrieving existing
@@ -396,6 +440,8 @@ class TunnelInterfaceCollection(InterfaceCollection):
         :param list nodes: nodes for clustered engine with address,network_value,nodeid
         :param str zone_ref: zone reference, can be name, href or Zone
         :param str comment: optional comment
+        :raises EngineCommandFailed: failure during creation
+        :return: None
         """
         interfaces = [{'cluster_virtual': cluster_virtual, 'network_value': network_value,
                        'nodes': nodes if nodes else []}]

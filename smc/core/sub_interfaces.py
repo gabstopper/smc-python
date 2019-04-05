@@ -402,6 +402,9 @@ class NodeInterface(SubInterface):
         if self.vlan_id:
             return '{0}(address={1}, vlan_id={2})'.format(
                 self.__class__.__name__, self.address, self.vlan_id)
+        elif self.dynamic_index:
+            return '{0}(address=DHCP, dynamic_index={1})'.format(
+                self.__class__.__name__, self.dynamic_index)
         else:
             return '{0}(address={1})'.format(
                 self.__class__.__name__, self.address)

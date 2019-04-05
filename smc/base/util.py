@@ -131,6 +131,19 @@ def merge_dicts(dict1, dict2, append_lists=False):
             dict1[key] = dict2[key]  # Overwrite list or scalar
 
 
+def is_subdict(small, big):
+    """
+    Check if one dict is a subset of another with matching keys and values.
+    Used for 'flat' dictionary comparisons such as in comparing interface
+    settings. This should work on both python 2 and 3.
+    
+    See: https://docs.python.org/2/reference/expressions.html#value-comparisons
+    
+    :rtype: bool
+    """
+    return dict(big, **small) == big
+    
+    
 def unicode_to_bytes(s, encoding='utf-8', errors='replace'):
     """
     Helper to convert unicode strings to bytes for data that needs to be

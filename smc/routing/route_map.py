@@ -215,22 +215,7 @@ class MatchCondition(object):
     def __repr__(self):
         return 'MatchCondition(entries={})'.format(
             len(self.conditions))
- 
 
-def RouteEntrySettings():
-    return {'route_entry_settings': 
-                {u'as_number': [],
-                 u'as_path_type': u'dont_modify',
-                 u'community_number': [],
-                 u'community_type': u'dont_modify',
-                 u'extended_community_entry_type': u'rt',
-                 u'extended_community_number': [],
-                 u'extended_community_type': u'dont_modify',
-                 u'ipv4_next_hop': {u'next_hop_peer_address': False},
-                 u'ipv6_global_next_hop': {u'next_hop_peer_address': False},
-                 u'ipv6_local_next_hop': {u'next_hop_peer_address': False}
-                }
-            }
            
 class RouteMapRule(RuleCommon, SubElement):
     """

@@ -164,6 +164,10 @@ class ElementCache(NestedDict):
         ETag can be None if a subset of element json is using
         this container, such as the case with Routing.
         """
+#         if self and (self.get('etag', None) or self._etag):
+#             return self.get('etag') or self._etag # Prefer etag from element
+#         self._etag = LoadElement(href, only_etag=True)
+#         return self._etag
         if self and self._etag is None:
             self._etag = LoadElement(href, only_etag=True)
         return self._etag

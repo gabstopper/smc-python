@@ -155,6 +155,7 @@ class PolicyVPN(Element):
             PolicyCommandFailed,
             method='create',
             resource='save')
+        self._del_cache()
 
     def close(self):
         """
@@ -174,11 +175,10 @@ class PolicyVPN(Element):
         Return a validation string from the SMC after running validate on
         this VPN policy.
         
-        :return: status as string
-        :rtype: str
+        :return: status as dict
+        :rtype: dict
         """
-        return self.make_request(
-            resource='validate').get('value')
+        return self.make_request(resource='validate')
 
     @property
     def mobile_vpn_topology(self):
@@ -189,54 +189,51 @@ class PolicyVPN(Element):
         """
         return self.data.get('mobile_vpn_topology_mode')
     
-#     @mobile_vpn_topology.setter
-#     def mobile_vpn_topology(self, value):
-#         self.data.update(mobile_vpn_topology_mode=value)
-    
-#     @mobile_vpn_topology.setter
-#     def mobile_vpn_topology(self, value):
-#         self.update(mobile_vpn_topology_mode=value)
-#         if self.mobile_vpn_topology == 'None' and value.startswith('Selected'):
-#             self.update(mobile_vpn_topology='Selected Gateways below')
-#             self.make_request(
-#                 PolicyCommandFailed,
-#                 method='create',
-#                 resource='mobile_gateway_node',
-#                 json={'gateway': ClientGateway('VPN Client').href,
-#                       'node_usage': 'mobile'})
-#         elif self.mobile_vpn_topology != value:
-#             self.update(mobile_vpn_topology_mode=value)
-    
-    def add_mobile_gateway(self, gateway):
+    def add_mobile_gateway(self, all_central_gateways=False, all_gateways=False,
+                           gateways=None):
         """
-        Add a mobile VPN gateway to this policy VPN. 
+        Add a mobile VPN gateway to this policy VPN. You can select all central
+        gateways, all gateways in overall topology or specify a list of gateways
+        to allow for mobile VPN.
+        
         Example of adding or removing a mobile VPN gateway::
         
             policy_vpn = PolicyVPN('myvpn')
+            policy_vpn.update(mobile_vpn_topology_mode='Selected Gateways below')
             policy_vpn.open()
-            policy_vpn.add_mobile_vpn_gateway(ExternalGateway('extgw3'))
             
-            for mobile_gateway in policy_vpn.mobile_gateway_node:
-                if mobile_gateway.gateway == ExternalGateway('extgw3'):
-                    mobile_gateway.delete()
+            policy_vpn.add_mobile_vpn_gateway(gateways=Engine('azure'))
+            
             policy_vpn.save()
             policy_vpn.close()
         
         :param Engine,ExternalGateway gateway: An external gateway, engine or
             href for the mobile gateway
         :raises PolicyCommandFailed: could not add gateway
+        :rtype: None
         """
-        try:
-            gateway = gateway.vpn.internal_gateway.href # Engine
-        except AttributeError:
-            gateway = element_resolver(gateway) # External Gateway
+        if all_central_gateways:
+            self.update(mobile_vpn_topology_mode='Only central Gateways from overall topology')
+        elif all_gateways:
+            self.update(mobile_vpn_topology_mode='All Gateways from overall topology')
         
-        self.make_request(
-            PolicyCommandFailed,
-            method='create',
-            resource='mobile_gateway_node',
-            json={'gateway': gateway,
-                  'node_usage': 'mobile'})
+        if gateways and self.mobile_vpn_topology != 'Selected Gateways below':
+            raise PolicyCommandFailed('You must first update the policy VPN with '
+                'the Selected Gateways below setting before adding members')
+        
+        if gateways:
+            try:
+                gateway = gateways.vpn.internal_gateway.href # Engine
+            except AttributeError:
+                raise PolicyCommandFailed('VPN endpoint does not appear to '
+                    'be a managed engine: %s' % gateways)
+
+            self.make_request(
+                PolicyCommandFailed,
+                method='create',
+                resource='mobile_gateway_node',
+                json={'gateway': gateway,
+                      'node_usage': 'mobile'})
 
     def add_central_gateway(self, gateway):
         """ 

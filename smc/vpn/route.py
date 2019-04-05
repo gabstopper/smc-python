@@ -404,6 +404,8 @@ class TunnelEndpoint(object):
         VPN. This is the InternalEndpoint property of the
         InternalGateway.
         
+        .. note:: This will only return a value if the tunnel type is GRE
+        
         :return: internal endpoint where VPN is enabled
         :rtype: InternalEndpoint,ExternalGateway
         """
