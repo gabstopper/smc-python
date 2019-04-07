@@ -320,7 +320,7 @@ if __name__ == '__main__':
     while True:
         response = exec_inspect(exec_id)
         if response.get('Running'):
-            time.sleep(5)
+            time.sleep(7)
         else:
             if response.get('ExitCode') == 0:
                 print("Completed command successfully, running image: %s" % smc['Image'])

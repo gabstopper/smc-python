@@ -41,7 +41,6 @@ from smc.elements.network import Zone
 from smc.base.structs import BaseIterable
 from smc.policy.qos import QoSPolicy
 from smc.core.hardware import ApplianceSwitchModule
-from smc.base.util import is_subdict
 
 
 class InterfaceOptions(object):
@@ -225,7 +224,7 @@ class InterfaceOptions(object):
             self.interface.set_auth_request(auth_request)
         else:
             self.interface.set_auth_request(interface_id, address)
-        
+
         self._engine.update()
         
     def set_backup_mgt(self, interface_id):
@@ -457,7 +456,7 @@ class Interface(SubElement):
         :rtype: BaseIterable(AllInterfaces)
         """
         return AllInterfaces([
-            self.vlan_interface, self.interfaces])
+            self.vlan_interface, self.interfaces, self.port_group_interface])
     
     @property
     def interfaces(self):
@@ -500,7 +499,17 @@ class Interface(SubElement):
         :rtype: BaseIterable(VlanInterface)
         """
         return VlanCollection(self)
-
+    
+    @property
+    def port_group_interface(self):
+        """
+        The associated port group interfaces for this switch physical
+        interface.
+        
+        :rtype: PortGroupInterfaceCollection(PortGroupInterface)
+        """
+        return PortGroupInterfaceCollection(self)
+    
     @property
     def addresses(self):
         """
@@ -595,7 +604,7 @@ class Interface(SubElement):
         interfaces = self.all_interfaces
         sub_interfaces = []
         for interface in interfaces:
-            if isinstance(interface, VlanInterface):
+            if isinstance(interface, (VlanInterface, PortGroupInterface)):
                 if interface.has_interfaces:
                     for subaddr in interface.interfaces:
                         sub_interfaces.append(subaddr)
@@ -1111,7 +1120,7 @@ class SwitchPhysicalInterface(Interface):
         
         for other in other_interface.port_group_interface:
             try:
-                this = self.port_group_interface.get(other.interface_id)
+                this = self.port_group_interface.get(other.interface_id, raise_exc=True)
                 if len(this.switch_physical_interface_port) != len(
                     other.switch_physical_interface_port):
                     this.data.update(switch_physical_interface_port=other.switch_physical_interface_port)
@@ -1181,16 +1190,6 @@ class SwitchPhysicalInterface(Interface):
         """
         return ApplianceSwitchModule.from_href(self.data.get(
             'switch_physical_interface_switch_module_ref'))
-          
-    @property
-    def port_group_interface(self):
-        """
-        The associated port group interfaces for this switch physical
-        interface.
-        
-        :rtype: PortGroupInterfaceCollection(PortGroupInterface)
-        """
-        return PortGroupInterfaceCollection(self)
 
     
 class PhysicalInterface(Interface):
@@ -2191,23 +2190,36 @@ class PortGroupInterfaceCollection(BaseIterable):
             'data': ElementCache(port_interface), '_parent': interface})()
             for port_interface in interface.data.get('port_group_interface', [])]
         super(PortGroupInterfaceCollection, self).__init__(data)
-        
-    def get(self, interface_id):
+    
+    def get(self, *args, **kwargs):
         """
         Get a specific port group interface from the collection. Port group names
         will be in the format::
-        
+         
             SWP_0.1
-            
+             
         Where 0 indicates the switch physical interface number (i.e. the hardware
         switch module) and 1 is the port group number.
+        Optionally provide kwargs to find an interface by a specific sub interface
+        attribute, i.e. address='13.13.13.13'.
         
+        :param str args: name of the portgroup to retrieve, i.e. 'SWP_0.1'
+        :param kwargs: key value for fetch, i.e. address='1.1.1.1'
+        :rtype: PortGroupInterface or None
         """
-        for port_group_interface in self:
-            if interface_id == port_group_interface.interface_id:
-                return port_group_interface
-        raise InterfaceNotFound('Port Group {} was not found on this engine.'
-            .format(interface_id))
+        intf = args[0] if args else None
+        raise_exc = kwargs.pop('raise_exc', False)
+        key = next(iter(kwargs)) if kwargs else None
+        for item in self:
+            if intf and item.interface_id == intf:
+                return item
+            elif key:
+                for sub_interface in item.sub_interfaces():
+                    if getattr(sub_interface, key, None) == kwargs.get(key):
+                        return item
+        if raise_exc:
+            raise InterfaceNotFound('Port Group %s was not found on this engine.' % intf if intf else \
+                    'Port group does not exist on this engine')
         
         
 class InterfaceEditor(object):
@@ -2261,7 +2273,7 @@ class InterfaceEditor(object):
         """
         for intf in self:
             for allitf in intf.all_interfaces:
-                if isinstance(allitf, VlanInterface):
+                if isinstance(allitf, (VlanInterface, PortGroupInterface)):
                     for vlan in allitf.interfaces:
                         if getattr(vlan, mgmt, None):
                             return allitf.interface_id
@@ -2283,8 +2295,12 @@ class InterfaceEditor(object):
             if intf.interface_id == interface_id:
                 intf._engine = self.engine
                 return intf
-            else: # Check for inline interfaces
-                if '.' in interface_id:
+            else: # Check for switch interfaces
+                if 'SWP_' in interface_id and 'SWP_' in intf.interface_id:
+                    if '.' in interface_id:
+                        return intf.port_group_interface.get(interface_id, raise_exc=True)
+
+                elif '.' in interface_id: # Check for inline interfaces
                     # It's a VLAN interface
                     vlan = interface_id.split('.')
                     # Check that we're on the right interface
@@ -2328,8 +2344,8 @@ class InterfaceEditor(object):
         for interface in self:
             all_subs = interface.sub_interfaces()
             for sub_interface in all_subs:
-                # Skip VLAN only interfaces (no addresses)
-                if not isinstance(sub_interface, (VlanInterface, InlineInterface)):
+                # Skip top level VLAN and inline interfaces (they have no addresses)
+                if not isinstance(sub_interface, (VlanInterface, InlineInterface, PortGroupInterface)):
                     if getattr(sub_interface, attribute) is not None:
                         if sub_interface.nicid == str(interface_id):
                             if address is not None:

@@ -214,6 +214,10 @@ class InterfaceCollection(BaseIterable):
     
         engine.interface.get('SWP_0')
     
+    You can also get port groups directly similar to fetching VLANs::
+    
+        engine.switch_physical_interface.get('SWP_0.1')
+    
     Or use delegation to create interfaces::
         
         engine.physical_interface.add(2)
@@ -325,11 +329,15 @@ class SwitchInterfaceCollection(InterfaceCollection):
     
         engine.switch_physical_interface.get('SWP_0')
     
-    You can also get port_group_interfaces of a switch through a linked
-    collection::
+    You can also get port_group_interfaces directly::
+    
+        engine.switch_physical_interface.get('SWP_0.1')
+    
+    Or iterate through the port_group_interface collection::
     
         interface = engine.switch_physical_interface.get('SWP_0')
-        port_group = interface.port_group_interface.get('SWP_0.1')
+        for port_group in interface.port_group_interface:
+            ...
     """
     def __init__(self, engine):
         super(SwitchInterfaceCollection, self).__init__(engine, 'switch_physical_interface')
