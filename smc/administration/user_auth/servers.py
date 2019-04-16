@@ -141,7 +141,7 @@ class ActiveDirectoryServer(ContactAddressMixin, Element):
     def create(cls, name, address, base_dn, bind_user_id=None, bind_password=None,
         port=389, protocol='ldap', tls_profile=None, tls_identity=None,
         domain_controller=None, supported_method=None, timeout=10, max_search_result=0,
-        page_size=0, internet_auth_service_enabled=False, **kwargs):
+        page_size=0, internet_auth_service_enabled=False, retries=3, **kwargs):
         """
         Create an AD server element using basic settings. You can also provide additional
         kwargs documented in the class description::
@@ -193,7 +193,7 @@ class ActiveDirectoryServer(ContactAddressMixin, Element):
         json={'name': name, 'address': address, 'base_dn': base_dn,
               'bind_user_id': bind_user_id, 'bind_password': bind_password,
               'port': port, 'protocol': protocol, 'timeout': timeout,
-              'domain_controller': domain_controller or [],
+              'domain_controller': domain_controller or [], 'retries': retries,
               'max_search_result': max_search_result, 'page_size': page_size,
               'internet_auth_service_enabled': internet_auth_service_enabled,
               'supported_method': element_resolver(supported_method) or []}
@@ -211,8 +211,7 @@ class ActiveDirectoryServer(ContactAddressMixin, Element):
         if internet_auth_service_enabled:
             ias = {'auth_port': kwargs.pop('auth_port', 1812),
                    'auth_ipaddress': kwargs.pop('auth_ipaddress', ''),
-                   'shared_secret': kwargs.pop('shared_secret'),
-                   'retries': kwargs.pop('retries', 2)}
+                   'shared_secret': kwargs.pop('shared_secret')}
             json.update(ias)
         
         json.update(kwargs)

@@ -41,6 +41,7 @@ from smc.elements.network import Zone
 from smc.base.structs import BaseIterable
 from smc.policy.qos import QoSPolicy
 from smc.core.hardware import ApplianceSwitchModule
+from smc.base.util import element_default
 
 
 class InterfaceOptions(object):
@@ -1069,8 +1070,7 @@ class SwitchPhysicalInterface(Interface):
         base_interface = ElementCache()
         
         base_interface.update(switch_physical_interface_switch_module_ref=
-            getattr(ApplianceSwitchModule.objects.filter(
-                kw.pop('appliance_switch_module', None), exact_match=False).first(), 'href', None),
+            element_default(ApplianceSwitchModule, kw.pop('appliance_switch_module', None)),
             interface_id=interface_id, **kw)
 
         self.data = base_interface

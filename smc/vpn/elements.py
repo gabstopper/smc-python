@@ -46,7 +46,7 @@ configurations::
 from smc.api.exceptions import ElementNotFound
 from smc.base.model import SubElement, Element, ElementRef, ElementCreator
 from smc.base.collection import create_collection
-from smc.base.util import element_resolver
+from smc.base.util import element_resolver, element_default
 from smc.elements.helpers import location_helper
 from smc.base.structs import SerializedIterable
 from smc.elements.other import ContactAddress
@@ -136,18 +136,23 @@ class ExternalGateway(Element):
     gateway_profile = ElementRef('gateway_profile')
 
     @classmethod
-    def create(cls, name, trust_all_cas=True):
+    def create(cls, name, trust_all_cas=True, gateway_profile=None, **kwargs):
         """ 
         Create new External Gateway
 
         :param str name: name of test_external gateway
         :param bool trust_all_cas: whether to trust all internal CA's
                (default: True)
+        :param GatewayProfile,href gateway_profile: optional gateway profile, otherwise
+            default
         :return: instance with meta
         :rtype: ExternalGateway
         """
         json = {'name': name,
-                'trust_all_cas': trust_all_cas}
+                'trust_all_cas': trust_all_cas,
+                'gateway_profile': element_resolver(gateway_profile) if gateway_profile\
+                else element_default(GatewayProfile, 'Default'),
+                **kwargs}
 
         return ElementCreator(cls, json)
 

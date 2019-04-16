@@ -1436,7 +1436,18 @@ class InternalEndpoint(SubElement):
         ...
         InternalEndpoint(name=10.0.0.254)
         InternalEndpoint(name=172.18.1.254)
-
+    
+    You can also retrieve an internal endpoint directly and operate on it, for
+    example, enabling it as a VPN endpoint::
+    
+        engine = Engine('sg_vm')
+        my_interface = engine.vpn.internal_endpoint.get_exact('10.0.0.254')
+        my_interface.update(enabled=True)
+    
+    Multiple attributes can be updated by calling `update`::
+    
+        my_interface.update(enabled=True,ipsec_vpn=True,force_nat_t=True,ssl_vpn_portal=False,ssl_vpn_tunnel=False)
+    
     Available attributes:
 
     :ivar bool enabled: enable this interface as a VPN endpoint

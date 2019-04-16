@@ -103,6 +103,21 @@ def element_resolver(elements, do_raise=True):
             raise
 
 
+def element_default(clazz, default_name, exact_match=False):
+    """
+    Some element defaults are provided by SMC. Where they are not provided,
+    supply a simple mechanism to retrieve the default first match by
+    class and name
+    
+    :param Element clazz: must be of type Element
+    :param str default_name: name to search
+    :param bool exact_match: whether match can be fuzzy or exact
+    :return: the href of the element or None
+    """ 
+    return getattr(clazz.objects.filter(default_name, exact_match=exact_match)\
+        .first(), 'href', None)
+        
+
 def merge_dicts(dict1, dict2, append_lists=False):
     """
     Merge the second dict into the first

@@ -607,15 +607,18 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         return ElementCreator(cls, json)
 
     @classmethod
-    def create_self_signed(cls, name, prefix, password, public_key_algorithm='rsa',
-            life_time=365, key_length=2048):
+    def create_self_signed(cls, name, password, public_key_algorithm='rsa',
+            life_time=365, key_length=2048, **kwargs):
         """
+        .. versionchanged:: 0.7.0
+        
+            `prefix` argument deprecated in SMC > 6.5.1
+        
         Create a self signed client protection CA. To prevent browser warnings during
         decryption, you must trust the signing certificate in the client browsers.
         
         :param str name: Name of this ex: "SG Root CA" Used as Key.
             Real common name will be derivated at creation time with a uniqueId.
-        :param str prefix: prefix used for derivating file names
         :param str password: password for private key
         :param public_key_algorithm: public key algorithm, either rsa, dsa or ecdsa
         :param str,int life_time: lifetime in days for CA
@@ -625,11 +628,10 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         :rtype: ClientProtectionCA
         """
         json = {'key_name': name,
-                'prefix': prefix,
                 'password': password,
                 'life_time': life_time,
                 'key_size': key_length,
-                'algorithm': public_key_algorithm}
+                'algorithm': public_key_algorithm, **kwargs}
     
         tls = ClientProtectionCA.create(name)
         try:

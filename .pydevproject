@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <?eclipse-pydev version="1.0"?><pydev_project>
-<pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">python2.7</pydev_property>
-<pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 2.7</pydev_property>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">stonesoft-azure-venv351</pydev_property>
+<pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 3.5</pydev_property>
 <pydev_pathproperty name="org.python.pydev.PROJECT_SOURCE_PATH">
 <path>/${PROJECT_DIR_NAME}</path>
 </pydev_pathproperty>
@@ -9,6 +9,6 @@
 <path>/Users/davidlepage/git/smc-python/src</path>
 <path>/Users/davidlepage/git/smc-python/src/smc-monitoring</path>
 <path>/Users/davidlepage/Downloads/ptf</path>
-<path>/Users/davidlepage/git/smc-python/src/venv/lib/python2.7/site-packages/requests-2.18.4-py2.7.egg/requests</path>
+<path>/Users/davidlepage/git/stonesoft-azure/venv351/lib/python3.5/site-packages</path>
 </pydev_pathproperty>
 </pydev_project>

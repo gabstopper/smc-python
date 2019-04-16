@@ -69,6 +69,7 @@ Examples of rule operations::
     IPv4Rule(name=mylogrule) mylogrule allow
     IPv4Rule(name=discard at bottom) discard at bottom discard
 
+.. note:: SMC version >= 6.6.0 requires the use of a list of strings for rule actions
 """
 from smc.base.model import Element, SubElement, ElementCreator
 from smc.elements.other import LogicalInterface
@@ -436,7 +437,34 @@ class RuleCommon(object):
                     'Cannot find Logical interface specified '
                     ': {}'.format(logical_interfaces))
         return e
+    
+    def _get_action(self, action):
+        """
+        Get the action field for a rule. In SMC 6.6 actions have to be in list
+        format whereas in SMC < 6.6 they were string.
         
+        :param str,list action: provided action in create constructor
+        :rtype: Action
+        :raises CreateRuleFailed: invalid rule based on rule
+        """
+        if isinstance(action, Action):
+            rule_action = action
+        else:
+            rule_action = Action()
+            rule_action.action = action
+        
+        valid_action = False
+        if isinstance(rule_action.action, list):
+            valid_action = all(_action in self._actions for _action in rule_action.action)
+        else:
+            valid_action = rule_action.action in self._actions
+         
+        if not valid_action:
+            raise CreateRuleFailed('Action specified is not valid for this '
+                'rule type; action: {}'.format(rule_action.action))
+        
+        return rule_action
+
 
 class IPv4Rule(RuleCommon, Rule, SubElement):
     """ 
@@ -502,9 +530,13 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
                is_disabled=False, vpn_policy=None, mobile_vpn=False,
                add_pos=None, after=None, before=None,
                sub_policy=None, comment=None, validate=True, **kw):
-        """ 
+        """
         Create a layer 3 firewall rule
-
+        
+        .. versionchanged:: 0.7.0
+            Action field now requires a list of actions as strings when using SMC
+            version >= 6.6.0
+        
         :param str name: name of rule
         :param sources: source/s for rule
         :type sources: list[str, Element]
@@ -514,7 +546,7 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
         :type services: list[str, Element]
         :param action: allow,continue,discard,refuse,enforce_vpn,
             apply_vpn,forward_vpn, blacklist (default: allow)
-        :type action: Action or str
+        :type action: Action,str,list[str]
         :param LogOptions log_options: LogOptions object
         :param ConnectionTracking connection_tracking: custom connection tracking settings
         :param AuthenticationOptions authentication_options: options for auth if any
@@ -542,19 +574,10 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
         :rtype: IPv4Rule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name, comment=comment)
-
-        if isinstance(action, Action):
-            rule_action = action
-        else:
-            rule_action = Action()
-            rule_action.action = action
-
-        if not rule_action.action in self._actions:
-            raise CreateRuleFailed('Action specified is not valid for this '
-                'rule type; action: {}'.format(rule_action.action))
-
-        if rule_action.action in ('apply_vpn', 'enforce_vpn', 'forward_vpn'):
+        
+        rule_action = self._get_action(action)
+        
+        if any(vpn in rule_action.action for vpn in ('apply_vpn', 'enforce_vpn', 'forward_vpn')):
             if vpn_policy is None and not mobile_vpn:
                 raise MissingRequiredInput('You must either specify a vpn_policy or set '
                     'mobile_vpn when using a rule with a VPN action')
@@ -568,7 +591,7 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
                     raise MissingRequiredInput('Cannot find VPN policy specified: {}, '
                         .format(vpn_policy))
         
-        elif rule_action.action == 'jump':
+        elif 'jump' in rule_action.action:
             try:
                 rule_action.sub_policy = element_resolver(sub_policy)
             except ElementNotFound:
@@ -584,10 +607,11 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
             else authentication_options
 
         rule_values.update(
+            name=name, comment=comment,
             action=rule_action.data,
             options=log_options.data,
             authentication_options=auth_options.data,
-            is_disabled=is_disabled)
+            is_disabled=is_disabled, **kw)
 
         params = {'validate': False} if not validate else {}
         href = self.href
@@ -602,7 +626,8 @@ class IPv4Rule(RuleCommon, Rule, SubElement):
             href=href,
             params=params,
             json=rule_values)
-    
+
+
 class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
     """
     Create IPv4 rules for Layer 2 Firewalls
@@ -616,16 +641,19 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
                                                services='any')
     """
     typeof = 'layer2_ipv4_access_rule'
-    _actions = ('allow', 'continue', 'discard',
-                'refuse', 'jump', 'blacklist')
+    _actions = ('allow', 'continue', 'discard', 'refuse', 'jump', 'blacklist')
     
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
-               after=None, before=None, comment=None, validate=True):
+               after=None, before=None, comment=None, validate=True, **kw):
         """
         Create an IPv4 Layer 2 FW rule
-
+        
+        .. versionchanged:: 0.7.0
+            Action field now requires a list of actions as strings when using SMC
+            version >= 6.6.0
+        
         :param str name: name of rule
         :param sources: source/s for rule
         :type sources: list[str, Element]
@@ -653,22 +681,12 @@ class IPv4Layer2Rule(RuleCommon, Rule, SubElement):
         :rtype: IPv4Layer2Rule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name, comment=comment)
         
-        if isinstance(action, Action):
-            rule_action = action
-        else:
-            rule_action = Action()
-            rule_action.action = action
-
-        if not rule_action.action in self._actions:
-            raise CreateRuleFailed('Action specified is not valid for this '
-                'rule type; action: {}'.format(rule_action.action))
-
-        rule_values.update(action=rule_action.data, is_disabled=is_disabled)
-
-        rule_values.update(self.update_logical_if(logical_interfaces))
-
+        rule_action = self._get_action(action)
+        
+        rule_values.update(self.update_logical_if(logical_interfaces), name=name,
+            comment=comment, action=rule_action.data, is_disabled=is_disabled, **kw)
+        
         params = {'validate': False} if not validate else {}
         
         href = self.href
@@ -706,10 +724,14 @@ class EthernetRule(RuleCommon, Rule, SubElement):
     def create(self, name, sources=None, destinations=None,
                services=None, action='allow', is_disabled=False,
                logical_interfaces=None, add_pos=None,
-               after=None, before=None, comment=None, validate=True):
+               after=None, before=None, comment=None, validate=True, **kw):
         """
         Create an Ethernet rule
-
+        
+        .. versionchanged:: 0.7.0
+            Action field now requires a list of actions as strings when using SMC
+            version >= 6.6.0
+        
         :param str name: name of rule
         :param sources: source/s for rule
         :type sources: list[str, Element]
@@ -729,30 +751,19 @@ class EthernetRule(RuleCommon, Rule, SubElement):
         :param str before: Rule tag to add this rule before. Mutually exclusive with ``add_pos``
             and ``after`` params.
         :param bool validate: validate the inspection policy during rule creation. Default: True
-        :raises MissingReuqiredInput: when options are specified the need additional
+        :raises MissingRequiredInput: when options are specified the need additional
             setting, i.e. use_vpn action requires a vpn policy be specified.
         :raises CreateRuleFailed: rule creation failure
         :return: newly created rule
         :rtype: EthernetRule
         """
         rule_values = self.update_targets(sources, destinations, services)
-        rule_values.update(name=name, comment=comment)
         
-        if isinstance(action, Action):
-            rule_action = action
-        else:
-            rule_action = Action()
-            rule_action.action = action
-
-        if not rule_action.action in self._actions:
-            raise CreateRuleFailed('Action specified is not valid for this '
-                                   'rule type; action: {}'
-                                   .format(rule_action.action))
-
-        rule_values.update(action=rule_action.data, is_disabled=is_disabled)
-
-        rule_values.update(self.update_logical_if(logical_interfaces))
-
+        rule_action = self._get_action(action)
+        
+        rule_values.update(self.update_logical_if(logical_interfaces), name=name,
+            comment=comment, action=rule_action.data, is_disabled=is_disabled, **kw)
+        
         params = {'validate': False} if not validate else {}
         
         href = self.href

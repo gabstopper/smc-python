@@ -62,10 +62,6 @@ class VSSContainer(MasterEngine):
         return self.nodes
 
     @property
-    def default_settings(self):
-        return self.make_request(resource='default_settings')
-
-    @property
     def isc_settings(self):
         """
         ISC Settings provide top level information about the VSS

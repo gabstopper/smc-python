@@ -172,6 +172,8 @@ Release History
 - SwitchPhysicalInterface implemented
 - VPNProfile implemented
 - VPN Mobile Gateways for Policy VPN
+- Set default retries parameter on ActiveDirectoryServer to 3 retries
+- Configurable gateway profile for ExternalGateway
  
 
  
