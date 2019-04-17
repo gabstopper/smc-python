@@ -209,7 +209,7 @@ class InterfaceCollection(BaseIterable):
         
         engine.interface.get(10)
     
-    Switch interface direct fetching must include the 'SWP_' prefix as well.
+    Switch interface direct fetching must include the 'SWP\_' prefix as well.
     To get switch interface 0::
     
         engine.interface.get('SWP_0')
@@ -325,7 +325,7 @@ class SwitchInterfaceCollection(InterfaceCollection):
     
     You can also retrieve a switch directly by referencing it using the
     switch interface id. Switch interfaces will always have a name starting
-    with 'SWP_'. For example, SWP_0 specifies physical switch port 0::
+    with 'SWP\_'. For example, SWP_0 specifies physical switch port 0::
     
         engine.switch_physical_interface.get('SWP_0')
     
@@ -346,11 +346,10 @@ class SwitchInterfaceCollection(InterfaceCollection):
                         comment=None, **kwargs):
         """
         In case of Switch Physical/Port Group interfaces, the interface ID must
-        be prefixed by "SWP_". For example, for switch ID 1 and Port Group ID 1.2
-        you must enter SWP_1 for the switch and SWP_1.2 for the Port Group.
-        
-        :param str interface_id: Name of the interface, must be prefixed with
-            'SWP_'
+        be prefixed by 'SWP\_'. For example, for switch ID 1 and Port Group ID 1.2
+        you must enter 'SWP\_1' for the switch and SWP_1.2 for the Port Group.
+         
+        :param str interface_id: Name of the interface, must be prefixed with 'SWP\_'
         :param str appliance_switch_module: appliance switch module which specifies
             the hardware module (default: '110')
         :param str comment: optional comment
@@ -358,6 +357,7 @@ class SwitchInterfaceCollection(InterfaceCollection):
             format if port groups need to be created
         :raises EngineCommandFailed: failure during creation
         :return: None
+
         """
         interface = SwitchPhysicalInterface(engine=self._engine,
             interface_id=interface_id, appliance_switch_module=appliance_switch_module,

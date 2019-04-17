@@ -88,10 +88,11 @@ class VSSContainer(MasterEngine):
         result = self.make_request(
             href=fetch_entry_point('visible_virtual_engine_mapping'),
             params={'filter': self.name})
-        if result.get('mapping', []):
+    
+        if 'mapping' in result:
             return [Element.from_href(ve)
                 for ve in result['mapping'][0].get('virtual_engine', [])]
-        return []
+        return [] # pre-6.5
 
     @property
     def security_groups(self):

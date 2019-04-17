@@ -631,7 +631,8 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
                 'password': password,
                 'life_time': life_time,
                 'key_size': key_length,
-                'algorithm': public_key_algorithm, **kwargs}
+                'algorithm': public_key_algorithm}
+        json.update(kwargs)
     
         tls = ClientProtectionCA.create(name)
         try:

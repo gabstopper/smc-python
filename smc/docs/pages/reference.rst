@@ -5,11 +5,9 @@ API Reference
 Session
 -------
 
-.. automodule:: smc.api.session
-.. autoclass:: Session
-   :members: 
+.. autoclass:: smc.api.session.Session
+	:members:
 
-	
 Element
 -------
 
@@ -794,6 +792,13 @@ VirtualPhysicalInterface
    :members:
    :show-inheritance:
 
+SwitchPhysicalInterface
+***********************
+
+.. autoclass:: SwitchPhysicalInterface
+   :members:
+   :show-inheritance:
+
 TunnelInterface
 ***************
 
@@ -833,6 +838,12 @@ Appliance Status
 ****************
 
 .. autoclass:: smc.core.node.ApplianceStatus
+	:show-inheritance:
+
+ApplianceSwitchModule
+*********************
+
+.. autoclass:: smc.core.hardware.ApplianceSwitchModule
 	:show-inheritance:
 
 Hardware Status
@@ -1427,6 +1438,12 @@ GatewayTunnel
 	:members:
 	:show-inheritance:
 
+ConnectionType
+**************
+
+.. autoclass:: smc.vpn.elements.ConnectionType
+	:members:
+	:show-inheritance:
 
 Collections Reference
 ---------------------

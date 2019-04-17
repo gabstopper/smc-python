@@ -1,20 +1,19 @@
 import atexit
 import logging
-import smc.api.session
-import smc.base.util
-
+from smc.api.session import SessionManager
+from smc.base.util import import_submodules
 
 from .__version__ import __description__, __url__, __version__
 from .__version__ import __author__, __author_email__, __license__
 
 
-manager = smc.api.session.SessionManager.create()
+manager = SessionManager.create()
 atexit.register(manager.close_all)
-
-
+ 
+ 
 session = manager.get_default_session()
-
-
+ 
+ 
 def get_session_by_user(user):
     """
     Get a session specifically by the user name
@@ -93,7 +92,7 @@ def _import_registry():
     # This should be extracted and made dynamic
     for pkg in ('smc.policy', 'smc.elements', 'smc.routing',
                 'smc.vpn', 'smc.administration', 'smc.core'):
-        smc.base.util.import_submodules(pkg)
+        import_submodules(pkg)
 
 _import_registry()
     

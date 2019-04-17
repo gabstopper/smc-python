@@ -16,7 +16,7 @@ and inserts the VPN site into the configuration::
 You can also use the convenience method `update_or_create` on the ExternalGateway
 to fully provision in a single step. Note that the ExternalEndpoint and VPNSite also
 have an `update_or_create` method to limit the update to those respective
-configurations::
+configurations (SMC version 6.4.x)::
 
     >>> from smc.elements.network import Network
     >>> from smc.vpn.elements import ExternalGateway
@@ -39,8 +39,13 @@ configurations::
     ... 
     (VPNSite(name=sitea), [Network(name=network-172.18.1.0/24)])
 
-.. note:: When calling `update_or_create` from the ExternalGateway, providing the
-    parameters for external_endpoints and vpn_site is optional.
+In SMC version >= 6.5, you can also provide the `connection_type_ref` parameter when defining
+the external gateway::
+
+    
+    .. note:: When calling `update_or_create` from the ExternalGateway, providing the
+        parameters for external_endpoints and vpn_site is optional.
+
 """
 
 from smc.api.exceptions import ElementNotFound
@@ -49,7 +54,7 @@ from smc.base.collection import create_collection
 from smc.base.util import element_resolver, element_default
 from smc.elements.helpers import location_helper
 from smc.base.structs import SerializedIterable
-from smc.elements.other import ContactAddress
+from smc.elements.other import ContactAddress, Location
 
 
 class GatewaySettings(Element):
@@ -151,8 +156,8 @@ class ExternalGateway(Element):
         json = {'name': name,
                 'trust_all_cas': trust_all_cas,
                 'gateway_profile': element_resolver(gateway_profile) if gateway_profile\
-                else element_default(GatewayProfile, 'Default'),
-                **kwargs}
+                else element_default(GatewayProfile, 'Default')}
+        json.update(kwargs)
 
         return ElementCreator(cls, json)
 
@@ -264,6 +269,11 @@ class ExternalGateway(Element):
 
 
 class ElementContactAddress(SerializedIterable):
+    """
+    An ElementContactAddress is assigned to an element, such as ExternalGateway.
+    These contact addresses can have multiple location and addresses per element
+    but any single contact address can have only one address associated.
+    """
     def __init__(self, smcresult, subelement):
         self._subelement = subelement # Original element
         self._etag = smcresult.etag
@@ -280,8 +290,12 @@ class ElementContactAddress(SerializedIterable):
             external_endpoint.contact_addresses.create(
                 location=Location('foo'),
                 address='First DHCP Interface ip', dynamic=True)
-                
-        :param str,Location location_ref: href or Location element
+        
+        If you set override_existing=True, any pre-existing contact addresses will
+        be removed, otherwise this is an append operation.
+             
+        :param str,Location location_ref: href or Location element, location is created
+            if provided as a string and it doesn't exist
         :param address: string repesenting address
         :param bool dynamic: whether address is dynamic or static
         :param bool overwrite_existing: whether to keep existing locations or
@@ -290,8 +304,8 @@ class ElementContactAddress(SerializedIterable):
         :raises: ActionCommandFailed
         """
         json=[{'location_ref': location_helper(location_ref),
-              'address': address,
-              'dynamic': dynamic}]
+               'address': address,
+               'dynamic': dynamic}]
         
         if not overwrite_existing:
             json.extend(addr.data for addr in self.items)
@@ -301,51 +315,30 @@ class ElementContactAddress(SerializedIterable):
             method='update',
             etag=self._etag,
             json={'contact_addresses': json})
-#     
-#     def create_many(self, list_of_addresses, preserve_existing=False, **kw):
-#         """
-#         Create many contact addresses. If preserve_existing is set
-#         to true, any existing contact addresses will be preserved,
-#         otherwise overwritten.
-#         
-#         Args should be a list in the following format::
-#         
-#             {
-#               "multi_contact_addresses" : [ {
-#                 "location_ref" : "...",
-#                 "addresses" : [ "...", "..." ]
-#               }, {
-#                 "location_ref" : "...",
-#                 "addresses" : [ "...", "..." ]
-#               } ]
-#             }
-#         
-#             external_endpoint.contact_addresses.create_many(
-#                 [{'location_ref': Location, 'addresses': ['1.1.1.1'], 'dynamic': False},
-#                  {'location_ref': Location2, 'addresses': ['2.2.2.2', '2.2.2.3'], 'dynamic': False}]
-#         
-#         :param bool preserve_existing: preserve any existing contact addresses,
-#             otherwise overwrite
-#         :param list kw: list of individual contact addresses in same format as
-#             `create` constructor
-#         :return: None
-#         :raises: ActionCommandFailed
-#         """
-#         if preserve_existing:
-#             print("Preserve the existing!")
-#         
-#         return self._subelement.make_request(
-#             resource='contact_addresses',
-#             method='update',
-#             etag=self._etag,
-#             json={'multi_contact_addresses': list_of_addresses})
              
-    def delete(self, location=None, address=None):
-        if location or address:
-            pass
+    def delete(self, location_name=None):
+        """
+        Delete a contact address by it's location name. Every ElementContactAddress
+        has a one to one relationship between a location and an address. If the
+        location is not provided, then all contact addresses will be deleted.
+        
+        :param str location_name: name of the location to remove
+        :raises ElementNotFound: location specified does not exist
+        """
+        json={'contact_addresses': []}
+        
+        if location_name:
+            location_ref = Location(location_name).href
+            json.setdefault('contact_addresses',[]).extend(
+                [location.data for location in self if location.location_ref != location_ref])
+        
+        return self._subelement.make_request(
+            resource='contact_addresses',
+            method='update',
+            etag=self._etag,
+            json=json)
 
-
-    
+   
 class ExternalEndpoint(SubElement):
     """
     External Endpoint is used by the External Gateway and defines the IP
@@ -360,12 +353,13 @@ class ExternalEndpoint(SubElement):
     
     .. versionchanged:: 0.7.0
     
-        When using SMC >= 6.5, you should also provide a value for connection_type_ref when
-        creating the element, for example::
+        When using SMC >= 6.5, you can also provide a value for ConnectionType parameter
+        when creating the element, for example::
     
             gw = ExternalGateway('aws')
             gw.external_endpoint.create(name='aws01', address='2.2.2.2', connection_type=ConnectionType('Active'))
     
+    .. seealso:: :class:`~ConnectionType`
     """
     typeof = 'external_endpoint'
     
@@ -391,7 +385,7 @@ class ExternalEndpoint(SubElement):
         :param str ike_phase1_id_value: value of ike_phase1_id. Required if
             ike_phase1_id_type and dynamic set.
         :param ConnectionType connection_type_ref: SMC>=6.5 setting. Specifies the
-            mode for this endpoint; i.e. Active, Aggregate, Standby
+            mode for this endpoint; i.e. Active, Aggregate, Standby. (Default: Active)
         :raises CreateElementFailed: create element with reason
         :return: newly created element
         :rtype: ExternalEndpoint
@@ -406,13 +400,13 @@ class ExternalEndpoint(SubElement):
         
         json.update(kw)
         if dynamic:
-            json.pop('address')
+            json.pop('address', None)
             json.update(
                 ike_phase1_id_type=ike_phase1_id_type,
                 ike_phase1_id_value=ike_phase1_id_value)
         
-        if connection_type_ref:
-            json.update(connection_type_ref=element_resolver(connection_type_ref))
+        json.update(connection_type_ref=element_resolver(connection_type_ref)) if connection_type_ref\
+            else json.update(connection_type_ref=element_default(ConnectionType, 'Active'))
         
         return ElementCreator(
             self.__class__,
@@ -517,8 +511,21 @@ class ExternalEndpoint(SubElement):
         """
         return ElementContactAddress(self.make_request(
             resource='contact_addresses', raw_result=True), self)
+    
+    @property
+    def connection_type_ref(self):
+        """
+        The reference to the connection type for this external endpoint. A
+        connection type specifies how the endpoint will behave in an active,
+        standby or aggregate role.
+        
+        .. note:: This will return None on SMC versions < 6.5
+        
+        :rtype: ConnectionType
+        """
+        return Element.from_href(self.data.get('connection_type_ref'))
 
-
+        
 class VPNSite(SubElement):
     """
     VPN Site information for an internal or test_external gateway
@@ -698,7 +705,7 @@ class VPNProfile(Element):
 class ConnectionType(Element):
     """
     .. versionadded:: 0.7.0
-        Introduced in SMC 6.5 to provide a way to group VPN element types
+        Introduced in SMC >= 6.5 to provide a way to group VPN element types
     
     ConnectionTypes are used in various VPN configurations such as an
     ExternalGateway endpoint element to define how the endpoint should
@@ -711,6 +718,21 @@ class ConnectionType(Element):
     
     @classmethod
     def create(cls, name, mode='active', connectivity_group=1, comment=None):
+        """
+        Create a connection type for an VPN endpoint.
+        ::
+        
+            ConnectionType.create(name='mygroup', mode='standby')
+        
+        :param str name: name of connection type
+        :param str mode: mode of connection type, valid options active, standby,
+            aggregate
+        :param int connectivity_group: integer useed to group multiple connection types
+            into a single monitoring group (default: 1)
+        :param str comment: optional comment
+        :raises CreateElementFailed: reason for failure
+        :rtype: ConnectionType
+        """
         return ElementCreator(cls,
             json={'name': name,
                   'mode': mode,
