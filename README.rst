@@ -139,7 +139,7 @@ and technical reference on available API classes.
 Docs <http://smc-python.readthedocs.io/en/latest/?badge=latest>`__
 
 .. |Documentation Status| image:: https://readthedocs.org/projects/smc-python/badge/?version=latest
-   :target: http://smc-python.readthedocs.io/en/stable/?badge=latest
+   :target: http://smc-python.readthedocs.io/en/latest/?badge=latest
 .. |PyPI version| image:: https://badge.fury.io/py/smc-python.svg
    :target: https://badge.fury.io/py/smc-python
 .. |Python version| image:: https://img.shields.io/pypi/pyversions/smc-python.svg?maxAge=2592000
