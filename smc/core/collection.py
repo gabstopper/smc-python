@@ -218,7 +218,7 @@ class InterfaceCollection(BaseIterable):
     
         engine.switch_physical_interface.get('SWP_0.1')
     
-    Or use delegation to create interfaces::
+    Or use collection helpers to create interfaces::
         
         engine.physical_interface.add(2)
         engine.physical_interface.add_layer3_interface(....)
@@ -520,8 +520,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         Add a capture interface. Capture interfaces are supported on
         Layer 2 FW and IPS engines.
         
-        ..note::
-            Capture interface are supported on Layer 3 FW/clusters for NGFW engines
+        ..note:: Capture interface are supported on Layer 3 FW/clusters for NGFW engines
             version >= 6.3 and SMC >= 6.3.
         
         :param str,int interface_id: interface identifier
@@ -546,12 +545,13 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         Add a layer 3 interface on a non-clustered engine.
         For Layer 2 FW and IPS engines, this interface type represents
         a layer 3 routed (node dedicated) interface. For clusters, use the
-        cluster related methods such as :func:`add_cluster_virtual_interface`
+        cluster related methods such as :func:`add_layer3_cluster_interface`
 
         :param str,int interface_id: interface identifier
         :param str address: ip address
         :param str network_value: network/cidr (12.12.12.0/24)
         :param str zone_ref: zone reference, can be name, href or Zone
+        :param str comment: optional comment
         :param kw: keyword arguments are passed to the sub-interface during
             create time. If the engine is a single FW, the sub-interface type
             is :class:`smc.core.sub_interfaces.SingleNodeInterface`. For all
@@ -561,8 +561,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
-        .. note::
-            If an existing ip address exists on the interface and zone_ref is
+        .. note:: If an existing ip address exists on the interface and zone_ref is
             provided, this value will overwrite any previous zone definition.
         """
         interfaces = {'interface_id': interface_id, 'interfaces':
@@ -581,6 +580,50 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         except InterfaceNotFound:
             interface = Layer3PhysicalInterface(**interfaces)
             return self._engine.add_interface(interface)
+    
+    def add_layer3_shared_virtual_interface(self, interface_id, mac_address_prefix,
+                vlan_id=None, virtual_resource_settings=None, zone_ref=None,
+                comment=None, **kw):
+        """
+        .. versionadded:: 0.7.0
+            Requires SMC >= 6.6.0
+        
+        Add a single layer 3 physical interface on a Master NGFW Engine that
+        can be shared by up to 250 Virtual Firewalls. In addition, VLAN
+        interfaces under the physical interface can be shared.
+        
+        A shared interface can have individual VLANs with single virtual
+        resources but this interface type can provide communication without
+        requiring an external switch (access rules and routing are still
+        required to allow access).
+        
+        If a VLAN id is not provided, then this interface will be shared by
+        the specified virtual resource settings.
+        
+        Virtual resource settings should be a list in the following format::
+        
+            [{'qos_limit': -1,
+              'virtual_mapping': '0',
+              'virtual_resource_name': 've-1'}]
+        
+        The `qos_limit` defines the throughput limit for the given virtual
+        resource (-1 is no limit) in Mbps. The virtual_mapping defines the
+        interface ID that will be seen within the VirtualFirewall. The resource
+        name maps to the VirtualResource and should already exist.                                                                                              
+        
+        .. seealso:: :class:`smc.core.engine.VirtualResource`
+        
+        :param interface_id: the interface ID for the shared interface
+        :param str mac_address_prefix: a unique unicast MAC address prefix
+            (the first five octets of a MAC address) that identifies the
+            interface and groups the Virtual Firewalls that use this interface
+        :param str vlan_id: optional VLAN id if specifying shared VLANs
+        :param list virtual_resource_settings: list of virtual resources by name
+            to add to shared interface
+        :param str zone_ref: zone reference, can be name, href or Zone
+        :param str comment: optional comment
+        """
+        pass
     
     def add_layer3_vlan_interface(self, interface_id, vlan_id, address=None,
         network_value=None, virtual_mapping=None, virtual_resource_name=None,
@@ -750,8 +793,7 @@ class PhysicalInterfaceCollection(InterfaceCollection):
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
-        .. note::
-            If the ``interface_id`` specified already exists, it is still possible
+        .. note:: If the ``interface_id`` specified already exists, it is still possible
             to add additional VLANs and interface addresses.
         """
         interfaces = {'nodes': nodes if nodes else [],
@@ -1000,8 +1042,7 @@ class VirtualPhysicalInterfaceCollection(InterfaceCollection):
         :raises EngineCommandFailed: failure creating interface
         :return: None
 
-        .. note::
-            If an existing ip address exists on the interface and zone_ref is
+        .. note:: If an existing ip address exists on the interface and zone_ref is
             provided, this value will overwrite any previous zone definition.
         """
         interfaces = {'interface_id': interface_id, 'interfaces':

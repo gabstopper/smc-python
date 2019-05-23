@@ -66,11 +66,11 @@ class Engine(Element):
                 nodes=1, loopback_ndi=None,
                 log_server_ref=None,
                 domain_server_address=None,
-                enable_antivirus=False, enable_gti=False,
+                enable_antivirus=False,
                 sidewinder_proxy_enabled=False,
                 default_nat=False, location_ref=None,
                 enable_ospf=None, ospf_profile=None, snmp_agent=None,
-                comment=None):
+                comment=None, **kw):
         """
         Create will return the engine configuration as a dict that is a
         representation of the engine. The creating class will also add
@@ -122,10 +122,10 @@ class Engine(Element):
                     'virus_mirror': 'update.nai.com/Products/CommonUpdater'}}
             base_cfg.update(antivirus)
 
-        if enable_gti:
-            gti = {'gti_settings': {
-                'file_reputation_context': 'gti_cloud_only'}}
-            base_cfg.update(gti)
+#         if enable_gti:
+#             gti = {'gti_settings': {
+#                 'file_reputation_context': 'gti_cloud_only'}}
+#             base_cfg.update(gti)
 
         if sidewinder_proxy_enabled:
             base_cfg.update(sidewinder_proxy_enabled=True)
@@ -153,7 +153,7 @@ class Engine(Element):
             }}
             base_cfg.update(ospf)
         
-        base_cfg.update(comment=comment)
+        base_cfg.update(kw, comment=comment) # Add rest of kwargs
         return base_cfg
     
     @property

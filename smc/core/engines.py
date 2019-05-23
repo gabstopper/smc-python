@@ -9,11 +9,23 @@ from smc.base.model import ElementCreator
     
 class Layer3Firewall(Engine):
     """
+    .. versionchanged:: 0.7.0
+        extra_opts can be passed to the top level engine dict to customize
+        input
+    
     Represents a Layer 3 Firewall configuration.
     A layer 3 single FW is a standalone FW instance (not a cluster). You can
     use the `create` constructor and add interfaces after the engine exists,
     or use `create_bulk` to fully create the engine and interfaces in a single
     operation.
+    
+    You can also pass arbitrary kwargs passed in to the engine dict by providing
+    the `extra_opts` value as a dict. Therefore it can support any custom
+    configurations as long as the format is valid.
+    For example, enabling file reputation on a SMC >= 6.6::
+    
+        extra_opts= {'file_reputation_settings':{'file_reputation_context': 'gti_cloud_only'}}
+    
     """
     typeof = 'single_fw'
 
@@ -21,11 +33,12 @@ class Layer3Firewall(Engine):
     def create_bulk(cls, name, interfaces=None,
                    primary_mgt=None, backup_mgt=None,
                    auth_request=None, log_server_ref=None,
-                   domain_server_address=None,
+                   domain_server_address=None, nodes=1,
+                   node_type='firewall_node',
                    location_ref=None, default_nat=False,
-                   enable_antivirus=False, enable_gti=False,
-                   sidewinder_proxy_enabled=False, enable_ospf=False,
-                   ospf_profile=None, comment=None, snmp=None, **kw):
+                   enable_antivirus=False,  sidewinder_proxy_enabled=False,
+                   enable_ospf=False, ospf_profile=None, comment=None, snmp=None,
+                   extra_opts=None, **kw):
         """
         Create a Layer 3 Firewall providing all of the interface configuration.
         This method provides a way to fully create the engine and all interfaces
@@ -114,20 +127,19 @@ class Layer3Firewall(Engine):
         try:
             engine = super(Layer3Firewall, cls)._create(
                 name=name,
-                node_type='firewall_node',
+                node_type=node_type,
                 physical_interfaces=physical_interfaces,
-                loopback_ndi=kw.get('loopback_ndi', []),
+                loopback_ndi=kw.pop('loopback_ndi', []),
                 domain_server_address=domain_server_address,
                 log_server_ref=log_server_ref,
-                nodes=1, enable_gti=enable_gti,
-                enable_antivirus=enable_antivirus,
+                nodes=nodes, enable_antivirus=enable_antivirus,
                 sidewinder_proxy_enabled=sidewinder_proxy_enabled,
                 default_nat=default_nat,
                 location_ref=location_ref,
                 enable_ospf=enable_ospf,
                 ospf_profile=ospf_profile,
                 snmp_agent=snmp_agent if snmp else None,
-                comment=comment)
+                comment=comment, **extra_opts if extra_opts else {})
 
             return ElementCreator(cls, json=engine)
         
@@ -141,10 +153,11 @@ class Layer3Firewall(Engine):
                default_nat=False,
                reverse_connection=False,
                domain_server_address=None, zone_ref=None,
-               enable_antivirus=False, enable_gti=False,
+               enable_antivirus=False,
                location_ref=None, enable_ospf=False,
                sidewinder_proxy_enabled=False,
-               ospf_profile=None, snmp=None, comment=None, **kw):
+               ospf_profile=None, snmp=None, comment=None, 
+               extra_opts=None, **kw):
         """ 
         Create a single layer 3 firewall with management interface and DNS. 
         Provide the `interfaces` keyword argument if adding multiple additional interfaces.
@@ -175,6 +188,7 @@ class Layer3Firewall(Engine):
             behind NAT (created if not found)
         :param bool enable_ospf: whether to turn OSPF on within engine
         :param str ospf_profile: optional OSPF profile to use on engine, by ref
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :param kw: optional keyword arguments specifying additional interfaces  
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
@@ -198,14 +212,13 @@ class Layer3Firewall(Engine):
             primary_mgt=mgmt_interface,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
-            nodes=1, enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
+            nodes=1, enable_antivirus=enable_antivirus,
             sidewinder_proxy_enabled=sidewinder_proxy_enabled,
             default_nat=default_nat,
             location_ref=location_ref,
             enable_ospf=enable_ospf,
             ospf_profile=ospf_profile, snmp=snmp,
-            comment=comment, **kw)  
+            comment=comment, extra_opts=extra_opts)  
       
     @classmethod
     def create_dynamic(cls, name, interface_id,
@@ -217,10 +230,10 @@ class Layer3Firewall(Engine):
                        location_ref=None,
                        log_server_ref=None,
                        zone_ref=None,
-                       enable_gti=False,
                        enable_antivirus=False,
                        sidewinder_proxy_enabled=False,
-                       default_nat=False, comment=None, **kw):
+                       default_nat=False, comment=None, 
+                       extra_opts=None, **kw):
         """
         Create a single layer 3 firewall with only a single DHCP interface. Useful
         when creating virtualized FW's such as in Microsoft Azure.
@@ -235,8 +248,11 @@ class Layer3Firewall(Engine):
         :param str loopback_ndi: IP address for a loopback NDI. When creating a dynamic engine, the
             `auth_request` must be set to a different interface, so loopback is created
         :param str location_ref: location by name for the engine
-        :param str log_server_ref: log server reference, will use the 
-        
+        :param str log_server_ref: log server reference, will use the default or first retrieved if
+            not specified
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :raises CreateElementFailed: failed to create engine
+        :return: :py:class:`smc.core.engine.Engine`
         """
         interfaces = kw.pop('interfaces', [])
         # Add the primary interface to the interface list
@@ -265,12 +281,11 @@ class Layer3Firewall(Engine):
             loopback_ndi=[loopback.data],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
-            nodes=1, enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
+            nodes=1, enable_antivirus=enable_antivirus,
             sidewinder_proxy_enabled=sidewinder_proxy_enabled,
             default_nat=default_nat,
             location_ref=location_ref,
-            comment=comment, **kw)
+            comment=comment, extra_opts=extra_opts)
 
         
 class Layer2Firewall(Engine):
@@ -291,7 +306,7 @@ class Layer2Firewall(Engine):
                logical_interface='default_eth',
                log_server_ref=None,
                domain_server_address=None, zone_ref=None,
-               enable_antivirus=False, enable_gti=False, comment=None):
+               enable_antivirus=False, comment=None, extra_opts=None, **kw):
         """ 
         Create a single layer 2 firewall with management interface and inline pair
 
@@ -307,7 +322,7 @@ class Layer2Firewall(Engine):
         :param str zone_ref: zone name, str href or Zone for management interface
             (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param bool enable_gti: (optional) Enable GTI
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -336,9 +351,8 @@ class Layer2Firewall(Engine):
             physical_interfaces=interfaces,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
-            nodes=1, enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
-            comment=comment)
+            nodes=1, enable_antivirus=enable_antivirus,
+            comment=comment, **extra_opts if extra_opts else {})
         
         try:
             return ElementCreator(cls, json=engine)
@@ -357,7 +371,7 @@ class IPS(Engine):
     def create(cls, name, mgmt_ip, mgmt_network, mgmt_interface=0,
                inline_interface='1-2', logical_interface='default_eth',
                log_server_ref=None, domain_server_address=None, zone_ref=None,
-               enable_antivirus=False, enable_gti=False, comment=None):
+               enable_antivirus=False, comment=None, extra_opts=None, **kw):
         """ 
         Create a single IPS engine with management interface and inline pair
 
@@ -373,7 +387,7 @@ class IPS(Engine):
         :param str zone_ref: zone name, str href or Zone for management interface
             (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param bool enable_gti: (optional) Enable GTI
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -402,9 +416,8 @@ class IPS(Engine):
             physical_interfaces=interfaces,
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
-            nodes=1, enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
-            comment=comment)
+            nodes=1, enable_antivirus=enable_antivirus,
+            comment=comment, **extra_opts if extra_opts else {})
 
         try:
             return ElementCreator(cls, json=engine)
@@ -436,7 +449,7 @@ class Layer3VirtualEngine(Engine):
     def create(cls, name, master_engine, virtual_resource,
                interfaces, default_nat=False, outgoing_intf=0,
                domain_server_address=None, enable_ospf=False,
-               ospf_profile=None, comment=None, **kw):
+               ospf_profile=None, comment=None, extra_opts=None, **kw):
         """
         Create a Layer3Virtual engine for a Master Engine. Provide interfaces
         as a list of dict items specifying the interface details in format::
@@ -452,7 +465,8 @@ class Layer3VirtualEngine(Engine):
         :param int outgoing_intf: outgoing interface for VE. Specifies interface number
         :param list interfaces: interfaces mappings passed in
         :param bool enable_ospf: whether to turn OSPF on within engine
-        :param str ospf_profile: optional OSPF profile to use on engine, by ref   
+        :param str ospf_profile: optional OSPF profile to use on engine, by ref
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :raises CreateEngineFailed: Failure to create with reason
         :raises LoadEngineFailed: master engine not found
         :return: :py:class:`smc.core.engine.Engine`
@@ -497,11 +511,10 @@ class Layer3VirtualEngine(Engine):
                 nodes=1, default_nat=default_nat,
                 enable_ospf=enable_ospf,
                 ospf_profile=ospf_profile,
-                comment=comment)
+                comment=comment, **extra_opts if extra_opts else {})
 
             engine.update(virtual_resource=virt_resource_href)
-            # Master Engine provides this service
-            engine.pop('log_server_ref', None)
+            engine.pop('log_server_ref', None) # Master Engine provides this service
         
         try:
             return ElementCreator(cls, json=engine)
@@ -525,8 +538,8 @@ class FirewallCluster(Engine):
     def create_bulk(cls, name, interfaces=None, nodes=2, cluster_mode='balancing',
             primary_mgt=None, backup_mgt=None, primary_heartbeat=None,
             log_server_ref=None, domain_server_address=None, location_ref=None,
-            default_nat=False, enable_antivirus=False, enable_gti=False, comment=None,
-            snmp=None, **kw):
+            default_nat=False, enable_antivirus=False, comment=None,
+            snmp=None, extra_opts=None, **kw):
         """
         Create bulk is called by the `create` constructor when creating a cluster FW.
         This allows for multiple interfaces to be defined and passed in during element
@@ -535,7 +548,6 @@ class FirewallCluster(Engine):
         :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
             `snmp_interface` which is a list of interface IDs, and optionally `snmp_location` which
             is a string with the SNMP location name.
-        
         """
         primary_heartbeat = primary_mgt if not primary_heartbeat else primary_heartbeat
         
@@ -573,26 +585,24 @@ class FirewallCluster(Engine):
                 domain_server_address=domain_server_address,
                 log_server_ref=log_server_ref,
                 location_ref=location_ref,
-                nodes=nodes, enable_gti=enable_gti,
-                enable_antivirus=enable_antivirus,
+                nodes=nodes, enable_antivirus=enable_antivirus,
                 default_nat=default_nat,
                 snmp_agent=snmp_agent if snmp else None,
-                comment=comment)
+                comment=comment, **extra_opts if extra_opts else {})
             engine.update(cluster_mode=cluster_mode)
             
             return ElementCreator(cls, json=engine)
     
         except (ElementNotFound, CreateElementFailed) as e:
             raise CreateEngineFailed(e)
-    
-        
+   
     @classmethod
     def create(cls, name, cluster_virtual, network_value, macaddress,
                interface_id, nodes, vlan_id=None, cluster_mode='balancing',
                backup_mgt=None, primary_heartbeat=None, log_server_ref=None,
                domain_server_address=None, location_ref=None, zone_ref=None,
-               default_nat=False, enable_antivirus=False, enable_gti=False,
-               comment=None, snmp=None, **kw):
+               default_nat=False, enable_antivirus=False,
+               comment=None, snmp=None, extra_opts=None, **kw):
         """
         Create a layer 3 firewall cluster with management interface and any number
         of nodes. If providing keyword arguments to create additional interfaces,
@@ -624,11 +634,11 @@ class FirewallCluster(Engine):
         :param str zone_ref: zone name, str href or Zone for management interface
             (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param bool enable_gti: (optional) Enable GTI
         :param list interfaces: optional keyword to supply additional interfaces
         :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
             `snmp_interface` which is a list of interface IDs, and optionally `snmp_location` which
             is a string with the SNMP location name.
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
 
@@ -723,8 +733,8 @@ class FirewallCluster(Engine):
             log_server_ref=log_server_ref,
             domain_server_address=domain_server_address,
             location_ref=location_ref, default_nat=default_nat,
-            enable_antivirus=enable_antivirus, enable_gti=enable_gti,
-            comment=comment, snmp=snmp, **kw)
+            enable_antivirus=enable_antivirus,
+            comment=comment, snmp=snmp, **extra_opts if extra_opts else {})
  
        
 class MasterEngine(Engine):
@@ -738,8 +748,8 @@ class MasterEngine(Engine):
     def create(cls, name, master_type, mgmt_ip, mgmt_network,
                mgmt_interface=0,
                log_server_ref=None, zone_ref=None,
-               domain_server_address=None, enable_gti=False,
-               enable_antivirus=False, comment=None):
+               domain_server_address=None,
+               enable_antivirus=False, comment=None, extra_opts=None, **kw):
         """
         Create a Master Engine with management interface
 
@@ -751,7 +761,7 @@ class MasterEngine(Engine):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param bool enable_gti: (optional) Enable GTI
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -768,9 +778,8 @@ class MasterEngine(Engine):
             physical_interfaces=[{'physical_interface':interface}],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
-            nodes=1, enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
-            comment=comment)
+            nodes=1, enable_antivirus=enable_antivirus,
+            comment=comment, **extra_opts if extra_opts else {})
 
         engine.update(master_type=master_type,
                       cluster_mode='standby')
@@ -792,8 +801,8 @@ class MasterEngineCluster(Engine):
     
     @classmethod
     def create(cls, name, master_type, macaddress, nodes, mgmt_interface=0,
-        log_server_ref=None, domain_server_address=None, enable_gti=False,
-        enable_antivirus=False, comment=None, **kw):
+        log_server_ref=None, domain_server_address=None,
+        enable_antivirus=False, comment=None, extra_opts=None, **kw):
         """
         Create Master Engine Cluster
 
@@ -806,7 +815,7 @@ class MasterEngineCluster(Engine):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param bool enable_gti: (optional) Enable GTI
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
 
@@ -840,9 +849,8 @@ class MasterEngineCluster(Engine):
             physical_interfaces=[{'physical_interface': interface}],
             domain_server_address=domain_server_address,
             log_server_ref=log_server_ref,
-            nodes=len(nodes), enable_gti=enable_gti,
-            enable_antivirus=enable_antivirus,
-            comment=comment)
+            nodes=len(nodes), enable_antivirus=enable_antivirus,
+            comment=comment, **extra_opts if extra_opts else {})
 
         engine.update(master_type=master_type,
                       cluster_mode='standby')

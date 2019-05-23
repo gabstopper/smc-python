@@ -233,6 +233,20 @@ class Location(Element):
                 self.make_request(resource='search_nated_elements_from_location')]
 
 
+class Geolocation(Element):
+    """
+    Geolocation objects are mutable as of SMC version 6.6
+    
+    """
+    typeof = 'geolocation'
+    
+    @classmethod
+    def create(cls, name, latitude, longitude, country_code='US', **kw):
+        json = {'name': name, 'latitude': latitude, 'longitude': longitude,
+            'country_code': country_code, **kw}
+        return ElementCreator(cls, json)
+
+
 class LogicalInterface(Element):
     """
     Logical interface is used on either inline or capture interfaces. If an

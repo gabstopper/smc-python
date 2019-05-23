@@ -4,10 +4,11 @@ Created on Aug 26, 2017
 @author: davidlepage
 '''
 from smc_monitoring.monitors.blacklist import BlacklistQuery
-from smc_monitoring.models.filters import InFilter
+from smc_monitoring.models.filters import InFilter, TranslatedFilter
 from smc_monitoring.models.constants import LogField, Actions, Alerts, DataType
 from smc_monitoring.models.values import FieldValue, IPValue, ServiceValue,\
-    ElementValue, StringValue, ConstantValue, Value
+    ElementValue, StringValue, ConstantValue, Value, NumberValue,\
+    TranslatedValue
 from smc import session
 from smc_monitoring.monitors.connections import ConnectionQuery
 from smc_monitoring.monitors.logs import LogQuery
@@ -87,10 +88,28 @@ if __name__ == '__main__':
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
     
     
-    query = LogQuery(http_proxy_host='1.1.1.1')
-    for log in query.fetch_live():
-        print(log)
-        
+#     query = LogQuery(http_proxy_host='1.1.1.1')
+#     for log in query.fetch_live():
+#         print(log)
+
+    class Foo(object):
+        def __init__(self, value):
+            self.value = [value]
+    
+    
+    t_filter = TranslatedFilter()
+    t_filter.update_filter('$Situation==516')
+    
+    query = ActiveAlertQuery('Shared Domain', timezone='Berlin/Europe')
+    #query.update_filter(t_filter)
+    query.add_in_filter(
+        )
+
+    for record in query.fetch_batch():
+        print(record)
+    
+    
+    import sys    
     sys.exit(1)
     websocket.enableTrace(True)
   

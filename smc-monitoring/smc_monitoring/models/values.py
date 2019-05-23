@@ -170,12 +170,10 @@ class StringValue(Value):
         super(StringValue, self).__init__(value)
         
            
-class NumberValue(object):
+class NumberValue(Value):
     pass
 
 
-class TranslatedValue(object):
-    def __init__(self, value):
-        pass
-    
+class TranslatedValue(Value):
+    pass
     

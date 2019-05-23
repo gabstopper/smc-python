@@ -174,6 +174,9 @@ Release History
 - VPN Mobile Gateways for Policy VPN
 - Set default retries parameter on ActiveDirectoryServer to 3 retries
 - Configurable gateway profile for ExternalGateway
+- Geolocation objects (SMC 6.6)
+- Update of docs for smc-python-monitoring
+
  
 
  

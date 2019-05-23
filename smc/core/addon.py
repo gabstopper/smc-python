@@ -161,7 +161,8 @@ class FileReputation(NestedDict):
     .. note:: You must call engine.update() to commit any changes.
     """
     def __init__(self, engine):
-        gti = engine.data.get('gti_settings', {})
+        gti = engine.data.get('gti_settings') or \
+            engine.data.get('file_reputation_settings', {})
         super(FileReputation, self).__init__(data=gti)
     
     def disable(self):

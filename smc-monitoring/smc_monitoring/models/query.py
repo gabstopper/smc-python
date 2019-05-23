@@ -96,6 +96,15 @@ class Query(object):
         see the syntax is to create a filter in SMC under Logs view and
         right click->Show Expression.
         
+        Example to fetch a specific Situation from the Active Alerts::
+        
+            t_filter.update_filter('$Situation==516')
+            query = ActiveAlertQuery('Shared Domain', timezone='Berlin/Europe')
+            query.update_filter(t_filter)
+        
+            for record in query.fetch_batch():
+                print(record)
+        
          .. seealso:: :class:`smc_monitoring.models.filters.TranslatedFilter` for examples.
          
         :param values: optional constructor args for
