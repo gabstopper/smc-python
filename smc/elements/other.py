@@ -237,13 +237,15 @@ class Geolocation(Element):
     """
     Geolocation objects are mutable as of SMC version 6.6
     
+    .. versionadded:: 0.7.0
     """
     typeof = 'geolocation'
     
     @classmethod
     def create(cls, name, latitude, longitude, country_code='US', **kw):
         json = {'name': name, 'latitude': latitude, 'longitude': longitude,
-            'country_code': country_code, **kw}
+            'country_code': country_code}
+        json.update(kw)
         return ElementCreator(cls, json)
 
 

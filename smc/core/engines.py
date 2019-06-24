@@ -188,7 +188,7 @@ class Layer3Firewall(Engine):
             behind NAT (created if not found)
         :param bool enable_ospf: whether to turn OSPF on within engine
         :param str ospf_profile: optional OSPF profile to use on engine, by ref
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :param kw: optional keyword arguments specifying additional interfaces  
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
@@ -250,7 +250,7 @@ class Layer3Firewall(Engine):
         :param str location_ref: location by name for the engine
         :param str log_server_ref: log server reference, will use the default or first retrieved if
             not specified
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateElementFailed: failed to create engine
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -322,7 +322,7 @@ class Layer2Firewall(Engine):
         :param str zone_ref: zone name, str href or Zone for management interface
             (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -338,8 +338,8 @@ class Layer2Firewall(Engine):
         
         layer3 = {'interface_id': mgmt_interface,
                   'zone_ref': zone_ref,
-             'interfaces': [{'nodes': [
-                 {'address': mgmt_ip, 'network_value': mgmt_network, 'nodeid': 1}]}]
+                  'interfaces': [{'nodes': [
+                      {'address': mgmt_ip, 'network_value': mgmt_network, 'nodeid': 1}]}]
              }
         
         interfaces.append(
@@ -387,7 +387,7 @@ class IPS(Engine):
         :param str zone_ref: zone name, str href or Zone for management interface
             (created if not found)
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -466,7 +466,7 @@ class Layer3VirtualEngine(Engine):
         :param list interfaces: interfaces mappings passed in
         :param bool enable_ospf: whether to turn OSPF on within engine
         :param str ospf_profile: optional OSPF profile to use on engine, by ref
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateEngineFailed: Failure to create with reason
         :raises LoadEngineFailed: master engine not found
         :return: :py:class:`smc.core.engine.Engine`
@@ -638,7 +638,7 @@ class FirewallCluster(Engine):
         :param dict snmp: SNMP dict should have keys `snmp_agent` str defining name of SNMPAgent,
             `snmp_interface` which is a list of interface IDs, and optionally `snmp_location` which
             is a string with the SNMP location name.
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
 
@@ -761,7 +761,7 @@ class MasterEngine(Engine):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
         """
@@ -815,7 +815,7 @@ class MasterEngineCluster(Engine):
         :param str log_server_ref: (optional) href to log_server instance 
         :param list domain_server_address: (optional) DNS server addresses
         :param bool enable_antivirus: (optional) Enable antivirus (required DNS)
-        :param dict extra_opts: extra options as a dict to be passed to the top level engine interface
+        :param dict extra_opts: extra options as a dict to be passed to the top level engine
         :raises CreateEngineFailed: Failure to create with reason
         :return: :py:class:`smc.core.engine.Engine`
 

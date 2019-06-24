@@ -224,7 +224,38 @@ class Engine(Element):
     @location.setter
     def location(self, value):
         self.data.update(location_ref=location_helper(value))
+    
+    @property
+    def geolocation(self):
+        """
+        Return the geolocation for the given engine. This attribute requires
+        at least SMC version >= 6.5.x. If no geolocation is assigned or the
+        SMC is not a correct version this will return None. 
+        If setting a new geolocation, call update() after modification.
         
+        Exmaple::
+        
+            >>> from smc.elements.other import Geolocation
+            >>> engine = Engine('azure')
+        
+            >>> geo = Geolocation.create(name='MyGeo', latitude='44.97997', longitude='-93.26384')
+            >>> geo
+            Geolocation(name=MyGeo)
+            >>> engine.geolocation = geo
+            >>> engine.update()
+            >>> engine.geolocation
+            Geolocation(name=MyGeo)
+
+        :param Geolocation value: Geolocation to assign engine. Can be str
+            href or type Geolocation element.
+        :rtype: Geolocation or None
+        """
+        return self.from_href(getattr(self, 'geolocation_ref', None))
+    
+    @geolocation.setter
+    def geolocation(self, value):
+        self.data.update(geolocation_ref=element_resolver(value))
+    
     @property
     def default_nat(self):
         """

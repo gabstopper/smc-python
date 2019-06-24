@@ -27,6 +27,8 @@ from smc.elements.profiles import SandboxService, SandboxDataCenter
 from smc.base.util import element_resolver
 
 
+#TODO: This module feels like a mess, too many code paths. Options can inherit similar enable/disable/off/on, etc, whatever makes sense
+
 def get_proxy(http_proxy):
     if http_proxy:
         proxies = [element_resolver(proxy) for proxy in http_proxy]
