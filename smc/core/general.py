@@ -38,6 +38,11 @@ class SNMP(object):
     
     @property
     def status(self):
+        """
+        Status of SNMP on this engine
+        
+        :rtype: bool
+        """
         return bool(getattr(self.engine, 'snmp_agent_ref', False))
     
     def disable(self):
@@ -57,6 +62,12 @@ class SNMP(object):
         Enable SNMP on the engine. Specify a list of interfaces
         by ID to enable only on those interfaces. Only interfaces
         that have NDI's are supported.
+        
+        Example of adding SNMP on a port group interface::
+        
+            engine = Engine('azure')
+            engine.snmp.enable(SNMPAgent('myagent'), snmp_interface=['SWP_0.1'])
+            engine.update()
         
         :param str,Element snmp_agent: the SNMP agent reference for this engine
         :param str snmp_location: the SNMP location identifier for the engine

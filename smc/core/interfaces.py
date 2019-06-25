@@ -1180,7 +1180,7 @@ class SwitchPhysicalInterface(Interface):
             del_invalid_routes(self._engine, interface.interface_id)
             
         return self, updated  
-      
+  
     @property
     def appliance_switch_module(self):
         """
@@ -1975,6 +1975,21 @@ class PortGroupInterface(object):
         """
         return self.data.get('switch_physical_interface_port', [])
     
+    @property
+    def ndi_interfaces(self):
+        """
+        Return a formatted dict list of NDI interfaces on this interface.
+        Port Group Interfaces are assigned to a Switch Physical Interface
+        and can be the target of DHCP and SNMP only if they have an IP address
+        assigned.
+        
+        :return: list of dict items [{'address':x, 'nicid':y}]
+        :rtype: list(dict)
+        """
+        return [{'address': interface.address, 'nicid': getattr(self, 'interface_id')}
+            for interface in self.sub_interfaces()
+            if not getattr(interface, 'dynamic_index')]
+        
     
 class VlanInterface(object):
     """

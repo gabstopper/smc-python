@@ -324,6 +324,7 @@ if __name__ == '__main__':
         else:
             if response.get('ExitCode') == 0:
                 print("Completed command successfully, running image: %s" % smc['Image'])
+                time.sleep(30)
             else:
                 print("Command failed: %s" % response)
             break
