@@ -164,12 +164,15 @@ class Layer3Firewall(Engine):
         Interfaces can be one of any valid interface for a layer 3 firewall. Unless the
         interface type is specified, physical_interface is assumed.
         
-        Valid interface types:
+        If providing the `interfaces` keyword during creation, the valid interface
+        types are:
+        
             - physical_interface (default if not specified)
             - tunnel_interface
+            - switch_physical_interface
     
         If providing all engine interfaces in a single operation, see :py:meth:`~create_bulk`
-        for the proper format.
+        for additional examples.
                   
         :param str name: name of firewall engine
         :param str mgmt_ip: ip address of management interface
