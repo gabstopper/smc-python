@@ -534,6 +534,10 @@ class TLSServerCredential(ImportExportIntermediate, ImportPrivateKey,
     
 class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
     """
+    .. versionchanged:: 0.7.0
+    
+        Deprecated `create` method
+    
     Client Protection Certificate Authority elements are used to inspect TLS
     traffic between an internal client and an external server for outbound
     decryption.
@@ -582,9 +586,9 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         :raises IOError: failure to find certificate files specified
         :rtype: ClientProtectionCA
         """
-        ca = ClientProtectionCA.create(name=name)
+        json = {'name': name, 'certificate': certificate}
+        ca = ElementCreator(cls, json)
         try:
-            ca.import_certificate(certificate)
             ca.import_private_key(private_key)
         except CertificateImportError:
             ca.delete()
@@ -592,34 +596,18 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         return ca
     
     @classmethod
-    def create(cls, name):
-        """
-        Create a client protection CA. Once the client protection CA is
-        created, to activate you must then call import_certificate and
-        import_private_key. Or optionally use the convenience classmethod
-        :meth:`~import_signed`.
-        
-        :raises CreateElementFailed: failed to create base Client CA
-        :rtype: ClientProtectionCA
-        """
-        json = {'name': name}
-        
-        return ElementCreator(cls, json)
-
-    @classmethod
-    def create_self_signed(cls, name, password, public_key_algorithm='rsa',
+    def create_self_signed(cls, name, public_key_algorithm='rsa',
             life_time=365, key_length=2048, **kwargs):
         """
         .. versionchanged:: 0.7.0
         
-            `prefix` argument deprecated in SMC > 6.5.1
+            `prefix` and `password` argument deprecated in SMC > 6.5.1.
         
         Create a self signed client protection CA. To prevent browser warnings during
         decryption, you must trust the signing certificate in the client browsers.
         
         :param str name: Name of this ex: "SG Root CA" Used as Key.
             Real common name will be derivated at creation time with a uniqueId.
-        :param str password: password for private key
         :param public_key_algorithm: public key algorithm, either rsa, dsa or ecdsa
         :param str,int life_time: lifetime in days for CA
         :param int key_length: length in bits, either 1024 or 2048
@@ -627,21 +615,15 @@ class ClientProtectionCA(ImportPrivateKey, ImportExportCertificate, Element):
         :raises ActionCommandFailed: failed to self sign the certificate
         :rtype: ClientProtectionCA
         """
-        json = {'key_name': name,
-                'password': password,
-                'life_time': life_time,
-                'key_size': key_length,
-                'algorithm': public_key_algorithm}
-        json.update(kwargs)
-    
-        tls = ClientProtectionCA.create(name)
+        json = {'name': name, 'validity_time': life_time}
+        ca = ElementCreator(cls, json)
         try:
-            tls.make_request(
+            ca.make_request(
                 method='create',
-                json=json,
+                json={'algorithm': public_key_algorithm, 'key_name': name,
+                      'key_size': key_length, 'life_time': life_time},
                 resource='generate_self_signed_cert')
         except ActionCommandFailed:
-            tls.delete()
+            ca.delete()
             raise
-        return tls
-
+        return ca

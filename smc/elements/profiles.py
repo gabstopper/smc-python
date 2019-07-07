@@ -225,15 +225,41 @@ class DNSRelayProfile(Element):
 
 class SNMPAgent(Element):
     """
-    Minimal implementation of SNMPAgent
+    SNMPAgent configuration for monitoring specifics on NGFW.
     """
     typeof = 'snmp_agent'
     
     @classmethod
     def create(cls, name, snmp_monitoring_contact=None,
-               snmp_monitoring_listening_port=161, snmp_version='v3',
-               comment=None):
+               snmp_monitoring_user_name=None, snmp_user_name=None,
+               snmp_monitoring_listening_port=161,
+               snmp_version='v3', comment=None):
+        """
+        Create a new SNMPAgent. If specifying v2c or v3, you can optionally
+        specify snmp_user_name as a list along with snmp_authentication_protocol
+        and snmp_privacy_protocol, otherwise defaults will be selected.
+        The simplest way to create an SNMP Agent is as follows::
         
+            SNMPAgent.update_or_create(name='MyAgent')
+            
+        To customize v3 settings around authentication and privacy protocols
+        you can do::
+        
+           SNMPAgent.create(name='MyAgent123', snmp_monitoring_user_name=['myuser'],
+                snmp_user_name=[{'name': 'myuser', 'snmp_authentication_password': 'abcd1234',
+                                 'snmp_authentication_protocol': 'md5', 'snmp_privacy_protocol': 'aes',
+                                 'snmp_private_password': 'abcd1234'}])
+        
+        ..note:: Check the SMC documentation for additional valid fields.
+        
+        :param str name: name of agent
+        :param str snmp_monitoring_contact: name of monitoring contact
+        :param list snmp_monitoring_user_name: monitoring communities
+        :param list snmp_user_name: SNMP username required when specifying v2c or v3
+        :param int snmp_monitoring_listening_port: default port 161
+        :param str snmp_version: version of snmp, v1, v2c, or v3, default v3
+        :param str comment: optional comment
+        """
         json = {'boot': False,
                 'go_offline': False,
                 'go_online': False,
@@ -243,12 +269,16 @@ class SNMPAgent(Element):
                 'shutdown': False,
                 'snmp_monitoring_contact': snmp_monitoring_contact,
                 'snmp_monitoring_listening_port': snmp_monitoring_listening_port,
-                'snmp_monitoring_user_name': [],
+                'snmp_monitoring_user_name': snmp_monitoring_user_name or ['public'],
                 'snmp_trap_destination': [],
-                'snmp_user_name': [],
+                'snmp_user_name': snmp_user_name or [],
                 'snmp_version': snmp_version,
-                'user_login': False}
+                'user_login': False,
+                'comment': comment}
     
+        if not snmp_user_name: # Username not set, use defaults
+            json.update(snmp_user_name=[{'name': 'public', 'snmp_authentication_protocol': 'none',
+                                         'snmp_privacy_protocol': 'none'}])
         return ElementCreator(cls, json)
     
 

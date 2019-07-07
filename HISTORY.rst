@@ -176,7 +176,8 @@ Release History
 - Configurable gateway profile for ExternalGateway
 - Geolocation objects (SMC 6.6)
 - Update of docs for smc-python-monitoring
-
+- SNMPAgent modified to accommodate SMC >= 6.5.1 requiring snmp_user_name field during creation
+- Support ClientProtectionCA for compatibility with all >= 6.5.x versions
  
 
  
