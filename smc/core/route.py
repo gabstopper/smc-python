@@ -426,7 +426,7 @@ class Routing(RoutingTree):
         return self._add_gateway_node('netlink', routing_node_gateway, network)
 
     def add_ospf_area(self, ospf_area, ospf_interface_setting=None, network=None,
-                      communication_mode='NOT_FORCED', unicast_ref=None):
+                      communication_mode='not_forced', unicast_ref=None):
         """
         Add OSPF Area to this routing node.
 
@@ -446,7 +446,7 @@ class Routing(RoutingTree):
             interface = engine.routing.get(0)
             interface.add_ospf_area(area)
 
-        .. note:: If UNICAST is specified, you must also provide a unicast_ref
+        .. note:: If unicast is specified, you must also provide a unicast_ref
                   of element type Host to identify the remote host. If no
                   unicast_ref is provided, this is skipped
 
@@ -455,17 +455,17 @@ class Routing(RoutingTree):
             OSPF settings for this interface (optional)
         :param str network: if network specified, only add OSPF to this network
             on interface
-        :param str communication_mode: NOT_FORCED|POINT_TO_POINT|PASSIVE|UNICAST
-        :param Element unicast_ref: Element used as unicast gw (required for UNICAST)
+        :param str communication_mode: not_forced|point_to_point|passive|unicast
+        :param Element unicast_ref: Element used as unicast gw (required for unicast)
         :raises ModificationAborted: Change must be made at the interface level
         :raises UpdateElementFailed: failure updating routing
         :raises ElementNotFound: ospf area not found
         :return: Status of whether the route table was updated
         :rtype: bool
         """
-        communication_mode = communication_mode.upper()
+        communication_mode = communication_mode.lower()
         destinations=[] if not ospf_interface_setting else [ospf_interface_setting]
-        if communication_mode == 'UNICAST' and unicast_ref:
+        if communication_mode == 'unicast' and unicast_ref:
             destinations.append(unicast_ref)
         routing_node_gateway = RoutingNodeGateway(
             ospf_area, communication_mode=communication_mode,

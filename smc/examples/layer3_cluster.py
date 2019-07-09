@@ -5,7 +5,6 @@ Before any operations can be done on the SMC, you must first call login, and rem
 after complete::
     
     smc.api.web.session.login('http://172.18.1.150:8082', 'EiGpKD4QxlLJ25dbBEp20001')
-    smc.api.web.session.logout()
     
 This is a Layer 3 Firewall cluster with the following configuration::
     

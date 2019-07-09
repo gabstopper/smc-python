@@ -67,7 +67,7 @@ if __name__ == '__main__':
     Create the VPN Policy
     """
     vpn = PolicyVPN.create(name='myVPN', nat=True)
-    print vpn.name, vpn.vpn_profile
+    print(vpn.name, vpn.vpn_profile)
 
     vpn.open()
     vpn.add_central_gateway(engine.internal_gateway.href)

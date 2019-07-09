@@ -30,6 +30,7 @@ from smc_monitoring.models.query import Query
 
 import logging
 from pprint import pprint
+from smc.base.model import prepared_request
 
     
 logging.getLogger()
@@ -78,7 +79,8 @@ if __name__ == '__main__':
     
     #session.login(url='http://172.18.1.26:8082', api_key='kKphtsbQKjjfHR7amodA0001', timeout=45,
     #              beta=True)
-    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30)
+    session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30, api_version='6.4')
+    
     
     #session.login(url='https://172.18.1.151:8082', api_key='xJRo27kGja4JmPek9l3Nyxm4',
     #              verify=False)
@@ -87,7 +89,17 @@ if __name__ == '__main__':
     
     #TODO: BLACKLISTQUERY fails when using format ID's due to CombinedFilter.
     
+    query = BlacklistQuery('ve-1')
+    query.add_in_filter(
+        FieldValue(LogField.BLACKLISTENTRYSOURCEIP), [IPValue('3.3.3.3/32')])
     
+    for record in query.fetch_as_element():    # <-- must get as element to obtain delete() method
+    #for record in query.fetch_raw():
+        pprint(vars(record))
+        record.delete()
+    #print("Deleting!")
+    #print(prepared_request(href='http://172.18.1.150:8082/6.4/elements/virtual_fw/10677/blacklist/Nzg2NDMz').delete())
+
 #     query = LogQuery(http_proxy_host='1.1.1.1')
 #     for log in query.fetch_live():
 #         print(log)
@@ -95,19 +107,7 @@ if __name__ == '__main__':
     class Foo(object):
         def __init__(self, value):
             self.value = [value]
-    
-    
-    t_filter = TranslatedFilter()
-    t_filter.update_filter('$Situation==516')
-    
-    query = ActiveAlertQuery('Shared Domain', timezone='Berlin/Europe')
-    #query.update_filter(t_filter)
-    query.add_in_filter(
-        )
-
-    for record in query.fetch_batch():
-        print(record)
-    
+        
     
     import sys    
     sys.exit(1)

@@ -32,7 +32,7 @@ if __name__ == '__main__':
     
     from smc import session
     session.login(url='http://172.18.1.150:8082', api_key='EiGpKD4QxlLJ25dbBEp20001', timeout=30,
-                 verify=False, retry_on_busy=True)
+                  verify=False, retry_on_busy=True)
     
     """
     Obtain the policy based on it's type. This example uses a FirewallPolicy
