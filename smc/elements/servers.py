@@ -297,7 +297,31 @@ class DNSServer(Element):
         
         return ElementCreator(cls, json)
 
-   
+class DHCPServer(Element):
+    """
+    An DHCP Server based element. Used in various areas to define External DHCP Server.
+    
+    """   
+
+    typeof = 'dhcp_server'
+
+    @classmethod
+    def create(cls, name, address, comment=None):
+        """
+        Create a DHCP Server element.
+        
+        :param str name: Name of DHCP Server
+        :param str address: IP address for DHCP Server element
+        :param str comment: Comment for DHCP Server element
+        :raises CreateElementFailed: Failed to create with reason
+        :rtype: DHCPServer
+        """        
+        json = {
+            'name': name,
+            'address': address,
+            'comment': comment}
+        return ElementCreator(cls, json)
+
 class ProxyServer(ContactAddressMixin, Element):
     """
     A ProxyServer element is used in the firewall policy to provide the ability to
@@ -456,3 +480,4 @@ class InspectedService(SubElement):
 #             'port': port, 'comment': comment}
 #         data = ElementCache(data=json)
 #         return type(cls.__name__, (cls,), {'data': data})()
+
