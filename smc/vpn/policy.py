@@ -5,6 +5,7 @@ from smc.base.collection import sub_collection
 from smc.vpn.elements import VPNProfile, VPNSite
 from smc.base.decorators import cached_property
 from smc.base.util import element_resolver
+from smc.core.engine import InternalEndpoint
 
 
 class PolicyVPN(Element):
@@ -155,7 +156,6 @@ class PolicyVPN(Element):
             PolicyCommandFailed,
             method='create',
             resource='save')
-        self._del_cache()
 
     def close(self):
         """
@@ -175,10 +175,11 @@ class PolicyVPN(Element):
         Return a validation string from the SMC after running validate on
         this VPN policy.
         
-        :return: status as dict
-        :rtype: dict
+        :return: status as string
+        :rtype: str
         """
-        return self.make_request(resource='validate')
+        return self.make_request(
+            resource='validate').get('value')
 
     @property
     def mobile_vpn_topology(self):
@@ -189,51 +190,54 @@ class PolicyVPN(Element):
         """
         return self.data.get('mobile_vpn_topology_mode')
     
-    def add_mobile_gateway(self, all_central_gateways=False, all_gateways=False,
-                           gateways=None):
+#     @mobile_vpn_topology.setter
+#     def mobile_vpn_topology(self, value):
+#         self.data.update(mobile_vpn_topology_mode=value)
+    
+#     @mobile_vpn_topology.setter
+#     def mobile_vpn_topology(self, value):
+#         self.update(mobile_vpn_topology_mode=value)
+#         if self.mobile_vpn_topology == 'None' and value.startswith('Selected'):
+#             self.update(mobile_vpn_topology='Selected Gateways below')
+#             self.make_request(
+#                 PolicyCommandFailed,
+#                 method='create',
+#                 resource='mobile_gateway_node',
+#                 json={'gateway': ClientGateway('VPN Client').href,
+#                       'node_usage': 'mobile'})
+#         elif self.mobile_vpn_topology != value:
+#             self.update(mobile_vpn_topology_mode=value)
+    
+    def add_mobile_gateway(self, gateway):
         """
-        Add a mobile VPN gateway to this policy VPN. You can select all central
-        gateways, all gateways in overall topology or specify a list of gateways
-        to allow for mobile VPN.
-        
+        Add a mobile VPN gateway to this policy VPN. 
         Example of adding or removing a mobile VPN gateway::
         
             policy_vpn = PolicyVPN('myvpn')
-            policy_vpn.update(mobile_vpn_topology_mode='Selected Gateways below')
             policy_vpn.open()
+            policy_vpn.add_mobile_vpn_gateway(ExternalGateway('extgw3'))
             
-            policy_vpn.add_mobile_vpn_gateway(gateways=Engine('azure'))
-            
+            for mobile_gateway in policy_vpn.mobile_gateway_node:
+                if mobile_gateway.gateway == ExternalGateway('extgw3'):
+                    mobile_gateway.delete()
             policy_vpn.save()
             policy_vpn.close()
         
         :param Engine,ExternalGateway gateway: An external gateway, engine or
             href for the mobile gateway
         :raises PolicyCommandFailed: could not add gateway
-        :rtype: None
         """
-        if all_central_gateways:
-            self.update(mobile_vpn_topology_mode='Only central Gateways from overall topology')
-        elif all_gateways:
-            self.update(mobile_vpn_topology_mode='All Gateways from overall topology')
+        try:
+            gateway = gateway.vpn.internal_gateway.href # Engine
+        except AttributeError:
+            gateway = element_resolver(gateway) # External Gateway
         
-        if gateways and self.mobile_vpn_topology != 'Selected Gateways below':
-            raise PolicyCommandFailed('You must first update the policy VPN with '
-                'the Selected Gateways below setting before adding members')
-        
-        if gateways:
-            try:
-                gateway = gateways.vpn.internal_gateway.href # Engine
-            except AttributeError:
-                raise PolicyCommandFailed('VPN endpoint does not appear to '
-                    'be a managed engine: %s' % gateways)
-
-            self.make_request(
-                PolicyCommandFailed,
-                method='create',
-                resource='mobile_gateway_node',
-                json={'gateway': gateway,
-                      'node_usage': 'mobile'})
+        self.make_request(
+            PolicyCommandFailed,
+            method='create',
+            resource='mobile_gateway_node',
+            json={'gateway': gateway,
+                  'node_usage': 'mobile'})
 
     def add_central_gateway(self, gateway):
         """ 
@@ -482,6 +486,29 @@ class GatewayTunnel(SubElement):
         return type('TunnelSideB', (GatewayNode,), {
             'href': self.data.get('gateway_node_2')})()
     
+    @property
+    def endpoint_tunnels(self):
+        """
+        Return all Endpoint tunnels for this gateway tunnel. A tunnel is defined as two end
+        points within the VPN topology. Endpoints are automatically
+        configureed based on whether they are a central gateway or 
+        satellite gateway. This provides access to enabling/disabling
+        and setting the preshared key for the linked endpoints.
+        List all Endpoint tunnel mappings for this policy vpn::
+        
+            for tunnel in policy.tunnels:    
+                tunnela = tunnel.tunnel_side_a
+                tunnelb = tunnel.tunnel_side_b
+                print(tunnela.gateway)
+                print(tunnelb.gateway)
+                for endpointtunnel in tunnel.endpoint_tunnels:
+                    print(endpointtunnel)
+    
+        :rtype: SubElementCollection(GatewayTunnel)
+        """
+        return sub_collection(
+            self.get_relation('gateway_endpoint_tunnel'), EndpointTunnel)
+    
     def __str__(self):
         return '{0}(tunnel_side_a={1},tunnel_side_b={2})'.format(
             self.__class__.__name__, self.tunnel_side_a.name, self.tunnel_side_b.name)
@@ -493,4 +520,63 @@ class GatewayTunnel(SubElement):
 class ClientGateway(Element):
     typeof = 'client_gateway'
 
+class EndpointTunnel(SubElement):
+    """
+    A Endpoint tunnel represents the point to point connection
+    between two IPSEC endpoints in a PolicyVPN configuration. 
+    The tunnel arrangement is based on whether the nodes are placed
+    as a central gateway or a satellite gateway. This provides access
+    to see the point to point connections, whether the link is enabled,
+    and setting the presharred key.
+    """
+
+    def enable_disable(self):
+        """
+        Enable or disable the tunnel link between endpoints.
         
+        :raises UpdateElementFailed: failed with reason
+        :return: None
+        """
+        if self.enabled:
+            self.update(enabled=False)
+        else:
+            self.update(enabled=True)
+    
+    @property
+    def enabled(self):
+        """          
+        Whether the VPN link between endpoints is enabled
+        
+        :rtype: bool
+        """
+        return self.data.get('enabled', False)
+    
+    
+    @property
+    def internal_endpoint_side_a(self):
+        """
+        Return the Internal Endpoint for tunnel side A. This will
+        be an instance of InternalEndpoint.
+        
+        :rtype: InternalEndpoint
+        """
+        return type('TunnelSideA', (InternalEndpoint,), {
+            'href': self.data.get('endpoint_1')})()
+    
+    @property
+    def internal_endpoint_side_b(self):
+        """
+        Return the Internal Endpoint for tunnel side B. This will
+        be an instance of InternalEndpoint.
+        
+        :rtype: InternalEndpoint
+        """
+        return type('TunnelSideB', (InternalEndpoint,), {
+            'href': self.data.get('endpoint_2')})()
+    
+    def __str__(self):
+        return '{0}(internal_endpoint_side_a={1},internal_endpoint_side_b={2})'.format(
+            self.__class__.__name__, self.tunnel_side_a.name, self.tunnel_side_b.name)
+
+    def __repr__(self):
+        return str(self)
