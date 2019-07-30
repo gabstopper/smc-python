@@ -5,6 +5,7 @@ from smc.base.collection import sub_collection
 from smc.vpn.elements import VPNProfile, VPNSite
 from smc.base.decorators import cached_property
 from smc.base.util import element_resolver
+from smc.core.engine import InternalEndpoint
 
 
 class PolicyVPN(Element):
@@ -482,6 +483,29 @@ class GatewayTunnel(SubElement):
         return type('TunnelSideB', (GatewayNode,), {
             'href': self.data.get('gateway_node_2')})()
     
+    @property
+    def endpoint_tunnels(self):
+        """
+        Return all Endpoint tunnels for this gateway tunnel. A tunnel is defined as two end
+        points within the VPN topology. Endpoints are automatically
+        configureed based on whether they are a central gateway or 
+        satellite gateway. This provides access to enabling/disabling
+        and setting the preshared key for the linked endpoints.
+        List all Endpoint tunnel mappings for this policy vpn::
+        
+            for tunnel in policy.tunnels:    
+                tunnela = tunnel.tunnel_side_a
+                tunnelb = tunnel.tunnel_side_b
+                print(tunnela.gateway)
+                print(tunnelb.gateway)
+                for endpointtunnel in tunnel.endpoint_tunnels:
+                    print(endpointtunnel)
+    
+        :rtype: SubElementCollection(GatewayTunnel)
+        """
+        return sub_collection(
+            self.get_relation('gateway_endpoint_tunnel'), EndpointTunnel)
+    
     def __str__(self):
         return '{0}(tunnel_side_a={1},tunnel_side_b={2})'.format(
             self.__class__.__name__, self.tunnel_side_a.name, self.tunnel_side_b.name)
@@ -493,4 +517,63 @@ class GatewayTunnel(SubElement):
 class ClientGateway(Element):
     typeof = 'client_gateway'
 
+class EndpointTunnel(SubElement):
+    """
+    A Endpoint tunnel represents the point to point connection
+    between two IPSEC endpoints in a PolicyVPN configuration. 
+    The tunnel arrangement is based on whether the nodes are placed
+    as a central gateway or a satellite gateway. This provides access
+    to see the point to point connections, whether the link is enabled,
+    and setting the presharred key.
+    """
+
+    def enable_disable(self):
+        """
+        Enable or disable the tunnel link between endpoints.
         
+        :raises UpdateElementFailed: failed with reason
+        :return: None
+        """
+        if self.enabled:
+            self.update(enabled=False)
+        else:
+            self.update(enabled=True)
+    
+    @property
+    def enabled(self):
+        """          
+        Whether the VPN link between endpoints is enabled
+        
+        :rtype: bool
+        """
+        return self.data.get('enabled', False)
+    
+    
+    @property
+    def internal_endpoint_side_a(self):
+        """
+        Return the Internal Endpoint for tunnel side A. This will
+        be an instance of InternalEndpoint.
+        
+        :rtype: InternalEndpoint
+        """
+        return type('TunnelSideA', (InternalEndpoint,), {
+            'href': self.data.get('endpoint_1')})()
+    
+    @property
+    def internal_endpoint_side_b(self):
+        """
+        Return the Internal Endpoint for tunnel side B. This will
+        be an instance of InternalEndpoint.
+        
+        :rtype: InternalEndpoint
+        """
+        return type('TunnelSideB', (InternalEndpoint,), {
+            'href': self.data.get('endpoint_2')})()
+    
+    def __str__(self):
+        return '{0}(internal_endpoint_side_a={1},internal_endpoint_side_b={2})'.format(
+            self.__class__.__name__, self.internal_endpoint_side_a.name, self.internal_endpoint_side_b.name)
+
+    def __repr__(self):
+        return str(self)
