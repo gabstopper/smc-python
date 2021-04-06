@@ -3,6 +3,8 @@
 smc-python
 ==========
 
+smc-python has officially been released by Forcepoint and can be found at: https://github.com/forcepoint/fp-ngfw-smc-python
+
 Python based library to provide the ability to interact with the
 Stonesoft Management Center API. Provides automation capabilities for
 any environment that interact with the SMC remotely.
